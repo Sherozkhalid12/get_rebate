@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
+import 'package:get/get.dart' hide FormData, MultipartFile;
+import 'package:dio/dio.dart';
 import 'dart:io';
+import 'dart:convert';
 import 'package:getrebate/app/controllers/auth_controller.dart' as global;
 import 'package:getrebate/app/routes/app_pages.dart';
+import 'package:get_storage/get_storage.dart';
 
 class AddListingController extends GetxController {
+  final Dio _dio = Dio();
+  static const String _baseUrl = 'https://a8b8ef09fa9a.ngrok-free.app/api/v1';
 
   // Form controllers
   final titleController = TextEditingController();
@@ -139,29 +144,151 @@ class AddListingController extends GetxController {
       final authController = Get.find<global.AuthController>();
       final currentUser = authController.currentUser;
       final agentId = currentUser?.id ?? '';
+      final authToken = GetStorage().read('auth_token');
 
       if (agentId.isEmpty) {
         Get.snackbar('Error', 'Please login to create a listing');
         return;
       }
 
-      // Simulate API call
-      await Future.delayed(const Duration(seconds: 2));
+      // Prepare form data
+      final formData = FormData();
 
-      Get.snackbar(
-        'Success',
-        'Listing created successfully!',
-        backgroundColor: Colors.green,
-        colorText: Colors.white,
-      );
+      // Add text fields
+      formData.fields.addAll([
+        MapEntry('propertyTitle', titleController.text.trim()),
+        MapEntry('description', descriptionController.text.trim()),
+        MapEntry('price', priceController.text.trim()),
+        MapEntry('BACPercentage', _bacPercent.value.toString()),
+        MapEntry('listingAgent', (_isListingAgent.value ?? false).toString()),
+        MapEntry('dualAgencyAllowed', _dualAgencyAllowed.value.toString()),
+        MapEntry('streetAddress', addressController.text.trim()),
+        MapEntry('city', cityController.text.trim()),
+        MapEntry('state', stateController.text.trim()),
+        MapEntry('zipCode', zipCodeController.text.trim()),
+        MapEntry('id', agentId),
+      ]);
 
-      // Navigate to agent home page
-      Get.offAllNamed(AppPages.AGENT);
+      // Format open houses as JSON array
+      if (_openHouses.isNotEmpty) {
+        final openHousesJson = _openHouses.map((oh) {
+          final dateStr = oh.date.toIso8601String().split('T')[0]; // YYYY-MM-DD
+          final startTimeStr = _formatTimeOfDay(oh.startTime);
+          final endTimeStr = _formatTimeOfDay(oh.endTime);
+
+          return {
+            'date': dateStr,
+            'fromTime': startTimeStr,
+            'toTime': endTimeStr,
+            'notes': oh.notes,
+          };
+        }).toList();
+
+        formData.fields.add(MapEntry('openHouses', jsonEncode(openHousesJson)));
+      } else {
+        formData.fields.add(MapEntry('openHouses', jsonEncode([])));
+      }
+
+      // Add property photos (files)
+      for (var photo in _selectedPhotos) {
+        final fileName = photo.path.split('/').last;
+        formData.files.add(
+          MapEntry(
+            'propertyPhotos',
+            await MultipartFile.fromFile(photo.path, filename: fileName),
+          ),
+        );
+      }
+
+      print('🚀 Sending POST request to: $_baseUrl/agent/createListing/');
+      print('📤 Request Data:');
+      print('  - propertyTitle: ${titleController.text.trim()}');
+      print('  - description: ${descriptionController.text.trim()}');
+      print('  - price: ${priceController.text.trim()}');
+      print('  - BACPercentage: ${_bacPercent.value}');
+      print('  - listingAgent: ${_isListingAgent.value ?? false}');
+      print('  - dualAgencyAllowed: ${_dualAgencyAllowed.value}');
+      print('  - streetAddress: ${addressController.text.trim()}');
+      print('  - city: ${cityController.text.trim()}');
+      print('  - state: ${stateController.text.trim()}');
+      print('  - zipCode: ${zipCodeController.text.trim()}');
+      print('  - id: $agentId');
+      print('  - propertyPhotos: ${_selectedPhotos.length} file(s)');
+      print('  - openHouses: ${_openHouses.length} entry(ies)');
+
+      // Setup Dio with auth token
+      _dio.options.baseUrl = _baseUrl;
+      _dio.options.headers = {
+        'Content-Type': 'multipart/form-data',
+        'ngrok-skip-browser-warning': 'true',
+        if (authToken != null) 'Authorization': 'Bearer $authToken',
+      };
+
+      // Make API call
+      final response = await _dio.post('/agent/createListing/', data: formData);
+
+      // Handle successful response
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        print('✅ SUCCESS - Status Code: ${response.statusCode}');
+        print('📥 Response Data:');
+        print(response.data);
+        print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+        Get.snackbar(
+          'Success',
+          'Listing created successfully!',
+          backgroundColor: Colors.green,
+          colorText: Colors.white,
+        );
+
+        // Navigate to agent home page
+        Get.offAllNamed(AppPages.AGENT);
+      }
+    } on DioException catch (e) {
+      // Handle Dio errors
+      print('❌ ERROR - Status Code: ${e.response?.statusCode ?? "N/A"}');
+      print('📥 Error Response:');
+      print(e.response?.data ?? e.message);
+      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+      String errorMessage = 'Failed to create listing. Please try again.';
+
+      if (e.response != null) {
+        final responseData = e.response?.data;
+        if (responseData is Map && responseData.containsKey('message')) {
+          errorMessage = responseData['message'].toString();
+        } else if (e.response?.statusCode == 401) {
+          errorMessage = 'Unauthorized. Please login again.';
+        } else if (e.response?.statusCode == 400) {
+          errorMessage = 'Invalid request. Please check your input.';
+        } else {
+          errorMessage = e.response?.statusMessage ?? errorMessage;
+        }
+      } else if (e.type == DioExceptionType.connectionTimeout ||
+          e.type == DioExceptionType.receiveTimeout) {
+        errorMessage =
+            'Connection timeout. Please check your internet connection.';
+      } else if (e.type == DioExceptionType.connectionError) {
+        errorMessage = 'No internet connection. Please check your network.';
+      }
+
+      Get.snackbar('Error', errorMessage);
     } catch (e) {
+      print('❌ Unexpected Error: ${e.toString()}');
+      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       Get.snackbar('Error', 'Failed to create listing: ${e.toString()}');
     } finally {
       _isLoading.value = false;
     }
+  }
+
+  String _formatTimeOfDay(TimeOfDay time) {
+    final hour = time.hour;
+    final minute = time.minute;
+    final period = hour >= 12 ? 'PM' : 'AM';
+    final displayHour = hour > 12 ? hour - 12 : (hour == 0 ? 12 : hour);
+    final displayMinute = minute.toString().padLeft(2, '0');
+    return '$displayHour:$displayMinute $period';
   }
 
   bool _validateForm() {

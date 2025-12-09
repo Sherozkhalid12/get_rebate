@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:dio/dio.dart';
+import 'package:get_storage/get_storage.dart';
 import 'package:getrebate/app/models/zip_code_model.dart';
 import 'package:getrebate/app/models/agent_listing_model.dart';
 import 'package:getrebate/app/models/subscription_model.dart';
@@ -9,6 +11,10 @@ import 'package:getrebate/app/controllers/auth_controller.dart' as global;
 import 'dart:math';
 
 class AgentController extends GetxController {
+  // API
+  final Dio _dio = Dio();
+  final _storage = GetStorage();
+  static const String _baseUrl = 'https://a8b8ef09fa9a.ngrok-free.app/api/v1';
 
   // Data
   final _claimedZipCodes = <ZipCodeModel>[].obs;
@@ -68,9 +74,11 @@ class AgentController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    _setupDio();
     _loadMockData(); // Keep mock data for ZIP codes and stats
     _initializeSubscription(); // Initialize subscription
     checkPromoExpiration(); // Check if any promos have expired
+    fetchAgentListings(); // Fetch real listings from API
   }
 
   void _initializeSubscription() {
@@ -98,6 +106,19 @@ class AgentController extends GetxController {
     );
   }
 
+  void _setupDio() {
+    _dio.options.baseUrl = _baseUrl;
+    _dio.options.connectTimeout = const Duration(seconds: 30);
+    _dio.options.receiveTimeout = const Duration(seconds: 30);
+
+    // Get auth token from storage
+    final authToken = _storage.read('auth_token');
+    _dio.options.headers = {
+      'ngrok-skip-browser-warning': 'true',
+      'Content-Type': 'application/json',
+      if (authToken != null) 'Authorization': 'Bearer $authToken',
+    };
+  }
 
   void setSelectedTab(int index) {
     _selectedTab.value = index;
@@ -713,19 +734,83 @@ class AgentController extends GetxController {
     try {
       _isLoading.value = true;
 
-      // Simulate API call
-      await Future.delayed(const Duration(seconds: 1));
+      // Get auth token from storage
+      final authToken = _storage.read('auth_token');
 
-      // Remove listing from local list
-      _myListings.removeWhere((listing) => listing.id == listingId);
+      print('🚀 Deleting listing with ID: $listingId');
+      print('📡 API Endpoint: $_baseUrl/buyer/delete/$listingId');
 
-      Get.snackbar(
-        'Success',
-        'Listing deleted successfully!',
-        backgroundColor: Colors.green,
-        colorText: Colors.white,
+      // Make API call to delete listing with listing ID as path parameter
+      final response = await _dio.delete(
+        '/buyer/delete/$listingId',
+        options: Options(
+          headers: {
+            'ngrok-skip-browser-warning': 'true',
+            'Content-Type': 'application/json',
+            if (authToken != null) 'Authorization': 'Bearer $authToken',
+          },
+        ),
       );
+
+      // Handle successful response
+      if (response.statusCode == 200 ||
+          response.statusCode == 201 ||
+          response.statusCode == 204) {
+        print(
+          '✅ SUCCESS - Listing deleted. Status Code: ${response.statusCode}',
+        );
+        print('📥 Response Data:');
+        print(response.data);
+        print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+        // Remove listing from local list
+        _myListings.removeWhere((listing) => listing.id == listingId);
+
+        Get.snackbar(
+          'Success',
+          'Listing deleted successfully!',
+          backgroundColor: Colors.green,
+          colorText: Colors.white,
+        );
+
+        // Refresh listings from API to ensure consistency
+        await fetchAgentListings();
+      }
+    } on DioException catch (e) {
+      // Handle Dio errors
+      print('❌ ERROR - Status Code: ${e.response?.statusCode ?? "N/A"}');
+      print('📥 Error Response:');
+      print(e.response?.data ?? e.message);
+      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+      String errorMessage = 'Failed to delete listing. Please try again.';
+
+      if (e.response != null) {
+        final responseData = e.response?.data;
+        if (responseData is Map && responseData.containsKey('message')) {
+          errorMessage = responseData['message'].toString();
+        } else if (e.response?.statusCode == 401) {
+          errorMessage = 'Unauthorized. Please login again.';
+        } else if (e.response?.statusCode == 404) {
+          errorMessage = 'Listing not found. It may have already been deleted.';
+          // Still remove from local list if 404 and refresh
+          _myListings.removeWhere((listing) => listing.id == listingId);
+          await fetchAgentListings();
+        } else if (e.response?.statusCode == 403) {
+          errorMessage = 'You do not have permission to delete this listing.';
+        }
+      } else if (e.type == DioExceptionType.connectionTimeout ||
+          e.type == DioExceptionType.receiveTimeout) {
+        errorMessage =
+            'Connection timeout. Please check your internet connection.';
+      } else if (e.type == DioExceptionType.connectionError) {
+        errorMessage = 'No internet connection. Please check your network.';
+      }
+
+      Get.snackbar('Error', errorMessage);
     } catch (e) {
+      print('❌ Unexpected Error: ${e.toString()}');
+      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       Get.snackbar('Error', 'Failed to delete listing: ${e.toString()}');
     } finally {
       _isLoading.value = false;
@@ -752,6 +837,9 @@ class AgentController extends GetxController {
             ? 'activated'
             : 'deactivated';
         Get.snackbar('Success', 'Listing $status successfully!');
+
+        // Refresh listings from API
+        await fetchAgentListings();
       }
     } catch (e) {
       Get.snackbar('Error', 'Failed to update listing status: ${e.toString()}');
@@ -803,4 +891,108 @@ class AgentController extends GetxController {
       _myListings.where((l) => l.marketStatus == MarketStatus.sold).length;
   int get staleListingsCount => _myListings.where((l) => l.isStale).length;
 
+  // Fetch listings from API
+  Future<void> fetchAgentListings() async {
+    try {
+      _isLoading.value = true;
+
+      // Get agent ID from AuthController
+      final authController = Get.find<global.AuthController>();
+      final agentId = authController.currentUser?.id;
+
+      if (agentId == null || agentId.isEmpty) {
+        print('⚠️ No agent ID found. Cannot fetch listings.');
+        Get.snackbar(
+          'Error',
+          'Unable to fetch listings. Please login again.',
+          backgroundColor: Colors.orange,
+          colorText: Colors.white,
+        );
+        return;
+      }
+
+      print('🚀 Fetching listings for agent ID: $agentId');
+      print('📡 API Endpoint: $_baseUrl/agent/getListingByAgentId/$agentId');
+
+      // Make API call
+      final response = await _dio.get(
+        '/agent/getListingByAgentId/$agentId',
+        options: Options(
+          headers: {
+            'ngrok-skip-browser-warning': 'true',
+            'Content-Type': 'application/json',
+          },
+        ),
+      );
+
+      // Handle successful response
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        print('✅ SUCCESS - Status Code: ${response.statusCode}');
+        print('📥 Response Data:');
+        print(response.data);
+        print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+        final responseData = response.data;
+        final success = responseData['success'] ?? false;
+        final listingsData = responseData['listings'] as List<dynamic>? ?? [];
+
+        if (success && listingsData.isNotEmpty) {
+          // Parse listings from API response
+          final listings = listingsData
+              .map(
+                (listingJson) => AgentListingModel.fromApiJson(
+                  listingJson as Map<String, dynamic>,
+                ),
+              )
+              .toList();
+
+          _myListings.value = listings;
+          print('✅ Loaded ${listings.length} listings from API');
+        } else {
+          // No listings found
+          _myListings.value = [];
+          print('ℹ️ No listings found for this agent');
+        }
+      }
+    } on DioException catch (e) {
+      // Handle Dio errors
+      print('❌ ERROR - Status Code: ${e.response?.statusCode ?? "N/A"}');
+      print('📥 Error Response:');
+      print(e.response?.data ?? e.message);
+      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+      String errorMessage = 'Failed to fetch listings. Please try again.';
+
+      if (e.response != null) {
+        final responseData = e.response?.data;
+        if (responseData is Map && responseData.containsKey('message')) {
+          errorMessage = responseData['message'].toString();
+        } else if (e.response?.statusCode == 401) {
+          errorMessage = 'Unauthorized. Please login again.';
+        } else if (e.response?.statusCode == 404) {
+          // 404 is okay - just means no listings found
+          _myListings.value = [];
+          print('ℹ️ No listings found (404)');
+          return;
+        }
+      } else if (e.type == DioExceptionType.connectionTimeout ||
+          e.type == DioExceptionType.receiveTimeout) {
+        errorMessage =
+            'Connection timeout. Please check your internet connection.';
+      } else if (e.type == DioExceptionType.connectionError) {
+        errorMessage = 'No internet connection. Please check your network.';
+      }
+
+      // Only show error if it's not a 404 (which is acceptable)
+      if (e.response?.statusCode != 404) {
+        Get.snackbar('Error', errorMessage);
+      }
+    } catch (e) {
+      print('❌ Unexpected Error: ${e.toString()}');
+      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      Get.snackbar('Error', 'Failed to fetch listings: ${e.toString()}');
+    } finally {
+      _isLoading.value = false;
+    }
+  }
 }
