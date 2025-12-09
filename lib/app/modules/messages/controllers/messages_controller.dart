@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:getrebate/app/controllers/auth_controller.dart';
+import 'package:getrebate/app/models/user_model.dart';
 
 class MessageModel {
   final String id;
@@ -128,6 +130,14 @@ class MessagesController extends GetxController {
   // Message input
   final messageController = TextEditingController();
 
+  // Auth controller
+  late final AuthController _authController;
+
+  // Check if current user is loan officer
+  bool get isLoanOfficer {
+    return _authController.currentUser?.role == UserRole.loanOfficer;
+  }
+
   // Getters
   List<ConversationModel> get conversations => _conversations;
   List<MessageModel> get messages => _messages;
@@ -138,6 +148,7 @@ class MessagesController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    _authController = Get.find<AuthController>();
     _loadArguments();
     _loadMockData();
   }
@@ -177,100 +188,202 @@ class MessagesController extends GetxController {
   }
 
   void _loadMockData() {
-    // Mock conversations
-    _conversations.value = [
-      ConversationModel(
-        id: 'conv_1',
-        senderId: 'agent_1',
-        senderName: 'Sarah Johnson',
-        senderType: 'agent',
-        senderImage: 'https://i.pravatar.cc/150?img=1',
-        lastMessage:
-            'I have a great property that matches your criteria. Would you like to schedule a viewing?',
-        lastMessageTime: DateTime.now().subtract(const Duration(minutes: 30)),
-        unreadCount: 2,
-        propertyAddress: '123 Main St, New York, NY',
-        propertyPrice: '\$750,000',
-      ),
-      ConversationModel(
-        id: 'conv_2',
-        senderId: 'loan_1',
-        senderName: 'Jennifer Davis',
-        senderType: 'loan_officer',
-        senderImage: 'https://i.pravatar.cc/150?img=2',
-        lastMessage:
-            'Your pre-approval is ready! I can offer you a 3.5% rate with our rebate program.',
-        lastMessageTime: DateTime.now().subtract(const Duration(hours: 2)),
-        unreadCount: 1,
-        propertyAddress: '456 Oak Ave, Brooklyn, NY',
-        propertyPrice: '\$650,000',
-      ),
-      ConversationModel(
-        id: 'conv_3',
-        senderId: 'agent_2',
-        senderName: 'Michael Chen',
-        senderType: 'agent',
-        senderImage: 'https://i.pravatar.cc/150?img=3',
-        lastMessage:
-            'Thanks for your interest! I\'ll send you the property details shortly.',
-        lastMessageTime: DateTime.now().subtract(const Duration(hours: 5)),
-        unreadCount: 0,
-        propertyAddress: '789 Pine St, Queens, NY',
-        propertyPrice: '\$580,000',
-      ),
-    ];
-
-    // Mock messages for first conversation
-    _messages.value = [
-      MessageModel(
-        id: 'msg_1',
-        senderId: 'agent_1',
-        senderName: 'Sarah Johnson',
-        senderType: 'agent',
-        senderImage: 'https://i.pravatar.cc/150?img=3',
-        message:
-            'Hi! I saw you\'re looking for a 2-bedroom apartment in Manhattan. I have some great options for you.',
-        timestamp: DateTime.now().subtract(const Duration(hours: 3)),
-        isRead: true,
-        propertyAddress: '123 Main St, New York, NY',
-        propertyPrice: '\$750,000',
-      ),
-      MessageModel(
-        id: 'msg_2',
-        senderId: 'user',
-        senderName: 'You',
-        senderType: 'user',
-        message: 'That sounds great! What\'s the price range?',
-        timestamp: DateTime.now().subtract(
-          const Duration(hours: 2, minutes: 30),
+    // Load different mock data based on user role
+    if (isLoanOfficer) {
+      // Loan officer sees conversations with buyers/sellers
+      _conversations.value = [
+        ConversationModel(
+          id: 'conv_1',
+          senderId: 'buyer_1',
+          senderName: 'John Smith',
+          senderType: 'user',
+          senderImage: 'https://i.pravatar.cc/150?img=5',
+          lastMessage:
+              'Hi! I\'m interested in learning more about your mortgage options. Can you help me with pre-approval?',
+          lastMessageTime: DateTime.now().subtract(const Duration(minutes: 15)),
+          unreadCount: 1,
+          propertyAddress: '123 Main St, New York, NY',
+          propertyPrice: '\$450,000',
         ),
-        isRead: true,
-      ),
-      MessageModel(
-        id: 'msg_3',
-        senderId: 'agent_1',
-        senderName: 'Sarah Johnson',
-        senderType: 'agent',
-        senderImage: 'https://i.pravatar.cc/150?img=3',
-        message:
-            'The properties I have range from \$700k to \$800k. All are in great locations with excellent amenities.',
-        timestamp: DateTime.now().subtract(const Duration(hours: 2)),
-        isRead: true,
-      ),
-      MessageModel(
-        id: 'msg_4',
-        senderId: 'agent_1',
-        senderName: 'Sarah Johnson',
-        senderType: 'agent',
-        senderImage: 'https://i.pravatar.cc/150?img=3',
-        message:
-            'I have a great property that matches your criteria. Would you like to schedule a viewing?',
-        timestamp: DateTime.now().subtract(const Duration(minutes: 30)),
-        isRead: false,
-        propertyAddress: '123 Main St, New York, NY',
-        propertyPrice: '\$750,000',
-      ),
-    ];
+        ConversationModel(
+          id: 'conv_2',
+          senderId: 'buyer_2',
+          senderName: 'Emily Johnson',
+          senderType: 'user',
+          senderImage: 'https://i.pravatar.cc/150?img=6',
+          lastMessage:
+              'Thank you for the information! When can we schedule a call to discuss the loan terms?',
+          lastMessageTime: DateTime.now().subtract(const Duration(hours: 2)),
+          unreadCount: 0,
+          propertyAddress: '456 Oak Ave, Brooklyn, NY',
+          propertyPrice: '\$320,000',
+        ),
+        ConversationModel(
+          id: 'conv_3',
+          senderId: 'buyer_3',
+          senderName: 'Michael Davis',
+          senderType: 'user',
+          senderImage: 'https://i.pravatar.cc/150?img=7',
+          lastMessage:
+              'I have a question about the rebate program. Does your lender allow commission rebates?',
+          lastMessageTime: DateTime.now().subtract(const Duration(hours: 5)),
+          unreadCount: 2,
+          propertyAddress: '789 Pine St, Queens, NY',
+          propertyPrice: '\$580,000',
+        ),
+      ];
+    } else {
+      // Buyer/seller sees conversations with agents/loan officers
+      _conversations.value = [
+        ConversationModel(
+          id: 'conv_1',
+          senderId: 'agent_1',
+          senderName: 'Sarah Johnson',
+          senderType: 'agent',
+          senderImage: 'https://i.pravatar.cc/150?img=1',
+          lastMessage:
+              'I have a great property that matches your criteria. Would you like to schedule a viewing?',
+          lastMessageTime: DateTime.now().subtract(const Duration(minutes: 30)),
+          unreadCount: 2,
+          propertyAddress: '123 Main St, New York, NY',
+          propertyPrice: '\$750,000',
+        ),
+        ConversationModel(
+          id: 'conv_2',
+          senderId: 'loan_1',
+          senderName: 'Jennifer Davis',
+          senderType: 'loan_officer',
+          senderImage: 'https://i.pravatar.cc/150?img=2',
+          lastMessage:
+              'Your pre-approval is ready! I can offer you a 3.5% rate with our rebate program.',
+          lastMessageTime: DateTime.now().subtract(const Duration(hours: 2)),
+          unreadCount: 1,
+          propertyAddress: '456 Oak Ave, Brooklyn, NY',
+          propertyPrice: '\$650,000',
+        ),
+        ConversationModel(
+          id: 'conv_3',
+          senderId: 'agent_2',
+          senderName: 'Michael Chen',
+          senderType: 'agent',
+          senderImage: 'https://i.pravatar.cc/150?img=3',
+          lastMessage:
+              'Thanks for your interest! I\'ll send you the property details shortly.',
+          lastMessageTime: DateTime.now().subtract(const Duration(hours: 5)),
+          unreadCount: 0,
+          propertyAddress: '789 Pine St, Queens, NY',
+          propertyPrice: '\$580,000',
+        ),
+      ];
+    }
+
+    // Mock messages for first conversation - different based on role
+    if (isLoanOfficer && _selectedConversation.value != null) {
+      // Loan officer perspective - buyer is the sender
+      _messages.value = [
+        MessageModel(
+          id: 'msg_1',
+          senderId: _selectedConversation.value!.senderId,
+          senderName: _selectedConversation.value!.senderName,
+          senderType: 'user',
+          senderImage: _selectedConversation.value!.senderImage,
+          message:
+              'Hi! I\'m interested in learning more about your mortgage options. Can you help me with pre-approval?',
+          timestamp: DateTime.now().subtract(const Duration(hours: 2)),
+          isRead: true,
+          propertyAddress: _selectedConversation.value!.propertyAddress,
+          propertyPrice: _selectedConversation.value!.propertyPrice,
+        ),
+        MessageModel(
+          id: 'msg_2',
+          senderId: _authController.currentUser?.id ?? 'loan_officer',
+          senderName: _authController.currentUser?.name ?? 'You',
+          senderType: 'loan_officer',
+          senderImage: _authController.currentUser?.profileImage,
+          message: 'Absolutely! I\'d be happy to help you with pre-approval. Let me gather some information from you.',
+          timestamp: DateTime.now().subtract(
+            const Duration(hours: 1, minutes: 45),
+          ),
+          isRead: true,
+        ),
+        MessageModel(
+          id: 'msg_3',
+          senderId: _selectedConversation.value!.senderId,
+          senderName: _selectedConversation.value!.senderName,
+          senderType: 'user',
+          senderImage: _selectedConversation.value!.senderImage,
+          message:
+              'Great! I\'m looking for a property around \$450,000. What interest rates can you offer?',
+          timestamp: DateTime.now().subtract(const Duration(hours: 1, minutes: 30)),
+          isRead: true,
+        ),
+        MessageModel(
+          id: 'msg_4',
+          senderId: _selectedConversation.value!.senderId,
+          senderName: _selectedConversation.value!.senderName,
+          senderType: 'user',
+          senderImage: _selectedConversation.value!.senderImage,
+          message:
+              'Also, does your lender allow commission rebates? That\'s important to me.',
+          timestamp: DateTime.now().subtract(const Duration(minutes: 15)),
+          isRead: false,
+          propertyAddress: _selectedConversation.value!.propertyAddress,
+          propertyPrice: _selectedConversation.value!.propertyPrice,
+        ),
+      ];
+    } else {
+      // Buyer/seller perspective - agent/loan officer is the sender
+      _messages.value = [
+        MessageModel(
+          id: 'msg_1',
+          senderId: _selectedConversation.value?.senderId ?? 'agent_1',
+          senderName: _selectedConversation.value?.senderName ?? 'Sarah Johnson',
+          senderType: _selectedConversation.value?.senderType ?? 'agent',
+          senderImage: _selectedConversation.value?.senderImage ?? 'https://i.pravatar.cc/150?img=3',
+          message:
+              'Hi! I saw you\'re looking for a 2-bedroom apartment in Manhattan. I have some great options for you.',
+          timestamp: DateTime.now().subtract(const Duration(hours: 3)),
+          isRead: true,
+          propertyAddress: _selectedConversation.value?.propertyAddress,
+          propertyPrice: _selectedConversation.value?.propertyPrice,
+        ),
+        MessageModel(
+          id: 'msg_2',
+          senderId: _authController.currentUser?.id ?? 'user',
+          senderName: 'You',
+          senderType: 'user',
+          message: 'That sounds great! What\'s the price range?',
+          timestamp: DateTime.now().subtract(
+            const Duration(hours: 2, minutes: 30),
+          ),
+          isRead: true,
+        ),
+        MessageModel(
+          id: 'msg_3',
+          senderId: _selectedConversation.value?.senderId ?? 'agent_1',
+          senderName: _selectedConversation.value?.senderName ?? 'Sarah Johnson',
+          senderType: _selectedConversation.value?.senderType ?? 'agent',
+          senderImage: _selectedConversation.value?.senderImage ?? 'https://i.pravatar.cc/150?img=3',
+          message:
+              'The properties I have range from \$700k to \$800k. All are in great locations with excellent amenities.',
+          timestamp: DateTime.now().subtract(const Duration(hours: 2)),
+          isRead: true,
+        ),
+        MessageModel(
+          id: 'msg_4',
+          senderId: _selectedConversation.value?.senderId ?? 'agent_1',
+          senderName: _selectedConversation.value?.senderName ?? 'Sarah Johnson',
+          senderType: _selectedConversation.value?.senderType ?? 'agent',
+          senderImage: _selectedConversation.value?.senderImage ?? 'https://i.pravatar.cc/150?img=3',
+          message:
+              'I have a great property that matches your criteria. Would you like to schedule a viewing?',
+          timestamp: DateTime.now().subtract(const Duration(minutes: 30)),
+          isRead: false,
+          propertyAddress: _selectedConversation.value?.propertyAddress,
+          propertyPrice: _selectedConversation.value?.propertyPrice,
+        ),
+      ];
+    }
   }
 
   void selectConversation(ConversationModel conversation) {
@@ -280,18 +393,135 @@ class MessagesController extends GetxController {
 
   void _loadMessagesForConversation(String conversationId) {
     // In a real app, this would load messages from the server
-    // For now, we'll just show the mock messages
-    _messages.refresh();
+    // For now, we'll reload mock messages based on current role
+    _loadMockMessages();
+  }
+
+  void _loadMockMessages() {
+    if (isLoanOfficer && _selectedConversation.value != null) {
+      // Loan officer perspective - buyer is the sender
+      _messages.value = [
+        MessageModel(
+          id: 'msg_1',
+          senderId: _selectedConversation.value!.senderId,
+          senderName: _selectedConversation.value!.senderName,
+          senderType: 'user',
+          senderImage: _selectedConversation.value!.senderImage,
+          message:
+              'Hi! I\'m interested in learning more about your mortgage options. Can you help me with pre-approval?',
+          timestamp: DateTime.now().subtract(const Duration(hours: 2)),
+          isRead: true,
+          propertyAddress: _selectedConversation.value!.propertyAddress,
+          propertyPrice: _selectedConversation.value!.propertyPrice,
+        ),
+        MessageModel(
+          id: 'msg_2',
+          senderId: _authController.currentUser?.id ?? 'loan_officer',
+          senderName: _authController.currentUser?.name ?? 'You',
+          senderType: 'loan_officer',
+          senderImage: _authController.currentUser?.profileImage,
+          message: 'Absolutely! I\'d be happy to help you with pre-approval. Let me gather some information from you.',
+          timestamp: DateTime.now().subtract(
+            const Duration(hours: 1, minutes: 45),
+          ),
+          isRead: true,
+        ),
+        MessageModel(
+          id: 'msg_3',
+          senderId: _selectedConversation.value!.senderId,
+          senderName: _selectedConversation.value!.senderName,
+          senderType: 'user',
+          senderImage: _selectedConversation.value!.senderImage,
+          message:
+              'Great! I\'m looking for a property around \$450,000. What interest rates can you offer?',
+          timestamp: DateTime.now().subtract(const Duration(hours: 1, minutes: 30)),
+          isRead: true,
+        ),
+        MessageModel(
+          id: 'msg_4',
+          senderId: _selectedConversation.value!.senderId,
+          senderName: _selectedConversation.value!.senderName,
+          senderType: 'user',
+          senderImage: _selectedConversation.value!.senderImage,
+          message:
+              'Also, does your lender allow commission rebates? That\'s important to me.',
+          timestamp: DateTime.now().subtract(const Duration(minutes: 15)),
+          isRead: false,
+          propertyAddress: _selectedConversation.value!.propertyAddress,
+          propertyPrice: _selectedConversation.value!.propertyPrice,
+        ),
+      ];
+    } else if (_selectedConversation.value != null) {
+      // Buyer/seller perspective
+      _messages.value = [
+        MessageModel(
+          id: 'msg_1',
+          senderId: _selectedConversation.value!.senderId,
+          senderName: _selectedConversation.value!.senderName,
+          senderType: _selectedConversation.value!.senderType,
+          senderImage: _selectedConversation.value!.senderImage,
+          message:
+              'Hi! I saw you\'re looking for a 2-bedroom apartment in Manhattan. I have some great options for you.',
+          timestamp: DateTime.now().subtract(const Duration(hours: 3)),
+          isRead: true,
+          propertyAddress: _selectedConversation.value!.propertyAddress,
+          propertyPrice: _selectedConversation.value!.propertyPrice,
+        ),
+        MessageModel(
+          id: 'msg_2',
+          senderId: _authController.currentUser?.id ?? 'user',
+          senderName: 'You',
+          senderType: 'user',
+          message: 'That sounds great! What\'s the price range?',
+          timestamp: DateTime.now().subtract(
+            const Duration(hours: 2, minutes: 30),
+          ),
+          isRead: true,
+        ),
+        MessageModel(
+          id: 'msg_3',
+          senderId: _selectedConversation.value!.senderId,
+          senderName: _selectedConversation.value!.senderName,
+          senderType: _selectedConversation.value!.senderType,
+          senderImage: _selectedConversation.value!.senderImage,
+          message:
+              'The properties I have range from \$700k to \$800k. All are in great locations with excellent amenities.',
+          timestamp: DateTime.now().subtract(const Duration(hours: 2)),
+          isRead: true,
+        ),
+        MessageModel(
+          id: 'msg_4',
+          senderId: _selectedConversation.value!.senderId,
+          senderName: _selectedConversation.value!.senderName,
+          senderType: _selectedConversation.value!.senderType,
+          senderImage: _selectedConversation.value!.senderImage,
+          message:
+              'I have a great property that matches your criteria. Would you like to schedule a viewing?',
+          timestamp: DateTime.now().subtract(const Duration(minutes: 30)),
+          isRead: false,
+          propertyAddress: _selectedConversation.value!.propertyAddress,
+          propertyPrice: _selectedConversation.value!.propertyPrice,
+        ),
+      ];
+    }
   }
 
   void sendMessage() {
     if (messageController.text.trim().isEmpty) return;
 
+    // Determine sender info based on role
+    final currentUser = _authController.currentUser;
+    final senderId = currentUser?.id ?? (isLoanOfficer ? 'loan_officer' : 'user');
+    final senderName = isLoanOfficer ? (currentUser?.name ?? 'You') : 'You';
+    final senderType = isLoanOfficer ? 'loan_officer' : 'user';
+    final senderImage = currentUser?.profileImage;
+
     final message = MessageModel(
       id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
-      senderId: 'user',
-      senderName: 'You',
-      senderType: 'user',
+      senderId: senderId,
+      senderName: senderName,
+      senderType: senderType,
+      senderImage: senderImage,
       message: messageController.text.trim(),
       timestamp: DateTime.now(),
       isRead: true,
@@ -300,20 +530,35 @@ class MessagesController extends GetxController {
     _messages.add(message);
     messageController.clear();
 
-    // Simulate response
-    Future.delayed(const Duration(seconds: 2), () {
-      final response = MessageModel(
-        id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
-        senderId: _selectedConversation.value?.senderId ?? '',
-        senderName: _selectedConversation.value?.senderName ?? '',
-        senderType: _selectedConversation.value?.senderType ?? '',
-        senderImage: _selectedConversation.value?.senderImage,
-        message: 'Thanks for your message! I\'ll get back to you soon.',
-        timestamp: DateTime.now(),
-        isRead: false,
+    // Update conversation last message
+    if (_selectedConversation.value != null) {
+      final convIndex = _conversations.indexWhere(
+        (c) => c.id == _selectedConversation.value!.id,
       );
-      _messages.add(response);
-    });
+      if (convIndex != -1) {
+        _conversations[convIndex] = _selectedConversation.value!.copyWith(
+          lastMessage: message.message,
+          lastMessageTime: message.timestamp,
+        );
+      }
+    }
+
+    // Simulate response only for buyer/seller (not for loan officers)
+    if (!isLoanOfficer) {
+      Future.delayed(const Duration(seconds: 2), () {
+        final response = MessageModel(
+          id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
+          senderId: _selectedConversation.value?.senderId ?? '',
+          senderName: _selectedConversation.value?.senderName ?? '',
+          senderType: _selectedConversation.value?.senderType ?? '',
+          senderImage: _selectedConversation.value?.senderImage,
+          message: 'Thanks for your message! I\'ll get back to you soon.',
+          timestamp: DateTime.now(),
+          isRead: false,
+        );
+        _messages.add(response);
+      });
+    }
   }
 
   void searchConversations(String query) {

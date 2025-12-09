@@ -14,7 +14,7 @@ class LoanOfficerController extends GetxController {
   final _loans = <LoanModel>[].obs;
   final _isLoading = false.obs;
   final _selectedTab = 0
-      .obs; // 0: Dashboard, 1: ZIP Management, 2: Billing, 3: Stats (My Loans tab removed - it's just a lead generation tool)
+      .obs; // 0: Dashboard, 1: Messages, 2: ZIP Management, 3: Billing, 4: Checklists, 5: Stats
 
   // Stats
   final _searchesAppearedIn = 0.obs;

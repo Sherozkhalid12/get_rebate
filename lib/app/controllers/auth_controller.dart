@@ -10,7 +10,7 @@ class AuthController extends GetxController {
   final Dio _dio = Dio();
 
   // API Base URL
-  static const String _baseUrl = 'https://a8b8ef09fa9a.ngrok-free.app/api/v1';
+  static const String _baseUrl = 'https://3a461922e985.ngrok-free.app/api/v1';
 
   // Observable variables
   final _isLoading = false.obs;

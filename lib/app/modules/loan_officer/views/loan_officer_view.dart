@@ -12,6 +12,9 @@ import 'package:getrebate/app/widgets/custom_text_field.dart';
 import 'package:getrebate/app/modules/checklist/controllers/checklist_controller.dart';
 import 'package:getrebate/app/modules/rebate_checklist/controllers/rebate_checklist_controller.dart';
 import 'package:getrebate/app/routes/app_pages.dart';
+import 'package:getrebate/app/modules/messages/views/messages_view.dart';
+import 'package:getrebate/app/modules/messages/bindings/messages_binding.dart';
+import 'package:getrebate/app/modules/messages/controllers/messages_controller.dart';
 
 class LoanOfficerView extends GetView<LoanOfficerController> {
   const LoanOfficerView({super.key});
@@ -72,16 +75,15 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
             Expanded(
               child: _buildTab(context, 'Dashboard', 0, Icons.dashboard),
             ),
-            // My Loans tab commented out - loan officers don't need this, it's just a lead generation tool
-            // Expanded(
-            //   child: _buildTab(context, 'My Loans', 1, Icons.account_balance),
-            // ),
             Expanded(
-              child: _buildTab(context, 'ZIP Codes', 1, Icons.location_on),
+              child: _buildTab(context, 'Messages', 1, Icons.message),
             ),
-            Expanded(child: _buildTab(context, 'Billing', 2, Icons.payment)),
-            Expanded(child: _buildTab(context, 'Checklists', 3, Icons.checklist_rtl)),
-            Expanded(child: _buildTab(context, 'Stats', 4, Icons.analytics)),
+            Expanded(
+              child: _buildTab(context, 'ZIP Codes', 2, Icons.location_on),
+            ),
+            Expanded(child: _buildTab(context, 'Billing', 3, Icons.payment)),
+            Expanded(child: _buildTab(context, 'Checklists', 4, Icons.checklist_rtl)),
+            Expanded(child: _buildTab(context, 'Stats', 5, Icons.analytics)),
           ],
         ),
       ),
@@ -138,16 +140,15 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
       switch (controller.selectedTab) {
         case 0:
           return _buildDashboard(context);
-        // My Loans section commented out - loan officers don't need this, it's just a lead generation tool
-        // case 1:
-        //   return _buildMyLoans(context);
         case 1:
-          return _buildZipManagement(context);
+          return _buildMessages(context);
         case 2:
-          return _buildBilling(context);
+          return _buildZipManagement(context);
         case 3:
-          return _buildChecklists(context);
+          return _buildBilling(context);
         case 4:
+          return _buildChecklists(context);
+        case 5:
           return _buildStats(context);
         default:
           return _buildDashboard(context);
@@ -176,6 +177,15 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
         ],
       ),
     );
+  }
+
+  Widget _buildMessages(BuildContext context) {
+    // Initialize messages binding if not already initialized
+    if (!Get.isRegistered<MessagesController>()) {
+      MessagesBinding().dependencies();
+    }
+    
+    return const MessagesView();
   }
 
   Widget _buildStatsCards(BuildContext context) {

@@ -354,7 +354,11 @@ class MessagesView extends GetView<MessagesController> {
   }
 
   Widget _buildMessageBubble(BuildContext context, MessageModel message) {
-    final isUser = message.senderType == 'user';
+    // For loan officers, messages from loan_officer type are "from me"
+    // For buyers/sellers, messages from user type are "from me"
+    final isUser = controller.isLoanOfficer 
+        ? message.senderType == 'loan_officer'
+        : message.senderType == 'user';
 
     return Row(
       mainAxisAlignment: isUser
@@ -522,7 +526,9 @@ class MessagesView extends GetView<MessagesController> {
             ),
             const SizedBox(height: 12),
             Text(
-              'Start a conversation with agents or loan officers',
+              controller.isLoanOfficer
+                  ? 'You\'ll see messages from buyers and sellers here'
+                  : 'Start a conversation with agents or loan officers',
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                 color: AppTheme.mediumGray,
                 height: 1.5,
