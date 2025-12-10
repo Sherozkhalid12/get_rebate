@@ -9,6 +9,7 @@ import 'package:getrebate/app/widgets/custom_button.dart';
 import 'package:getrebate/app/widgets/agent_card.dart';
 import 'package:getrebate/app/widgets/loan_officer_card.dart';
 import 'package:intl/intl.dart';
+import 'package:getrebate/app/controllers/auth_controller.dart';
 
 class BuyerView extends GetView<BuyerController> {
   const BuyerView({super.key});
@@ -29,13 +30,32 @@ class BuyerView extends GetView<BuyerController> {
             ),
           ),
         ),
-        title: Text(
-          'Home',
-          style: TextStyle(
-            color: AppTheme.white,
-            fontSize: 18.sp,
-            fontWeight: FontWeight.w600,
-          ),
+        title: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Home',
+              style: TextStyle(
+                color: AppTheme.white,
+                fontSize: 18.sp,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            Obx(() {
+              final user = Get.find<AuthController>().currentUser;
+              if (user != null) {
+                return Text(
+                  'User ID: ${user.id}',
+                  style: TextStyle(
+                    color: AppTheme.white.withOpacity(0.8),
+                    fontSize: 10.sp,
+                    fontWeight: FontWeight.normal,
+                  ),
+                );
+              }
+              return const SizedBox.shrink();
+            }),
+          ],
         ),
         centerTitle: true,
       ),

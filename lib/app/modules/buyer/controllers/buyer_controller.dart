@@ -7,11 +7,16 @@ import 'package:getrebate/app/routes/app_pages.dart';
 import 'package:getrebate/app/models/listing.dart';
 import 'package:getrebate/app/models/open_house_model.dart';
 import 'package:getrebate/app/services/listing_service.dart';
+import 'package:getrebate/app/services/agent_service.dart';
 import 'package:getrebate/app/controllers/location_controller.dart';
+import 'package:getrebate/app/controllers/auth_controller.dart';
+import 'package:getrebate/app/modules/messages/controllers/messages_controller.dart';
+import 'package:getrebate/app/utils/api_constants.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 
 class BuyerController extends GetxController {
   final LocationController _locationController = Get.find<LocationController>();
+  final AuthController _authController = Get.find<AuthController>();
 
   // Search
   final searchController = TextEditingController();
@@ -31,6 +36,7 @@ class BuyerController extends GetxController {
 
   // Services
   final ListingService _listingService = InMemoryListingService();
+  final AgentService _agentService = AgentService();
 
   // Getters
   String get searchQuery => _searchQuery.value;
@@ -44,12 +50,48 @@ class BuyerController extends GetxController {
   bool get isLoading => _isLoading.value;
   AgentModel? get selectedBuyerAgent => _selectedBuyerAgent.value;
   bool get hasSelectedAgent => _selectedBuyerAgent.value != null;
+  
 
   @override
   void onInit() {
     super.onInit();
+    _printUserId();
     _loadMockData();
     searchController.addListener(_onSearchChanged);
+    _preloadThreads();
+  }
+
+  /// Preloads chat threads for instant access when user opens messages
+  void _preloadThreads() {
+    // Defer to next frame to avoid setState during build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      try {
+        if (_authController.isLoggedIn && _authController.currentUser != null) {
+          // Initialize messages controller if not already registered
+          if (!Get.isRegistered<MessagesController>()) {
+            Get.put(MessagesController(), permanent: true);
+          }
+          final messagesController = Get.find<MessagesController>();
+          // Load threads in background - don't wait
+          messagesController.refreshThreads();
+          print('🚀 Home: Preloading chat threads in background...');
+        }
+      } catch (e) {
+        print('⚠️ Home: Failed to preload threads: $e');
+      }
+    });
+  }
+
+  void _printUserId() {
+    final user = _authController.currentUser;
+    if (user != null) {
+      print('🏠 Home Screen - User ID: ${user.id}');
+      print('   Email: ${user.email}');
+      print('   Name: ${user.name}');
+      print('   Role: ${user.role}');
+    } else {
+      print('⚠️ Home Screen - No user logged in');
+    }
   }
 
   Future<void> useCurrentLocation() async {
@@ -73,100 +115,58 @@ class BuyerController extends GetxController {
   }
 
   void _loadMockData() async {
-    // Mock agents data
-    _agents.value = [
-      AgentModel(
-        id: 'agent_1',
-        name: 'Sarah Johnson',
-        email: 'sarah@example.com',
-        phone: '+1 (555) 123-4567',
-        brokerage: 'Premier Realty Group',
-        licenseNumber: '123456',
-        licensedStates: ['NY', 'NJ'],
-        claimedZipCodes: ['10001', '10002', '10003'],
-        bio:
-        'Experienced real estate agent specializing in luxury properties with over 10 years of experience in Manhattan and Brooklyn markets.',
-        rating: 4.8,
-        reviewCount: 127,
-        searchesAppearedIn: 45,
-        profileViews: 234,
-        contacts: 89,
-        createdAt: DateTime.now().subtract(const Duration(days: 365)),
-        isVerified: true,
-        platformRating: 4.9,
-        platformReviewCount: 23,
-        videoUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
-        expertise: [
-          'Luxury Properties',
-          'First-Time Buyers',
-          'Investment Properties',
-          'Relocation Specialist',
-          'New Construction'
-        ],
-        websiteUrl: 'https://sarahjohnsonrealty.com',
-        googleReviewsUrl: 'https://g.page/r/CdXQQQQQQQQQEBM/review',
-        thirdPartyReviewsUrl: 'https://www.zillow.com/profile/sarahjohnson',
-        externalReviewsUrl: 'https://www.realtor.com/agent/sarah-johnson',
-      ),
-      AgentModel(
-        id: 'agent_2',
-        name: 'Michael Chen',
-        email: 'michael@example.com',
-        phone: '+1 (555) 234-5678',
-        brokerage: 'Metro Properties',
-        licenseNumber: '234567',
-        licensedStates: ['NY', 'CT'],
-        claimedZipCodes: ['10002', '10004'],
-        bio:
-            'First-time home buyer specialist with 10+ years experience helping young professionals find their perfect home.',
-        rating: 4.6,
-        reviewCount: 89,
-        searchesAppearedIn: 32,
-        profileViews: 156,
-        contacts: 67,
-        createdAt: DateTime.now().subtract(const Duration(days: 300)),
-        isVerified: true,
-      ),
-      AgentModel(
-        id: 'agent_3',
-        name: 'Emily Rodriguez',
-        email: 'emily@example.com',
-        phone: '+1 (555) 345-6789',
-        brokerage: 'Brooklyn Heights Realty',
-        licenseNumber: '345678',
-        licensedStates: ['NY'],
-        claimedZipCodes: ['11201', '11205'],
-        bio:
-            'Brooklyn market expert specializing in brownstones and modern condos. Bilingual in English and Spanish.',
-        rating: 4.9,
-        reviewCount: 203,
-        searchesAppearedIn: 78,
-        profileViews: 456,
-        contacts: 134,
-        createdAt: DateTime.now().subtract(const Duration(days: 200)),
-        isVerified: true,
-      ),
-      AgentModel(
-        id: 'agent_4',
-        name: 'David Kim',
-        email: 'david@example.com',
-        phone: '+1 (555) 456-7890',
-        brokerage: 'Queens Real Estate Partners',
-        licenseNumber: '456789',
-        licensedStates: ['NY'],
-        claimedZipCodes: ['11375', '11377'],
-        bio:
-            'Queens market specialist with expertise in family homes and investment properties.',
-        rating: 4.7,
-        reviewCount: 156,
-        searchesAppearedIn: 56,
-        profileViews: 289,
-        contacts: 98,
-        createdAt: DateTime.now().subtract(const Duration(days: 150)),
-        isVerified: true,
-      ),
-    ];
+    // Load real agents from API
+    await _loadAgentsFromAPI();
+    
+    // Load mock loan officers and listings
+    _loadMockLoanOfficers();
+    await _seedMockListings();
+    _loadMockOpenHouses();
+  }
 
+  /// Loads agents from the API
+  Future<void> _loadAgentsFromAPI() async {
+    try {
+      _isLoading.value = true;
+      
+      print('📡 Fetching agents from API...');
+      final agents = await _agentService.getAllAgents();
+      
+      // Build full URLs for profile pictures
+      final agentsWithUrls = agents.map((agent) {
+        String? profileImage = agent.profileImage;
+        if (profileImage != null && profileImage.isNotEmpty) {
+          if (!profileImage.startsWith('http://') && !profileImage.startsWith('https://')) {
+            profileImage = '${ApiConstants.baseUrl}/$profileImage';
+          }
+        }
+        
+        String? companyLogo = agent.companyLogoUrl;
+        if (companyLogo != null && companyLogo.isNotEmpty) {
+          if (!companyLogo.startsWith('http://') && !companyLogo.startsWith('https://')) {
+            companyLogo = '${ApiConstants.baseUrl}/$companyLogo';
+          }
+        }
+        
+        return agent.copyWith(
+          profileImage: profileImage,
+          companyLogoUrl: companyLogo,
+        );
+      }).toList();
+      
+      _agents.value = agentsWithUrls;
+      print('✅ Loaded ${agentsWithUrls.length} agents from API');
+    } catch (e) {
+      print('❌ Error loading agents: $e');
+      Get.snackbar('Error', 'Failed to load agents: ${e.toString()}');
+      // Keep empty list on error
+      _agents.value = [];
+    } finally {
+      _isLoading.value = false;
+    }
+  }
+
+  void _loadMockLoanOfficers() {
     // Mock loan officers data
     _loanOfficers.value = [
       LoanOfficerModel(
@@ -272,12 +272,6 @@ class BuyerController extends GetxController {
         isVerified: true,
       ),
     ];
-
-    // Mock listings data
-    await _seedMockListings();
-
-    // Load open houses after listings are seeded
-    _loadMockOpenHouses();
   }
 
   void _loadMockOpenHouses() {
@@ -619,9 +613,14 @@ class BuyerController extends GetxController {
     return _favoriteLoanOfficers.contains(loanOfficerId);
   }
 
-  void contactAgent(AgentModel agent) {
-    // Navigate to contact agent screen for now
-    Get.toNamed(AppPages.CONTACT_AGENT, arguments: {'agent': agent});
+  Future<void> contactAgent(AgentModel agent) async {
+    // Navigate to contact screen first
+    Get.toNamed('/contact', arguments: {
+      'userId': agent.id,
+      'userName': agent.name,
+      'userProfilePic': agent.profileImage,
+      'userRole': 'agent',
+    });
   }
 
   void contactLoanOfficer(LoanOfficerModel loanOfficer) {

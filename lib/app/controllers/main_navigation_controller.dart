@@ -17,13 +17,23 @@ import 'package:circle_nav_bar/circle_nav_bar.dart';
 
 class MainNavigationController extends GetxController {
   final _currentIndex = 0.obs;
+  final _isNavBarVisible = true.obs;
 
   int get currentIndex => _currentIndex.value;
+  bool get isNavBarVisible => _isNavBarVisible.value;
 
   void changeIndex(int index) {
     if (_currentIndex.value != index) {
       _currentIndex.value = index;
     }
+  }
+
+  void hideNavBar() {
+    _isNavBarVisible.value = false;
+  }
+
+  void showNavBar() {
+    _isNavBarVisible.value = true;
   }
 
   List<Widget> get pages => [

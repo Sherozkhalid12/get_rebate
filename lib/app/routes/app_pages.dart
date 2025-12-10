@@ -50,6 +50,9 @@ import 'package:getrebate/app/modules/checklist/views/checklist_view.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/models/loan_officer_model.dart';
 import 'package:getrebate/app/models/agent_model.dart';
+import 'package:getrebate/app/modules/messages/controllers/messages_controller.dart';
+import 'package:getrebate/app/modules/contact/views/contact_view.dart';
+import 'package:getrebate/app/modules/contact/bindings/contact_binding.dart';
 import 'package:flutter/material.dart';
 
 class AppPages {
@@ -70,6 +73,7 @@ class AppPages {
   static const FIND_AGENTS = '/find-agents';
   static const CONTACT_AGENT = '/contact-agent';
   static const CONTACT_LOAN_OFFICER = '/contact-loan-officer';
+  static const CONTACT = '/contact';
   static const MESSAGES = '/messages';
   static const CREATE_LISTING = '/create-listing';
   static const EDIT_LISTING = '/edit-listing';
@@ -158,6 +162,11 @@ class AppPages {
     GetPage(
       name: CONTACT_LOAN_OFFICER,
       page: () => const ContactLoanOfficerView(),
+    ),
+    GetPage(
+      name: CONTACT,
+      page: () => const ContactView(),
+      binding: ContactBinding(),
     ),
     GetPage(
       name: MESSAGES,
@@ -262,12 +271,18 @@ class ContactAgentView extends StatelessWidget {
               const SizedBox(height: 32),
               ElevatedButton.icon(
                 onPressed: () {
-                  Get.snackbar(
-                    'Coming Soon',
-                    'Chat feature will be available soon!',
-                    backgroundColor: AppTheme.primaryBlue,
-                    colorText: Colors.white,
-                  );
+                  if (agent == null) {
+                    Get.snackbar('Error', 'Agent information not available');
+                    return;
+                  }
+                  
+                  // Navigate to contact screen first
+                  Get.toNamed('/contact', arguments: {
+                    'userId': agent.id,
+                    'userName': agent.name,
+                    'userProfilePic': agent.profileImage,
+                    'userRole': 'agent',
+                  });
                 },
                 icon: const Icon(Icons.chat),
                 label: const Text('Start Chat'),
@@ -343,12 +358,18 @@ class ContactLoanOfficerView extends StatelessWidget {
               const SizedBox(height: 32),
               ElevatedButton.icon(
                 onPressed: () {
-                  Get.snackbar(
-                    'Coming Soon',
-                    'Chat feature will be available soon!',
-                    backgroundColor: AppTheme.lightGreen,
-                    colorText: Colors.white,
-                  );
+                  if (loanOfficer == null) {
+                    Get.snackbar('Error', 'Loan officer information not available');
+                    return;
+                  }
+                  
+                  // Navigate to contact screen first
+                  Get.toNamed('/contact', arguments: {
+                    'userId': loanOfficer.id,
+                    'userName': loanOfficer.name,
+                    'userProfilePic': loanOfficer.profileImage,
+                    'userRole': 'loan_officer',
+                  });
                 },
                 icon: const Icon(Icons.chat),
                 label: const Text('Start Chat'),

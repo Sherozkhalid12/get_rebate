@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:getrebate/app/models/loan_officer_model.dart';
 import 'package:getrebate/app/models/mortgage_types.dart';
 import 'package:getrebate/app/controllers/main_navigation_controller.dart';
+import 'package:getrebate/app/modules/messages/controllers/messages_controller.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 
 class LoanOfficerProfileController extends GetxController {
@@ -122,10 +123,19 @@ class LoanOfficerProfileController extends GetxController {
     );
   }
 
-  void startChat() {
-    Get.toNamed('/main');
-    // Switch to messages tab (index 3)
-    Get.find<MainNavigationController>().changeIndex(3);
+  Future<void> startChat() async {
+    if (_loanOfficer.value == null) {
+      Get.snackbar('Error', 'Loan officer information not available');
+      return;
+    }
+
+    // Navigate to contact screen first
+    Get.toNamed('/contact', arguments: {
+      'userId': _loanOfficer.value!.id,
+      'userName': _loanOfficer.value!.name,
+      'userProfilePic': _loanOfficer.value!.profileImage,
+      'userRole': 'loan_officer',
+    });
   }
 
   void viewLoanPrograms() {

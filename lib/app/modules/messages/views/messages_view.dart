@@ -4,12 +4,36 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/modules/messages/controllers/messages_controller.dart';
 import 'package:getrebate/app/widgets/custom_text_field.dart';
+import 'package:flutter_spinkit/flutter_spinkit.dart';
+import 'package:getrebate/app/controllers/main_navigation_controller.dart';
 
 class MessagesView extends GetView<MessagesController> {
   const MessagesView({super.key});
 
+  void _updateNavBarVisibility(bool hide) {
+    if (Get.isRegistered<MainNavigationController>()) {
+      try {
+        final mainNavController = Get.find<MainNavigationController>();
+        if (hide) {
+          mainNavController.hideNavBar();
+        } else {
+          mainNavController.showNavBar();
+        }
+      } catch (e) {
+        // Navbar controller might not be available
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Listen to conversation changes and update navbar - outside of Obx
+    ever(controller.selectedConversationRx, (conversation) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _updateNavBarVisibility(conversation != null);
+      });
+    });
+
     return Scaffold(
       backgroundColor: AppTheme.lightGray,
       appBar: AppBar(
@@ -24,14 +48,22 @@ class MessagesView extends GetView<MessagesController> {
             ),
           ),
         ),
-        title: Text(
-          'Messages',
-          style: TextStyle(
-            color: AppTheme.white,
-            fontSize: 18.sp,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
+        title: Obx(() {
+          final conversation = controller.selectedConversation;
+          // Update navbar visibility outside of Obx
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _updateNavBarVisibility(conversation != null);
+          });
+          
+          return Text(
+            conversation != null ? conversation.senderName : 'Messages',
+            style: TextStyle(
+              color: AppTheme.white,
+              fontSize: 18.sp,
+              fontWeight: FontWeight.w600,
+            ),
+          );
+        }),
         centerTitle: true,
       ),
       body: SafeArea(
@@ -108,20 +140,85 @@ class MessagesView extends GetView<MessagesController> {
 
   Widget _buildConversationsListView(BuildContext context) {
     return Obx(() {
+      if (controller.isLoadingThreads) {
+        return Center(
+          child: Padding(
+            padding: const EdgeInsets.all(40),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                SpinKitFadingCircle(
+                  color: AppTheme.primaryBlue,
+                  size: 50.0,
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  'Loading conversations...',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppTheme.mediumGray,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+
+      if (controller.error != null && controller.conversations.isEmpty) {
+        return Center(
+          child: Padding(
+            padding: const EdgeInsets.all(40),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.error_outline,
+                  size: 64,
+                  color: Colors.red.shade400,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Error loading conversations',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: AppTheme.darkGray,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  controller.error!,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppTheme.mediumGray,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton(
+                  onPressed: controller.refreshThreads,
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+
       if (controller.conversations.isEmpty) {
         return _buildEmptyState(context);
       }
 
-      return ListView.builder(
-        padding: const EdgeInsets.all(20),
-        itemCount: controller.conversations.length,
-        itemBuilder: (context, index) {
-          final conversation = controller.conversations[index];
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: _buildConversationCard(context, conversation),
-          );
-        },
+      return RefreshIndicator(
+        onRefresh: controller.refreshThreads,
+        child: ListView.builder(
+          padding: const EdgeInsets.all(20),
+          itemCount: controller.conversations.length,
+          itemBuilder: (context, index) {
+            final conversation = controller.conversations[index];
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _buildConversationCard(context, conversation),
+            );
+          },
+        ),
       );
     });
   }
@@ -139,21 +236,10 @@ class MessagesView extends GetView<MessagesController> {
           child: Row(
             children: [
               // Avatar
-              CircleAvatar(
+              _buildAvatar(
+                imageUrl: conversation.senderImage,
+                senderType: conversation.senderType,
                 radius: 25,
-                backgroundColor: _getSenderColor(
-                  conversation.senderType,
-                ).withOpacity(0.1),
-                backgroundImage: conversation.senderImage != null
-                    ? NetworkImage(conversation.senderImage!)
-                    : null,
-                child: conversation.senderImage == null
-                    ? Icon(
-                        _getSenderIcon(conversation.senderType),
-                        color: _getSenderColor(conversation.senderType),
-                        size: 25,
-                      )
-                    : null,
               ),
 
               const SizedBox(width: 12),
@@ -240,8 +326,10 @@ class MessagesView extends GetView<MessagesController> {
         // Chat Header
         _buildChatHeader(context),
 
-        // Messages
-        Expanded(child: _buildMessagesList(context)),
+        // Messages - with scroll controller for auto-scroll
+        Expanded(
+          child: _buildMessagesList(context),
+        ),
 
         // Message Input
         _buildMessageInput(context),
@@ -264,24 +352,10 @@ class MessagesView extends GetView<MessagesController> {
             onPressed: controller.goBack,
             icon: const Icon(Icons.arrow_back, color: AppTheme.darkGray),
           ),
-          CircleAvatar(
+          _buildAvatar(
+            imageUrl: controller.selectedConversation!.senderImage,
+            senderType: controller.selectedConversation!.senderType,
             radius: 20,
-            backgroundColor: _getSenderColor(
-              controller.selectedConversation!.senderType,
-            ).withOpacity(0.1),
-            backgroundImage:
-                controller.selectedConversation!.senderImage != null
-                ? NetworkImage(controller.selectedConversation!.senderImage!)
-                : null,
-            child: controller.selectedConversation!.senderImage == null
-                ? Icon(
-                    _getSenderIcon(controller.selectedConversation!.senderType),
-                    color: _getSenderColor(
-                      controller.selectedConversation!.senderType,
-                    ),
-                    size: 20,
-                  )
-                : null,
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -335,12 +409,69 @@ class MessagesView extends GetView<MessagesController> {
 
   Widget _buildMessagesList(BuildContext context) {
     return Obx(() {
-      if (controller.messages.isEmpty) {
-        return const Center(child: Text('No messages yet'));
+      // Show loading indicator while fetching messages
+      if (controller.isLoadingMessages) {
+        return Center(
+          child: Padding(
+            padding: const EdgeInsets.all(40),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                SpinKitFadingCircle(
+                  color: AppTheme.primaryBlue,
+                  size: 50.0,
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  'Loading messages...',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppTheme.mediumGray,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
       }
 
+      // Show empty state if no messages
+      if (controller.messages.isEmpty) {
+        return Center(
+          child: Padding(
+            padding: const EdgeInsets.all(40),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.chat_bubble_outline,
+                  size: 64,
+                  color: AppTheme.mediumGray,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'No messages yet',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: AppTheme.darkGray,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Start the conversation!',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppTheme.mediumGray,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+
+      // Show messages list - use reverse to show newest at bottom
       return ListView.builder(
+        controller: controller.messagesScrollController,
         padding: const EdgeInsets.all(16),
+        reverse: false, // Show oldest first
         itemCount: controller.messages.length,
         itemBuilder: (context, index) {
           final message = controller.messages[index];
@@ -366,21 +497,10 @@ class MessagesView extends GetView<MessagesController> {
           : MainAxisAlignment.start,
       children: [
         if (!isUser) ...[
-          CircleAvatar(
+          _buildAvatar(
+            imageUrl: message.senderImage,
+            senderType: message.senderType,
             radius: 16,
-            backgroundColor: _getSenderColor(
-              message.senderType,
-            ).withOpacity(0.1),
-            backgroundImage: message.senderImage != null
-                ? NetworkImage(message.senderImage!)
-                : null,
-            child: message.senderImage == null
-                ? Icon(
-                    _getSenderIcon(message.senderType),
-                    color: _getSenderColor(message.senderType),
-                    size: 16,
-                  )
-                : null,
           ),
           const SizedBox(width: 8),
         ],
@@ -479,6 +599,26 @@ class MessagesView extends GetView<MessagesController> {
               maxLines: null,
               textInputAction: TextInputAction.send,
               onSubmitted: (_) => controller.sendMessage(),
+              onChanged: (_) {
+                // Auto-scroll when typing (optional, but provides better UX)
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (controller.messagesScrollController.hasClients) {
+                    // Only scroll if user is near the bottom (within 200px)
+                    final position = controller.messagesScrollController.position;
+                    final maxScroll = position.maxScrollExtent;
+                    final currentScroll = position.pixels;
+                    
+                    // If user is near bottom (within 200px), auto-scroll
+                    if (maxScroll - currentScroll < 200) {
+                      controller.messagesScrollController.animateTo(
+                        maxScroll,
+                        duration: const Duration(milliseconds: 200),
+                        curve: Curves.easeOut,
+                      );
+                    }
+                  }
+                });
+              },
             ),
           ),
           const SizedBox(width: 8),
@@ -592,17 +732,118 @@ class MessagesView extends GetView<MessagesController> {
   }
 
   String _formatTime(DateTime time) {
+    // Convert to local time for display
+    final localTime = time.toLocal();
     final now = DateTime.now();
-    final difference = now.difference(time);
-
-    if (difference.inDays > 0) {
-      return '${difference.inDays}d ago';
-    } else if (difference.inHours > 0) {
-      return '${difference.inHours}h ago';
-    } else if (difference.inMinutes > 0) {
-      return '${difference.inMinutes}m ago';
+    final nowLocal = now.toLocal();
+    
+    // Calculate difference in local time
+    final difference = nowLocal.difference(localTime);
+    
+    // Format time in 12-hour format with AM/PM
+    String format12Hour(DateTime dt) {
+      int hour = dt.hour;
+      final minute = dt.minute;
+      final period = hour >= 12 ? 'PM' : 'AM';
+      
+      if (hour == 0) {
+        hour = 12; // 12 AM
+      } else if (hour > 12) {
+        hour = hour - 12; // 1 PM - 11 PM
+      }
+      
+      // Format minute with leading zero if needed
+      final minuteStr = minute.toString().padLeft(2, '0');
+      
+      return '$hour:$minuteStr $period';
+    }
+    
+    // If time is in the future or less than 1 minute ago, show current time
+    if (difference.isNegative || difference.inMinutes < 1) {
+      return format12Hour(localTime);
+    }
+    
+    // Same day - show time only
+    if (localTime.year == nowLocal.year && 
+        localTime.month == nowLocal.month && 
+        localTime.day == nowLocal.day) {
+      return format12Hour(localTime);
+    }
+    
+    // Yesterday - show "Yesterday" and time
+    final yesterday = nowLocal.subtract(const Duration(days: 1));
+    if (localTime.year == yesterday.year && 
+        localTime.month == yesterday.month && 
+        localTime.day == yesterday.day) {
+      return 'Yesterday ${format12Hour(localTime)}';
+    }
+    
+    // Within same week - show day name and time
+    if (difference.inDays < 7) {
+      final days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+      final dayName = days[localTime.weekday - 1];
+      return '$dayName ${format12Hour(localTime)}';
+    }
+    
+    // More than a week - show date and time
+    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    final month = months[localTime.month - 1];
+    final day = localTime.day;
+    
+    // If same year, don't show year
+    if (localTime.year == nowLocal.year) {
+      return '$month $day, ${format12Hour(localTime)}';
     } else {
-      return 'Just now';
+      return '$month $day, ${localTime.year} ${format12Hour(localTime)}';
+    }
+  }
+
+  /// Builds an avatar widget with proper error handling for invalid URLs
+  Widget _buildAvatar({
+    required String? imageUrl,
+    required String senderType,
+    required double radius,
+  }) {
+    // Normalize and validate URL - trim whitespace, check for empty, and validate format
+    String? normalizedUrl = imageUrl?.trim();
+    if (normalizedUrl != null && normalizedUrl.isEmpty) {
+      normalizedUrl = null;
+    }
+    
+    // Validate URL - must be non-null, non-empty, and a valid HTTP/HTTPS URL
+    final isValidUrl = normalizedUrl != null && 
+        normalizedUrl.isNotEmpty && 
+        (normalizedUrl.startsWith('http://') || normalizedUrl.startsWith('https://')) &&
+        !normalizedUrl.contains('file://') &&
+        Uri.tryParse(normalizedUrl) != null; // Additional URI validation
+
+    // CircleAvatar assertion: if backgroundImage is null, onBackgroundImageError must also be null
+    if (isValidUrl) {
+      return CircleAvatar(
+        radius: radius,
+        backgroundColor: _getSenderColor(senderType).withOpacity(0.1),
+        backgroundImage: NetworkImage(
+          normalizedUrl!,
+          headers: {'ngrok-skip-browser-warning': 'true'},
+        ),
+        onBackgroundImageError: (exception, stackTrace) {
+          // Silently handle image load errors - will show icon instead
+        },
+        child: null,
+      );
+    } else {
+      return CircleAvatar(
+        radius: radius,
+        backgroundColor: _getSenderColor(senderType).withOpacity(0.1),
+        backgroundImage: null, // Explicitly null
+        // onBackgroundImageError must be null when backgroundImage is null
+        child: Icon(
+          _getSenderIcon(senderType),
+          color: _getSenderColor(senderType),
+          size: radius,
+        ),
+      );
     }
   }
 }

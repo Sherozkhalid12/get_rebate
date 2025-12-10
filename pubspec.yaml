@@ -75,6 +75,12 @@ dependencies:
   
   # Navigation
   circle_nav_bar: ^1.0.1
+  
+  # Loading Indicators
+  flutter_spinkit: ^5.2.0
+  
+  # Socket.IO
+  socket_io_client: ^2.0.3+1
 
 dev_dependencies:
   flutter_test:

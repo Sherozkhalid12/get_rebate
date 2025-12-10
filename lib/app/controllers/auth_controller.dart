@@ -10,7 +10,7 @@ class AuthController extends GetxController {
   final Dio _dio = Dio();
 
   // API Base URL
-  static const String _baseUrl = 'https://3a461922e985.ngrok-free.app/api/v1';
+  static const String _baseUrl = 'https://fe4dbe73ed07.ngrok-free.app/api/v1';
 
   // Observable variables
   final _isLoading = false.obs;
@@ -27,6 +27,33 @@ class AuthController extends GetxController {
     super.onInit();
     _setupDio();
     _checkAuthStatus();
+    _validateAndFixStoredUser();
+  }
+
+  /// Validates and fixes stored user data - clears invalid IDs
+  void _validateAndFixStoredUser() {
+    final user = _currentUser.value;
+    if (user != null) {
+      // Check if ID is a generated one (starts with "user_")
+      final isGeneratedId = user.id.startsWith('user_');
+      // MongoDB ObjectIds are exactly 24 hex characters
+      final isValidMongoId = user.id.length == 24 && 
+                            RegExp(r'^[0-9a-fA-F]{24}$').hasMatch(user.id);
+      
+      if (isGeneratedId || (!isValidMongoId && user.id.isNotEmpty)) {
+        print('⚠️ CRITICAL: Invalid user ID detected after init: ${user.id}');
+        print('   Clearing invalid user data. User must log in again.');
+        _clearInvalidUserData();
+      }
+    }
+  }
+
+  /// Clears invalid user data from storage
+  void _clearInvalidUserData() {
+    _storage.remove('current_user');
+    _storage.remove('auth_token');
+    _currentUser.value = null;
+    _isLoggedIn.value = false;
   }
 
   void _setupDio() {
@@ -44,7 +71,30 @@ class AuthController extends GetxController {
     final authToken = _storage.read('auth_token');
 
     if (userData != null) {
-      _currentUser.value = UserModel.fromJson(userData);
+      final user = UserModel.fromJson(userData);
+      
+      // Validate user ID - MongoDB ObjectIds are 24 hex characters
+      // If it starts with "user_" it's a generated ID from old code, clear it
+      // Also check if it's empty or doesn't look like a valid MongoDB ID
+      final isValidMongoId = user.id.length == 24 && 
+                            RegExp(r'^[0-9a-fA-F]{24}$').hasMatch(user.id);
+      final isGeneratedId = user.id.startsWith('user_');
+      
+      if (isGeneratedId || (!isValidMongoId && user.id.isNotEmpty)) {
+        print('⚠️ WARNING: Detected invalid/generated user ID in storage: ${user.id}');
+        print('   Valid MongoDB IDs are 24 hex characters. Clearing invalid user data.');
+        _clearInvalidUserData();
+        print('   Please log in again to get the correct user ID from the API.');
+        return;
+      }
+      
+      if (user.id.isEmpty) {
+        print('⚠️ WARNING: User ID is empty in storage. Clearing invalid user data.');
+        _clearInvalidUserData();
+        return;
+      }
+      
+      _currentUser.value = user;
       _isLoggedIn.value = true;
 
       // Setup Dio with auth token if available
@@ -97,9 +147,23 @@ class AuthController extends GetxController {
         final token = responseData['token'];
 
         if (userData != null) {
+          // Extract user ID - API returns _id, ensure we get it correctly
+          final userId = userData['_id']?.toString() ?? 
+                        userData['id']?.toString() ?? 
+                        '';
+          
+          if (userId.isEmpty) {
+            print('❌ CRITICAL ERROR: User ID is empty in API response!');
+            print('   userData keys: ${userData.keys}');
+            print('   userData: $userData');
+            throw Exception('User ID not found in login API response. Cannot proceed without valid user ID.');
+          }
+          
+          print('✅ Extracted User ID from API: $userId');
+          
           // Map API response to UserModel
           final user = UserModel(
-            id: userData['_id']?.toString() ?? userData['id']?.toString() ?? '',
+            id: userId,
             email: userData['email'] ?? email,
             name:
                 userData['fullname'] ?? userData['name'] ?? email.split('@')[0],
@@ -516,11 +580,20 @@ class AuthController extends GetxController {
 
         final responseData = response.data;
 
+        // Extract user ID from API response - MUST come from backend
+        final userId = responseData['_id']?.toString() ?? 
+                      responseData['id']?.toString() ?? 
+                      '';
+        
+        if (userId.isEmpty) {
+          throw Exception('User ID not found in API response. Cannot proceed without valid user ID.');
+        }
+        
+        print('✅ Extracted User ID from signup API: $userId');
+
         // Create user model from API response
         final user = UserModel(
-          id:
-              responseData['id']?.toString() ??
-              'user_${DateTime.now().millisecondsSinceEpoch}',
+          id: userId,
           email: email,
           name: name,
           phone: phone,
@@ -528,7 +601,9 @@ class AuthController extends GetxController {
           profileImage:
               responseData['profilePic'] ?? responseData['profileImage'],
           licensedStates: licensedStates ?? [],
-          createdAt: DateTime.now(),
+          createdAt: responseData['createdAt'] != null
+              ? DateTime.parse(responseData['createdAt'])
+              : DateTime.now(),
           lastLoginAt: DateTime.now(),
           isVerified: responseData['isVerified'] ?? false,
           additionalData: additionalData,
@@ -608,26 +683,23 @@ class AuthController extends GetxController {
     try {
       _isLoading.value = true;
 
-      // Simulate API call
-      await Future.delayed(const Duration(seconds: 1));
-
-      final user = UserModel(
-        id: 'user_${DateTime.now().millisecondsSinceEpoch}',
-        email: email,
-        name: name,
-        profileImage: profileImage,
-        role: UserRole.buyerSeller, // Default role for social login
-        createdAt: DateTime.now(),
-        lastLoginAt: DateTime.now(),
-        isVerified: true,
+      // TODO: Implement actual social login API call
+      // For now, throw error - we MUST get user ID from backend
+      throw Exception(
+        'Social login not implemented. Must call backend API to get user ID.'
       );
 
-      _currentUser.value = user;
-      _isLoggedIn.value = true;
-      _storage.write('current_user', user.toJson());
-
-      Get.toNamed(AppPages.ONBOARDING);
+      // When implemented, the API should return user data with _id:
+      // final response = await _dio.post('/auth/social-login', data: {...});
+      // final responseData = response.data;
+      // final userId = responseData['user']['_id']?.toString() ?? 
+      //                responseData['user']['id']?.toString() ?? '';
+      // if (userId.isEmpty) {
+      //   throw Exception('User ID not found in social login response');
+      // }
+      // final user = UserModel(id: userId, ...);
     } catch (e) {
+      print('❌ Social login error: $e');
       Get.snackbar('Error', 'Social login failed: ${e.toString()}');
     } finally {
       _isLoading.value = false;

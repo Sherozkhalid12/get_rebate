@@ -75,42 +75,145 @@ class AgentModel {
   });
 
   factory AgentModel.fromJson(Map<String, dynamic> json) {
+    // Handle both API field names and model field names
+    final id = json['_id']?.toString() ?? json['id']?.toString() ?? '';
+    final name = json['fullname']?.toString() ?? json['name']?.toString() ?? '';
+    final email = json['email']?.toString() ?? '';
+    final phone = json['phone']?.toString();
+    
+    // Profile picture - handle Windows paths and build full URL
+    String? profileImage = json['profilePic']?.toString() ?? json['profileImage']?.toString();
+    if (profileImage != null && profileImage.isNotEmpty) {
+      profileImage = profileImage.replaceAll('\\', '/');
+      if (!profileImage.startsWith('http://') && !profileImage.startsWith('https://')) {
+        if (profileImage.startsWith('/')) {
+          profileImage = profileImage.substring(1);
+        }
+        // Will be built with base URL in the controller if needed
+      }
+    }
+    
+    // Company logo
+    String? companyLogoUrl = json['companyLogo']?.toString();
+    if (companyLogoUrl != null && companyLogoUrl.isNotEmpty) {
+      companyLogoUrl = companyLogoUrl.replaceAll('\\', '/');
+      if (!companyLogoUrl.startsWith('http://') && !companyLogoUrl.startsWith('https://')) {
+        if (companyLogoUrl.startsWith('/')) {
+          companyLogoUrl = companyLogoUrl.substring(1);
+        }
+      }
+    }
+    
+    // Brokerage/Company name
+    final brokerage = json['CompanyName']?.toString() ?? 
+                     json['brokerageCompanyName']?.toString() ?? 
+                     json['brokerage']?.toString() ?? 
+                     '';
+    
+    // License number
+    final licenseNumber = json['liscenceNumber']?.toString() ?? 
+                         json['licenseNumber']?.toString() ?? 
+                         '';
+    
+    // Licensed states - handle both field name variations
+    final licensedStatesList = json['LisencedStates'] ?? 
+                               json['licensedStates'] ?? 
+                               [];
+    final licensedStates = List<String>.from(licensedStatesList);
+    
+    // Service areas/ZIP codes
+    final serviceAreasList = json['serviceAreas'] ?? json['serviceZipCodes'] ?? [];
+    final serviceZipCodes = List<String>.from(serviceAreasList);
+    
+    // Rating - can be number or calculated from reviews
+    double rating = 0.0;
+    if (json['ratings'] != null) {
+      rating = (json['ratings'] is num) ? (json['ratings'] as num).toDouble() : 0.0;
+    } else if (json['rating'] != null) {
+      rating = (json['rating'] is num) ? (json['rating'] as num).toDouble() : 0.0;
+    }
+    
+    // Review count - from reviews array length
+    final reviewsList = json['reviews'] ?? [];
+    int reviewCount = 0;
+    if (reviewsList is List) {
+      reviewCount = reviewsList.length;
+    } else if (json['reviewCount'] != null) {
+      reviewCount = json['reviewCount'] is int ? json['reviewCount'] : 0;
+    }
+    
+    // Dates
+    DateTime createdAt = DateTime.now();
+    if (json['createdAt'] != null) {
+      try {
+        createdAt = DateTime.parse(json['createdAt'].toString());
+      } catch (e) {
+        createdAt = DateTime.now();
+      }
+    }
+    
+    DateTime? lastActiveAt;
+    if (json['updatedAt'] != null) {
+      try {
+        lastActiveAt = DateTime.parse(json['updatedAt'].toString());
+      } catch (e) {
+        // Ignore parse errors
+      }
+    }
+    
+    // Video URL
+    final videoUrl = json['video']?.toString() ?? 
+                    json['agentvideo']?.toString() ?? 
+                    json['videoUrl']?.toString();
+    
+    // Expertise
+    List<String>? expertise;
+    final expertiseList = json['areasOfExpertise'] ?? json['expertise'];
+    if (expertiseList != null && expertiseList is List) {
+      expertise = expertiseList
+          .map((e) => e.toString().replaceAll(RegExp(r'[\[\]"]'), ''))
+          .where((e) => e.isNotEmpty)
+          .toList()
+          .cast<String>();
+    }
+    
     return AgentModel(
-      id: json['id'] ?? '',
-      name: json['name'] ?? '',
-      email: json['email'] ?? '',
-      phone: json['phone'],
-      profileImage: json['profileImage'],
-      companyLogoUrl: json['companyLogo'],
-      brokerage: json['brokerage'] ?? '',
-      licenseNumber: json['licenseNumber'] ?? '',
-      licensedStates: List<String>.from(json['licensedStates'] ?? []),
-      claimedZipCodes: List<String>.from(json['claimedZipCodes'] ?? []),
-      bio: json['bio'],
-      rating: (json['rating'] ?? 0.0).toDouble(),
-      reviewCount: json['reviewCount'] ?? 0,
-      searchesAppearedIn: json['searchesAppearedIn'] ?? 0,
-      profileViews: json['profileViews'] ?? 0,
-      contacts: json['contacts'] ?? 0,
-      serviceZipCodes: List<String>.from(json['serviceZipCodes'] ?? []),
-      featuredListings: List<String>.from(json['featuredListings'] ?? []),
-      createdAt: DateTime.parse(json['createdAt'] ?? DateTime.now().toIso8601String()),
-      lastActiveAt: json['lastActiveAt'] != null ? DateTime.parse(json['lastActiveAt']) : null,
-      isVerified: json['isVerified'] ?? false,
-      isActive: json['isActive'] ?? true,
-      rebateOffered: json['rebateOffered'] ?? false,
-      rebatePercentage: (json['rebatePercentage'] ?? 0.0).toDouble(),
-      isDualAgencyAllowedInState: json['isDualAgencyAllowedInState'],
-      isDualAgencyAllowedAtBrokerage: json['isDualAgencyAllowedAtBrokerage'],
-      externalReviewsUrl: json['externalReviewsUrl'],
-      platformRating: (json['platformRating'] ?? 0.0).toDouble(),
-      platformReviewCount: json['platformReviewCount'] ?? 0,
-      // NEW FIELDS — SAFE FROM JSON
-      videoUrl: json['videoUrl'],
-      expertise: json['expertise'] != null ? List<String>.from(json['expertise']) : null,
-      websiteUrl: json['websiteUrl'],
-      googleReviewsUrl: json['googleReviewsUrl'],
-      thirdPartyReviewsUrl: json['thirdPartyReviewsUrl'],
+      id: id,
+      name: name,
+      email: email,
+      phone: phone,
+      profileImage: profileImage,
+      companyLogoUrl: companyLogoUrl,
+      brokerage: brokerage,
+      licenseNumber: licenseNumber,
+      licensedStates: licensedStates,
+      claimedZipCodes: serviceZipCodes, // Use serviceAreas as claimedZipCodes
+      bio: json['bio']?.toString() ?? json['description']?.toString(),
+      rating: rating,
+      reviewCount: reviewCount,
+      searchesAppearedIn: json['searches'] is int ? json['searches'] : 0,
+      profileViews: json['views'] is int ? json['views'] : 0,
+      contacts: json['contacts'] is int ? json['contacts'] : 0,
+      serviceZipCodes: serviceZipCodes,
+      featuredListings: const [], // Not in API response
+      createdAt: createdAt,
+      lastActiveAt: lastActiveAt,
+      isVerified: json['verified'] is bool ? json['verified'] : false,
+      isActive: true, // Assume active if in API response
+      rebateOffered: false, // Not in API response
+      rebatePercentage: 0.0, // Not in API response
+      isDualAgencyAllowedInState: json['dualAgencyState'] is bool ? json['dualAgencyState'] : null,
+      isDualAgencyAllowedAtBrokerage: json['dualAgencySBrokerage'] is bool ? json['dualAgencySBrokerage'] : null,
+      externalReviewsUrl: json['thirdPartReviewLink']?.toString() ?? 
+                         json['client_reviews_link']?.toString() ?? 
+                         json['externalReviewsUrl']?.toString(),
+      platformRating: rating, // Use same rating
+      platformReviewCount: reviewCount, // Use same review count
+      videoUrl: videoUrl,
+      expertise: expertise,
+      websiteUrl: json['website_link']?.toString() ?? json['websiteUrl']?.toString(),
+      googleReviewsUrl: json['google_reviews_link']?.toString() ?? json['googleReviewsUrl']?.toString(),
+      thirdPartyReviewsUrl: json['client_reviews_link']?.toString() ?? json['thirdPartyReviewsUrl']?.toString(),
     );
   }
 

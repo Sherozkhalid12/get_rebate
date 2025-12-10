@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:getrebate/app/routes/app_pages.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart';
 import 'package:getrebate/app/models/user_model.dart';
+import 'package:getrebate/app/modules/messages/controllers/messages_controller.dart';
 
 class SplashController extends GetxController {
   Timer? _timer;
@@ -35,7 +36,10 @@ class SplashController extends GetxController {
       final authController = Get.find<AuthController>();
 
       if (authController.isLoggedIn && authController.currentUser != null) {
-        // User is logged in, navigate to appropriate screen based on role
+        // User is logged in - preload threads in background for instant access
+        _preloadThreads();
+        
+        // Navigate to appropriate screen based on role
         final user = authController.currentUser!;
         print('Splash: User is logged in as ${user.role}, navigating...');
         _navigateBasedOnRole(user.role);
@@ -48,6 +52,23 @@ class SplashController extends GetxController {
       print('Splash: Error checking auth status: $e');
       // If error occurs, navigate to onboarding as fallback
       _navigateToOnboarding();
+    }
+  }
+
+  /// Preloads chat threads in background for instant access
+  void _preloadThreads() {
+    try {
+      // Initialize messages controller and load threads in background
+      if (!Get.isRegistered<MessagesController>()) {
+        Get.put(MessagesController(), permanent: true);
+      }
+      final messagesController = Get.find<MessagesController>();
+      // Load threads in background - don't wait for it
+      messagesController.refreshThreads();
+      print('🚀 Splash: Preloading chat threads in background...');
+    } catch (e) {
+      print('⚠️ Splash: Failed to preload threads: $e');
+      // Don't block navigation if preload fails
     }
   }
 

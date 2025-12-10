@@ -15,7 +15,11 @@ class MainNavigationView extends GetView<MainNavigationController> {
           children: controller.pages,
         ),
       ),
-      bottomNavigationBar: controller.buildBottomNavigationBar(),
+      bottomNavigationBar: Obx(
+        () => controller.isNavBarVisible
+            ? controller.buildBottomNavigationBar()
+            : const SizedBox.shrink(),
+      ),
     );
   }
 }

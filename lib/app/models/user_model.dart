@@ -28,8 +28,13 @@ class UserModel {
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
+    // Handle both 'id' and '_id' fields (API returns _id, storage uses id)
+    final userId = json['_id']?.toString() ?? 
+                   json['id']?.toString() ?? 
+                   '';
+    
     return UserModel(
-      id: json['id'] ?? '',
+      id: userId,
       email: json['email'] ?? '',
       name: json['name'] ?? '',
       phone: json['phone'],

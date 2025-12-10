@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:getrebate/app/models/agent_model.dart';
 import 'package:getrebate/app/controllers/main_navigation_controller.dart';
 import 'package:getrebate/app/modules/buyer/controllers/buyer_controller.dart';
+import 'package:getrebate/app/modules/messages/controllers/messages_controller.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 
 class AgentProfileController extends GetxController {
@@ -113,10 +114,19 @@ class AgentProfileController extends GetxController {
     );
   }
 
-  void startChat() {
-    Get.toNamed('/main');
-    // Switch to messages tab (index 3)
-    Get.find<MainNavigationController>().changeIndex(3);
+  Future<void> startChat() async {
+    if (_agent.value == null) {
+      Get.snackbar('Error', 'Agent information not available');
+      return;
+    }
+
+    // Navigate to contact screen first
+    Get.toNamed('/contact', arguments: {
+      'userId': _agent.value!.id,
+      'userName': _agent.value!.name,
+      'userProfilePic': _agent.value!.profileImage,
+      'userRole': 'agent',
+    });
   }
 
   void viewProperties() {

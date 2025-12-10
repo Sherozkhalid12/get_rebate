@@ -4,6 +4,9 @@ import 'package:getrebate/app/modules/messages/controllers/messages_controller.d
 class MessagesBinding extends Bindings {
   @override
   void dependencies() {
-    Get.lazyPut<MessagesController>(() => MessagesController());
+    // Use put instead of lazyPut so controller is available immediately if preloaded
+    if (!Get.isRegistered<MessagesController>()) {
+      Get.put<MessagesController>(MessagesController(), permanent: true);
+    }
   }
 }
