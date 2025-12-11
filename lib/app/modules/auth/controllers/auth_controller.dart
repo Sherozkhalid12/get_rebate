@@ -15,7 +15,7 @@ class AuthViewController extends GetxController {
   final passwordController = TextEditingController();
   final nameController = TextEditingController();
   final phoneController = TextEditingController();
-  
+
   // Agent-specific form controllers
   final brokerageController = TextEditingController();
   final agentLicenseNumberController = TextEditingController();
@@ -24,7 +24,8 @@ class AuthViewController extends GetxController {
   final websiteUrlController = TextEditingController();
   final googleReviewsUrlController = TextEditingController();
   final thirdPartyReviewsUrlController = TextEditingController();
-  final serviceZipCodesController = TextEditingController(); // Comma-separated ZIP codes
+  final serviceZipCodesController =
+      TextEditingController(); // Comma-separated ZIP codes
 
   // Loan Officer-specific form controllers
   final companyController = TextEditingController();
@@ -44,11 +45,16 @@ class AuthViewController extends GetxController {
   final Rxn<bool> _isDualAgencyAllowedAtBrokerage = Rxn<bool>();
   final Rxn<File> _selectedProfilePic = Rxn<File>();
   final Rxn<File> _selectedCompanyLogo = Rxn<File>();
-  final _selectedExpertise = <String>[].obs; // List of selected expertise areas (agents)
-  final _selectedSpecialtyProducts = <String>[].obs; // List of selected specialty products (loan officers)
-  final _selectedLicensedStates = <String>[].obs; // List of selected licensed states (agents & loan officers)
+  final Rxn<File> _selectedVideo = Rxn<File>();
+  final _selectedExpertise =
+      <String>[].obs; // List of selected expertise areas (agents)
+  final _selectedSpecialtyProducts =
+      <String>[].obs; // List of selected specialty products (loan officers)
+  final _selectedLicensedStates = <String>[]
+      .obs; // List of selected licensed states (agents & loan officers)
   final _agentVerificationAgreed = false.obs; // Agent verification agreement
-  final _loanOfficerVerificationAgreed = false.obs; // Loan officer verification agreement
+  final _loanOfficerVerificationAgreed =
+      false.obs; // Loan officer verification agreement
 
   // Getters
   bool get isLoginMode => _isLoginMode.value;
@@ -60,16 +66,18 @@ class AuthViewController extends GetxController {
       _isDualAgencyAllowedAtBrokerage.value;
   File? get selectedProfilePic => _selectedProfilePic.value;
   File? get selectedCompanyLogo => _selectedCompanyLogo.value;
+  File? get selectedVideo => _selectedVideo.value;
   List<String> get selectedExpertise => _selectedExpertise;
   List<String> get selectedSpecialtyProducts => _selectedSpecialtyProducts;
   List<String> get selectedLicensedStates => _selectedLicensedStates;
   bool get agentVerificationAgreed => _agentVerificationAgreed.value;
-  bool get loanOfficerVerificationAgreed => _loanOfficerVerificationAgreed.value;
-  
+  bool get loanOfficerVerificationAgreed =>
+      _loanOfficerVerificationAgreed.value;
+
   void setAgentVerificationAgreed(bool value) {
     _agentVerificationAgreed.value = value;
   }
-  
+
   void setLoanOfficerVerificationAgreed(bool value) {
     _loanOfficerVerificationAgreed.value = value;
   }
@@ -116,7 +124,7 @@ class AuthViewController extends GetxController {
     _agentVerificationAgreed.value = false;
     _loanOfficerVerificationAgreed.value = false;
   }
-  
+
   void toggleLicensedState(String state) {
     if (_selectedLicensedStates.contains(state)) {
       _selectedLicensedStates.remove(state);
@@ -124,11 +132,11 @@ class AuthViewController extends GetxController {
       _selectedLicensedStates.add(state);
     }
   }
-  
+
   bool isLicensedStateSelected(String state) {
     return _selectedLicensedStates.contains(state);
   }
-  
+
   void toggleExpertise(String expertise) {
     if (_selectedExpertise.contains(expertise)) {
       _selectedExpertise.remove(expertise);
@@ -136,11 +144,11 @@ class AuthViewController extends GetxController {
       _selectedExpertise.add(expertise);
     }
   }
-  
+
   bool isExpertiseSelected(String expertise) {
     return _selectedExpertise.contains(expertise);
   }
-  
+
   void toggleSpecialtyProduct(String product) {
     if (_selectedSpecialtyProducts.contains(product)) {
       _selectedSpecialtyProducts.remove(product);
@@ -148,7 +156,7 @@ class AuthViewController extends GetxController {
       _selectedSpecialtyProducts.add(product);
     }
   }
-  
+
   bool isSpecialtyProductSelected(String product) {
     return _selectedSpecialtyProducts.contains(product);
   }
@@ -203,6 +211,24 @@ class AuthViewController extends GetxController {
     _selectedCompanyLogo.value = null;
   }
 
+  Future<void> pickVideo() async {
+    try {
+      final XFile? video = await _imagePicker.pickVideo(
+        source: ImageSource.gallery,
+      );
+
+      if (video != null) {
+        _selectedVideo.value = File(video.path);
+      }
+    } catch (e) {
+      Get.snackbar('Error', 'Failed to pick video: ${e.toString()}');
+    }
+  }
+
+  void removeVideo() {
+    _selectedVideo.value = null;
+  }
+
   void _clearForm() {
     emailController.clear();
     passwordController.clear();
@@ -212,6 +238,7 @@ class AuthViewController extends GetxController {
     _isDualAgencyAllowedAtBrokerage.value = null;
     _selectedProfilePic.value = null;
     _selectedCompanyLogo.value = null;
+    _selectedVideo.value = null;
     // Clear agent-specific fields
     brokerageController.clear();
     agentLicenseNumberController.clear();
@@ -231,6 +258,8 @@ class AuthViewController extends GetxController {
     mortgageApplicationUrlController.clear();
     loanOfficerExternalReviewsUrlController.clear();
     _selectedSpecialtyProducts.clear();
+    // Clear video file
+    _selectedVideo.value = null;
     // Clear licensed states
     _selectedLicensedStates.clear();
     // Clear verification agreements
@@ -255,7 +284,7 @@ class AuthViewController extends GetxController {
         List<String>? licensedStatesList = _selectedLicensedStates.isNotEmpty
             ? _selectedLicensedStates.toList()
             : null;
-            
+
         if (selectedRole == UserRole.agent) {
           additionalData = {
             'brokerage': brokerageController.text.trim(),
@@ -263,13 +292,25 @@ class AuthViewController extends GetxController {
             'isDualAgencyAllowedInState': isDualAgencyAllowedInState,
             'isDualAgencyAllowedAtBrokerage': isDualAgencyAllowedAtBrokerage,
             // Agent profile fields
-            if (bioController.text.trim().isNotEmpty) 'bio': bioController.text.trim(),
-            if (videoUrlController.text.trim().isNotEmpty) 'videoUrl': videoUrlController.text.trim(),
+            if (bioController.text.trim().isNotEmpty)
+              'bio': bioController.text.trim(),
+            if (videoUrlController.text.trim().isNotEmpty)
+              'videoUrl': videoUrlController.text.trim(),
             if (_selectedExpertise.isNotEmpty) 'expertise': _selectedExpertise,
-            if (websiteUrlController.text.trim().isNotEmpty) 'websiteUrl': websiteUrlController.text.trim(),
-            if (googleReviewsUrlController.text.trim().isNotEmpty) 'googleReviewsUrl': googleReviewsUrlController.text.trim(),
-            if (thirdPartyReviewsUrlController.text.trim().isNotEmpty) 'thirdPartyReviewsUrl': thirdPartyReviewsUrlController.text.trim(),
-            if (serviceZipCodesController.text.trim().isNotEmpty) 'serviceZipCodes': serviceZipCodesController.text.trim().split(',').map((z) => z.trim()).where((z) => z.isNotEmpty).toList(),
+            if (websiteUrlController.text.trim().isNotEmpty)
+              'websiteUrl': websiteUrlController.text.trim(),
+            if (googleReviewsUrlController.text.trim().isNotEmpty)
+              'googleReviewsUrl': googleReviewsUrlController.text.trim(),
+            if (thirdPartyReviewsUrlController.text.trim().isNotEmpty)
+              'thirdPartyReviewsUrl': thirdPartyReviewsUrlController.text
+                  .trim(),
+            if (serviceZipCodesController.text.trim().isNotEmpty)
+              'serviceZipCodes': serviceZipCodesController.text
+                  .trim()
+                  .split(',')
+                  .map((z) => z.trim())
+                  .where((z) => z.isNotEmpty)
+                  .toList(),
             'verificationAgreed': _agentVerificationAgreed.value,
           };
         } else if (selectedRole == UserRole.loanOfficer) {
@@ -277,12 +318,20 @@ class AuthViewController extends GetxController {
             'company': companyController.text.trim(),
             'licenseNumber': loanOfficerLicenseNumberController.text.trim(),
             // Loan officer profile fields
-            if (loanOfficerBioController.text.trim().isNotEmpty) 'bio': loanOfficerBioController.text.trim(),
-            if (loanOfficerVideoUrlController.text.trim().isNotEmpty) 'videoUrl': loanOfficerVideoUrlController.text.trim(),
-            if (_selectedSpecialtyProducts.isNotEmpty) 'specialtyProducts': _selectedSpecialtyProducts,
-            if (loanOfficerWebsiteUrlController.text.trim().isNotEmpty) 'websiteUrl': loanOfficerWebsiteUrlController.text.trim(),
-            if (mortgageApplicationUrlController.text.trim().isNotEmpty) 'mortgageApplicationUrl': mortgageApplicationUrlController.text.trim(),
-            if (loanOfficerExternalReviewsUrlController.text.trim().isNotEmpty) 'externalReviewsUrl': loanOfficerExternalReviewsUrlController.text.trim(),
+            if (loanOfficerBioController.text.trim().isNotEmpty)
+              'bio': loanOfficerBioController.text.trim(),
+            if (loanOfficerVideoUrlController.text.trim().isNotEmpty)
+              'videoUrl': loanOfficerVideoUrlController.text.trim(),
+            if (_selectedSpecialtyProducts.isNotEmpty)
+              'specialtyProducts': _selectedSpecialtyProducts,
+            if (loanOfficerWebsiteUrlController.text.trim().isNotEmpty)
+              'websiteUrl': loanOfficerWebsiteUrlController.text.trim(),
+            if (mortgageApplicationUrlController.text.trim().isNotEmpty)
+              'mortgageApplicationUrl': mortgageApplicationUrlController.text
+                  .trim(),
+            if (loanOfficerExternalReviewsUrlController.text.trim().isNotEmpty)
+              'externalReviewsUrl': loanOfficerExternalReviewsUrlController.text
+                  .trim(),
             'verificationAgreed': _loanOfficerVerificationAgreed.value,
           };
         }
@@ -299,6 +348,7 @@ class AuthViewController extends GetxController {
           additionalData: additionalData,
           profilePic: _selectedProfilePic.value,
           companyLogo: _selectedCompanyLogo.value,
+          video: _selectedVideo.value,
         );
       }
     } catch (e) {
@@ -403,10 +453,7 @@ class AuthViewController extends GetxController {
           return false;
         }
         if (!_agentVerificationAgreed.value) {
-          Get.snackbar(
-            'Error',
-            'Please confirm the verification statement',
-          );
+          Get.snackbar('Error', 'Please confirm the verification statement');
           return false;
         }
       }
@@ -426,10 +473,7 @@ class AuthViewController extends GetxController {
           return false;
         }
         if (!_loanOfficerVerificationAgreed.value) {
-          Get.snackbar(
-            'Error',
-            'Please confirm the verification statement',
-          );
+          Get.snackbar('Error', 'Please confirm the verification statement');
           return false;
         }
       }

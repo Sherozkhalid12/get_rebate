@@ -807,38 +807,72 @@ class AgentProfileView extends GetView<AgentProfileController> {
 
             const SizedBox(height: 24),
 
-            // Service Areas
-            Text(
-              'Service Areas',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: AppTheme.black,
-                fontWeight: FontWeight.w600,
+            // Service Areas (show serviceAreas if available, otherwise show claimedZipCodes)
+            if (agent.serviceAreas != null && agent.serviceAreas!.isNotEmpty) ...[
+              Text(
+                'Service Areas',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: AppTheme.black,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: agent.claimedZipCodes.map((zip) {
-                return Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppTheme.lightGreen.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Text(
-                    zip,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppTheme.lightGreen,
-                      fontWeight: FontWeight.w600,
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: agent.serviceAreas!.map((area) {
+                  return Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
                     ),
-                  ),
-                );
-              }).toList(),
-            ),
+                    decoration: BoxDecoration(
+                      color: AppTheme.lightGreen.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Text(
+                      area,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppTheme.lightGreen,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ] else if (agent.claimedZipCodes.isNotEmpty) ...[
+              Text(
+                'Service Areas',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: AppTheme.black,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: agent.claimedZipCodes.map((zip) {
+                  return Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppTheme.lightGreen.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Text(
+                      zip,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppTheme.lightGreen,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ],
 
             const SizedBox(height: 24),
 

@@ -100,8 +100,8 @@ class AgentView extends GetView<AgentController> {
               child: _buildTab(context, 'ZIP Codes', 1, Icons.location_on),
             ),
             Expanded(child: _buildTab(context, 'My Listings', 2, Icons.home)),
-            Expanded(child: _buildTab(context, 'Billing', 3, Icons.payment)),
-            Expanded(child: _buildTab(context, 'Stats', 4, Icons.analytics)),
+            Expanded(child: _buildTab(context, 'Stats', 3, Icons.analytics)),
+            Expanded(child: _buildTab(context, 'Billing', 4, Icons.payment)),
           ],
         ),
       ),
@@ -247,9 +247,9 @@ class AgentView extends GetView<AgentController> {
         case 2:
           return _buildMyListings(context);
         case 3:
-          return _buildBilling(context);
-        case 4:
           return _buildStats(context);
+        case 4:
+          return _buildBilling(context);
         default:
           return _buildDashboard(context);
       }
@@ -371,7 +371,7 @@ class AgentView extends GetView<AgentController> {
               Expanded(
                 child: CustomButton(
                   text: 'View Billing',
-                  onPressed: () => controller.setSelectedTab(2),
+                  onPressed: () => controller.setSelectedTab(4),
                   icon: Icons.payment,
                   isOutlined: true,
                 ),
@@ -389,6 +389,11 @@ class AgentView extends GetView<AgentController> {
                   },
                   icon: Icons.school,
                   isOutlined: true,
+                  height: 60.h,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: 12.w,
+                    vertical: 12.h,
+                  ),
                 ),
               ),
               const SizedBox(width: 12),

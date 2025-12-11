@@ -15,13 +15,21 @@ class AgentEditProfileController extends GetxController {
   final bioController = TextEditingController();
   final descriptionController = TextEditingController();
   final licenseNumberController = TextEditingController();
+  final companyNameController = TextEditingController();
+  final websiteLinkController = TextEditingController();
+  final googleReviewsLinkController = TextEditingController();
+  final thirdPartReviewLinkController = TextEditingController();
+  final serviceAreasController = TextEditingController();
 
   // Observable variables
   final _isLoading = false.obs;
   final _selectedProfilePic = Rxn<File>();
+  final _selectedCompanyLogo = Rxn<File>();
+  final _selectedVideo = Rxn<File>();
   final _dualAgencyState = Rxn<bool>();
   final _dualAgencyBrokerage = Rxn<bool>();
   final _licensedStates = <String>[].obs;
+  final _areasOfExpertise = <String>[].obs;
 
   // API Base URL for static files
   static const String _baseUrl = 'https://de9f1f9bbb2a.ngrok-free.app';
@@ -29,9 +37,12 @@ class AgentEditProfileController extends GetxController {
   // Getters
   bool get isLoading => _isLoading.value;
   File? get selectedProfilePic => _selectedProfilePic.value;
+  File? get selectedCompanyLogo => _selectedCompanyLogo.value;
+  File? get selectedVideo => _selectedVideo.value;
   bool? get dualAgencyState => _dualAgencyState.value;
   bool? get dualAgencyBrokerage => _dualAgencyBrokerage.value;
   List<String> get licensedStates => _licensedStates;
+  List<String> get areasOfExpertise => _areasOfExpertise;
 
   // Get profile picture URL - returns full URL if exists, null otherwise
   String? get profilePictureUrl {
@@ -83,6 +94,28 @@ class AgentEditProfileController extends GetxController {
       descriptionController.text = user.additionalData?['description'] ?? '';
       licenseNumberController.text =
           user.additionalData?['liscenceNumber'] ?? '';
+      companyNameController.text = user.additionalData?['CompanyName'] ?? '';
+      websiteLinkController.text = user.additionalData?['website_link'] ?? '';
+      googleReviewsLinkController.text =
+          user.additionalData?['google_reviews_link'] ?? '';
+      thirdPartReviewLinkController.text =
+          user.additionalData?['thirdPartReviewLink'] ?? '';
+
+      // Load service areas
+      final serviceAreas = user.additionalData?['serviceAreas'];
+      if (serviceAreas != null) {
+        if (serviceAreas is List) {
+          serviceAreasController.text = serviceAreas.join(', ');
+        } else if (serviceAreas is String) {
+          serviceAreasController.text = serviceAreas;
+        }
+      }
+
+      // Load areas of expertise
+      final expertise = user.additionalData?['areasOfExpertise'];
+      if (expertise != null && expertise is List) {
+        _areasOfExpertise.value = List<String>.from(expertise);
+      }
 
       _dualAgencyState.value = user.additionalData?['dualAgencyState'];
       _dualAgencyBrokerage.value = user.additionalData?['dualAgencySBrokerage'];
@@ -111,6 +144,45 @@ class AgentEditProfileController extends GetxController {
     _selectedProfilePic.value = null;
   }
 
+  Future<void> pickCompanyLogo() async {
+    try {
+      final XFile? image = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 85,
+      );
+
+      if (image != null) {
+        _selectedCompanyLogo.value = File(image.path);
+      }
+    } catch (e) {
+      Get.snackbar('Error', 'Failed to pick company logo: ${e.toString()}');
+    }
+  }
+
+  void removeCompanyLogo() {
+    _selectedCompanyLogo.value = null;
+  }
+
+  Future<void> pickVideo() async {
+    try {
+      final XFile? video = await _imagePicker.pickVideo(
+        source: ImageSource.gallery,
+      );
+
+      if (video != null) {
+        _selectedVideo.value = File(video.path);
+      }
+    } catch (e) {
+      Get.snackbar('Error', 'Failed to pick video: ${e.toString()}');
+    }
+  }
+
+  void removeVideo() {
+    _selectedVideo.value = null;
+  }
+
   void setDualAgencyState(bool? value) {
     _dualAgencyState.value = value;
   }
@@ -127,47 +199,105 @@ class AgentEditProfileController extends GetxController {
     }
   }
 
+  void toggleAreaOfExpertise(String expertise) {
+    if (_areasOfExpertise.contains(expertise)) {
+      _areasOfExpertise.remove(expertise);
+    } else {
+      _areasOfExpertise.add(expertise);
+    }
+  }
+
+  bool isAreaOfExpertiseSelected(String expertise) {
+    return _areasOfExpertise.contains(expertise);
+  }
+
   Future<void> saveProfile() async {
     if (!_validateForm()) return;
 
     try {
       _isLoading.value = true;
 
-      // TODO: Implement API call to update profile
-      await Future.delayed(const Duration(seconds: 2)); // Simulate API call
-
-      // Update user model
       final currentUser = _authController.currentUser;
-      if (currentUser != null) {
-        final updatedUser = currentUser.copyWith(
-          name: fullNameController.text.trim(),
-          phone: phoneController.text.trim().isNotEmpty
-              ? phoneController.text.trim()
-              : null,
-          additionalData: {
-            ...?currentUser.additionalData,
-            'bio': bioController.text.trim(),
-            'description': descriptionController.text.trim(),
-            'liscenceNumber': licenseNumberController.text.trim(),
-            'dualAgencyState': _dualAgencyState.value,
-            'dualAgencySBrokerage': _dualAgencyBrokerage.value,
-          },
-          licensedStates: _licensedStates.toList(),
-        );
+      if (currentUser == null) {
+        Get.snackbar('Error', 'User not found. Please login again.');
+        return;
+      }
 
-        _authController.updateUser(updatedUser);
-
+      // Validate user ID - must be a valid MongoDB ObjectId, not a generated one
+      if (currentUser.id.isEmpty || currentUser.id.startsWith('user_')) {
         Get.snackbar(
-          'Success',
-          'Profile updated successfully!',
-          backgroundColor: Colors.green,
+          'Error',
+          'Invalid user ID. Please logout and login again.',
+          backgroundColor: Colors.red,
           colorText: Colors.white,
         );
-
-        Get.back();
+        return;
       }
+
+      // Prepare service areas list
+      List<String>? serviceAreasList;
+      if (serviceAreasController.text.trim().isNotEmpty) {
+        serviceAreasList = serviceAreasController.text
+            .trim()
+            .split(',')
+            .map((s) => s.trim())
+            .where((s) => s.isNotEmpty)
+            .toList();
+      }
+
+      // Debug: Print user ID being used
+      print('🔍 Using User ID for update: ${currentUser.id}');
+
+      // Call API to update user
+      await _authController.updateUserProfile(
+        userId: currentUser.id,
+        fullname: fullNameController.text.trim(),
+        email: emailController.text.trim(),
+        phone: phoneController.text.trim().isNotEmpty
+            ? phoneController.text.trim()
+            : null,
+        bio: bioController.text.trim().isNotEmpty
+            ? bioController.text.trim()
+            : null,
+        description: descriptionController.text.trim().isNotEmpty
+            ? descriptionController.text.trim()
+            : null,
+        companyName: companyNameController.text.trim().isNotEmpty
+            ? companyNameController.text.trim()
+            : null,
+        websiteLink: websiteLinkController.text.trim().isNotEmpty
+            ? websiteLinkController.text.trim()
+            : null,
+        googleReviewsLink: googleReviewsLinkController.text.trim().isNotEmpty
+            ? googleReviewsLinkController.text.trim()
+            : null,
+        clientReviewsLink: null, // Can be added as separate field if needed
+        thirdPartReviewLink:
+            thirdPartReviewLinkController.text.trim().isNotEmpty
+            ? thirdPartReviewLinkController.text.trim()
+            : null,
+        serviceAreas: serviceAreasList,
+        areasOfExpertise: _areasOfExpertise.isNotEmpty
+            ? _areasOfExpertise.toList()
+            : null,
+        licensedStates: _licensedStates.isNotEmpty
+            ? _licensedStates.toList()
+            : null,
+        dualAgencyState: _dualAgencyState.value,
+        dualAgencySBrokerage: _dualAgencyBrokerage.value,
+        profilePic: _selectedProfilePic.value,
+        companyLogo: _selectedCompanyLogo.value,
+        video: _selectedVideo.value,
+      );
+
+      // Success snackbar is shown in updateUserProfile method
+      // Wait a moment for snackbar to be visible, then navigate back
+      await Future.delayed(const Duration(milliseconds: 500));
+      Get.back();
     } catch (e) {
-      Get.snackbar('Error', 'Failed to update profile: ${e.toString()}');
+      // Error is already handled in updateUserProfile method
+      // Just log it here
+      print('Error updating profile: $e');
     } finally {
       _isLoading.value = false;
     }
@@ -216,6 +346,11 @@ class AgentEditProfileController extends GetxController {
     bioController.dispose();
     descriptionController.dispose();
     licenseNumberController.dispose();
+    companyNameController.dispose();
+    websiteLinkController.dispose();
+    googleReviewsLinkController.dispose();
+    thirdPartReviewLinkController.dispose();
+    serviceAreasController.dispose();
     super.onClose();
   }
 }

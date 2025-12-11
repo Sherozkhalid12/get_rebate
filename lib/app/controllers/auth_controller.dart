@@ -1,7 +1,9 @@
+import 'package:flutter/material.dart';
 import 'package:get/get.dart' hide FormData, MultipartFile;
 import 'package:get_storage/get_storage.dart';
 import 'package:dio/dio.dart';
 import 'dart:io';
+import 'dart:convert';
 import 'package:getrebate/app/models/user_model.dart';
 import 'package:getrebate/app/routes/app_pages.dart';
 
@@ -147,20 +149,18 @@ class AuthController extends GetxController {
         final token = responseData['token'];
 
         if (userData != null) {
-          // Extract user ID - API returns _id, ensure we get it correctly
-          final userId = userData['_id']?.toString() ?? 
-                        userData['id']?.toString() ?? 
-                        '';
-          
-          if (userId.isEmpty) {
+          // Extract user ID - must use _id from API response
+          final userId =
+              userData['_id']?.toString() ?? userData['id']?.toString();
+
+          if (userId == null || userId.isEmpty) {
             print('❌ CRITICAL ERROR: User ID is empty in API response!');
             print('   userData keys: ${userData.keys}');
             print('   userData: $userData');
-            throw Exception('User ID not found in login API response. Cannot proceed without valid user ID.');
+            throw Exception('User ID (_id) not found in login API response. Cannot proceed without valid user ID.');
           }
-          
-          print('✅ Extracted User ID from API: $userId');
-          
+
+          print('✅ Extracted User ID from login: $userId');
           // Map API response to UserModel
           final user = UserModel(
             id: userId,
@@ -181,14 +181,43 @@ class AuthController extends GetxController {
             lastLoginAt: DateTime.now(),
             isVerified: userData['verified'] ?? false,
             additionalData: {
+              // Basic fields
+              'CompanyName':
+                  userData['CompanyName'] ??
+                  userData['brokerage'] ??
+                  userData['company'],
+              'liscenceNumber':
+                  userData['liscenceNumber'] ?? userData['licenseNumber'],
               'dualAgencyState': userData['dualAgencyState'],
               'dualAgencySBrokerage': userData['dualAgencySBrokerage'],
-              'liscenceNumber': userData['liscenceNumber'],
-              'ratings': userData['ratings'],
-              'reviews': userData['reviews'],
+              'verificationStatement':
+                  userData['verificationStatement'] ??
+                  userData['verificationAgreed'],
               'bio': userData['bio'],
               'description': userData['description'],
-              'serviceAreas': userData['serviceAreas'],
+              'video': userData['video'] ?? userData['videoUrl'],
+              'companyLogo': userData['companyLogo'],
+              // Arrays
+              'serviceAreas':
+                  userData['serviceAreas'] ?? userData['serviceZipCodes'],
+              'areasOfExpertise':
+                  userData['areasOfExpertise'] ?? userData['expertise'],
+              'specialtyProducts': userData['specialtyProducts'],
+              // Links
+              'website_link':
+                  userData['website_link'] ?? userData['websiteUrl'],
+              'google_reviews_link':
+                  userData['google_reviews_link'] ??
+                  userData['googleReviewsUrl'],
+              'thirdPartReviewLink':
+                  userData['thirdPartReviewLink'] ??
+                  userData['client_reviews_link'] ??
+                  userData['thirdPartyReviewsUrl'],
+              'mortgageApplicationUrl': userData['mortgageApplicationUrl'],
+              'externalReviewsUrl': userData['externalReviewsUrl'],
+              // Stats
+              'ratings': userData['ratings'],
+              'reviews': userData['reviews'],
               'searches': userData['searches'],
               'views': userData['views'],
               'contacts': userData['contacts'],
@@ -293,6 +322,7 @@ class AuthController extends GetxController {
     Map<String, dynamic>? additionalData,
     File? profilePic,
     File? companyLogo,
+    File? video,
   }) async {
     try {
       _isLoading.value = true;
@@ -309,24 +339,29 @@ class AuthController extends GetxController {
         MapEntry('role', _mapRoleToApiFormat(role)),
       ]);
 
-      // Add licensed states if provided
+      // Add licensed states if provided (as JSON array string)
       if (licensedStates != null && licensedStates.isNotEmpty) {
         formData.fields.add(
-          MapEntry('licensedStates', licensedStates.join(',')),
+          MapEntry('licensedStates', jsonEncode(licensedStates)),
         );
       }
 
       // Add agent-specific fields
       if (role == UserRole.agent && additionalData != null) {
-        // Required fields
+        // CompanyName (brokerage)
         if (additionalData['brokerage'] != null) {
           formData.fields.add(
-            MapEntry('brokerage', additionalData['brokerage'].toString()),
+            MapEntry('CompanyName', additionalData['brokerage'].toString()),
           );
         }
+
+        // liscenceNumber (note: API uses typo "liscence" instead of "license")
         if (additionalData['licenseNumber'] != null) {
           formData.fields.add(
-            MapEntry('licenseNumber', additionalData['licenseNumber'].toString()),
+            MapEntry(
+              'liscenceNumber',
+              additionalData['licenseNumber'].toString(),
+            ),
           );
         }
 
@@ -346,13 +381,13 @@ class AuthController extends GetxController {
           );
         }
 
-        // Service ZIP codes
+        // Service Areas (as JSON array string)
         if (additionalData['serviceZipCodes'] != null &&
             additionalData['serviceZipCodes'] is List) {
-          final zipCodesList = additionalData['serviceZipCodes'] as List;
-          if (zipCodesList.isNotEmpty) {
+          final serviceAreasList = additionalData['serviceZipCodes'] as List;
+          if (serviceAreasList.isNotEmpty) {
             formData.fields.add(
-              MapEntry('serviceZipCodes', zipCodesList.join(',')),
+              MapEntry('serviceAreas', jsonEncode(serviceAreasList)),
             );
           }
         }
@@ -364,64 +399,74 @@ class AuthController extends GetxController {
           );
         }
 
-        // Video URL
-        if (additionalData['videoUrl'] != null) {
-          formData.fields.add(
-            MapEntry('videoUrl', additionalData['videoUrl'].toString()),
-          );
-        }
-
-        // Expertise (as JSON array)
+        // Areas of Expertise (as JSON array string)
         if (additionalData['expertise'] != null &&
             additionalData['expertise'] is List) {
           final expertiseList = additionalData['expertise'] as List;
           if (expertiseList.isNotEmpty) {
             formData.fields.add(
-              MapEntry('expertise', expertiseList.join(',')),
+              MapEntry(
+                'areasOfExpertise',
+                '${expertiseList.map((e) => '"$e"').toList()}',
+              ),
             );
           }
         }
 
-        // Website URL
+        // Website link
         if (additionalData['websiteUrl'] != null) {
           formData.fields.add(
-            MapEntry('websiteUrl', additionalData['websiteUrl'].toString()),
+            MapEntry('website_link', additionalData['websiteUrl'].toString()),
           );
         }
 
-        // Google Reviews URL
+        // Google Reviews link
         if (additionalData['googleReviewsUrl'] != null) {
           formData.fields.add(
-            MapEntry('googleReviewsUrl', additionalData['googleReviewsUrl'].toString()),
+            MapEntry(
+              'google_reviews_link',
+              additionalData['googleReviewsUrl'].toString(),
+            ),
           );
         }
 
-        // Third Party Reviews URL
+        // Third Party Review Link
         if (additionalData['thirdPartyReviewsUrl'] != null) {
           formData.fields.add(
-            MapEntry('thirdPartyReviewsUrl', additionalData['thirdPartyReviewsUrl'].toString()),
+            MapEntry(
+              'thirdPartReviewLink',
+              additionalData['thirdPartyReviewsUrl'].toString(),
+            ),
           );
         }
 
-        // Verification Agreement
+        // Verification Statement
         if (additionalData['verificationAgreed'] != null) {
           formData.fields.add(
-            MapEntry('verificationAgreed', additionalData['verificationAgreed'].toString()),
+            MapEntry(
+              'verificationStatement',
+              additionalData['verificationAgreed'].toString(),
+            ),
           );
         }
       }
 
       // Add loan officer-specific fields
       if (role == UserRole.loanOfficer && additionalData != null) {
-        // Required fields
+        // CompanyName (for loan officers, this is the company name)
         if (additionalData['company'] != null) {
           formData.fields.add(
-            MapEntry('company', additionalData['company'].toString()),
+            MapEntry('CompanyName', additionalData['company'].toString()),
           );
         }
+
+        // liscenceNumber (note: API uses typo "liscence" instead of "license")
         if (additionalData['licenseNumber'] != null) {
           formData.fields.add(
-            MapEntry('licenseNumber', additionalData['licenseNumber'].toString()),
+            MapEntry(
+              'liscenceNumber',
+              additionalData['licenseNumber'].toString(),
+            ),
           );
         }
 
@@ -432,49 +477,62 @@ class AuthController extends GetxController {
           );
         }
 
-        // Video URL
-        if (additionalData['videoUrl'] != null) {
-          formData.fields.add(
-            MapEntry('videoUrl', additionalData['videoUrl'].toString()),
-          );
+        // Service Areas (as JSON array string) - for loan officers
+        if (additionalData['serviceAreas'] != null &&
+            additionalData['serviceAreas'] is List) {
+          final serviceAreasList = additionalData['serviceAreas'] as List;
+          if (serviceAreasList.isNotEmpty) {
+            formData.fields.add(
+              MapEntry('serviceAreas', jsonEncode(serviceAreasList)),
+            );
+          }
         }
 
-        // Specialty Products (as comma-separated string)
+        // Specialty Products (as JSON array string)
         if (additionalData['specialtyProducts'] != null &&
             additionalData['specialtyProducts'] is List) {
           final specialtyList = additionalData['specialtyProducts'] as List;
           if (specialtyList.isNotEmpty) {
             formData.fields.add(
-              MapEntry('specialtyProducts', specialtyList.join(',')),
+              MapEntry('specialtyProducts', jsonEncode(specialtyList)),
             );
           }
         }
 
-        // Website URL
+        // Website link
         if (additionalData['websiteUrl'] != null) {
           formData.fields.add(
-            MapEntry('websiteUrl', additionalData['websiteUrl'].toString()),
+            MapEntry('website_link', additionalData['websiteUrl'].toString()),
           );
         }
 
         // Mortgage Application URL
         if (additionalData['mortgageApplicationUrl'] != null) {
           formData.fields.add(
-            MapEntry('mortgageApplicationUrl', additionalData['mortgageApplicationUrl'].toString()),
+            MapEntry(
+              'mortgageApplicationUrl',
+              additionalData['mortgageApplicationUrl'].toString(),
+            ),
           );
         }
 
-        // External Reviews URL
+        // External Reviews URL (third party reviews)
         if (additionalData['externalReviewsUrl'] != null) {
           formData.fields.add(
-            MapEntry('externalReviewsUrl', additionalData['externalReviewsUrl'].toString()),
+            MapEntry(
+              'thirdPartReviewLink',
+              additionalData['externalReviewsUrl'].toString(),
+            ),
           );
         }
 
-        // Verification Agreement
+        // Verification Statement
         if (additionalData['verificationAgreed'] != null) {
           formData.fields.add(
-            MapEntry('verificationAgreed', additionalData['verificationAgreed'].toString()),
+            MapEntry(
+              'verificationStatement',
+              additionalData['verificationAgreed'].toString(),
+            ),
           );
         }
       }
@@ -496,6 +554,17 @@ class AuthController extends GetxController {
           MapEntry(
             'companyLogo',
             await MultipartFile.fromFile(companyLogo.path, filename: fileName),
+          ),
+        );
+      }
+
+      // Add video file if provided (for agents and loan officers)
+      if (video != null) {
+        final fileName = video.path.split('/').last;
+        formData.files.add(
+          MapEntry(
+            'video',
+            await MultipartFile.fromFile(video.path, filename: fileName),
           ),
         );
       }
@@ -545,10 +614,14 @@ class AuthController extends GetxController {
           print('  - googleReviewsUrl: ${additionalData['googleReviewsUrl']}');
         }
         if (additionalData['thirdPartyReviewsUrl'] != null) {
-          print('  - thirdPartyReviewsUrl: ${additionalData['thirdPartyReviewsUrl']}');
+          print(
+            '  - thirdPartyReviewsUrl: ${additionalData['thirdPartyReviewsUrl']}',
+          );
         }
         if (additionalData['verificationAgreed'] != null) {
-          print('  - verificationAgreed: ${additionalData['verificationAgreed']}');
+          print(
+            '  - verificationAgreed: ${additionalData['verificationAgreed']}',
+          );
         }
       }
       if (role == UserRole.loanOfficer && additionalData != null) {
@@ -565,19 +638,27 @@ class AuthController extends GetxController {
           print('  - videoUrl: ${additionalData['videoUrl']}');
         }
         if (additionalData['specialtyProducts'] != null) {
-          print('  - specialtyProducts: ${additionalData['specialtyProducts']}');
+          print(
+            '  - specialtyProducts: ${additionalData['specialtyProducts']}',
+          );
         }
         if (additionalData['websiteUrl'] != null) {
           print('  - websiteUrl: ${additionalData['websiteUrl']}');
         }
         if (additionalData['mortgageApplicationUrl'] != null) {
-          print('  - mortgageApplicationUrl: ${additionalData['mortgageApplicationUrl']}');
+          print(
+            '  - mortgageApplicationUrl: ${additionalData['mortgageApplicationUrl']}',
+          );
         }
         if (additionalData['externalReviewsUrl'] != null) {
-          print('  - externalReviewsUrl: ${additionalData['externalReviewsUrl']}');
+          print(
+            '  - externalReviewsUrl: ${additionalData['externalReviewsUrl']}',
+          );
         }
         if (additionalData['verificationAgreed'] != null) {
-          print('  - verificationAgreed: ${additionalData['verificationAgreed']}');
+          print(
+            '  - verificationAgreed: ${additionalData['verificationAgreed']}',
+          );
         }
       }
       if (profilePic != null) {
@@ -602,33 +683,111 @@ class AuthController extends GetxController {
 
         final responseData = response.data;
 
-        // Extract user ID from API response - MUST come from backend
-        final userId = responseData['_id']?.toString() ?? 
-                      responseData['id']?.toString() ?? 
-                      '';
-        
-        if (userId.isEmpty) {
-          throw Exception('User ID not found in API response. Cannot proceed without valid user ID.');
-        }
-        
-        print('✅ Extracted User ID from signup API: $userId');
+        // Extract user data - check if nested in 'user' object or at root level
+        final userData = responseData['user'] ?? responseData;
 
-        // Create user model from API response
+        // Extract user ID - must use _id from API response
+        final userId =
+            userData['_id']?.toString() ?? userData['id']?.toString();
+
+        if (userId == null || userId.isEmpty) {
+          print('❌ ERROR: User ID not found in signup API response');
+          print('📥 Full Response Data:');
+          print(responseData);
+          throw Exception(
+            'User ID (_id) not found in signup API response. Please try again.',
+          );
+        }
+
+        print('✅ Extracted User ID from signup: $userId');
+
+        // Create user model from API response - use data from API response
         final user = UserModel(
           id: userId,
-          email: email,
-          name: name,
-          phone: phone,
+          email: userData['email'] ?? email,
+          name: userData['fullname'] ?? userData['name'] ?? name,
+          phone: userData['phone']?.toString() ?? phone,
           role: role,
           profileImage:
-              responseData['profilePic'] ?? responseData['profileImage'],
-          licensedStates: licensedStates ?? [],
-          createdAt: responseData['createdAt'] != null
-              ? DateTime.parse(responseData['createdAt'])
+              userData['profilePic']?.toString() ??
+              userData['profileImage']?.toString(),
+          licensedStates: userData['licensedStates'] != null
+              ? List<String>.from(userData['licensedStates'])
+              : (licensedStates ?? []),
+          createdAt: userData['createdAt'] != null
+              ? DateTime.parse(userData['createdAt'])
               : DateTime.now(),
           lastLoginAt: DateTime.now(),
-          isVerified: responseData['isVerified'] ?? false,
-          additionalData: additionalData,
+          isVerified: userData['verified'] ?? userData['isVerified'] ?? false,
+          additionalData: {
+            // Basic fields from API response
+            'CompanyName':
+                userData['CompanyName'] ??
+                userData['brokerage'] ??
+                userData['company'] ??
+                additionalData?['brokerage'] ??
+                additionalData?['company'],
+            'liscenceNumber':
+                userData['liscenceNumber'] ??
+                userData['licenseNumber'] ??
+                additionalData?['licenseNumber'],
+            'dualAgencyState':
+                userData['dualAgencyState'] ??
+                additionalData?['isDualAgencyAllowedInState'],
+            'dualAgencySBrokerage':
+                userData['dualAgencySBrokerage'] ??
+                additionalData?['isDualAgencyAllowedAtBrokerage'],
+            'verificationStatement':
+                userData['verificationStatement'] ??
+                userData['verificationAgreed'] ??
+                additionalData?['verificationAgreed'],
+            'bio': userData['bio'] ?? additionalData?['bio'],
+            'description':
+                userData['description'] ?? additionalData?['description'],
+            'video':
+                userData['video'] ??
+                userData['videoUrl'] ??
+                additionalData?['videoUrl'],
+            'companyLogo': userData['companyLogo'],
+            // Arrays from API response
+            'serviceAreas':
+                userData['serviceAreas'] ??
+                userData['serviceZipCodes'] ??
+                additionalData?['serviceZipCodes'],
+            'areasOfExpertise':
+                userData['areasOfExpertise'] ??
+                userData['expertise'] ??
+                additionalData?['expertise'],
+            'specialtyProducts':
+                userData['specialtyProducts'] ??
+                additionalData?['specialtyProducts'],
+            // Links from API response
+            'website_link':
+                userData['website_link'] ??
+                userData['websiteUrl'] ??
+                additionalData?['websiteUrl'],
+            'google_reviews_link':
+                userData['google_reviews_link'] ??
+                userData['googleReviewsUrl'] ??
+                additionalData?['googleReviewsUrl'],
+            'client_reviews_link': userData['client_reviews_link'],
+            'thirdPartReviewLink':
+                userData['thirdPartReviewLink'] ??
+                userData['thirdPartyReviewsUrl'] ??
+                additionalData?['thirdPartyReviewsUrl'],
+            'mortgageApplicationUrl':
+                userData['mortgageApplicationUrl'] ??
+                additionalData?['mortgageApplicationUrl'],
+            'externalReviewsUrl':
+                userData['externalReviewsUrl'] ??
+                additionalData?['externalReviewsUrl'],
+            // Stats
+            'ratings': userData['ratings'],
+            'reviews': userData['reviews'],
+            'searches': userData['searches'],
+            'views': userData['views'],
+            'contacts': userData['contacts'],
+          },
         );
 
         _currentUser.value = user;
@@ -693,6 +852,267 @@ class AuthController extends GetxController {
         return 'loanofficer';
       case UserRole.buyerSeller:
         return 'buyer/seller';
+    }
+  }
+
+  Future<void> updateUserProfile({
+    required String userId,
+    String? fullname,
+    String? email,
+    String? phone,
+    String? bio,
+    String? description,
+    String? companyName,
+    String? websiteLink,
+    String? googleReviewsLink,
+    String? clientReviewsLink,
+    String? thirdPartReviewLink,
+    List<String>? serviceAreas,
+    List<String>? areasOfExpertise,
+    List<String>? licensedStates,
+    bool? dualAgencyState,
+    bool? dualAgencySBrokerage,
+    File? profilePic,
+    File? companyLogo,
+    File? video,
+  }) async {
+    try {
+      _isLoading.value = true;
+
+      // Prepare form data
+      final formData = FormData();
+
+      // Add text fields
+      if (fullname != null && fullname.isNotEmpty) {
+        formData.fields.add(MapEntry('fullname', fullname));
+      }
+      if (email != null && email.isNotEmpty) {
+        formData.fields.add(MapEntry('email', email));
+      }
+      if (phone != null && phone.isNotEmpty) {
+        formData.fields.add(MapEntry('phone', phone));
+      }
+      if (bio != null && bio.isNotEmpty) {
+        formData.fields.add(MapEntry('bio', bio));
+      }
+      if (description != null && description.isNotEmpty) {
+        formData.fields.add(MapEntry('description', description));
+      }
+      if (companyName != null && companyName.isNotEmpty) {
+        formData.fields.add(MapEntry('CompanyName', companyName));
+      }
+      if (websiteLink != null && websiteLink.isNotEmpty) {
+        formData.fields.add(MapEntry('website_link', websiteLink));
+      }
+      if (googleReviewsLink != null && googleReviewsLink.isNotEmpty) {
+        formData.fields.add(MapEntry('google_reviews_link', googleReviewsLink));
+      }
+      if (clientReviewsLink != null && clientReviewsLink.isNotEmpty) {
+        formData.fields.add(MapEntry('client_reviews_link', clientReviewsLink));
+      }
+      if (thirdPartReviewLink != null && thirdPartReviewLink.isNotEmpty) {
+        formData.fields.add(
+          MapEntry('thirdPartReviewLink', thirdPartReviewLink),
+        );
+      }
+
+      // Add arrays as JSON
+      if (serviceAreas != null && serviceAreas.isNotEmpty) {
+        formData.fields.add(MapEntry('serviceAreas', jsonEncode(serviceAreas)));
+      }
+      if (areasOfExpertise != null && areasOfExpertise.isNotEmpty) {
+        formData.fields.add(
+          MapEntry('areasOfExpertise', jsonEncode(areasOfExpertise)),
+        );
+      }
+      if (licensedStates != null && licensedStates.isNotEmpty) {
+        formData.fields.add(
+          MapEntry('licensedStates', jsonEncode(licensedStates)),
+        );
+      }
+
+      // Add boolean fields
+      if (dualAgencyState != null) {
+        formData.fields.add(
+          MapEntry('dualAgencyState', dualAgencyState.toString()),
+        );
+      }
+      if (dualAgencySBrokerage != null) {
+        formData.fields.add(
+          MapEntry('dualAgencySBrokerage', dualAgencySBrokerage.toString()),
+        );
+      }
+
+      // Add file uploads
+      if (profilePic != null) {
+        final fileName = profilePic.path.split('/').last;
+        formData.files.add(
+          MapEntry(
+            'profilePic',
+            await MultipartFile.fromFile(profilePic.path, filename: fileName),
+          ),
+        );
+      }
+
+      if (companyLogo != null) {
+        final fileName = companyLogo.path.split('/').last;
+        formData.files.add(
+          MapEntry(
+            'companyLogo',
+            await MultipartFile.fromFile(companyLogo.path, filename: fileName),
+          ),
+        );
+      }
+
+      if (video != null) {
+        final fileName = video.path.split('/').last;
+        formData.files.add(
+          MapEntry(
+            'video',
+            await MultipartFile.fromFile(video.path, filename: fileName),
+          ),
+        );
+      }
+
+      // Validate userId
+      if (userId.isEmpty || userId.startsWith('user_')) {
+        throw Exception(
+          'Invalid user ID. Please login again to get a valid user ID.',
+        );
+      }
+
+      // Make API call
+      print('🚀 Sending PATCH request to: $_baseUrl/auth/updateUser/$userId');
+      print('📤 Request Data:');
+      print('  - userId: $userId');
+      if (fullname != null) print('  - fullname: $fullname');
+      if (email != null) print('  - email: $email');
+      if (phone != null) print('  - phone: $phone');
+      if (bio != null) print('  - bio: $bio');
+      if (companyName != null) print('  - CompanyName: $companyName');
+
+      final response = await _dio.patch(
+        '/auth/updateUser/$userId',
+        data: formData,
+        options: Options(headers: {'ngrok-skip-browser-warning': 'true'}),
+      );
+
+      // Handle successful response
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        print('✅ SUCCESS - Status Code: ${response.statusCode}');
+        print('📥 Response Data:');
+        print(response.data);
+        print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+        final responseData = response.data;
+        final userData = responseData['user'] ?? responseData;
+
+        // Update current user with response data
+        if (_currentUser.value != null) {
+          // Update user ID if API returns a new one (should use _id from response)
+          final updatedUserId =
+              userData['_id']?.toString() ??
+              userData['id']?.toString() ??
+              _currentUser.value!.id;
+
+          final updatedUser = _currentUser.value!.copyWith(
+            id: updatedUserId, // Ensure we use the correct ID from API
+            name: userData['fullname'] ?? _currentUser.value!.name,
+            email: userData['email'] ?? _currentUser.value!.email,
+            phone: userData['phone']?.toString() ?? _currentUser.value!.phone,
+            profileImage:
+                userData['profilePic'] ??
+                userData['profileImage'] ??
+                _currentUser.value!.profileImage,
+            licensedStates: userData['licensedStates'] != null
+                ? List<String>.from(userData['licensedStates'])
+                : _currentUser.value!.licensedStates,
+            additionalData: {
+              ...?_currentUser.value!.additionalData,
+              'CompanyName': userData['CompanyName'] ?? companyName,
+              'bio': userData['bio'] ?? bio,
+              'description': userData['description'] ?? description,
+              'website_link': userData['website_link'] ?? websiteLink,
+              'google_reviews_link':
+                  userData['google_reviews_link'] ?? googleReviewsLink,
+              'client_reviews_link':
+                  userData['client_reviews_link'] ?? clientReviewsLink,
+              'thirdPartReviewLink':
+                  userData['thirdPartReviewLink'] ?? thirdPartReviewLink,
+              'serviceAreas': userData['serviceAreas'] ?? serviceAreas,
+              'areasOfExpertise':
+                  userData['areasOfExpertise'] ?? areasOfExpertise,
+              'dualAgencyState': userData['dualAgencyState'] ?? dualAgencyState,
+              'dualAgencySBrokerage':
+                  userData['dualAgencySBrokerage'] ?? dualAgencySBrokerage,
+              'companyLogo': userData['companyLogo'],
+              'video': userData['video'] ?? userData['videoUrl'],
+            },
+          );
+
+          _currentUser.value = updatedUser;
+          _storage.write('current_user', updatedUser.toJson());
+
+          print('✅ User updated successfully!');
+          print('   User ID: ${updatedUser.id}');
+          print('   Name: ${updatedUser.name}');
+          print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        }
+
+        // Show success message after updating user data
+        Get.snackbar(
+          'Success',
+          'Profile updated successfully!',
+          backgroundColor: Colors.white.withOpacity(0.0),
+          colorText: Colors.black,
+          snackPosition: SnackPosition.TOP,
+          duration: const Duration(seconds: 2),
+          isDismissible: true,
+        );
+      } else {
+        // If status code is not 200/201, still show success if we got a response
+        Get.snackbar(
+          'Success',
+          'Profile updated successfully!',
+          backgroundColor: Colors.white.withOpacity(0.0),
+          colorText: Colors.black,
+          snackPosition: SnackPosition.TOP,
+          duration: const Duration(seconds: 2),
+          isDismissible: true,
+        );
+      }
+    } on DioException catch (e) {
+      // Handle Dio errors
+      print('❌ ERROR - Status Code: ${e.response?.statusCode ?? "N/A"}');
+      print('📥 Error Response:');
+      print(e.response?.data ?? e.message);
+      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+      String errorMessage = 'Failed to update profile. Please try again.';
+
+      if (e.response != null) {
+        final responseData = e.response?.data;
+        if (responseData is Map && responseData.containsKey('message')) {
+          errorMessage = responseData['message'].toString();
+        } else {
+          errorMessage = e.response?.statusMessage ?? errorMessage;
+        }
+      } else if (e.type == DioExceptionType.connectionTimeout ||
+          e.type == DioExceptionType.receiveTimeout) {
+        errorMessage =
+            'Connection timeout. Please check your internet connection.';
+      } else if (e.type == DioExceptionType.connectionError) {
+        errorMessage = 'No internet connection. Please check your network.';
+      }
+
+      Get.snackbar('Error', errorMessage);
+      rethrow;
+    } catch (e) {
+      print('❌ Unexpected Error: ${e.toString()}');
+      Get.snackbar('Error', 'Failed to update profile: ${e.toString()}');
+      rethrow;
+    } finally {
+      _isLoading.value = false;
     }
   }
 

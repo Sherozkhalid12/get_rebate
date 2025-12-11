@@ -23,7 +23,7 @@ class AgentController extends GetxController {
   final _myListings = <AgentListingModel>[].obs;
   final _isLoading = false.obs;
   final _selectedTab = 0
-      .obs; // 0: Dashboard, 1: ZIP Management, 2: My Listings, 3: Billing, 4: Stats
+      .obs; // 0: Dashboard, 1: ZIP Management, 2: My Listings, 3: Stats, 4: Billing
 
   // Stats
   final _searchesAppearedIn = 0.obs;
@@ -293,8 +293,7 @@ class AgentController extends GetxController {
             'Status set to Pending. Don\'t forget to mark it Sold after closing.';
         break;
       case MarketStatus.sold:
-        message =
-            'Status set to Sold. Buyers will no longer see this listing.';
+        message = 'Status set to Sold. Buyers will no longer see this listing.';
         break;
     }
 
