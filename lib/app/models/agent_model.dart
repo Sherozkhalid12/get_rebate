@@ -30,11 +30,12 @@ class AgentModel {
   final int platformReviewCount;
 
   // NEW FIELDS — CLIENT REQUEST
-  final String? videoUrl;                    // YouTube/Vimeo intro
-  final List<String>? expertise;             // e.g. "Luxury", "First-Time Buyers"
-  final String? websiteUrl;                  // Personal site
-  final String? googleReviewsUrl;            // Google Business
-  final String? thirdPartyReviewsUrl;        // Zillow, Yelp, etc.
+  final String? videoUrl; // YouTube/Vimeo intro or video file URL
+  final List<String>? expertise; // e.g. "Luxury", "First-Time Buyers" (areasOfExpertise)
+  final String? websiteUrl; // Personal site (website_link)
+  final String? googleReviewsUrl; // Google Business (google_reviews_link)
+  final String? thirdPartyReviewsUrl; // Zillow, Yelp, etc. (thirdPartReviewLink)
+  final List<String>? serviceAreas; // Service areas (cities) - separate from serviceZipCodes
 
   AgentModel({
     required this.id,
@@ -66,13 +67,14 @@ class AgentModel {
     this.externalReviewsUrl,
     this.platformRating = 0.0,
     this.platformReviewCount = 0,
-    // NEW FIELDS — SAFE DEFAULTS
-    this.videoUrl,
-    this.expertise,
-    this.websiteUrl,
-    this.googleReviewsUrl,
-    this.thirdPartyReviewsUrl,
-  });
+      // NEW FIELDS — SAFE DEFAULTS
+      this.videoUrl,
+      this.expertise,
+      this.websiteUrl,
+      this.googleReviewsUrl,
+      this.thirdPartyReviewsUrl,
+      this.serviceAreas,
+    });
 
   factory AgentModel.fromJson(Map<String, dynamic> json) {
     // Handle both API field names and model field names
@@ -195,6 +197,7 @@ class AgentModel {
       profileViews: json['views'] is int ? json['views'] : 0,
       contacts: json['contacts'] is int ? json['contacts'] : 0,
       serviceZipCodes: serviceZipCodes,
+      serviceAreas: serviceZipCodes.isNotEmpty ? serviceZipCodes : null,
       featuredListings: const [], // Not in API response
       createdAt: createdAt,
       lastActiveAt: lastActiveAt,
@@ -254,6 +257,7 @@ class AgentModel {
       'websiteUrl': websiteUrl,
       'googleReviewsUrl': googleReviewsUrl,
       'thirdPartyReviewsUrl': thirdPartyReviewsUrl,
+      'serviceAreas': serviceAreas,
     };
   }
 
@@ -293,6 +297,7 @@ class AgentModel {
     String? websiteUrl,
     String? googleReviewsUrl,
     String? thirdPartyReviewsUrl,
+    List<String>? serviceAreas,
   }) {
     return AgentModel(
       id: id ?? this.id,
@@ -319,8 +324,10 @@ class AgentModel {
       isActive: isActive ?? this.isActive,
       rebateOffered: rebateOffered ?? this.rebateOffered,
       rebatePercentage: rebatePercentage ?? this.rebatePercentage,
-      isDualAgencyAllowedInState: isDualAgencyAllowedInState ?? this.isDualAgencyAllowedInState,
-      isDualAgencyAllowedAtBrokerage: isDualAgencyAllowedAtBrokerage ?? this.isDualAgencyAllowedAtBrokerage,
+      isDualAgencyAllowedInState:
+          isDualAgencyAllowedInState ?? this.isDualAgencyAllowedInState,
+      isDualAgencyAllowedAtBrokerage:
+          isDualAgencyAllowedAtBrokerage ?? this.isDualAgencyAllowedAtBrokerage,
       externalReviewsUrl: externalReviewsUrl ?? this.externalReviewsUrl,
       platformRating: platformRating ?? this.platformRating,
       platformReviewCount: platformReviewCount ?? this.platformReviewCount,

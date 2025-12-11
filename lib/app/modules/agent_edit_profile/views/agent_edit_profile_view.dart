@@ -8,6 +8,7 @@ import 'package:getrebate/app/modules/agent_edit_profile/controllers/agent_edit_
 import 'package:getrebate/app/widgets/custom_button.dart';
 import 'package:getrebate/app/widgets/custom_text_field.dart';
 import 'package:getrebate/app/widgets/gradient_card.dart';
+import 'package:getrebate/app/models/agent_expertise.dart';
 
 class AgentEditProfileView extends GetView<AgentEditProfileController> {
   const AgentEditProfileView({super.key});
@@ -101,6 +102,12 @@ class AgentEditProfileView extends GetView<AgentEditProfileController> {
                           labelText: 'License Number',
                           prefixIcon: Icons.badge_outlined,
                         ),
+                        const SizedBox(height: 16),
+                        CustomTextField(
+                          controller: controller.companyNameController,
+                          labelText: 'Company Name',
+                          prefixIcon: Icons.business_outlined,
+                        ),
                       ],
                     ),
                   )
@@ -157,11 +164,35 @@ class AgentEditProfileView extends GetView<AgentEditProfileController> {
 
               const SizedBox(height: 24),
 
-              // Licensed States
-              _buildLicensedStatesSection(context)
+              // Service Areas
+              _buildServiceAreasSection(context)
                   .animate()
                   .fadeIn(duration: 300.ms, delay: 400.ms)
                   .slideY(begin: -0.1, duration: 300.ms, delay: 400.ms),
+
+              const SizedBox(height: 24),
+
+              // Areas of Expertise
+              _buildAreasOfExpertiseSection(context)
+                  .animate()
+                  .fadeIn(duration: 300.ms, delay: 450.ms)
+                  .slideY(begin: -0.1, duration: 300.ms, delay: 450.ms),
+
+              const SizedBox(height: 24),
+
+              // Professional Links
+              _buildProfessionalLinksSection(context)
+                  .animate()
+                  .fadeIn(duration: 300.ms, delay: 500.ms)
+                  .slideY(begin: -0.1, duration: 300.ms, delay: 500.ms),
+
+              const SizedBox(height: 24),
+
+              // Licensed States
+              _buildLicensedStatesSection(context)
+                  .animate()
+                  .fadeIn(duration: 300.ms, delay: 550.ms)
+                  .slideY(begin: -0.1, duration: 300.ms, delay: 550.ms),
 
               const SizedBox(height: 32),
 
@@ -534,6 +565,165 @@ class AgentEditProfileView extends GetView<AgentEditProfileController> {
                 );
               }).toList(),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildServiceAreasSection(BuildContext context) {
+    return GradientCard(
+      gradientColors: AppTheme.cardGradient,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Service Areas',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              color: AppTheme.black,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Enter service areas separated by commas (e.g., Los Angeles, San Diego, Miami)',
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: AppTheme.mediumGray),
+          ),
+          const SizedBox(height: 16),
+          CustomTextField(
+            controller: controller.serviceAreasController,
+            labelText: 'Service Areas',
+            prefixIcon: Icons.location_on_outlined,
+            hintText: 'Los Angeles, San Diego, Miami',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAreasOfExpertiseSection(BuildContext context) {
+    final expertiseOptions = AgentExpertise.getAll();
+
+    return GradientCard(
+      gradientColors: AppTheme.cardGradient,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Areas of Expertise',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              color: AppTheme.black,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Select all areas where you have expertise',
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: AppTheme.mediumGray),
+          ),
+          const SizedBox(height: 16),
+          Obx(
+            () => Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: expertiseOptions.map((expertise) {
+                final isSelected = controller.isAreaOfExpertiseSelected(
+                  expertise,
+                );
+                return GestureDetector(
+                  onTap: () => controller.toggleAreaOfExpertise(expertise),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? AppTheme.primaryBlue
+                          : AppTheme.lightGray,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: isSelected
+                            ? AppTheme.primaryBlue
+                            : AppTheme.mediumGray,
+                        width: 1,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          isSelected
+                              ? Icons.check_circle
+                              : Icons.circle_outlined,
+                          size: 16,
+                          color: isSelected
+                              ? AppTheme.white
+                              : AppTheme.mediumGray,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          expertise,
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: isSelected
+                                    ? AppTheme.white
+                                    : AppTheme.darkGray,
+                                fontWeight: FontWeight.w600,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProfessionalLinksSection(BuildContext context) {
+    return GradientCard(
+      gradientColors: AppTheme.cardGradient,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Professional Links',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              color: AppTheme.black,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 20),
+          CustomTextField(
+            controller: controller.websiteLinkController,
+            labelText: 'Website Link',
+            prefixIcon: Icons.language_outlined,
+            keyboardType: TextInputType.url,
+            hintText: 'https://yourwebsite.com',
+          ),
+          const SizedBox(height: 16),
+          CustomTextField(
+            controller: controller.googleReviewsLinkController,
+            labelText: 'Google Reviews Link',
+            prefixIcon: Icons.reviews_outlined,
+            keyboardType: TextInputType.url,
+            hintText: 'https://google.com/business/reviews',
+          ),
+          const SizedBox(height: 16),
+          CustomTextField(
+            controller: controller.thirdPartReviewLinkController,
+            labelText: 'Third Party Reviews Link',
+            prefixIcon: Icons.star_rate_outlined,
+            keyboardType: TextInputType.url,
+            hintText: 'https://realtor.com/reviews',
           ),
         ],
       ),
