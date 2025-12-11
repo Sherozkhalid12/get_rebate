@@ -808,7 +808,7 @@ class AgentProfileView extends GetView<AgentProfileController> {
             const SizedBox(height: 24),
 
             // Service Areas (show serviceAreas if available, otherwise show claimedZipCodes)
-            if (agent.serviceAreas != null && agent.serviceAreas!.isNotEmpty) ...[
+            if (agent.serviceZipCodes.isNotEmpty) ...[
               Text(
                 'Service Areas',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
@@ -820,7 +820,7 @@ class AgentProfileView extends GetView<AgentProfileController> {
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
-                children: agent.serviceAreas!.map((area) {
+                children: agent.serviceZipCodes.map((area) {
                   return Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 12,
