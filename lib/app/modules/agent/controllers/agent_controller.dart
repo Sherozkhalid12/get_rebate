@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:dio/dio.dart';
 import 'package:get_storage/get_storage.dart';
@@ -14,7 +15,7 @@ class AgentController extends GetxController {
   // API
   final Dio _dio = Dio();
   final _storage = GetStorage();
-  static const String _baseUrl = 'https://3a461922e985.ngrok-free.app/api/v1';
+  static const String _baseUrl = 'https://de9f1f9bbb2a.ngrok-free.app/api/v1';
 
   // Data
   final _claimedZipCodes = <ZipCodeModel>[].obs;
@@ -75,10 +76,12 @@ class AgentController extends GetxController {
   void onInit() {
     super.onInit();
     _setupDio();
-    _loadMockData(); // Keep mock data for ZIP codes and stats
-    _initializeSubscription(); // Initialize subscription
-    checkPromoExpiration(); // Check if any promos have expired
-    fetchAgentListings(); // Fetch real listings from API
+    _loadMockData(); // Keep mock data for ZIP codes and stats - instant
+    _initializeSubscription(); // Initialize subscription - instant
+    checkPromoExpiration(); // Check if any promos have expired - instant
+    
+    // Fetch listings in background without blocking UI
+    Future.microtask(() => fetchAgentListings());
   }
 
   void _initializeSubscription() {
@@ -894,7 +897,11 @@ class AgentController extends GetxController {
   // Fetch listings from API
   Future<void> fetchAgentListings() async {
     try {
-      _isLoading.value = true;
+      // Don't show global loading indicator - let listings load in background
+      // Each screen can show its own loading indicator if needed
+      if (kDebugMode) {
+        print('🚀 Fetching agent listings in background...');
+      }
 
       // Get agent ID from AuthController
       final authController = Get.find<global.AuthController>();
@@ -902,12 +909,7 @@ class AgentController extends GetxController {
 
       if (agentId == null || agentId.isEmpty) {
         print('⚠️ No agent ID found. Cannot fetch listings.');
-        Get.snackbar(
-          'Error',
-          'Unable to fetch listings. Please login again.',
-          backgroundColor: Colors.orange,
-          colorText: Colors.white,
-        );
+        // Don't show snackbar on initial load - just fail silently
         return;
       }
 
@@ -983,16 +985,19 @@ class AgentController extends GetxController {
         errorMessage = 'No internet connection. Please check your network.';
       }
 
-      // Only show error if it's not a 404 (which is acceptable)
-      if (e.response?.statusCode != 404) {
-        Get.snackbar('Error', errorMessage);
+      // Don't show error snackbar on initial background load
+      // Only log to console
+      if (kDebugMode && e.response?.statusCode != 404) {
+        print('⚠️ Failed to fetch listings on initial load (will retry later)');
       }
     } catch (e) {
       print('❌ Unexpected Error: ${e.toString()}');
       print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      Get.snackbar('Error', 'Failed to fetch listings: ${e.toString()}');
+      // Don't show snackbar on initial background load
     } finally {
-      _isLoading.value = false;
+      if (kDebugMode) {
+        print('✅ Background listing fetch complete');
+      }
     }
   }
 }

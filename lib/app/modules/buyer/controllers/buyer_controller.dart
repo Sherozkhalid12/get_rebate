@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:getrebate/app/models/agent_model.dart';
 import 'package:getrebate/app/models/loan_officer_model.dart';
@@ -8,6 +9,7 @@ import 'package:getrebate/app/models/listing.dart';
 import 'package:getrebate/app/models/open_house_model.dart';
 import 'package:getrebate/app/services/listing_service.dart';
 import 'package:getrebate/app/services/agent_service.dart';
+import 'package:getrebate/app/services/loan_officer_service.dart';
 import 'package:getrebate/app/controllers/location_controller.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart';
 import 'package:getrebate/app/modules/messages/controllers/messages_controller.dart';
@@ -37,6 +39,7 @@ class BuyerController extends GetxController {
   // Services
   final ListingService _listingService = InMemoryListingService();
   final AgentService _agentService = AgentService();
+  final LoanOfficerService _loanOfficerService = LoanOfficerService();
 
   // Getters
   String get searchQuery => _searchQuery.value;
@@ -115,11 +118,11 @@ class BuyerController extends GetxController {
   }
 
   void _loadMockData() async {
-    // Load real agents from API
+    // Load real data from API
     await _loadAgentsFromAPI();
+    await _loadLoanOfficersFromAPI();
     
-    // Load mock loan officers and listings
-    _loadMockLoanOfficers();
+    // Load mock listings and open houses (until API is ready)
     await _seedMockListings();
     _loadMockOpenHouses();
   }
@@ -158,16 +161,62 @@ class BuyerController extends GetxController {
       print('✅ Loaded ${agentsWithUrls.length} agents from API');
     } catch (e) {
       print('❌ Error loading agents: $e');
-      Get.snackbar('Error', 'Failed to load agents: ${e.toString()}');
-      // Keep empty list on error
+      // Don't show snackbar - it causes overlay errors on initial load
+      // Just log the error and keep empty list
       _agents.value = [];
     } finally {
       _isLoading.value = false;
     }
   }
 
-  void _loadMockLoanOfficers() {
-    // Mock loan officers data
+  /// Loads loan officers from the API
+  Future<void> _loadLoanOfficersFromAPI() async {
+    try {
+      if (kDebugMode) {
+        print('📡 Fetching loan officers from API...');
+      }
+      
+      final loanOfficers = await _loanOfficerService.getAllLoanOfficers();
+      
+      // Build full URLs for profile pictures and company logos
+      final loanOfficersWithUrls = loanOfficers.map((loanOfficer) {
+        String? profileImage = loanOfficer.profileImage;
+        if (profileImage != null && profileImage.isNotEmpty) {
+          if (!profileImage.startsWith('http://') && !profileImage.startsWith('https://')) {
+            profileImage = '${ApiConstants.baseUrl}/$profileImage';
+          }
+        }
+        
+        String? companyLogo = loanOfficer.companyLogoUrl;
+        if (companyLogo != null && companyLogo.isNotEmpty) {
+          if (!companyLogo.startsWith('http://') && !companyLogo.startsWith('https://')) {
+            companyLogo = '${ApiConstants.baseUrl}/$companyLogo';
+          }
+        }
+        
+        return loanOfficer.copyWith(
+          profileImage: profileImage,
+          companyLogoUrl: companyLogo,
+        );
+      }).toList();
+      
+      _loanOfficers.value = loanOfficersWithUrls;
+      
+      if (kDebugMode) {
+        print('✅ Loaded ${loanOfficersWithUrls.length} loan officers from API');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Error loading loan officers: $e');
+      }
+      // Don't show snackbar - it causes overlay errors on initial load
+      // Just log the error and keep empty list
+      _loanOfficers.value = [];
+    }
+  }
+  
+  void _loadMockLoanOfficers_OLD() {
+    // OLD MOCK DATA - REPLACED WITH API
     _loanOfficers.value = [
       LoanOfficerModel(
         id: 'loan_1',

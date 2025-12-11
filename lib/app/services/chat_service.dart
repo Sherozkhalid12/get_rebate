@@ -434,6 +434,106 @@ class ChatService {
     }
   }
 
+  /// Marks a thread as read for a specific user
+  /// 
+  /// Throws [ChatServiceException] if the request fails
+  Future<Map<String, dynamic>> markThreadAsRead({
+    required String threadId,
+    required String userId,
+  }) async {
+    if (threadId.isEmpty || userId.isEmpty) {
+      throw ChatServiceException(
+        message: 'Thread ID and User ID are required',
+        statusCode: 400,
+      );
+    }
+
+    try {
+      if (kDebugMode) {
+        print('📡 Marking thread as read');
+        print('   Thread ID: $threadId');
+        print('   User ID: $userId');
+        print('   URL: ${ApiConstants.markThreadAsReadEndpoint}');
+      }
+
+      final response = await _dio.post(
+        ApiConstants.markThreadAsReadEndpoint,
+        data: {
+          'threadId': threadId,
+          'userId': userId,
+        },
+        options: Options(
+          headers: ApiConstants.ngrokHeaders,
+        ),
+      );
+
+      if (kDebugMode) {
+        print('✅ Mark as read response received');
+        print('   Status Code: ${response.statusCode}');
+        print('   Response: ${response.data}');
+      }
+
+      // Return the response data
+      if (response.data is Map<String, dynamic>) {
+        return response.data as Map<String, dynamic>;
+      }
+
+      return {'success': true};
+    } on DioException catch (e) {
+      String errorMessage;
+      int? statusCode;
+
+      switch (e.type) {
+        case DioExceptionType.connectionTimeout:
+        case DioExceptionType.sendTimeout:
+        case DioExceptionType.receiveTimeout:
+          errorMessage = 'Connection timeout. Please check your internet connection.';
+          statusCode = 408;
+          break;
+        case DioExceptionType.connectionError:
+          errorMessage = 'Cannot connect to server. Please ensure the server is running.';
+          break;
+        case DioExceptionType.badResponse:
+          statusCode = e.response?.statusCode;
+          if (statusCode == 404) {
+            errorMessage = 'Mark as read endpoint not found.';
+          } else if (statusCode == 401) {
+            errorMessage = 'Unauthorized. Please login again.';
+          } else if (statusCode == 500) {
+            errorMessage = 'Server error. Please try again later.';
+          } else {
+            errorMessage = e.response?.data?['message']?.toString() ?? 
+                          e.response?.data?['error']?.toString() ?? 
+                          'Failed to mark thread as read.';
+          }
+          break;
+        case DioExceptionType.cancel:
+          errorMessage = 'Request was cancelled.';
+          break;
+        case DioExceptionType.unknown:
+          errorMessage = 'Network error. Please try again.';
+          break;
+        default:
+          errorMessage = 'An unexpected error occurred.';
+      }
+
+      throw ChatServiceException(
+        message: errorMessage,
+        statusCode: statusCode,
+        originalError: e,
+      );
+    } catch (e) {
+      if (e is ChatServiceException) {
+        rethrow;
+      }
+
+      throw ChatServiceException(
+        message: 'An unexpected error occurred: ${e.toString()}',
+        originalError: e,
+      );
+    }
+  }
+
   /// Disposes the Dio instance
   void dispose() {
     _dio.close();

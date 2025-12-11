@@ -10,7 +10,7 @@ class AuthController extends GetxController {
   final Dio _dio = Dio();
 
   // API Base URL
-  static const String _baseUrl = 'https://fe4dbe73ed07.ngrok-free.app/api/v1';
+  static const String _baseUrl = 'https://de9f1f9bbb2a.ngrok-free.app/api/v1';
 
   // Observable variables
   final _isLoading = false.obs;
@@ -233,12 +233,24 @@ class AuthController extends GetxController {
       String errorMessage = 'Login failed. Please try again.';
 
       if (e.response != null) {
+        final statusCode = e.response?.statusCode;
         final responseData = e.response?.data;
-        if (responseData is Map && responseData.containsKey('message')) {
+        
+        // Handle 500 server errors
+        if (statusCode == 500) {
+          // Check if response contains MongoDB error
+          final responseString = responseData?.toString() ?? '';
+          if (responseString.contains('MongooseError') || 
+              responseString.contains('buffering timed out')) {
+            errorMessage = 'Server database connection error. Please try again in a moment.';
+          } else {
+            errorMessage = 'Server error. Please try again later.';
+          }
+        } else if (responseData is Map && responseData.containsKey('message')) {
           errorMessage = responseData['message'].toString();
-        } else if (e.response?.statusCode == 401) {
+        } else if (statusCode == 401) {
           errorMessage = 'Invalid email or password';
-        } else if (e.response?.statusCode == 400) {
+        } else if (statusCode == 400) {
           errorMessage = 'Invalid request. Please check your credentials.';
         } else {
           errorMessage = e.response?.statusMessage ?? errorMessage;
@@ -251,11 +263,21 @@ class AuthController extends GetxController {
         errorMessage = 'No internet connection. Please check your network.';
       }
 
-      Get.snackbar('Error', errorMessage);
+      // Safely show snackbar - wrap in try-catch to prevent overlay errors
+      try {
+        Get.snackbar('Error', errorMessage);
+      } catch (overlayError) {
+        print('⚠️ Could not show snackbar: $overlayError');
+      }
     } catch (e) {
       print('❌ Unexpected Error: ${e.toString()}');
       print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      Get.snackbar('Error', 'Login failed: ${e.toString()}');
+      // Safely show snackbar - wrap in try-catch to prevent overlay errors
+      try {
+        Get.snackbar('Error', 'Login failed: ${e.toString()}');
+      } catch (overlayError) {
+        print('⚠️ Could not show snackbar: $overlayError');
+      }
     } finally {
       _isLoading.value = false;
     }

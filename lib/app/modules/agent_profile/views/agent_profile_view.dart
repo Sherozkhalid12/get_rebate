@@ -5,6 +5,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/modules/agent_profile/controllers/agent_profile_controller.dart';
 import 'package:getrebate/app/widgets/custom_button.dart';
+import 'package:getrebate/app/utils/api_constants.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 
@@ -409,7 +410,7 @@ class AgentProfileView extends GetView<AgentProfileController> {
 
         // Show links if available, otherwise show placeholder
         if (hasLinks) ...[
-          if (agent.websiteUrl != null)
+          if (agent.websiteUrl != null && agent.websiteUrl!.trim().isNotEmpty)
             _buildLinkItem(
               context,
               Icons.language,
@@ -417,7 +418,7 @@ class AgentProfileView extends GetView<AgentProfileController> {
               agent.websiteUrl!,
               AppTheme.primaryBlue,
             ),
-          if (agent.googleReviewsUrl != null)
+          if (agent.googleReviewsUrl != null && agent.googleReviewsUrl!.trim().isNotEmpty)
             _buildLinkItem(
               context,
               Icons.reviews,
@@ -425,7 +426,7 @@ class AgentProfileView extends GetView<AgentProfileController> {
               agent.googleReviewsUrl!,
               Colors.red,
             ),
-          if (agent.thirdPartyReviewsUrl != null)
+          if (agent.thirdPartyReviewsUrl != null && agent.thirdPartyReviewsUrl!.trim().isNotEmpty)
             _buildLinkItem(
               context,
               Icons.star_rate,
@@ -514,33 +515,60 @@ class AgentProfileView extends GetView<AgentProfileController> {
   }
 
   bool _hasAnyLinks(dynamic agent) {
-    return agent.websiteUrl != null ||
-        agent.googleReviewsUrl != null ||
-        agent.thirdPartyReviewsUrl != null;
+    return (agent.websiteUrl != null && agent.websiteUrl!.trim().isNotEmpty) ||
+        (agent.googleReviewsUrl != null && agent.googleReviewsUrl!.trim().isNotEmpty) ||
+        (agent.thirdPartyReviewsUrl != null && agent.thirdPartyReviewsUrl!.trim().isNotEmpty);
   }
 
   Future<void> _launchUrl(String urlString) async {
     try {
-      final url = Uri.parse(urlString);
-      if (await canLaunchUrl(url)) {
-        await launchUrl(url, mode: LaunchMode.externalApplication);
-      } else {
-        Get.snackbar(
-          'Error',
-          'Unable to open link',
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: Colors.red,
-          colorText: AppTheme.white,
-        );
+      // Validate and clean URL
+      String cleanUrl = urlString.trim();
+      
+      // Add https:// if no protocol is specified
+      if (!cleanUrl.startsWith('http://') && !cleanUrl.startsWith('https://')) {
+        cleanUrl = 'https://$cleanUrl';
       }
+      
+      // Parse URL
+      final url = Uri.parse(cleanUrl);
+      
+      // Validate URL has a host
+      if (url.host.isEmpty) {
+        _showErrorSnackbar('Invalid URL format', 'Please check the link and try again');
+        return;
+      }
+      
+      // Check if URL can be launched
+      if (await canLaunchUrl(url)) {
+        await launchUrl(
+          url,
+          mode: LaunchMode.externalApplication,
+        );
+      } else {
+        _showErrorSnackbar('Cannot open link', 'No app available to handle this URL');
+      }
+    } on FormatException catch (e) {
+      _showErrorSnackbar('Invalid URL', 'The link format is not valid: ${e.message}');
     } catch (e) {
+      _showErrorSnackbar('Error', 'Failed to open link: ${e.toString()}');
+    }
+  }
+  
+  /// Safely shows error snackbar without causing overlay errors
+  void _showErrorSnackbar(String title, String message) {
+    try {
       Get.snackbar(
-        'Error',
-        'Invalid URL',
+        title,
+        message,
         snackPosition: SnackPosition.BOTTOM,
         backgroundColor: Colors.red,
         colorText: AppTheme.white,
+        duration: const Duration(seconds: 3),
       );
+    } catch (e) {
+      // If snackbar fails (overlay error), just print to console
+      print('⚠️ Error showing snackbar: $title - $message');
     }
   }
 
@@ -909,6 +937,15 @@ class AgentProfileView extends GetView<AgentProfileController> {
   }
 
   Widget _buildReviewItem(BuildContext context, Map<String, dynamic> review) {
+    // Build full profile picture URL if available
+    String? profilePicUrl = review['profilePic'];
+    if (profilePicUrl != null && profilePicUrl.isNotEmpty && !profilePicUrl.startsWith('http')) {
+      final baseUrl = ApiConstants.baseUrl.endsWith('/') 
+          ? ApiConstants.baseUrl.substring(0, ApiConstants.baseUrl.length - 1)
+          : ApiConstants.baseUrl;
+      profilePicUrl = '$baseUrl/$profilePicUrl';
+    }
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: Padding(
@@ -918,17 +955,28 @@ class AgentProfileView extends GetView<AgentProfileController> {
           children: [
             Row(
               children: [
-                CircleAvatar(
-                  radius: 20,
-                  backgroundColor: AppTheme.primaryBlue.withOpacity(0.1),
-                  child: Text(
-                    review['name'][0],
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: AppTheme.primaryBlue,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
+                // Profile Picture or Initial
+                profilePicUrl != null && profilePicUrl.isNotEmpty
+                    ? CircleAvatar(
+                        radius: 20,
+                        backgroundImage: NetworkImage(profilePicUrl),
+                        backgroundColor: AppTheme.primaryBlue.withOpacity(0.1),
+                        onBackgroundImageError: (_, __) {
+                          // Fallback handled by errorBuilder in child
+                        },
+                        child: const SizedBox(), // Empty child for error fallback
+                      )
+                    : CircleAvatar(
+                        radius: 20,
+                        backgroundColor: AppTheme.primaryBlue.withOpacity(0.1),
+                        child: Text(
+                          review['name'][0].toString().toUpperCase(),
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            color: AppTheme.primaryBlue,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -944,14 +992,35 @@ class AgentProfileView extends GetView<AgentProfileController> {
                       ),
                       Row(
                         children: [
+                          // Star rating with fractional support
                           ...List.generate(5, (index) {
-                            return Icon(
-                              Icons.star,
-                              color: index < review['rating']
-                                  ? AppTheme.lightGreen
-                                  : AppTheme.mediumGray,
-                              size: 16,
-                            );
+                            final rating = review['rating'] is num 
+                                ? (review['rating'] as num).toDouble() 
+                                : 0.0;
+                            final starIndex = index + 1;
+                            
+                            if (starIndex <= rating) {
+                              // Full star
+                              return const Icon(
+                                Icons.star,
+                                color: AppTheme.lightGreen,
+                                size: 16,
+                              );
+                            } else if (starIndex - rating < 1 && starIndex - rating > 0) {
+                              // Half star
+                              return const Icon(
+                                Icons.star_half,
+                                color: AppTheme.lightGreen,
+                                size: 16,
+                              );
+                            } else {
+                              // Empty star
+                              return const Icon(
+                                Icons.star_border,
+                                color: AppTheme.mediumGray,
+                                size: 16,
+                              );
+                            }
                           }),
                           const SizedBox(width: 8),
                           Text(
@@ -981,36 +1050,92 @@ class AgentProfileView extends GetView<AgentProfileController> {
   }
 
   Widget _buildProperties(BuildContext context) {
-    final properties = controller.getProperties();
+    return Obx(() {
+      final properties = controller.getProperties();
+      final isLoading = controller.isLoadingProperties;
 
-    return Container(
-      color: AppTheme.white,
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Properties (${properties.length})',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: AppTheme.black,
-                fontWeight: FontWeight.w600,
+      return Container(
+        color: AppTheme.white,
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Properties (${properties.length})',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: AppTheme.black,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
-            ),
-            const SizedBox(height: 16),
-            ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: properties.length,
-              itemBuilder: (context, index) {
-                final property = properties[index];
-                return _buildPropertyItem(context, property);
-              },
-            ),
-          ],
+              const SizedBox(height: 16),
+              
+              // Loading state
+              if (isLoading)
+                Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(40),
+                    child: Column(
+                      children: [
+                        CircularProgressIndicator(color: AppTheme.primaryBlue),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Loading properties...',
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: AppTheme.mediumGray,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              // Empty state
+              else if (properties.isEmpty)
+                Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(40),
+                    child: Column(
+                      children: [
+                        Icon(
+                          Icons.home_work_outlined,
+                          size: 64,
+                          color: AppTheme.mediumGray,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'No Properties Listed',
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            color: AppTheme.darkGray,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'This agent hasn\'t listed any properties yet',
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: AppTheme.mediumGray,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              // Properties list
+              else
+                ListView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: properties.length,
+                  itemBuilder: (context, index) {
+                    final property = properties[index];
+                    return _buildPropertyItem(context, property);
+                  },
+                ),
+            ],
+          ),
         ),
-      ),
-    );
+      );
+    });
   }
 
   Widget _buildPropertyItem(
@@ -1032,23 +1157,50 @@ class AgentProfileView extends GetView<AgentProfileController> {
                   borderRadius: const BorderRadius.vertical(
                     top: Radius.circular(12),
                   ),
-                  child: Image.network(
-                    property['image'],
-                    height: 200,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        height: 200,
-                        color: AppTheme.lightGray,
-                        child: const Icon(
-                          Icons.home,
-                          size: 48,
-                          color: AppTheme.mediumGray,
+                  child: property['image'] != null && property['image'].toString().isNotEmpty
+                      ? Image.network(
+                          property['image'],
+                          height: 200,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              height: 200,
+                              color: AppTheme.lightGray,
+                              child: const Center(
+                                child: Icon(
+                                  Icons.home_work,
+                                  size: 64,
+                                  color: AppTheme.mediumGray,
+                                ),
+                              ),
+                            );
+                          },
+                        )
+                      : Container(
+                          height: 200,
+                          color: AppTheme.lightGray,
+                          child: const Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.image_not_supported,
+                                  size: 48,
+                                  color: AppTheme.mediumGray,
+                                ),
+                                SizedBox(height: 8),
+                                Text(
+                                  'No Image',
+                                  style: TextStyle(
+                                    color: AppTheme.mediumGray,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
-                      );
-                    },
-                  ),
                 ),
                 // Tap indicator
                 Positioned(

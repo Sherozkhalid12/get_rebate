@@ -9,7 +9,7 @@ import 'package:get_storage/get_storage.dart';
 
 class AddListingController extends GetxController {
   final Dio _dio = Dio();
-  static const String _baseUrl = 'https://3a461922e985.ngrok-free.app/api/v1';
+  static const String _baseUrl = 'https://de9f1f9bbb2a.ngrok-free.app/api/v1';
 
   // Form controllers
   final titleController = TextEditingController();

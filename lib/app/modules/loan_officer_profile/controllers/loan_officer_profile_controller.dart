@@ -146,7 +146,46 @@ class LoanOfficerProfileController extends GetxController {
     Get.snackbar('Share', 'Profile sharing feature coming soon!');
   }
 
+  /// Returns dynamic reviews from loan officer data
   List<Map<String, dynamic>> getReviews() {
+    if (_loanOfficer.value == null || _loanOfficer.value!.reviews == null) {
+      return [];
+    }
+
+    return _loanOfficer.value!.reviews!.map((review) {
+      // Calculate time ago
+      final now = DateTime.now();
+      final difference = now.difference(review.createdAt);
+      String timeAgo;
+      if (difference.inDays > 365) {
+        final years = (difference.inDays / 365).floor();
+        timeAgo = '$years ${years == 1 ? "year" : "years"} ago';
+      } else if (difference.inDays > 30) {
+        final months = (difference.inDays / 30).floor();
+        timeAgo = '$months ${months == 1 ? "month" : "months"} ago';
+      } else if (difference.inDays > 0) {
+        timeAgo = '${difference.inDays} ${difference.inDays == 1 ? "day" : "days"} ago';
+      } else if (difference.inHours > 0) {
+        timeAgo = '${difference.inHours} ${difference.inHours == 1 ? "hour" : "hours"} ago';
+      } else {
+        timeAgo = 'Just now';
+      }
+
+      return {
+        'id': review.id,
+        'reviewerId': review.reviewerId,
+        'name': review.reviewerName,
+        'profilePic': review.reviewerProfile,
+        'rating': review.rating,
+        'date': timeAgo,
+        'createdAt': review.createdAt.toIso8601String(),
+        'comment': review.comment,
+      };
+    }).toList();
+  }
+  
+  /// OLD MOCK DATA - REPLACED
+  List<Map<String, dynamic>> _getMockReviews() {
     return [
       {
         'name': 'David Miller',

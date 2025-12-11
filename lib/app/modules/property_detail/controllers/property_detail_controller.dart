@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:getrebate/app/demo_data/demo_property_data.dart';
 
@@ -27,8 +28,26 @@ class PropertyDetailController extends GetxController {
   }
 
   void _loadPropertyData() {
-    // TODO: Load property details from API if needed
-    // For now, using the passed property data
+    if (kDebugMode) {
+      print('🏠 Property Detail View Loaded:');
+      print('   Property ID: ${property['id']}');
+      print('   Address: ${property['address']}');
+      print('   Price: ${property['price']}');
+      print('   Beds: ${property['beds']}');
+      print('   Baths: ${property['baths']}');
+      print('   Sqft: ${property['sqft']}');
+      print('   Images: ${property['images']?.length ?? 0}');
+      print('   Status: ${property['status']}');
+      print('   BAC: ${property['bacPercent']}%');
+      final desc = property['description']?.toString() ?? '';
+      final descPreview = desc.isNotEmpty 
+          ? (desc.length > 50 ? desc.substring(0, 50) : desc)
+          : 'No description';
+      print('   Description: $descPreview...');
+      print('   Agent: ${property['agent']}');
+      print('   Open Houses: ${property['openHouses']?.length ?? 0}');
+      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    }
   }
 
   void toggleFavorite() {

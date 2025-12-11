@@ -27,6 +27,7 @@ class LoanOfficerModel {
   final DateTime? lastActiveAt;
   final bool isVerified;
   final bool isActive;
+  final List<LoanOfficerReview>? reviews; // Dynamic reviews from API
 
   LoanOfficerModel({
     required this.id,
@@ -55,40 +56,136 @@ class LoanOfficerModel {
     this.lastActiveAt,
     this.isVerified = false,
     this.isActive = true,
+    this.reviews,
   });
 
   factory LoanOfficerModel.fromJson(Map<String, dynamic> json) {
+    // Handle both API field names and model field names
+    final id = json['_id']?.toString() ?? json['id']?.toString() ?? '';
+    final name = json['fullname']?.toString() ?? json['name']?.toString() ?? '';
+    final email = json['email']?.toString() ?? '';
+    final phone = json['phone']?.toString();
+    
+    // Profile picture - handle Windows paths and build full URL
+    String? profileImage = json['profilePic']?.toString() ?? json['profileImage']?.toString();
+    if (profileImage != null && profileImage.isNotEmpty) {
+      profileImage = profileImage.replaceAll('\\', '/');
+      if (!profileImage.startsWith('http://') && !profileImage.startsWith('https://')) {
+        if (profileImage.startsWith('/')) {
+          profileImage = profileImage.substring(1);
+        }
+        // Will be built with base URL in the controller if needed
+      }
+    }
+    
+    // Company logo
+    String? companyLogoUrl = json['companyLogo']?.toString();
+    if (companyLogoUrl != null && companyLogoUrl.isNotEmpty) {
+      companyLogoUrl = companyLogoUrl.replaceAll('\\', '/');
+      if (!companyLogoUrl.startsWith('http://') && !companyLogoUrl.startsWith('https://')) {
+        if (companyLogoUrl.startsWith('/')) {
+          companyLogoUrl = companyLogoUrl.substring(1);
+        }
+      }
+    }
+    
+    // Company name
+    final company = json['CompanyName']?.toString() ?? 
+                    json['company']?.toString() ?? 
+                    '';
+    
+    // License number
+    final licenseNumber = json['liscenceNumber']?.toString() ?? 
+                         json['licenseNumber']?.toString() ?? 
+                         '';
+    
+    // Licensed states - handle both field name variations
+    final licensedStatesList = json['LisencedStates'] ?? 
+                               json['licensedStates'] ?? 
+                               [];
+    final licensedStates = List<String>.from(licensedStatesList);
+    
+    // Service areas/ZIP codes
+    final serviceAreasList = json['serviceAreas'] ?? json['claimedZipCodes'] ?? [];
+    final claimedZipCodes = List<String>.from(serviceAreasList);
+    
+    // Specialty products
+    final specialtyList = json['specialtyProducts'] ?? [];
+    final specialtyProducts = List<String>.from(specialtyList);
+    
+    // Rating - can be number or calculated from reviews
+    double rating = 0.0;
+    if (json['ratings'] != null) {
+      rating = (json['ratings'] is num) ? (json['ratings'] as num).toDouble() : 0.0;
+    } else if (json['rating'] != null) {
+      rating = (json['rating'] is num) ? (json['rating'] as num).toDouble() : 0.0;
+    }
+    
+    // Parse reviews from API
+    List<LoanOfficerReview>? reviews;
+    final reviewsData = json['reviews'];
+    int reviewCount = 0;
+    
+    if (reviewsData != null && reviewsData is List) {
+      // Filter out non-map items (like the 0 in the API response)
+      final validReviews = reviewsData.where((r) => r is Map).toList();
+      reviews = validReviews
+          .map((reviewJson) => LoanOfficerReview.fromJson(reviewJson as Map<String, dynamic>))
+          .toList();
+      reviewCount = reviews.length;
+    } else if (json['reviewCount'] != null) {
+      reviewCount = json['reviewCount'] is int ? json['reviewCount'] : 0;
+    }
+    
+    // Dates
+    DateTime createdAt = DateTime.now();
+    if (json['createdAt'] != null) {
+      try {
+        createdAt = DateTime.parse(json['createdAt'].toString());
+      } catch (e) {
+        createdAt = DateTime.now();
+      }
+    }
+    
+    DateTime? lastActiveAt;
+    if (json['updatedAt'] != null) {
+      try {
+        lastActiveAt = DateTime.parse(json['updatedAt'].toString());
+      } catch (e) {
+        // Ignore parse errors
+      }
+    }
+    
     return LoanOfficerModel(
-      id: json['id'] ?? '',
-      name: json['name'] ?? '',
-      email: json['email'] ?? '',
-      phone: json['phone'],
-      profileImage: json['profileImage'],
-      companyLogoUrl: json['companyLogo'],
-      company: json['company'] ?? '',
-      licenseNumber: json['licenseNumber'] ?? '',
-      licensedStates: List<String>.from(json['licensedStates'] ?? []),
-      claimedZipCodes: List<String>.from(json['claimedZipCodes'] ?? []),
-      specialtyProducts: List<String>.from(json['specialtyProducts'] ?? []),
-      bio: json['bio'],
-      rating: (json['rating'] ?? 0.0).toDouble(),
-      reviewCount: json['reviewCount'] ?? 0,
-      searchesAppearedIn: json['searchesAppearedIn'] ?? 0,
-      profileViews: json['profileViews'] ?? 0,
-      contacts: json['contacts'] ?? 0,
-      allowsRebates: json['allowsRebates'] ?? true,
-      mortgageApplicationUrl: json['mortgageApplicationUrl'],
-      externalReviewsUrl: json['externalReviewsUrl'],
-      platformRating: (json['platformRating'] ?? 0.0).toDouble(),
-      platformReviewCount: json['platformReviewCount'] ?? 0,
-      createdAt: DateTime.parse(
-        json['createdAt'] ?? DateTime.now().toIso8601String(),
-      ),
-      lastActiveAt: json['lastActiveAt'] != null
-          ? DateTime.parse(json['lastActiveAt'])
-          : null,
-      isVerified: json['isVerified'] ?? false,
-      isActive: json['isActive'] ?? true,
+      id: id,
+      name: name,
+      email: email,
+      phone: phone,
+      profileImage: profileImage,
+      companyLogoUrl: companyLogoUrl,
+      company: company,
+      licenseNumber: licenseNumber,
+      licensedStates: licensedStates,
+      claimedZipCodes: claimedZipCodes,
+      specialtyProducts: specialtyProducts,
+      bio: json['bio']?.toString() ?? json['description']?.toString(),
+      rating: rating,
+      reviewCount: reviewCount,
+      searchesAppearedIn: json['searches'] is int ? json['searches'] : 0,
+      profileViews: json['views'] is int ? json['views'] : 0,
+      contacts: json['contacts'] is int ? json['contacts'] : 0,
+      allowsRebates: json['allowsRebates'] is bool ? json['allowsRebates'] : true,
+      mortgageApplicationUrl: json['mortgageApplicationUrl']?.toString() ?? 
+                             json['mortgage_application_url']?.toString(),
+      externalReviewsUrl: json['externalReviewsUrl']?.toString() ?? 
+                         json['external_reviews_link']?.toString(),
+      platformRating: rating, // Use same rating
+      platformReviewCount: reviewCount, // Use same review count
+      createdAt: createdAt,
+      lastActiveAt: lastActiveAt,
+      isVerified: json['verified'] is bool ? json['verified'] : false,
+      isActive: true, // Assume active if in API response
+      reviews: reviews,
     );
   }
 
@@ -120,6 +217,7 @@ class LoanOfficerModel {
       'lastActiveAt': lastActiveAt?.toIso8601String(),
       'isVerified': isVerified,
       'isActive': isActive,
+      'reviews': reviews?.map((r) => r.toJson()).toList(),
     };
   }
 
@@ -179,6 +277,76 @@ class LoanOfficerModel {
       lastActiveAt: lastActiveAt ?? this.lastActiveAt,
       isVerified: isVerified ?? this.isVerified,
       isActive: isActive ?? this.isActive,
+      reviews: reviews ?? this.reviews,
     );
+  }
+}
+
+/// Loan Officer Review Model
+class LoanOfficerReview {
+  final String id;
+  final String reviewerId;
+  final String reviewerName;
+  final String? reviewerProfile;
+  final double rating;
+  final String comment;
+  final DateTime createdAt;
+
+  LoanOfficerReview({
+    required this.id,
+    required this.reviewerId,
+    required this.reviewerName,
+    this.reviewerProfile,
+    required this.rating,
+    required this.comment,
+    required this.createdAt,
+  });
+
+  factory LoanOfficerReview.fromJson(Map<String, dynamic> json) {
+    // Parse profile pic URL
+    String? reviewerProfile = json['reviewerProfile']?.toString();
+    if (reviewerProfile != null && reviewerProfile.isNotEmpty && !reviewerProfile.contains('file://')) {
+      reviewerProfile = reviewerProfile.replaceAll('\\', '/');
+      if (!reviewerProfile.startsWith('http://') && !reviewerProfile.startsWith('https://')) {
+        if (reviewerProfile.startsWith('/')) {
+          reviewerProfile = reviewerProfile.substring(1);
+        }
+        // Will be built with base URL in the view if needed
+      }
+    } else {
+      reviewerProfile = null;
+    }
+
+    // Parse created date
+    DateTime createdAt = DateTime.now();
+    if (json['createdAt'] != null) {
+      try {
+        createdAt = DateTime.parse(json['createdAt'].toString());
+      } catch (e) {
+        createdAt = DateTime.now();
+      }
+    }
+
+    return LoanOfficerReview(
+      id: json['_id']?.toString() ?? '',
+      reviewerId: json['reviewerId']?.toString() ?? '',
+      reviewerName: json['reviewerName']?.toString() ?? 'Anonymous',
+      reviewerProfile: reviewerProfile,
+      rating: (json['rating'] is num) ? (json['rating'] as num).toDouble() : 0.0,
+      comment: json['comment']?.toString() ?? '',
+      createdAt: createdAt,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      '_id': id,
+      'reviewerId': reviewerId,
+      'reviewerName': reviewerName,
+      'reviewerProfile': reviewerProfile,
+      'rating': rating,
+      'comment': comment,
+      'createdAt': createdAt.toIso8601String(),
+    };
   }
 }

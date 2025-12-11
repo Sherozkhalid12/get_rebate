@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
+import 'package:dio/dio.dart';
 import 'package:getrebate/app/models/agent_model.dart';
 import 'package:getrebate/app/controllers/main_navigation_controller.dart';
 import 'package:getrebate/app/modules/buyer/controllers/buyer_controller.dart';
 import 'package:getrebate/app/modules/messages/controllers/messages_controller.dart';
+import 'package:getrebate/app/utils/api_constants.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 
 class AgentProfileController extends GetxController {
@@ -11,24 +14,55 @@ class AgentProfileController extends GetxController {
   final _agent = Rxn<AgentModel>();
   final _isFavorite = false.obs;
   final _isLoading = false.obs;
+  final _isLoadingProperties = false.obs;
   final _selectedTab = 0.obs; // 0: Overview, 1: Reviews, 2: Properties
+  final _properties = <Map<String, dynamic>>[].obs;
+  
+  // Dio for API calls
+  final Dio _dio = Dio();
 
   // Getters
   AgentModel? get agent => _agent.value;
   bool get isFavorite => _isFavorite.value;
   bool get isLoading => _isLoading.value;
+  bool get isLoadingProperties => _isLoadingProperties.value;
   int get selectedTab => _selectedTab.value;
+  List<Map<String, dynamic>> get properties => _properties;
 
   @override
   void onInit() {
     super.onInit();
+    _setupDio();
     _loadAgentData();
+  }
+  
+  void _setupDio() {
+    _dio.options.baseUrl = ApiConstants.baseUrl;
+    _dio.options.connectTimeout = const Duration(seconds: 30);
+    _dio.options.receiveTimeout = const Duration(seconds: 30);
+    _dio.options.headers = {
+      'ngrok-skip-browser-warning': 'true',
+      'Content-Type': 'application/json',
+    };
   }
 
   void _loadAgentData() {
     final args = Get.arguments;
     if (args != null && args['agent'] != null) {
       _agent.value = args['agent'] as AgentModel;
+      
+      if (kDebugMode) {
+        print('👤 Agent Profile Loaded:');
+        print('   Agent ID: ${_agent.value!.id}');
+        print('   Name: ${_agent.value!.name}');
+        print('   Email: ${_agent.value!.email}');
+        print('   Brokerage: ${_agent.value!.brokerage}');
+        print('   Rating: ${_agent.value!.rating}');
+        print('   Review Count: ${_agent.value!.reviewCount}');
+      }
+      
+      // Load properties for this agent
+      _loadAgentProperties();
     } else {
       // Fallback to mock data
       _agent.value = AgentModel(
@@ -54,9 +88,314 @@ class AgentProfileController extends GetxController {
       );
     }
   }
+  
+  /// Fetches agent's properties from the API
+  Future<void> _loadAgentProperties() async {
+    if (_agent.value == null || _agent.value!.id.isEmpty) {
+      if (kDebugMode) {
+        print('⚠️ Cannot load properties: Agent ID not available');
+      }
+      return;
+    }
+
+    try {
+      _isLoadingProperties.value = true;
+      
+      final agentId = _agent.value!.id;
+      final endpoint = ApiConstants.getAgentListingsEndpoint(agentId);
+      
+      if (kDebugMode) {
+        print('📡 Fetching agent properties...');
+        print('   Agent ID: $agentId');
+        print('   URL: $endpoint');
+      }
+
+      final response = await _dio.get(endpoint);
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        if (kDebugMode) {
+          print('✅ Properties response received');
+          print('   Status Code: ${response.statusCode}');
+          print('📥 Full Response Data:');
+          print(response.data);
+          print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        }
+
+        final responseData = response.data;
+        final success = responseData['success'] ?? false;
+        final listingsData = responseData['listings'] as List<dynamic>? ?? [];
+
+        if (kDebugMode) {
+          print('   Success: $success');
+          print('   Listings count: ${listingsData.length}');
+        }
+
+        if (success && listingsData.isNotEmpty) {
+          // Parse listings
+          final properties = <Map<String, dynamic>>[];
+          
+          for (int i = 0; i < listingsData.length; i++) {
+            try {
+              final listing = listingsData[i] as Map<String, dynamic>;
+              if (kDebugMode) {
+                print('📦 Parsing listing $i:');
+                print('   ID: ${listing['_id']}');
+                print('   Title: ${listing['propertyTitle']}');
+                print('   Price: ${listing['price']}');
+                print('   Photos: ${(listing['propertyPhotos'] as List?)?.length ?? 0}');
+              }
+              
+              final property = _parseListingToProperty(listing);
+              properties.add(property);
+              
+              if (kDebugMode) {
+                print('   ✅ Parsed successfully');
+              }
+            } catch (e) {
+              if (kDebugMode) {
+                print('   ❌ Error parsing listing $i: $e');
+              }
+            }
+          }
+
+          _properties.value = properties;
+          
+          if (kDebugMode) {
+            print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+            print('✅ Loaded ${properties.length} properties for agent');
+            print('   Properties list updated: ${_properties.length}');
+          }
+        } else {
+          _properties.value = [];
+          if (kDebugMode) {
+            print('ℹ️ No properties found for this agent');
+            print('   Success: $success');
+            print('   Listings data empty: ${listingsData.isEmpty}');
+          }
+        }
+      } else {
+        if (kDebugMode) {
+          print('⚠️ Unexpected status code: ${response.statusCode}');
+        }
+        _properties.value = [];
+      }
+    } on DioException catch (e) {
+      if (kDebugMode) {
+        print('❌ Error loading properties: ${e.response?.statusCode ?? "N/A"}');
+        print('   ${e.response?.data ?? e.message}');
+      }
+      
+      // Don't show error to user - just keep empty list
+      _properties.value = [];
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Unexpected error loading properties: $e');
+      }
+      _properties.value = [];
+    } finally {
+      _isLoadingProperties.value = false;
+    }
+  }
+  
+  /// Parses API listing format to property format for display
+  Map<String, dynamic> _parseListingToProperty(Map<String, dynamic> listing) {
+    if (kDebugMode) {
+      print('🔄 Parsing listing to property format...');
+    }
+    
+    // Parse property photos - build full URLs
+    final propertyPhotos = listing['propertyPhotos'] as List<dynamic>? ?? [];
+    if (kDebugMode) {
+      print('   Raw photos: $propertyPhotos');
+    }
+    
+    final images = propertyPhotos
+        .map((photo) {
+          final photoPath = photo.toString();
+          if (photoPath.isEmpty) return null;
+          
+          // If already full URL, return as is
+          if (photoPath.startsWith('http://') || photoPath.startsWith('https://')) {
+            return photoPath;
+          }
+          
+          // Build full URL
+          String path = photoPath;
+          if (path.startsWith('/')) {
+            path = path.substring(1);
+          }
+          final baseUrl = ApiConstants.baseUrl.endsWith('/') 
+              ? ApiConstants.baseUrl.substring(0, ApiConstants.baseUrl.length - 1)
+              : ApiConstants.baseUrl;
+          final fullUrl = '$baseUrl/$path';
+          
+          if (kDebugMode) {
+            print('   Built photo URL: $fullUrl');
+          }
+          return fullUrl;
+        })
+        .where((photo) => photo != null)
+        .cast<String>()
+        .toList();
+    
+    if (kDebugMode) {
+      print('   Final images count: ${images.length}');
+    }
+    
+    // Parse property details
+    final propertyDetails = listing['propertyDetails'] as Map<String, dynamic>? ?? {};
+    final beds = int.tryParse(propertyDetails['bedrooms']?.toString() ?? '0') ?? 0;
+    final baths = double.tryParse(propertyDetails['bathrooms']?.toString() ?? '0') ?? 0.0;
+    final sqft = int.tryParse(propertyDetails['squareFeet']?.toString() ?? '0') ?? 0;
+    
+    if (kDebugMode) {
+      print('   Property details: beds=$beds, baths=$baths, sqft=$sqft');
+    }
+    
+    // Parse open houses - convert API format to display format
+    final openHousesData = listing['openHouses'] as List<dynamic>? ?? [];
+    final openHouses = openHousesData.map((oh) {
+      // Parse date and times
+      final dateStr = oh['date']?.toString() ?? '';
+      final fromTime = oh['fromTime']?.toString() ?? '10:00 AM';
+      final toTime = oh['toTime']?.toString() ?? '2:00 PM';
+      final notes = oh['specialNote']?.toString() ?? oh['notes']?.toString() ?? '';
+      
+      // Try to parse the date
+      DateTime? date;
+      try {
+        if (dateStr.isNotEmpty) {
+          date = DateTime.parse(dateStr);
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          print('   ⚠️ Error parsing date: $dateStr');
+        }
+      }
+      
+      // Build startDateTime and endDateTime strings
+      String? startDateTime;
+      String? endDateTime;
+      if (date != null) {
+        // Use the date with times
+        startDateTime = date.toIso8601String();
+        endDateTime = date.toIso8601String();
+      }
+      
+      return {
+        'date': dateStr,
+        'fromTime': fromTime,
+        'toTime': toTime,
+        'notes': notes,
+        'startDateTime': startDateTime,
+        'endDateTime': endDateTime,
+      };
+    }).toList();
+    
+    if (kDebugMode) {
+      print('   Open houses count: ${openHouses.length}');
+      if (openHouses.isNotEmpty) {
+        print('   First open house: ${openHouses[0]}');
+      }
+    }
+    
+    // Parse price
+    final priceString = listing['price']?.toString() ?? '0';
+    final priceDouble = double.tryParse(priceString) ?? 0.0;
+    final formattedPrice = '\$${priceDouble.toStringAsFixed(0).replaceAllMapped(
+      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+      (Match m) => '${m[1]},',
+    )}';
+    
+    if (kDebugMode) {
+      print('   Price: $priceString → $formattedPrice');
+    }
+    
+    // Parse BAC percentage
+    final bacPercent = double.tryParse(listing['BACPercentage']?.toString() ?? '0') ?? 0.0;
+    
+    // Parse status
+    String status = 'For Sale';
+    final active = listing['active'] ?? false;
+    final listingStatus = listing['status']?.toString() ?? 'draft';
+    if (!active || listingStatus == 'draft') {
+      status = 'Pending Approval';
+    } else if (listingStatus == 'sold') {
+      status = 'Sold';
+    }
+    
+    if (kDebugMode) {
+      print('   Status: $listingStatus (active: $active) → Display: $status');
+    }
+    
+    // Build full address
+    final streetAddress = listing['streetAddress']?.toString() ?? '';
+    final city = listing['city']?.toString() ?? '';
+    final state = listing['state']?.toString() ?? '';
+    final zipCode = listing['zipCode']?.toString() ?? '';
+    final fullAddress = '$streetAddress, $city, $state $zipCode';
+    
+    if (kDebugMode) {
+      print('   Address: $fullAddress');
+    }
+    
+    // Build agent info object for property detail view
+    final agent = _agent.value;
+    final agentInfo = agent != null ? {
+      'id': agent.id,
+      'name': agent.name,
+      'company': agent.brokerage,
+      'profileImage': agent.profileImage,
+      'isDualAgencyAllowedInState': agent.isDualAgencyAllowedInState ?? false,
+      'isDualAgencyAllowedAtBrokerage': agent.isDualAgencyAllowedAtBrokerage ?? false,
+      'rating': agent.rating,
+      'phone': agent.phone,
+      'email': agent.email,
+    } : null;
+    
+    final parsedProperty = {
+      'id': listing['_id']?.toString() ?? '',
+      'address': fullAddress,
+      'price': formattedPrice,
+      'beds': beds,
+      'baths': baths,
+      'sqft': sqft,
+      'lotSize': 'N/A', // Not in API
+      'yearBuilt': null, // Not in API
+      'image': images.isNotEmpty ? images[0] : null,
+      'images': images,
+      'status': status,
+      'bacPercent': bacPercent,
+      'city': city,
+      'state': state,
+      'zip': zipCode,
+      'description': listing['description']?.toString() ?? '',
+      'openHouses': openHouses,
+      'views': listing['views'] is int ? listing['views'] : 0,
+      'contacts': listing['contacts'] is int ? listing['contacts'] : 0,
+      'searches': listing['searches'] is int ? listing['searches'] : 0,
+      'dualAgencyAllowed': listing['dualAgencyAllowed'] ?? false,
+      'listingAgent': listing['listingAgent'] ?? true,
+      'agent': agentInfo, // Add agent information for property detail view
+      'agentId': listing['id']?.toString() ?? '', // The agent ID from listing
+    };
+    
+    if (kDebugMode) {
+      print('   ✅ Property parsed successfully');
+      print('   Final property: ${parsedProperty['id']} - ${parsedProperty['address']}');
+      print('   Agent info included: ${agentInfo != null}');
+    }
+    
+    return parsedProperty;
+  }
 
   void setSelectedTab(int index) {
     _selectedTab.value = index;
+    
+    // Load properties when switching to properties tab
+    if (index == 2 && _properties.isEmpty && !_isLoadingProperties.value) {
+      _loadAgentProperties();
+    }
   }
 
   void toggleFavorite() {
@@ -157,40 +496,51 @@ class AgentProfileController extends GetxController {
     }
   }
 
+  /// Returns dynamic reviews from agent data
   List<Map<String, dynamic>> getReviews() {
-    return [
-      {
-        'name': 'John Smith',
-        'rating': 5.0,
-        'date': '2 weeks ago',
-        'comment':
-            'Sarah was absolutely fantastic! She helped us find our dream home and made the entire process smooth and stress-free.',
-      },
-      {
-        'name': 'Emily Davis',
-        'rating': 5.0,
-        'date': '1 month ago',
-        'comment':
-            'Professional, knowledgeable, and always available. Sarah went above and beyond to help us sell our condo quickly.',
-      },
-      {
-        'name': 'Michael Brown',
-        'rating': 4.0,
-        'date': '2 months ago',
-        'comment':
-            'Great agent with excellent market knowledge. She helped us navigate a competitive market successfully.',
-      },
-      {
-        'name': 'Lisa Wilson',
-        'rating': 5.0,
-        'date': '3 months ago',
-        'comment':
-            'Sarah\'s expertise in luxury properties is unmatched. She found us the perfect penthouse in Manhattan.',
-      },
-    ];
+    if (_agent.value == null || _agent.value!.reviews == null) {
+      return [];
+    }
+
+    return _agent.value!.reviews!.map((review) {
+      // Calculate time ago
+      final now = DateTime.now();
+      final difference = now.difference(review.createdAt);
+      String timeAgo;
+      if (difference.inDays > 365) {
+        final years = (difference.inDays / 365).floor();
+        timeAgo = '$years ${years == 1 ? "year" : "years"} ago';
+      } else if (difference.inDays > 30) {
+        final months = (difference.inDays / 30).floor();
+        timeAgo = '$months ${months == 1 ? "month" : "months"} ago';
+      } else if (difference.inDays > 0) {
+        timeAgo = '${difference.inDays} ${difference.inDays == 1 ? "day" : "days"} ago';
+      } else if (difference.inHours > 0) {
+        timeAgo = '${difference.inHours} ${difference.inHours == 1 ? "hour" : "hours"} ago';
+      } else {
+        timeAgo = 'Just now';
+      }
+
+      return {
+        'id': review.id,
+        'reviewerId': review.reviewerId,
+        'name': review.reviewerName,
+        'profilePic': review.reviewerProfile,
+        'rating': review.rating,
+        'date': timeAgo,
+        'createdAt': review.createdAt.toIso8601String(),
+        'comment': review.comment,
+      };
+    }).toList();
   }
 
+  /// Returns dynamic properties from API
   List<Map<String, dynamic>> getProperties() {
+    return _properties;
+  }
+  
+  /// OLD MOCK DATA - REMOVED
+  List<Map<String, dynamic>> _getMockProperties() {
     return [
       // === $2.5M LUXURY PENTHOUSE – $1M+ RULES APPLY ===
       {
@@ -451,5 +801,11 @@ ADDITIONAL TERMS
 7. The Seller acknowledges that rebate availability and limitations may vary based on state law, lender restrictions, and transaction structure.
 
 8. The Listing Agent/Broker makes no guarantee that a lender will approve the rebate, if applicable.''';
+  }
+  
+  @override
+  void onClose() {
+    _dio.close();
+    super.onClose();
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
@@ -75,19 +76,39 @@ class PropertyDetailView extends GetView<PropertyDetailController> {
   }
 
   Widget _buildOpenHouseSection(BuildContext context) {
-    final openHouses = controller.property['openHouses'] as List;
+    final openHouses = controller.property['openHouses'] as List? ?? [];
+    if (openHouses.isEmpty) return const SizedBox.shrink();
+    
     final now = DateTime.now();
 
     // Separate upcoming and past open houses
-    final upcomingOpenHouses = openHouses.where((oh) {
-      final endDate = DateTime.parse(oh['endDateTime']);
-      return endDate.isAfter(now);
-    }).toList();
-
-    final pastOpenHouses = openHouses.where((oh) {
-      final endDate = DateTime.parse(oh['endDateTime']);
-      return endDate.isBefore(now);
-    }).toList();
+    final upcomingOpenHouses = <Map<String, dynamic>>[];
+    final pastOpenHouses = <Map<String, dynamic>>[];
+    
+    for (final oh in openHouses) {
+      try {
+        final ohMap = oh as Map<String, dynamic>;
+        // Try to parse date
+        final dateStr = ohMap['date']?.toString() ?? ohMap['startDateTime']?.toString() ?? '';
+        if (dateStr.isNotEmpty) {
+          final date = DateTime.tryParse(dateStr);
+          if (date != null) {
+            if (date.isAfter(now)) {
+              upcomingOpenHouses.add(ohMap);
+            } else {
+              pastOpenHouses.add(ohMap);
+            }
+          } else {
+            // If can't parse date, assume upcoming
+            upcomingOpenHouses.add(ohMap);
+          }
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          print('⚠️ Error processing open house: $e');
+        }
+      }
+    }
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -173,10 +194,26 @@ class PropertyDetailView extends GetView<PropertyDetailController> {
     Map<String, dynamic> openHouse,
     bool isPast,
   ) {
-    final startDate = DateTime.parse(openHouse['startDateTime']);
-    final endDate = DateTime.parse(openHouse['endDateTime']);
+    // Parse date - handle both formats
+    DateTime? startDate;
+    final dateStr = openHouse['date']?.toString() ?? openHouse['startDateTime']?.toString() ?? '';
+    
+    try {
+      if (dateStr.isNotEmpty) {
+        startDate = DateTime.parse(dateStr);
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('⚠️ Error parsing open house date: $dateStr');
+      }
+      startDate = DateTime.now();
+    }
+    
+    startDate ??= DateTime.now();
+    
     final dateFormat = DateFormat('EEEE, MMMM d, yyyy');
-    final timeFormat = DateFormat('h:mm a');
+    final fromTime = openHouse['fromTime']?.toString() ?? '10:00 AM';
+    final toTime = openHouse['toTime']?.toString() ?? '2:00 PM';
 
     final isToday = DateUtils.isSameDay(startDate, DateTime.now());
     final isTomorrow = DateUtils.isSameDay(
@@ -256,7 +293,7 @@ class PropertyDetailView extends GetView<PropertyDetailController> {
               ),
               const SizedBox(width: 6),
               Text(
-                '${timeFormat.format(startDate)} - ${timeFormat.format(endDate)}',
+                '$fromTime - $toTime',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: isPast ? AppTheme.mediumGray : AppTheme.darkGray,
                   fontWeight: FontWeight.w600,
@@ -264,7 +301,7 @@ class PropertyDetailView extends GetView<PropertyDetailController> {
               ),
             ],
           ),
-          if (openHouse['notes'] != null && openHouse['notes'].isNotEmpty) ...[
+          if (openHouse['notes']?.toString().isNotEmpty == true) ...[
             const SizedBox(height: 8),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -277,7 +314,7 @@ class PropertyDetailView extends GetView<PropertyDetailController> {
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
-                    openHouse['notes'],
+                    openHouse['notes']?.toString() ?? '',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: isPast ? AppTheme.mediumGray : AppTheme.darkGray,
                       height: 1.4,
@@ -491,6 +528,12 @@ class PropertyDetailView extends GetView<PropertyDetailController> {
   }
 
   Widget _buildPropertyFeatures(BuildContext context) {
+    final beds = controller.property['beds'] ?? 0;
+    final baths = controller.property['baths'] ?? 0;
+    final sqft = controller.property['sqft'] ?? 0;
+    final lotSize = controller.property['lotSize'];
+    final yearBuilt = controller.property['yearBuilt'];
+    
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -506,39 +549,38 @@ class PropertyDetailView extends GetView<PropertyDetailController> {
           spacing: 16,
           runSpacing: 8,
           children: [
-            _buildFeatureItem(
-              context,
-              Icons.bed,
-              '${controller.property['beds'] ?? 'N/A'} beds',
-            ),
-            _buildFeatureItem(
-              context,
-              Icons.bathtub,
-              '${controller.property['baths'] ?? 'N/A'} baths',
-            ),
-            _buildFeatureItem(
-              context,
-              Icons.square_foot,
-              '${controller.property['sqft'] ?? 'N/A'} sqft',
-            ),
+            if (beds > 0)
+              _buildFeatureItem(
+                context,
+                Icons.bed,
+                '$beds ${beds == 1 ? "bed" : "beds"}',
+              ),
+            if (baths > 0)
+              _buildFeatureItem(
+                context,
+                Icons.bathtub,
+                '$baths ${baths == 1 ? "bath" : "baths"}',
+              ),
+            if (sqft > 0)
+              _buildFeatureItem(
+                context,
+                Icons.square_foot,
+                '$sqft sqft',
+              ),
+            if (lotSize != null && lotSize != 'N/A')
+              _buildFeatureItem(
+                context,
+                Icons.landscape,
+                '$lotSize lot',
+              ),
+            if (yearBuilt != null)
+              _buildFeatureItem(
+                context,
+                Icons.calendar_today,
+                'Built $yearBuilt',
+              ),
           ],
         ),
-        if (controller.property['lotSize'] != null) ...[
-          const SizedBox(height: 16),
-          _buildFeatureItem(
-            context,
-            Icons.landscape,
-            '${controller.property['lotSize']} lot',
-          ),
-        ],
-        if (controller.property['yearBuilt'] != null) ...[
-          const SizedBox(height: 16),
-          _buildFeatureItem(
-            context,
-            Icons.calendar_today,
-            'Built ${controller.property['yearBuilt']}',
-          ),
-        ],
       ],
     );
   }
@@ -559,7 +601,13 @@ class PropertyDetailView extends GetView<PropertyDetailController> {
   }
 
   Widget _buildAgentInfo(BuildContext context) {
-    final agent = controller.property['agent'] ?? {};
+    final agent = controller.property['agent'] as Map<String, dynamic>? ?? {};
+    final agentName = agent['name']?.toString() ?? 'Agent Name';
+    final agentCompany = agent['company']?.toString() ?? 'Real Estate Company';
+    final agentProfileImage = agent['profileImage']?.toString();
+    final hasValidImage = agentProfileImage != null && 
+                          agentProfileImage.isNotEmpty && 
+                          agentProfileImage.startsWith('http');
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -582,12 +630,21 @@ class PropertyDetailView extends GetView<PropertyDetailController> {
             children: [
               CircleAvatar(
                 radius: 24,
-                backgroundImage: agent['profileImage'] != null
-                    ? NetworkImage(agent['profileImage'])
+                backgroundColor: AppTheme.primaryBlue.withOpacity(0.1),
+                backgroundImage: hasValidImage
+                    ? NetworkImage(agentProfileImage)
                     : null,
-                child: agent['profileImage'] == null
-                    ? const Icon(Icons.person, color: AppTheme.white)
+                child: !hasValidImage
+                    ? Text(
+                        agentName[0].toUpperCase(),
+                        style: const TextStyle(
+                          color: AppTheme.primaryBlue,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 20,
+                        ),
+                      )
                     : null,
+                onBackgroundImageError: hasValidImage ? (_, __) {} : null,
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -595,19 +652,21 @@ class PropertyDetailView extends GetView<PropertyDetailController> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      agent['name'] ?? 'Agent Name',
+                      agentName,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         color: AppTheme.black,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      agent['company'] ?? 'Real Estate Company',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppTheme.mediumGray,
+                    if (agentCompany.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        agentCompany,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: AppTheme.mediumGray,
+                        ),
                       ),
-                    ),
+                    ],
                   ],
                 ),
               ),
@@ -1050,6 +1109,9 @@ class PropertyDetailView extends GetView<PropertyDetailController> {
   }
 
   Widget _buildPropertyDescription(BuildContext context) {
+    final description = controller.property['description']?.toString() ?? '';
+    final hasDescription = description.isNotEmpty;
+    
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1062,10 +1124,12 @@ class PropertyDetailView extends GetView<PropertyDetailController> {
         ),
         const SizedBox(height: 12),
         Text(
-          controller.property['description'] ??
-              'This beautiful property offers modern amenities and a great location. Contact us for more details about this amazing opportunity.',
+          hasDescription
+              ? description
+              : 'This beautiful property offers modern amenities and a great location. Contact us for more details about this amazing opportunity.',
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: AppTheme.darkGray,
+            color: hasDescription ? AppTheme.darkGray : AppTheme.mediumGray,
+            fontStyle: hasDescription ? FontStyle.normal : FontStyle.italic,
             height: 1.5,
           ),
         ),

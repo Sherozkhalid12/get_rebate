@@ -35,6 +35,7 @@ class AgentModel {
   final String? websiteUrl;                  // Personal site
   final String? googleReviewsUrl;            // Google Business
   final String? thirdPartyReviewsUrl;        // Zillow, Yelp, etc.
+  final List<AgentReview>? reviews;          // Dynamic reviews from API
 
   AgentModel({
     required this.id,
@@ -72,6 +73,7 @@ class AgentModel {
     this.websiteUrl,
     this.googleReviewsUrl,
     this.thirdPartyReviewsUrl,
+    this.reviews,
   });
 
   factory AgentModel.fromJson(Map<String, dynamic> json) {
@@ -177,6 +179,15 @@ class AgentModel {
           .cast<String>();
     }
     
+    // Parse reviews from API
+    List<AgentReview>? reviews;
+    final reviewsData = json['reviews'];
+    if (reviewsData != null && reviewsData is List) {
+      reviews = reviewsData
+          .map((reviewJson) => AgentReview.fromJson(reviewJson as Map<String, dynamic>))
+          .toList();
+    }
+    
     return AgentModel(
       id: id,
       name: name,
@@ -214,6 +225,7 @@ class AgentModel {
       websiteUrl: json['website_link']?.toString() ?? json['websiteUrl']?.toString(),
       googleReviewsUrl: json['google_reviews_link']?.toString() ?? json['googleReviewsUrl']?.toString(),
       thirdPartyReviewsUrl: json['client_reviews_link']?.toString() ?? json['thirdPartyReviewsUrl']?.toString(),
+      reviews: reviews,
     );
   }
 
@@ -254,6 +266,7 @@ class AgentModel {
       'websiteUrl': websiteUrl,
       'googleReviewsUrl': googleReviewsUrl,
       'thirdPartyReviewsUrl': thirdPartyReviewsUrl,
+      'reviews': reviews?.map((r) => r.toJson()).toList(),
     };
   }
 
@@ -293,6 +306,7 @@ class AgentModel {
     String? websiteUrl,
     String? googleReviewsUrl,
     String? thirdPartyReviewsUrl,
+    List<AgentReview>? reviews,
   }) {
     return AgentModel(
       id: id ?? this.id,
@@ -329,6 +343,76 @@ class AgentModel {
       websiteUrl: websiteUrl ?? this.websiteUrl,
       googleReviewsUrl: googleReviewsUrl ?? this.googleReviewsUrl,
       thirdPartyReviewsUrl: thirdPartyReviewsUrl ?? this.thirdPartyReviewsUrl,
+      reviews: reviews ?? this.reviews,
     );
+  }
+}
+
+/// Agent Review Model
+class AgentReview {
+  final String id;
+  final String reviewerId;
+  final String reviewerName;
+  final String? reviewerProfile;
+  final double rating;
+  final String comment;
+  final DateTime createdAt;
+
+  AgentReview({
+    required this.id,
+    required this.reviewerId,
+    required this.reviewerName,
+    this.reviewerProfile,
+    required this.rating,
+    required this.comment,
+    required this.createdAt,
+  });
+
+  factory AgentReview.fromJson(Map<String, dynamic> json) {
+    // Parse profile pic URL
+    String? reviewerProfile = json['reviewerProfile']?.toString();
+    if (reviewerProfile != null && reviewerProfile.isNotEmpty && !reviewerProfile.contains('file://')) {
+      reviewerProfile = reviewerProfile.replaceAll('\\', '/');
+      if (!reviewerProfile.startsWith('http://') && !reviewerProfile.startsWith('https://')) {
+        if (reviewerProfile.startsWith('/')) {
+          reviewerProfile = reviewerProfile.substring(1);
+        }
+        // Will be built with base URL in the view if needed
+      }
+    } else {
+      reviewerProfile = null;
+    }
+
+    // Parse created date
+    DateTime createdAt = DateTime.now();
+    if (json['createdAt'] != null) {
+      try {
+        createdAt = DateTime.parse(json['createdAt'].toString());
+      } catch (e) {
+        createdAt = DateTime.now();
+      }
+    }
+
+    return AgentReview(
+      id: json['_id']?.toString() ?? '',
+      reviewerId: json['reviewerId']?.toString() ?? '',
+      reviewerName: json['reviewerName']?.toString() ?? 'Anonymous',
+      reviewerProfile: reviewerProfile,
+      rating: (json['rating'] is num) ? (json['rating'] as num).toDouble() : 0.0,
+      comment: json['comment']?.toString() ?? '',
+      createdAt: createdAt,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      '_id': id,
+      'reviewerId': reviewerId,
+      'reviewerName': reviewerName,
+      'reviewerProfile': reviewerProfile,
+      'rating': rating,
+      'comment': comment,
+      'createdAt': createdAt.toIso8601String(),
+    };
   }
 }

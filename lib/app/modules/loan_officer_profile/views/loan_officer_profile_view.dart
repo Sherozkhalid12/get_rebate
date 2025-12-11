@@ -4,6 +4,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/modules/loan_officer_profile/controllers/loan_officer_profile_controller.dart';
 import 'package:getrebate/app/widgets/custom_button.dart';
+import 'package:getrebate/app/utils/api_constants.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class LoanOfficerProfileView extends GetView<LoanOfficerProfileController> {
@@ -701,6 +702,15 @@ class LoanOfficerProfileView extends GetView<LoanOfficerProfileController> {
   }
 
   Widget _buildReviewItem(BuildContext context, Map<String, dynamic> review) {
+    // Build full profile picture URL if available
+    String? profilePicUrl = review['profilePic'];
+    if (profilePicUrl != null && profilePicUrl.isNotEmpty && !profilePicUrl.startsWith('http')) {
+      final baseUrl = ApiConstants.baseUrl.endsWith('/') 
+          ? ApiConstants.baseUrl.substring(0, ApiConstants.baseUrl.length - 1)
+          : ApiConstants.baseUrl;
+      profilePicUrl = '$baseUrl/$profilePicUrl';
+    }
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: Padding(
@@ -710,17 +720,26 @@ class LoanOfficerProfileView extends GetView<LoanOfficerProfileController> {
           children: [
             Row(
               children: [
-                CircleAvatar(
-                  radius: 20,
-                  backgroundColor: AppTheme.lightGreen.withOpacity(0.1),
-                  child: Text(
-                    review['name'][0],
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: AppTheme.lightGreen,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
+                // Profile Picture or Initial
+                profilePicUrl != null && profilePicUrl.isNotEmpty
+                    ? CircleAvatar(
+                        radius: 20,
+                        backgroundImage: NetworkImage(profilePicUrl),
+                        backgroundColor: AppTheme.lightGreen.withOpacity(0.1),
+                        onBackgroundImageError: (_, __) {},
+                        child: const SizedBox(),
+                      )
+                    : CircleAvatar(
+                        radius: 20,
+                        backgroundColor: AppTheme.lightGreen.withOpacity(0.1),
+                        child: Text(
+                          review['name'][0].toString().toUpperCase(),
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            color: AppTheme.lightGreen,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -736,14 +755,35 @@ class LoanOfficerProfileView extends GetView<LoanOfficerProfileController> {
                       ),
                       Row(
                         children: [
+                          // Star rating with fractional support
                           ...List.generate(5, (index) {
-                            return Icon(
-                              Icons.star,
-                              color: index < review['rating']
-                                  ? AppTheme.lightGreen
-                                  : AppTheme.mediumGray,
-                              size: 16,
-                            );
+                            final rating = review['rating'] is num 
+                                ? (review['rating'] as num).toDouble() 
+                                : 0.0;
+                            final starIndex = index + 1;
+                            
+                            if (starIndex <= rating) {
+                              // Full star
+                              return const Icon(
+                                Icons.star,
+                                color: AppTheme.lightGreen,
+                                size: 16,
+                              );
+                            } else if (starIndex - rating < 1 && starIndex - rating > 0) {
+                              // Half star
+                              return const Icon(
+                                Icons.star_half,
+                                color: AppTheme.lightGreen,
+                                size: 16,
+                              );
+                            } else {
+                              // Empty star
+                              return const Icon(
+                                Icons.star_border,
+                                color: AppTheme.mediumGray,
+                                size: 16,
+                              );
+                            }
                           }),
                           const SizedBox(width: 8),
                           Text(

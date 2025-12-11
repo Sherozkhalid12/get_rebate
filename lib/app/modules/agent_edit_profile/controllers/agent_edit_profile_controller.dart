@@ -24,7 +24,7 @@ class AgentEditProfileController extends GetxController {
   final _licensedStates = <String>[].obs;
 
   // API Base URL for static files
-  static const String _baseUrl = 'https://3a461922e985.ngrok-free.app';
+  static const String _baseUrl = 'https://de9f1f9bbb2a.ngrok-free.app';
 
   // Getters
   bool get isLoading => _isLoading.value;

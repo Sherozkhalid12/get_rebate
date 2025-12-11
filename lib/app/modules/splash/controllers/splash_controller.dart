@@ -22,8 +22,8 @@ class SplashController extends GetxController {
   }
 
   void _startTimer() {
-    print('Splash: Starting 3-second timer...');
-    Timer(const Duration(seconds: 3), () {
+    print('Splash: Starting 1.5-second timer for faster loading...');
+    Timer(const Duration(milliseconds: 1500), () {
       print('Splash: Timer completed, checking auth status...');
       _checkAuthAndNavigate();
     });
@@ -56,18 +56,25 @@ class SplashController extends GetxController {
   }
 
   /// Preloads chat threads in background for instant access
+  /// Uses lazy initialization - MessagesController will load threads when accessed
   void _preloadThreads() {
     try {
-      // Initialize messages controller and load threads in background
+      // Initialize messages controller in background without blocking navigation
+      // The controller will load threads automatically when the messages screen is opened
       if (!Get.isRegistered<MessagesController>()) {
-        Get.put(MessagesController(), permanent: true);
+        // Use Future.microtask to initialize controller in background without blocking
+        Future.microtask(() {
+          try {
+            Get.put(MessagesController(), permanent: true);
+            print('🚀 Splash: MessagesController initialized in background');
+          } catch (e) {
+            print('⚠️ Splash: Failed to initialize MessagesController: $e');
+          }
+        });
       }
-      final messagesController = Get.find<MessagesController>();
-      // Load threads in background - don't wait for it
-      messagesController.refreshThreads();
-      print('🚀 Splash: Preloading chat threads in background...');
+      print('🚀 Splash: Chat preload scheduled (lazy initialization)');
     } catch (e) {
-      print('⚠️ Splash: Failed to preload threads: $e');
+      print('⚠️ Splash: Failed to schedule preload: $e');
       // Don't block navigation if preload fails
     }
   }

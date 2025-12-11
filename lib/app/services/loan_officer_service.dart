@@ -1,15 +1,15 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
-import 'package:getrebate/app/models/agent_model.dart';
+import 'package:getrebate/app/models/loan_officer_model.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
 
-/// Custom exception for agent service errors
-class AgentServiceException implements Exception {
+/// Custom exception for loan officer service errors
+class LoanOfficerServiceException implements Exception {
   final String message;
   final int? statusCode;
   final dynamic originalError;
 
-  AgentServiceException({
+  LoanOfficerServiceException({
     required this.message,
     this.statusCode,
     this.originalError,
@@ -19,11 +19,11 @@ class AgentServiceException implements Exception {
   String toString() => message;
 }
 
-/// Service for handling agent-related API calls
-class AgentService {
+/// Service for handling loan officer-related API calls
+class LoanOfficerService {
   late final Dio _dio;
 
-  AgentService() {
+  LoanOfficerService() {
     _dio = Dio(
       BaseOptions(
         baseUrl: ApiConstants.baseUrl,
@@ -51,7 +51,7 @@ class AgentService {
   /// Handles Dio errors
   void _handleError(DioException error) {
     if (kDebugMode) {
-      print('❌ Agent Service Error:');
+      print('❌ Loan Officer Service Error:');
       print('   Type: ${error.type}');
       print('   Message: ${error.message}');
       print('   Response: ${error.response?.data}');
@@ -59,77 +59,79 @@ class AgentService {
     }
   }
 
-  /// Fetches all agents from the API
+  /// Fetches all loan officers from the API
   /// 
-  /// Throws [AgentServiceException] if the request fails
-  Future<List<AgentModel>> getAllAgents() async {
+  /// Throws [LoanOfficerServiceException] if the request fails
+  Future<List<LoanOfficerModel>> getAllLoanOfficers() async {
     try {
       if (kDebugMode) {
-        print('📡 Fetching all agents from API...');
-        print('   URL: ${ApiConstants.apiBaseUrl}/agent/getAllAgents');
+        print('📡 Fetching all loan officers from API...');
+        print('   URL: ${ApiConstants.allLoanOfficersEndpoint}');
       }
 
       final response = await _dio.get(
-        '${ApiConstants.apiBaseUrl}/agent/getAllAgents',
+        ApiConstants.allLoanOfficersEndpoint,
         options: Options(
           headers: ApiConstants.ngrokHeaders,
         ),
       );
 
       if (kDebugMode) {
-        print('✅ Agents response received');
+        print('✅ Loan officers response received');
         print('   Status Code: ${response.statusCode}');
       }
 
       // Handle different response formats
-      List<dynamic> agentsData;
+      List<dynamic> loanOfficersData;
       
       if (response.data is Map) {
         final responseMap = response.data as Map<String, dynamic>;
-        // Check for the format with 'success' and 'agents'
-        if (responseMap['success'] == true && responseMap['agents'] != null) {
-          agentsData = responseMap['agents'] as List<dynamic>;
+        // Check for the format with 'success' and 'loanOfficers'
+        if (responseMap['success'] == true && responseMap['loanOfficers'] != null) {
+          loanOfficersData = responseMap['loanOfficers'] as List<dynamic>;
         } else if (responseMap['data'] != null) {
-          agentsData = responseMap['data'] as List<dynamic>;
+          loanOfficersData = responseMap['data'] as List<dynamic>;
+        } else if (responseMap['loanOfficers'] != null) {
+          loanOfficersData = responseMap['loanOfficers'] as List<dynamic>;
         } else {
-          agentsData = [];
+          loanOfficersData = [];
         }
       } else if (response.data is List) {
-        agentsData = response.data as List<dynamic>;
+        loanOfficersData = response.data as List<dynamic>;
       } else {
-        agentsData = [];
+        loanOfficersData = [];
       }
 
-      final agents = <AgentModel>[];
+      final loanOfficers = <LoanOfficerModel>[];
       
-      for (int i = 0; i < agentsData.length; i++) {
+      for (int i = 0; i < loanOfficersData.length; i++) {
         try {
-          final json = agentsData[i];
+          final json = loanOfficersData[i];
           
           // Skip if not a Map
           if (json is! Map<String, dynamic>) {
             if (kDebugMode) {
-              print('⚠️ Skipping agent at index $i: expected Map but got ${json.runtimeType}');
+              print('⚠️ Skipping loan officer at index $i: expected Map but got ${json.runtimeType}');
             }
             continue;
           }
           
-          final agent = AgentModel.fromJson(json);
-          agents.add(agent);
+          final loanOfficer = LoanOfficerModel.fromJson(json);
+          loanOfficers.add(loanOfficer);
         } catch (e) {
           if (kDebugMode) {
-            print('⚠️ Error parsing agent at index $i: $e');
-            print('   Data: ${agentsData[i]}');
+            print('⚠️ Error parsing loan officer at index $i: $e');
+            print('   Data: ${loanOfficersData[i]}');
           }
-          // Continue to next agent instead of failing completely
+          // Continue to next loan officer instead of failing completely
         }
       }
 
       if (kDebugMode) {
-        print('✅ Successfully parsed ${agents.length} agents');
+        print('✅ Successfully parsed ${loanOfficers.length} loan officers');
       }
 
-      return agents;
+      return loanOfficers;
     } on DioException catch (e) {
       String errorMessage;
       int? statusCode;
@@ -147,7 +149,7 @@ class AgentService {
         case DioExceptionType.badResponse:
           statusCode = e.response?.statusCode;
           if (statusCode == 404) {
-            errorMessage = 'Agents endpoint not found.';
+            errorMessage = 'Loan officers endpoint not found.';
           } else if (statusCode == 401) {
             errorMessage = 'Unauthorized. Please login again.';
           } else if (statusCode == 500) {
@@ -155,7 +157,7 @@ class AgentService {
           } else {
             errorMessage = e.response?.data?['message']?.toString() ?? 
                           e.response?.data?['error']?.toString() ?? 
-                          'Failed to fetch agents.';
+                          'Failed to fetch loan officers.';
           }
           break;
         case DioExceptionType.cancel:
@@ -168,17 +170,17 @@ class AgentService {
           errorMessage = 'An unexpected error occurred.';
       }
 
-      throw AgentServiceException(
+      throw LoanOfficerServiceException(
         message: errorMessage,
         statusCode: statusCode,
         originalError: e,
       );
     } catch (e) {
-      if (e is AgentServiceException) {
+      if (e is LoanOfficerServiceException) {
         rethrow;
       }
 
-      throw AgentServiceException(
+      throw LoanOfficerServiceException(
         message: 'An unexpected error occurred: ${e.toString()}',
         originalError: e,
       );
