@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:getrebate/app/models/zip_code_model.dart';
 import 'package:getrebate/app/models/loan_model.dart';
@@ -6,6 +7,7 @@ import 'package:getrebate/app/models/subscription_model.dart';
 import 'package:getrebate/app/models/promo_code_model.dart';
 import 'package:getrebate/app/services/zip_code_pricing_service.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart' as global;
+import 'package:getrebate/app/modules/messages/controllers/messages_controller.dart';
 
 class LoanOfficerController extends GetxController {
   // Data
@@ -59,6 +61,42 @@ class LoanOfficerController extends GetxController {
     _loadMockData();
     _initializeSubscription();
     checkPromoExpiration(); // Check if free period has ended
+    
+    // Preload chat threads for instant access when loan officer opens messages
+    _preloadThreads();
+  }
+
+  /// Preloads chat threads for instant access when loan officer opens messages
+  void _preloadThreads() {
+    // Defer to next frame to avoid setState during build
+    Future.microtask(() {
+      try {
+        // Initialize messages controller if not already registered
+        // This will also initialize the socket connection for real-time messages
+        if (!Get.isRegistered<MessagesController>()) {
+          Get.put(MessagesController(), permanent: true);
+          if (kDebugMode) {
+            print('🚀 Loan Officer: Created MessagesController - socket will be initialized');
+          }
+        }
+        final messagesController = Get.find<MessagesController>();
+        
+        // Load threads in background - don't wait for it
+        messagesController.refreshThreads();
+        
+        // Ensure socket is connected for real-time message reception
+        // The socket should be initialized in MessagesController.onInit()
+        // which is called when the controller is created above
+        if (kDebugMode) {
+          print('🚀 Loan Officer: Preloading chat threads and ensuring socket connection...');
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          print('⚠️ Loan Officer: Failed to preload threads: $e');
+        }
+        // Don't block initialization if preload fails
+      }
+    });
   }
 
   void _initializeSubscription() {

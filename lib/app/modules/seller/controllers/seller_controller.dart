@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:getrebate/app/models/agent_model.dart';
+import 'package:getrebate/app/modules/messages/controllers/messages_controller.dart';
+import 'package:getrebate/app/controllers/auth_controller.dart';
 
 class SellerController extends GetxController {
+  final AuthController _authController = Get.find<AuthController>();
+  
   // Search
   final searchController = TextEditingController();
   final _searchQuery = ''.obs;
@@ -23,6 +28,40 @@ class SellerController extends GetxController {
     super.onInit();
     _loadMockData();
     searchController.addListener(_onSearchChanged);
+    _preloadThreads();
+  }
+
+  /// Preloads chat threads for instant access when seller opens messages
+  void _preloadThreads() {
+    // Defer to next frame to avoid setState during build
+    Future.microtask(() {
+      try {
+        if (_authController.isLoggedIn && _authController.currentUser != null) {
+          // Initialize messages controller if not already registered
+          // This will also initialize the socket connection for real-time messages
+          if (!Get.isRegistered<MessagesController>()) {
+            Get.put(MessagesController(), permanent: true);
+            if (kDebugMode) {
+              print('🚀 Seller: Created MessagesController - socket will be initialized');
+            }
+          }
+          final messagesController = Get.find<MessagesController>();
+          
+          // Load threads in background - don't wait for it
+          messagesController.refreshThreads();
+          
+          // Ensure socket is connected for real-time message reception
+          if (kDebugMode) {
+            print('🚀 Seller: Preloading chat threads and ensuring socket connection...');
+          }
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          print('⚠️ Seller: Failed to preload threads: $e');
+        }
+        // Don't block initialization if preload fails
+      }
+    });
   }
 
   void _onSearchChanged() {

@@ -162,6 +162,12 @@ class MessagesController extends GetxController {
     final user = _authController.currentUser;
     return user?.role == UserRole.loanOfficer;
   }
+  
+  // Check if current user is an agent
+  bool get isAgent {
+    final user = _authController.currentUser;
+    return user?.role == UserRole.agent;
+  }
 
   SocketService? _socketService;
 
@@ -240,10 +246,19 @@ class MessagesController extends GetxController {
         }
         _initializeSocket();
       } else {
-        // Already initialized - silently refresh to get latest data without loading indicator
+        // Already initialized - ensure socket is still connected
         if (kDebugMode) {
-          print('📱 MessagesController: Re-initialization - silently refreshing threads');
+          print('📱 MessagesController: Re-initialization - checking socket connection');
         }
+        
+        // Check if socket is connected, reconnect if needed
+        if (_socketService != null && !_socketService!.isConnected) {
+          if (kDebugMode) {
+            print('⚠️ Socket not connected, reinitializing...');
+          }
+          _initializeSocket();
+        }
+        
         // Use silent refresh to update data without showing loading spinner
         _refreshThreadsSilently();
       }
@@ -364,8 +379,17 @@ class MessagesController extends GetxController {
                       data['sender']?.toString() ?? 
                       data['senderId']?.toString() ?? '';
       
-      final text = data['text']?.toString() ?? 
-                  data['message']?.toString() ?? '';
+      // Extract and clean message text - handle JSON escaping
+      String text = data['text']?.toString() ?? 
+                   data['message']?.toString() ?? '';
+      
+      // Clean the text - remove any unwanted escaping
+      // Replace escaped quotes and backslashes that might come from JSON
+      text = text.replaceAll('\\"', '"')
+                 .replaceAll('\\n', '\n')
+                 .replaceAll('\\t', '\t')
+                 .replaceAll('\\\\', '\\')
+                 .trim();
       
       // Parse timestamp
       DateTime createdAt;
@@ -383,10 +407,47 @@ class MessagesController extends GetxController {
         print('   Parsed - ChatId: $chatId, SenderId: $senderId, Text: ${text.substring(0, text.length > 50 ? 50 : text.length)}...');
       }
 
-      // If this message is for the currently selected conversation
+      // Always update the conversation list with new message, even if not viewing that conversation
+      // This ensures agents see new messages instantly even when on dashboard
+      final user = _authController.currentUser;
+      final isFromMe = senderId == (user?.id ?? '');
+      
+      // Find the conversation in our list and update it
+      final conversationIndex = _allConversations.indexWhere((c) => c.id == chatId);
+      if (conversationIndex != -1) {
+        // Update existing conversation with new last message
+        final existingConversation = _allConversations[conversationIndex];
+        final updatedConversation = existingConversation.copyWith(
+          lastMessage: text,
+          lastMessageTime: createdAt,
+          unreadCount: isFromMe ? existingConversation.unreadCount : existingConversation.unreadCount + 1,
+        );
+        _allConversations[conversationIndex] = updatedConversation;
+        _allConversations.sort((a, b) => b.lastMessageTime.compareTo(a.lastMessageTime));
+        
+        // Also update in filtered conversations list
+        final filteredIndex = _conversations.indexWhere((c) => c.id == chatId);
+        if (filteredIndex != -1) {
+          _conversations[filteredIndex] = updatedConversation;
+          _conversations.sort((a, b) => b.lastMessageTime.compareTo(a.lastMessageTime));
+        }
+        
+        if (kDebugMode) {
+          print('✅ Updated conversation list with new message');
+          print('   Conversation: ${updatedConversation.senderName}');
+          print('   Last message: $text');
+        }
+      } else {
+        // New conversation - refresh threads to get it
+        if (kDebugMode) {
+          print('📬 New conversation detected, refreshing threads...');
+        }
+        _refreshThreadsSilently();
+      }
+
+      // If this message is for the currently selected conversation, also add it to messages list
       if (_selectedConversation.value?.id == chatId) {
-        final user = _authController.currentUser;
-        final isFromMe = senderId == (user?.id ?? '');
+        // user and isFromMe are already declared above
         
         // Get message ID from socket data
         final messageId = data['_id']?.toString() ?? 
@@ -417,7 +478,14 @@ class MessagesController extends GetxController {
         // Get sender type
         String senderType;
         if (isFromMe) {
-          senderType = user?.role == UserRole.loanOfficer ? 'loan_officer' : 'user';
+          // Determine sender type based on current user's role
+          if (user?.role == UserRole.agent) {
+            senderType = 'agent';
+          } else if (user?.role == UserRole.loanOfficer) {
+            senderType = 'loan_officer';
+          } else {
+            senderType = 'user';
+          }
         } else {
           final role = sender?['role']?.toString()?.toLowerCase() ?? '';
           if (role == 'agent') {
@@ -440,7 +508,7 @@ class MessagesController extends GetxController {
           senderName: senderName,
           senderType: senderType,
           senderImage: isFromMe ? null : _selectedConversation.value?.senderImage,
-          message: text,
+          message: text.trim(), // Use cleaned and trimmed text
           timestamp: createdAt,
           isRead: isRead,
         );
@@ -473,38 +541,8 @@ class MessagesController extends GetxController {
         }
       }
 
-      // Update conversation last message (even if not selected)
-      // Update in both lists to keep search results in sync
-      final conversation = _allConversations.firstWhereOrNull((c) => c.id == chatId);
-      if (conversation != null) {
-        final updatedConversation = conversation.copyWith(
-          lastMessage: text,
-          lastMessageTime: createdAt,
-        );
-        
-        // Update in all conversations list
-        final allIndex = _allConversations.indexWhere((c) => c.id == chatId);
-        if (allIndex != -1) {
-          _allConversations[allIndex] = updatedConversation;
-          _allConversations.sort((a, b) => b.lastMessageTime.compareTo(a.lastMessageTime));
-        }
-        
-        // Update in filtered conversations list
-        final filteredIndex = _conversations.indexWhere((c) => c.id == chatId);
-        if (filteredIndex != -1) {
-          _conversations[filteredIndex] = updatedConversation;
-          _conversations.sort((a, b) => b.lastMessageTime.compareTo(a.lastMessageTime));
-        }
-        
-        if (kDebugMode) {
-          print('✅ Updated conversation last message and re-sorted list');
-        }
-      } else {
-        if (kDebugMode) {
-          print('⚠️ Conversation not found for chatId: $chatId');
-          print('   Available conversations: ${_allConversations.map((c) => c.id).join(", ")}');
-        }
-      }
+      // Note: Conversation list is already updated above (before the if statement)
+      // This ensures messages are visible even when agent is on dashboard
     } catch (e) {
       if (kDebugMode) {
         print('❌ Error handling new message: $e');
@@ -922,6 +960,18 @@ class MessagesController extends GetxController {
           // Determine if message is from current user
           final isFromMe = senderId == user.id;
 
+          // Extract and clean message text
+          String messageText = json['text']?.toString() ?? 
+                              json['message']?.toString() ?? 
+                              '';
+          
+          // Clean the text - remove any unwanted escaping
+          messageText = messageText.replaceAll('\\"', '"')
+                                  .replaceAll('\\n', '\n')
+                                  .replaceAll('\\t', '\t')
+                                  .replaceAll('\\\\', '\\')
+                                  .trim();
+          
           return MessageModel(
             id: json['_id']?.toString() ?? 
                 json['id']?.toString() ?? 
@@ -930,9 +980,7 @@ class MessagesController extends GetxController {
             senderName: isFromMe ? 'You' : senderName,
             senderType: senderType,
             senderImage: isFromMe ? null : senderImage,
-            message: json['text']?.toString() ?? 
-                    json['message']?.toString() ?? 
-                    '',
+            message: messageText,
             timestamp: timestamp,
             isRead: isRead,
           );
@@ -1003,11 +1051,20 @@ class MessagesController extends GetxController {
 
     // Create optimistic message with unique ID
     final tempId = 'temp_${DateTime.now().millisecondsSinceEpoch}';
+    
+    // Determine sender type based on user role
+    String senderType = 'user';
+    if (user.role == UserRole.agent) {
+      senderType = 'agent';
+    } else if (user.role == UserRole.loanOfficer) {
+      senderType = 'loan_officer';
+    }
+    
     final message = MessageModel(
       id: tempId,
       senderId: user.id,
       senderName: 'You',
-      senderType: user.role == UserRole.loanOfficer ? 'loan_officer' : 'user',
+      senderType: senderType,
       message: text,
       timestamp: now,
       isRead: true,

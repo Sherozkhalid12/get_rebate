@@ -276,14 +276,15 @@ class AuthController extends GetxController {
       if (e.response != null) {
         final statusCode = e.response?.statusCode;
         final responseData = e.response?.data;
-        
+
         // Handle 500 server errors
         if (statusCode == 500) {
           // Check if response contains MongoDB error
           final responseString = responseData?.toString() ?? '';
-          if (responseString.contains('MongooseError') || 
+          if (responseString.contains('MongooseError') ||
               responseString.contains('buffering timed out')) {
-            errorMessage = 'Server database connection error. Please try again in a moment.';
+            errorMessage =
+                'Server database connection error. Please try again in a moment.';
           } else {
             errorMessage = 'Server error. Please try again later.';
           }

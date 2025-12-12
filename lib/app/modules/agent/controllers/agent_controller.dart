@@ -9,6 +9,7 @@ import 'package:getrebate/app/models/subscription_model.dart';
 import 'package:getrebate/app/models/promo_code_model.dart';
 import 'package:getrebate/app/services/zip_code_pricing_service.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart' as global;
+import 'package:getrebate/app/modules/messages/controllers/messages_controller.dart';
 import 'dart:math';
 
 class AgentController extends GetxController {
@@ -82,6 +83,42 @@ class AgentController extends GetxController {
     
     // Fetch listings in background without blocking UI
     Future.microtask(() => fetchAgentListings());
+    
+    // Preload chat threads for instant access when agent opens messages
+    _preloadThreads();
+  }
+
+  /// Preloads chat threads for instant access when agent opens messages
+  void _preloadThreads() {
+    // Defer to next frame to avoid setState during build
+    Future.microtask(() {
+      try {
+        // Initialize messages controller if not already registered
+        if (!Get.isRegistered<MessagesController>()) {
+          Get.put(MessagesController(), permanent: true);
+        }
+        final messagesController = Get.find<MessagesController>();
+        
+        // Load threads in background - don't wait for it
+        messagesController.refreshThreads();
+        
+        // IMPORTANT: Ensure socket is connected for real-time message reception
+        // The socket should be initialized when MessagesController is created,
+        // but we'll ensure it's connected here as well
+        if (kDebugMode) {
+          print('🚀 Agent: Preloading chat threads and ensuring socket connection...');
+        }
+        
+        // The socket will be initialized in MessagesController.onInit()
+        // But we can also manually trigger it if needed
+        // The MessagesController should handle this automatically
+      } catch (e) {
+        if (kDebugMode) {
+          print('⚠️ Agent: Failed to preload threads: $e');
+        }
+        // Don't block initialization if preload fails
+      }
+    });
   }
 
   void _initializeSubscription() {

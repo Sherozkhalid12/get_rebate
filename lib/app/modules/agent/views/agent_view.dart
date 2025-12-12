@@ -41,6 +41,11 @@ class AgentView extends GetView<AgentController> {
         centerTitle: true,
         actions: [
           IconButton(
+            icon: const Icon(Icons.message, color: AppTheme.white),
+            onPressed: () => Get.toNamed('/messages'),
+            tooltip: 'Messages',
+          ),
+          IconButton(
             icon: const Icon(Icons.logout, color: AppTheme.white),
             onPressed: () => _showLogoutDialog(context),
             tooltip: 'Logout',
