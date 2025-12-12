@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart';
 import 'package:getrebate/app/models/user_model.dart';
+import 'package:getrebate/app/routes/app_pages.dart';
 
 class ProfileController extends GetxController {
   final AuthController _authController = Get.find<AuthController>();
@@ -74,6 +75,25 @@ class ProfileController extends GetxController {
         _authController.updateUser(updatedUser);
         _isEditing.value = false;
         Get.snackbar('Success', 'Profile updated successfully!');
+        
+        // Wait a moment for snackbar to be visible, then navigate to home page
+        await Future.delayed(const Duration(milliseconds: 500));
+        
+        // Navigate to home page based on user role
+        final user = _authController.currentUser;
+        if (user != null) {
+          switch (user.role) {
+            case UserRole.agent:
+              Get.offAllNamed(AppPages.AGENT);
+              break;
+            case UserRole.buyerSeller:
+              Get.offAllNamed(AppPages.MAIN);
+              break;
+            case UserRole.loanOfficer:
+              Get.offAllNamed(AppPages.LOAN_OFFICER);
+              break;
+          }
+        }
       }
     } catch (e) {
       Get.snackbar('Error', 'Failed to update profile: ${e.toString()}');

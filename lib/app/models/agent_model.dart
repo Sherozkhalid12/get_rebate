@@ -30,12 +30,13 @@ class AgentModel {
   final int platformReviewCount;
 
   // NEW FIELDS — CLIENT REQUEST
-  final String? videoUrl;                    // YouTube/Vimeo intro
-  final List<String>? expertise;             // e.g. "Luxury", "First-Time Buyers"
-  final String? websiteUrl;                  // Personal site
-  final String? googleReviewsUrl;            // Google Business
-  final String? thirdPartyReviewsUrl;        // Zillow, Yelp, etc.
-  final List<AgentReview>? reviews;          // Dynamic reviews from API
+  final String? videoUrl; // YouTube/Vimeo intro or video file URL
+  final List<String>? expertise; // e.g. "Luxury", "First-Time Buyers" (areasOfExpertise)
+  final String? websiteUrl; // Personal site (website_link)
+  final String? googleReviewsUrl; // Google Business (google_reviews_link)
+  final String? thirdPartyReviewsUrl; // Zillow, Yelp, etc. (thirdPartReviewLink)
+  final List<String>? serviceAreas; // Service areas (cities) - separate from serviceZipCodes
+  final List<AgentReview>? reviews; // Dynamic reviews from API
 
   AgentModel({
     required this.id,
@@ -73,6 +74,7 @@ class AgentModel {
     this.websiteUrl,
     this.googleReviewsUrl,
     this.thirdPartyReviewsUrl,
+    this.serviceAreas,
     this.reviews,
   });
 
@@ -82,59 +84,68 @@ class AgentModel {
     final name = json['fullname']?.toString() ?? json['name']?.toString() ?? '';
     final email = json['email']?.toString() ?? '';
     final phone = json['phone']?.toString();
-    
+
     // Profile picture - handle Windows paths and build full URL
-    String? profileImage = json['profilePic']?.toString() ?? json['profileImage']?.toString();
+    String? profileImage =
+        json['profilePic']?.toString() ?? json['profileImage']?.toString();
     if (profileImage != null && profileImage.isNotEmpty) {
       profileImage = profileImage.replaceAll('\\', '/');
-      if (!profileImage.startsWith('http://') && !profileImage.startsWith('https://')) {
+      if (!profileImage.startsWith('http://') &&
+          !profileImage.startsWith('https://')) {
         if (profileImage.startsWith('/')) {
           profileImage = profileImage.substring(1);
         }
         // Will be built with base URL in the controller if needed
       }
     }
-    
+
     // Company logo
     String? companyLogoUrl = json['companyLogo']?.toString();
     if (companyLogoUrl != null && companyLogoUrl.isNotEmpty) {
       companyLogoUrl = companyLogoUrl.replaceAll('\\', '/');
-      if (!companyLogoUrl.startsWith('http://') && !companyLogoUrl.startsWith('https://')) {
+      if (!companyLogoUrl.startsWith('http://') &&
+          !companyLogoUrl.startsWith('https://')) {
         if (companyLogoUrl.startsWith('/')) {
           companyLogoUrl = companyLogoUrl.substring(1);
         }
       }
     }
-    
+
     // Brokerage/Company name
-    final brokerage = json['CompanyName']?.toString() ?? 
-                     json['brokerageCompanyName']?.toString() ?? 
-                     json['brokerage']?.toString() ?? 
-                     '';
-    
+    final brokerage =
+        json['CompanyName']?.toString() ??
+        json['brokerageCompanyName']?.toString() ??
+        json['brokerage']?.toString() ??
+        '';
+
     // License number
-    final licenseNumber = json['liscenceNumber']?.toString() ?? 
-                         json['licenseNumber']?.toString() ?? 
-                         '';
-    
+    final licenseNumber =
+        json['liscenceNumber']?.toString() ??
+        json['licenseNumber']?.toString() ??
+        '';
+
     // Licensed states - handle both field name variations
-    final licensedStatesList = json['LisencedStates'] ?? 
-                               json['licensedStates'] ?? 
-                               [];
+    final licensedStatesList =
+        json['LisencedStates'] ?? json['licensedStates'] ?? [];
     final licensedStates = List<String>.from(licensedStatesList);
-    
+
     // Service areas/ZIP codes
-    final serviceAreasList = json['serviceAreas'] ?? json['serviceZipCodes'] ?? [];
+    final serviceAreasList =
+        json['serviceAreas'] ?? json['serviceZipCodes'] ?? [];
     final serviceZipCodes = List<String>.from(serviceAreasList);
-    
+
     // Rating - can be number or calculated from reviews
     double rating = 0.0;
     if (json['ratings'] != null) {
-      rating = (json['ratings'] is num) ? (json['ratings'] as num).toDouble() : 0.0;
+      rating = (json['ratings'] is num)
+          ? (json['ratings'] as num).toDouble()
+          : 0.0;
     } else if (json['rating'] != null) {
-      rating = (json['rating'] is num) ? (json['rating'] as num).toDouble() : 0.0;
+      rating = (json['rating'] is num)
+          ? (json['rating'] as num).toDouble()
+          : 0.0;
     }
-    
+
     // Review count - from reviews array length
     final reviewsList = json['reviews'] ?? [];
     int reviewCount = 0;
@@ -143,7 +154,7 @@ class AgentModel {
     } else if (json['reviewCount'] != null) {
       reviewCount = json['reviewCount'] is int ? json['reviewCount'] : 0;
     }
-    
+
     // Dates
     DateTime createdAt = DateTime.now();
     if (json['createdAt'] != null) {
@@ -153,7 +164,7 @@ class AgentModel {
         createdAt = DateTime.now();
       }
     }
-    
+
     DateTime? lastActiveAt;
     if (json['updatedAt'] != null) {
       try {
@@ -162,12 +173,13 @@ class AgentModel {
         // Ignore parse errors
       }
     }
-    
+
     // Video URL
-    final videoUrl = json['video']?.toString() ?? 
-                    json['agentvideo']?.toString() ?? 
-                    json['videoUrl']?.toString();
-    
+    final videoUrl =
+        json['video']?.toString() ??
+        json['agentvideo']?.toString() ??
+        json['videoUrl']?.toString();
+
     // Expertise
     List<String>? expertise;
     final expertiseList = json['areasOfExpertise'] ?? json['expertise'];
@@ -177,6 +189,13 @@ class AgentModel {
           .where((e) => e.isNotEmpty)
           .toList()
           .cast<String>();
+    }
+
+    // Parse service areas (cities) - separate from serviceZipCodes
+    List<String>? serviceAreas;
+    final serviceAreasData = json['serviceAreas'];
+    if (serviceAreasData != null && serviceAreasData is List) {
+      serviceAreas = List<String>.from(serviceAreasData);
     }
     
     // Parse reviews from API
@@ -213,18 +232,29 @@ class AgentModel {
       isActive: true, // Assume active if in API response
       rebateOffered: false, // Not in API response
       rebatePercentage: 0.0, // Not in API response
-      isDualAgencyAllowedInState: json['dualAgencyState'] is bool ? json['dualAgencyState'] : null,
-      isDualAgencyAllowedAtBrokerage: json['dualAgencySBrokerage'] is bool ? json['dualAgencySBrokerage'] : null,
-      externalReviewsUrl: json['thirdPartReviewLink']?.toString() ?? 
-                         json['client_reviews_link']?.toString() ?? 
-                         json['externalReviewsUrl']?.toString(),
+      isDualAgencyAllowedInState: json['dualAgencyState'] is bool
+          ? json['dualAgencyState']
+          : null,
+      isDualAgencyAllowedAtBrokerage: json['dualAgencySBrokerage'] is bool
+          ? json['dualAgencySBrokerage']
+          : null,
+      externalReviewsUrl:
+          json['thirdPartReviewLink']?.toString() ??
+          json['client_reviews_link']?.toString() ??
+          json['externalReviewsUrl']?.toString(),
       platformRating: rating, // Use same rating
       platformReviewCount: reviewCount, // Use same review count
       videoUrl: videoUrl,
       expertise: expertise,
-      websiteUrl: json['website_link']?.toString() ?? json['websiteUrl']?.toString(),
-      googleReviewsUrl: json['google_reviews_link']?.toString() ?? json['googleReviewsUrl']?.toString(),
-      thirdPartyReviewsUrl: json['client_reviews_link']?.toString() ?? json['thirdPartyReviewsUrl']?.toString(),
+      websiteUrl:
+          json['website_link']?.toString() ?? json['websiteUrl']?.toString(),
+      googleReviewsUrl:
+          json['google_reviews_link']?.toString() ??
+          json['googleReviewsUrl']?.toString(),
+      thirdPartyReviewsUrl:
+          json['client_reviews_link']?.toString() ??
+          json['thirdPartyReviewsUrl']?.toString(),
+      serviceAreas: serviceAreas,
       reviews: reviews,
     );
   }
@@ -266,6 +296,7 @@ class AgentModel {
       'websiteUrl': websiteUrl,
       'googleReviewsUrl': googleReviewsUrl,
       'thirdPartyReviewsUrl': thirdPartyReviewsUrl,
+      'serviceAreas': serviceAreas,
       'reviews': reviews?.map((r) => r.toJson()).toList(),
     };
   }

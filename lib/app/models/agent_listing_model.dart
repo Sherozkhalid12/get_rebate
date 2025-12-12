@@ -133,7 +133,7 @@ class AgentListingModel {
   // Factory method to parse API response format
   factory AgentListingModel.fromApiJson(Map<String, dynamic> json) {
     // Base URL for images
-    const baseUrl = 'https://de9f1f9bbb2a.ngrok-free.app';
+    const baseUrl = 'https://d3bae2a4822b.ngrok-free.app';
 
     // Convert price string to cents (e.g., "8000" -> 800000 cents)
     final priceString = json['price']?.toString() ?? '0';

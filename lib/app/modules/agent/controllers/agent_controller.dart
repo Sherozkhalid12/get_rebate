@@ -15,7 +15,7 @@ class AgentController extends GetxController {
   // API
   final Dio _dio = Dio();
   final _storage = GetStorage();
-  static const String _baseUrl = 'https://de9f1f9bbb2a.ngrok-free.app/api/v1';
+  static const String _baseUrl = 'https://d3bae2a4822b.ngrok-free.app/api/v1';
 
   // Data
   final _claimedZipCodes = <ZipCodeModel>[].obs;

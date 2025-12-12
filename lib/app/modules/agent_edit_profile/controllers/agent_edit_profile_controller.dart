@@ -3,6 +3,8 @@ import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:getrebate/app/controllers/auth_controller.dart';
+import 'package:getrebate/app/routes/app_pages.dart';
+import 'package:getrebate/app/models/user_model.dart';
 
 class AgentEditProfileController extends GetxController {
   final AuthController _authController = Get.find<AuthController>();
@@ -32,7 +34,7 @@ class AgentEditProfileController extends GetxController {
   final _areasOfExpertise = <String>[].obs;
 
   // API Base URL for static files
-  static const String _baseUrl = 'https://de9f1f9bbb2a.ngrok-free.app';
+  static const String _baseUrl = 'https://d3bae2a4822b.ngrok-free.app';
 
   // Getters
   bool get isLoading => _isLoading.value;
@@ -291,9 +293,27 @@ class AgentEditProfileController extends GetxController {
       );
 
       // Success snackbar is shown in updateUserProfile method
-      // Wait a moment for snackbar to be visible, then navigate back
+      // Wait a moment for snackbar to be visible, then navigate to home page
       await Future.delayed(const Duration(milliseconds: 500));
-      Get.back();
+      
+      // Navigate to home page based on user role
+      final user = _authController.currentUser;
+      if (user != null) {
+        switch (user.role) {
+          case UserRole.agent:
+            Get.offAllNamed(AppPages.AGENT);
+            break;
+          case UserRole.buyerSeller:
+            Get.offAllNamed(AppPages.MAIN);
+            break;
+          case UserRole.loanOfficer:
+            Get.offAllNamed(AppPages.LOAN_OFFICER);
+            break;
+        }
+      } else {
+        // Fallback: navigate back if user is null
+        Get.back();
+      }
     } catch (e) {
       // Error is already handled in updateUserProfile method
       // Just log it here

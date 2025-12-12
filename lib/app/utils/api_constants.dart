@@ -28,7 +28,7 @@ class ApiConstants {
   // ============================================================================
   
   // Ngrok URL (update this when ngrok restarts)
-  static const String _ngrokUrl = 'https://de9f1f9bbb2a.ngrok-free.app';
+  static const String _ngrokUrl = 'https://d3bae2a4822b.ngrok-free.app';
   
   // Local network IP (update with your computer's IP address)
   static const String _localNetworkIp = '192.168.1.100'; // TODO: Update this!
