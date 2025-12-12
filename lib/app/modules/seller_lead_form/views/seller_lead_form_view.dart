@@ -140,22 +140,26 @@ class SellerLeadFormView extends GetView<SellerLeadFormController> {
             ),
             const SizedBox(height: 16),
 
-            _buildRadioGroup(
-              context,
-              'Preferred Contact Method *',
-              controller.preferredContactMethod,
-              controller.contactMethods,
-              controller.setPreferredContactMethod,
+            Obx(
+              () => _buildRadioGroup(
+                context,
+                'Preferred Contact Method *',
+                controller.preferredContactMethod,
+                controller.contactMethods,
+                controller.setPreferredContactMethod,
+              ),
             ),
             const SizedBox(height: 16),
 
-            _buildDropdown(
-              context,
-              'Best Time to Reach You',
-              controller.bestTimeToReach,
-              controller.bestTimes,
-              controller.setBestTimeToReach,
-              Icons.access_time,
+            Obx(
+              () => _buildDropdown(
+                context,
+                'Best Time to Reach You',
+                controller.bestTimeToReach,
+                controller.bestTimes,
+                controller.setBestTimeToReach,
+                Icons.access_time,
+              ),
             ),
 
             const SizedBox(height: 24),
@@ -172,47 +176,35 @@ class SellerLeadFormView extends GetView<SellerLeadFormController> {
             ),
             const SizedBox(height: 16),
 
-            Row(
-              children: [
-                Expanded(
-                  child: CustomTextField(
-                    controller: controller.cityController,
-                    labelText: 'City *',
-                    hintText: 'City',
-                    prefixIcon: Icons.location_city,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: CustomTextField(
-                    controller: controller.zipController,
-                    labelText: 'ZIP Code *',
-                    hintText: '12345',
-                    keyboardType: TextInputType.number,
-                    prefixIcon: Icons.pin_drop,
-                  ),
-                ),
-              ],
+            CustomTextField(
+              controller: controller.cityController,
+              labelText: 'City *',
+              hintText: 'City',
+              prefixIcon: Icons.location_city,
             ),
             const SizedBox(height: 16),
 
-            _buildDropdown(
-              context,
-              'Property Type *',
-              controller.propertyType,
-              controller.propertyTypeOptions,
-              controller.setPropertyType,
-              Icons.home_work,
+            Obx(
+              () => _buildDropdown(
+                context,
+                'Property Type *',
+                controller.propertyType,
+                controller.propertyTypeOptions,
+                controller.setPropertyType,
+                Icons.home_work,
+              ),
             ),
             const SizedBox(height: 16),
 
-            _buildDropdown(
-              context,
-              'Estimated Property Value *',
-              controller.estimatedValue,
-              controller.estimatedValues,
-              controller.setEstimatedValue,
-              Icons.attach_money,
+            Obx(
+              () => _buildDropdown(
+                context,
+                'Estimated Property Value *',
+                controller.estimatedValue,
+                controller.estimatedValues,
+                controller.setEstimatedValue,
+                Icons.attach_money,
+              ),
             ),
             const SizedBox(height: 16),
 
@@ -241,30 +233,32 @@ class SellerLeadFormView extends GetView<SellerLeadFormController> {
             ),
             const SizedBox(height: 16),
 
-            Row(
-              children: [
-                Expanded(
-                  child: _buildDropdown(
-                    context,
-                    'Bedrooms',
-                    controller.bedrooms,
-                    controller.bedroomOptions,
-                    controller.setBedrooms,
-                    Icons.bed,
+            Obx(
+              () => Row(
+                children: [
+                  Expanded(
+                    child: _buildDropdown(
+                      context,
+                      'Bedrooms',
+                      controller.bedrooms,
+                      controller.bedroomOptions,
+                      controller.setBedrooms,
+                      Icons.bed,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: _buildDropdown(
-                    context,
-                    'Bathrooms',
-                    controller.bathrooms,
-                    controller.bathroomOptions,
-                    controller.setBathrooms,
-                    Icons.bathtub,
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _buildDropdown(
+                      context,
+                      'Bathrooms',
+                      controller.bathrooms,
+                      controller.bathroomOptions,
+                      controller.setBathrooms,
+                      Icons.bathtub,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
             const SizedBox(height: 16),
 
@@ -282,49 +276,59 @@ class SellerLeadFormView extends GetView<SellerLeadFormController> {
             _buildSectionHeader(context, 'Selling Details', Icons.sell),
             const SizedBox(height: 16),
 
-            _buildDropdown(
-              context,
-              'When are you planning to sell? *',
-              controller.timeToSell,
-              controller.timeToSellOptions,
-              controller.setTimeToSell,
-              Icons.schedule,
+            Obx(
+              () => _buildDropdown(
+                context,
+                'When are you planning to sell? *',
+                controller.timeToSell,
+                controller.timeToSellOptions,
+                controller.setTimeToSell,
+                Icons.schedule,
+              ),
             ),
             const SizedBox(height: 16),
 
-            _buildRadioGroup(
-              context,
-              'Are you currently working with an agent? *',
-              controller.workingWithAgent,
-              controller.yesNoOptions,
-              controller.setWorkingWithAgent,
+            Obx(
+              () => _buildRadioGroup(
+                context,
+                'Are you currently working with an agent? *',
+                controller.workingWithAgent,
+                controller.yesNoOptions,
+                controller.setWorkingWithAgent,
+              ),
             ),
             const SizedBox(height: 16),
 
-            _buildRadioGroup(
-              context,
-              'Is the property currently listed? *',
-              controller.currentlyListed,
-              controller.yesNoOptions,
-              controller.setCurrentlyListed,
+            Obx(
+              () => _buildRadioGroup(
+                context,
+                'Is the property currently listed? *',
+                controller.currentlyListed,
+                controller.yesNoOptions,
+                controller.setCurrentlyListed,
+              ),
             ),
             const SizedBox(height: 16),
 
-            _buildRadioGroup(
-              context,
-              'Are you also planning to buy or build a new home? *',
-              controller.alsoPlanningToBuy,
-              controller.alsoPlanningOptions,
-              controller.setAlsoPlanningToBuy,
+            Obx(
+              () => _buildRadioGroup(
+                context,
+                'Are you also planning to buy or build a new home? *',
+                controller.alsoPlanningToBuy,
+                controller.alsoPlanningOptions,
+                controller.setAlsoPlanningToBuy,
+              ),
             ),
             const SizedBox(height: 16),
 
-            _buildRadioGroup(
-              context,
-              'Do you currently live in the property?',
-              controller.currentlyLiving,
-              controller.livingOptions,
-              controller.setCurrentlyLiving,
+            Obx(
+              () => _buildRadioGroup(
+                context,
+                'Do you currently live in the property?',
+                controller.currentlyLiving,
+                controller.livingOptions,
+                controller.setCurrentlyLiving,
+              ),
             ),
 
             const SizedBox(height: 24),
@@ -346,22 +350,26 @@ class SellerLeadFormView extends GetView<SellerLeadFormController> {
             ),
             const SizedBox(height: 16),
 
-            _buildDropdown(
-              context,
-              'How motivated are you to sell? *',
-              controller.motivation,
-              controller.motivationOptions,
-              controller.setMotivation,
-              Icons.psychology,
+            Obx(
+              () => _buildDropdown(
+                context,
+                'How motivated are you to sell? *',
+                controller.motivation,
+                controller.motivationOptions,
+                controller.setMotivation,
+                Icons.psychology,
+              ),
             ),
             const SizedBox(height: 16),
 
-            _buildMultiSelectChips(
-              context,
-              'What is most important to you?',
-              controller.mostImportant,
-              controller.mostImportantOptions,
-              controller.toggleMostImportant,
+            Obx(
+              () => _buildMultiSelectChips(
+                context,
+                'What is most important to you?',
+                controller.mostImportant,
+                controller.mostImportantOptions,
+                controller.toggleMostImportant,
+              ),
             ),
 
             const SizedBox(height: 24),
@@ -374,31 +382,37 @@ class SellerLeadFormView extends GetView<SellerLeadFormController> {
             ),
             const SizedBox(height: 16),
 
-            _buildRadioGroup(
-              context,
-              'Did you know you can receive a real estate commission rebate when you sell through one of our agents? *',
-              controller.rebateAwareness,
-              controller.rebateAwarenessOptions,
-              controller.setRebateAwareness,
+            Obx(
+              () => _buildRadioGroup(
+                context,
+                'Did you know you can receive a real estate commission rebate when you sell through one of our agents? *',
+                controller.rebateAwareness,
+                controller.rebateAwarenessOptions,
+                controller.setRebateAwareness,
+              ),
             ),
             const SizedBox(height: 16),
 
-            _buildRadioGroup(
-              context,
-              'Would you like to see how much your rebate could be?',
-              controller.showRebateCalculator,
-              controller.showRebateOptions,
-              controller.setShowRebateCalculator,
+            Obx(
+              () => _buildRadioGroup(
+                context,
+                'Would you like to see how much your rebate could be?',
+                controller.showRebateCalculator,
+                controller.showRebateOptions,
+                controller.setShowRebateCalculator,
+              ),
             ),
             const SizedBox(height: 16),
 
-            _buildDropdown(
-              context,
-              'How did you hear about us?',
-              controller.howDidYouHear,
-              controller.howDidYouHearOptions,
-              controller.setHowDidYouHear,
-              Icons.info_outline,
+            Obx(
+              () => _buildDropdown(
+                context,
+                'How did you hear about us?',
+                controller.howDidYouHear,
+                controller.howDidYouHearOptions,
+                controller.setHowDidYouHear,
+                Icons.info_outline,
+              ),
             ),
 
             const SizedBox(height: 24),
@@ -468,7 +482,11 @@ class SellerLeadFormView extends GetView<SellerLeadFormController> {
                 title: Text(option),
                 value: option,
                 groupValue: selectedValue,
-                onChanged: (value) => onChanged(value ?? ''),
+                onChanged: (value) {
+                  if (value != null) {
+                    onChanged(value);
+                  }
+                },
                 activeColor: AppTheme.lightGreen,
                 contentPadding: EdgeInsets.zero,
               ),
@@ -553,8 +571,9 @@ class SellerLeadFormView extends GetView<SellerLeadFormController> {
           runSpacing: 8,
           children: options.map((option) {
             final isSelected = selectedValues.contains(option);
-            return GestureDetector(
+            return InkWell(
               onTap: () => onToggle(option),
+              borderRadius: BorderRadius.circular(20),
               child: Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 12,

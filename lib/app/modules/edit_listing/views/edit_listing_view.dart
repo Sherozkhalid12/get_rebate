@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'dart:io';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/modules/edit_listing/controllers/edit_listing_controller.dart';
 import 'package:getrebate/app/widgets/custom_button.dart';
@@ -11,9 +12,14 @@ class EditListingView extends GetView<EditListingController> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppTheme.lightGray,
-      appBar: AppBar(
+    return GestureDetector(
+      onTap: () {
+        // Dismiss keyboard when tapping outside input fields
+        FocusScope.of(context).unfocus();
+      },
+      child: Scaffold(
+        backgroundColor: AppTheme.lightGray,
+        appBar: AppBar(
         title: Text(
           'Edit Listing',
           style: TextStyle(
@@ -233,6 +239,7 @@ class EditListingView extends GetView<EditListingController> {
           ),
         ),
       ),
+      ),
     );
   }
 
@@ -393,7 +400,9 @@ class EditListingView extends GetView<EditListingController> {
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(12.r),
                             image: DecorationImage(
-                              image: NetworkImage(controller.images[index]),
+                              image: index < controller.existingImages.length
+                                  ? NetworkImage(controller.existingImages[index])
+                                  : FileImage(controller.newPhotos[index - controller.existingImages.length]) as ImageProvider,
                               fit: BoxFit.cover,
                             ),
                           ),

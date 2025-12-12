@@ -1,14 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:dio/dio.dart';
+import 'package:getrebate/app/services/lead_service.dart';
+import 'package:getrebate/app/controllers/auth_controller.dart';
+import 'package:getrebate/app/widgets/custom_snackbar.dart';
+import 'package:flutter/foundation.dart';
 
 class SellerLeadFormController extends GetxController {
+  final _leadService = LeadService();
+  final _authController = Get.find<AuthController>();
+  
+  // Store property and agent info from arguments
+  Map<String, dynamic>? _property;
+  Map<String, dynamic>? _agent;
   // Form controllers
   final fullNameController = TextEditingController();
   final emailController = TextEditingController();
   final phoneController = TextEditingController();
   final propertyAddressController = TextEditingController();
   final cityController = TextEditingController();
-  final zipController = TextEditingController();
   final yearBuiltController = TextEditingController();
   final squareFootageController = TextEditingController();
   final recentUpdatesController = TextEditingController();
@@ -127,6 +137,19 @@ class SellerLeadFormController extends GetxController {
     super.onInit();
     // Set default values
     _preferredContactMethod.value = 'Email';
+    
+    // Get arguments (property and agent info)
+    final arguments = Get.arguments;
+    if (arguments != null) {
+      _property = arguments['property'] as Map<String, dynamic>?;
+      _agent = arguments['agent'] as Map<String, dynamic>?;
+      
+      if (kDebugMode) {
+        print('📋 Seller Lead Form initialized');
+        print('   Property: ${_property?['id'] ?? 'N/A'}');
+        print('   Agent: ${_agent?['id'] ?? 'N/A'}');
+      }
+    }
   }
 
   // Setters
@@ -205,7 +228,6 @@ class SellerLeadFormController extends GetxController {
         phoneController.text.isNotEmpty &&
         propertyAddressController.text.isNotEmpty &&
         cityController.text.isNotEmpty &&
-        zipController.text.isNotEmpty &&
         _propertyType.value.isNotEmpty &&
         _estimatedValue.value.isNotEmpty &&
         _timeToSell.value.isNotEmpty &&
@@ -216,37 +238,291 @@ class SellerLeadFormController extends GetxController {
         _rebateAwareness.value.isNotEmpty;
   }
 
+  // Validate form and return specific error message
+  String? validateForm() {
+    if (fullNameController.text.trim().isEmpty) {
+      return 'Please enter your full name';
+    }
+
+    if (emailController.text.trim().isEmpty) {
+      return 'Please enter your email address';
+    }
+
+    // Email format validation
+    final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+    if (!emailRegex.hasMatch(emailController.text.trim())) {
+      return 'Please enter a valid email address';
+    }
+
+    if (phoneController.text.trim().isEmpty) {
+      return 'Please enter your phone number';
+    }
+
+    // Basic phone validation (at least 10 digits)
+    final phoneDigits = phoneController.text.replaceAll(RegExp(r'[^\d]'), '');
+    if (phoneDigits.length < 10) {
+      return 'Please enter a valid phone number (at least 10 digits)';
+    }
+
+    if (propertyAddressController.text.trim().isEmpty) {
+      return 'Please enter the property address';
+    }
+
+    if (cityController.text.trim().isEmpty) {
+      return 'Please enter the city';
+    }
+
+    if (_propertyType.value.isEmpty) {
+      return 'Please select the property type';
+    }
+
+    if (_estimatedValue.value.isEmpty) {
+      return 'Please select the estimated property value';
+    }
+
+    if (_timeToSell.value.isEmpty) {
+      return 'Please select when you are planning to sell';
+    }
+
+    if (_workingWithAgent.value.isEmpty) {
+      return 'Please indicate if you are currently working with an agent';
+    }
+
+    if (_currentlyListed.value.isEmpty) {
+      return 'Please indicate if the property is currently listed';
+    }
+
+    if (_alsoPlanningToBuy.value.isEmpty) {
+      return 'Please indicate if you are also planning to buy a new home';
+    }
+
+    if (_motivation.value.isEmpty) {
+      return 'Please indicate how motivated you are to sell';
+    }
+
+    if (_rebateAwareness.value.isEmpty) {
+      return 'Please indicate if you know about commission rebates';
+    }
+
+    return null; // Form is valid
+  }
+
   // Submit form
   Future<void> submitForm() async {
-    if (!isFormValid()) {
-      Get.snackbar('Error', 'Please fill in all required fields');
+    if (kDebugMode) {
+      print('🔘 Submit button pressed (Seller)');
+    }
+
+    // Validate form and show specific error message
+    final validationError = validateForm();
+    if (validationError != null) {
+      if (kDebugMode) {
+        print('❌ Form validation failed: $validationError');
+      }
+      CustomSnackbar.showValidation(validationError);
       return;
     }
 
     _isLoading.value = true;
 
-    try {
-      // TODO: Implement API call to submit lead form
-      await Future.delayed(const Duration(seconds: 2)); // Simulate API call
+    if (kDebugMode) {
+      print('✅ Form validation passed, submitting...');
+    }
 
-      Get.snackbar(
-        'Success',
-        'Your information has been submitted successfully! A local agent will contact you soon.',
-        backgroundColor: Colors.green,
-        colorText: Colors.white,
-      );
+    try {
+      // Get current user
+      final currentUser = _authController.currentUser;
+      if (currentUser == null) {
+        _isLoading.value = false;
+        CustomSnackbar.showError('Please log in to submit a lead');
+        return;
+      }
+
+      // Get agent ID from property or agent argument
+      final agentId = _agent?['id']?.toString() ?? 
+                     _property?['agent']?['id']?.toString() ?? 
+                     _agent?['_id']?.toString() ??
+                     _property?['agentId']?.toString();
+      
+      if (agentId == null || agentId.isEmpty) {
+        _isLoading.value = false;
+        CustomSnackbar.showError('Agent information is missing. Please try again.');
+        return;
+      }
+
+      // Map form data to API format - only fields that exist in the frontend form
+      final leadData = <String, dynamic>{
+        'agentId': agentId,
+        'currentUserId': currentUser.id,
+        'leadType': 'seller', // Identify this as a seller lead
+        'fullName': fullNameController.text.trim(),
+        'email': emailController.text.trim(),
+        'phone': phoneController.text.trim(),
+        'preferredContact': _preferredContactMethod.value.toLowerCase(),
+      };
+
+      // Optional fields - only add if they have values
+      if (_bestTimeToReach.value.isNotEmpty) {
+        leadData['bestTime'] = _bestTimeToReach.value;
+      }
+
+      // Property information
+      leadData['propertyInformation'] = {
+        'propertyAddress': propertyAddressController.text.trim(),
+        'city': cityController.text.trim(),
+      };
+
+      if (yearBuiltController.text.trim().isNotEmpty) {
+        leadData['propertyInformation']['yearBuilt'] = yearBuiltController.text.trim();
+      }
+
+      if (squareFootageController.text.trim().isNotEmpty) {
+        leadData['propertyInformation']['squareFeet'] = squareFootageController.text.trim();
+      }
+
+      if (_propertyType.value.isNotEmpty) {
+        leadData['propertyType'] = _propertyType.value;
+      }
+
+      if (_estimatedValue.value.isNotEmpty) {
+        leadData['estimatedValue'] = _estimatedValue.value;
+      }
+
+      if (_bedrooms.value.isNotEmpty) {
+        leadData['bedrooms'] = int.tryParse(_bedrooms.value.replaceAll('+', '')) ?? 0;
+      }
+
+      if (_bathrooms.value.isNotEmpty) {
+        leadData['bathrooms'] = double.tryParse(_bathrooms.value.replaceAll('+', '')) ?? 0.0;
+      }
+
+      if (recentUpdatesController.text.trim().isNotEmpty) {
+        leadData['renovation'] = recentUpdatesController.text.trim();
+      }
+
+      if (_timeToSell.value.isNotEmpty) {
+        leadData['whenPlanningSell'] = _timeToSell.value;
+      }
+
+      if (_currentlyListed.value.isNotEmpty) {
+        leadData['isPropertyListed'] = _currentlyListed.value.toLowerCase() == 'yes';
+      }
+
+      if (idealPriceController.text.trim().isNotEmpty) {
+        leadData['idealSellingPrice'] = idealPriceController.text.trim();
+      }
+
+      if (_motivation.value.isNotEmpty) {
+        leadData['howMotivatedToSell'] = _motivation.value;
+      }
+
+      if (_mostImportant.isNotEmpty) {
+        leadData['mostImportantToYou'] = _mostImportant.join(', ');
+      }
+
+      if (_workingWithAgent.value.isNotEmpty) {
+        leadData['workingWithAgent'] = _workingWithAgent.value.toLowerCase() == 'yes';
+      }
+
+      if (_rebateAwareness.value.isNotEmpty) {
+        leadData['rebateAwareness'] = _rebateAwareness.value;
+      }
+
+      if (_howDidYouHear.value.isNotEmpty) {
+        leadData['howHeard'] = _howDidYouHear.value;
+      }
+
+      if (commentsController.text.trim().isNotEmpty) {
+        leadData['comments'] = commentsController.text.trim();
+      }
+
+      if (_showRebateCalculator.value.isNotEmpty) {
+        leadData['howMuchRebateCouldBe'] = _showRebateCalculator.value;
+      }
+
+      if (_alsoPlanningToBuy.value.isNotEmpty) {
+        leadData['alsoPlanningToBuy'] = _alsoPlanningToBuy.value.toLowerCase() == 'yes';
+      }
+
+      if (_currentlyLiving.value.isNotEmpty) {
+        leadData['currentlyLiving'] = _currentlyLiving.value;
+      }
+
+      if (kDebugMode) {
+        print('📤 Submitting seller lead...');
+        print('   Agent ID: $agentId');
+        print('   User ID: ${currentUser.id}');
+      }
+
+      // Submit to API - using unified createLead endpoint
+      await _leadService.createLead(leadData, leadType: 'seller');
+
+      // Reset loading state first
+      _isLoading.value = false;
 
       // Reset form
       resetForm();
 
-      // Navigate back or to next screen
+      // Navigate back first to ensure we have proper context
       Get.back();
-    } catch (e) {
-      Get.snackbar('Error', 'Failed to submit form. Please try again.');
-    } finally {
+
+      // Show success message after navigation (with delay to ensure context is ready)
+      await Future.delayed(const Duration(milliseconds: 300));
+      CustomSnackbar.showSuccess(
+        'Lead Submitted Successfully!',
+        'A local agent will contact you soon.',
+      );
+    } on DioException catch (e) {
       _isLoading.value = false;
+      if (kDebugMode) {
+        print('❌ DioException submitting seller lead: $e');
+        print('   Status Code: ${e.response?.statusCode}');
+        print('   Response: ${e.response?.data}');
+      }
+      
+      String errorMessage = 'Failed to submit lead form. Please try again.';
+      
+      if (e.response?.statusCode == 400) {
+        errorMessage = 'Invalid form data. Please check all fields and try again.';
+      } else if (e.response?.statusCode == 401) {
+        errorMessage = 'Please log in to submit a lead.';
+      } else if (e.response?.statusCode == 404) {
+        errorMessage = 'Agent not found. Please try again.';
+      } else if (e.response?.statusCode == 500) {
+        errorMessage = 'Server error. Please try again later.';
+      } else if (e.response?.data != null) {
+        final errorData = e.response!.data;
+        if (errorData is Map<String, dynamic>) {
+          errorMessage = errorData['message']?.toString() ?? 
+                        errorData['error']?.toString() ?? 
+                        errorMessage;
+        } else if (errorData is String) {
+          errorMessage = errorData;
+        }
+      } else if (e.type == DioExceptionType.connectionTimeout || 
+                 e.type == DioExceptionType.receiveTimeout) {
+        errorMessage = 'Connection timeout. Please check your internet and try again.';
+      } else if (e.type == DioExceptionType.connectionError) {
+        errorMessage = 'No internet connection. Please check your network and try again.';
+      }
+      
+      CustomSnackbar.showError(errorMessage);
+    } catch (e) {
+      _isLoading.value = false;
+      if (kDebugMode) {
+        print('❌ Unexpected error submitting seller lead: $e');
+        print('   Error type: ${e.runtimeType}');
+      }
+      
+      String errorMessage = 'An unexpected error occurred. Please try again.';
+      if (e.toString().contains('Exception')) {
+        errorMessage = e.toString().replaceAll('Exception: ', '');
+      }
+      
+      CustomSnackbar.showError(errorMessage);
     }
   }
+
 
   void resetForm() {
     fullNameController.clear();
@@ -254,7 +530,6 @@ class SellerLeadFormController extends GetxController {
     phoneController.clear();
     propertyAddressController.clear();
     cityController.clear();
-    zipController.clear();
     yearBuiltController.clear();
     squareFootageController.clear();
     recentUpdatesController.clear();
@@ -286,7 +561,6 @@ class SellerLeadFormController extends GetxController {
     phoneController.dispose();
     propertyAddressController.dispose();
     cityController.dispose();
-    zipController.dispose();
     yearBuiltController.dispose();
     squareFootageController.dispose();
     recentUpdatesController.dispose();

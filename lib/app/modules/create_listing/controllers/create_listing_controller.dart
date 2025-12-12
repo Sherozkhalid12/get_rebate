@@ -1,8 +1,17 @@
-import 'package:get/get.dart';
+import 'package:get/get.dart' hide FormData, MultipartFile;
 import 'package:flutter/material.dart';
-import 'package:getrebate/app/models/property_model.dart';
+import 'package:dio/dio.dart';
+import 'dart:io';
+import 'dart:convert';
+import 'package:flutter/foundation.dart';
+import 'package:getrebate/app/controllers/auth_controller.dart' as global;
+import 'package:getrebate/app/utils/api_constants.dart';
+import 'package:getrebate/app/widgets/custom_snackbar.dart';
+import 'package:getrebate/app/theme/app_theme.dart';
+import 'package:get_storage/get_storage.dart';
 
 class CreateListingController extends GetxController {
+  final Dio _dio = Dio();
   final _isLoading = false.obs;
   final _formKey = GlobalKey<FormState>();
 
@@ -20,9 +29,13 @@ class CreateListingController extends GetxController {
 
   // Observable variables
   final _selectedPropertyType = 'house'.obs;
-  final _selectedStatus = 'draft'.obs;
+  final _selectedStatus = 'active'.obs; // Changed default to 'active'
   final _selectedFeatures = <String>[].obs;
-  final _images = <String>[].obs;
+  final _selectedPhotos = <File>[].obs; // Changed to File objects
+  final _bacPercent = 2.5.obs;
+  final _dualAgencyAllowed = false.obs;
+  final _isListingAgent = true.obs; // Default to true
+  final _openHouses = <OpenHouseEntry>[].obs;
 
   // Getters
   bool get isLoading => _isLoading.value;
@@ -30,7 +43,15 @@ class CreateListingController extends GetxController {
   String get selectedPropertyType => _selectedPropertyType.value;
   String get selectedStatus => _selectedStatus.value;
   List<String> get selectedFeatures => _selectedFeatures;
-  List<String> get images => _images;
+  List<File> get selectedPhotos => _selectedPhotos;
+  double get bacPercent => _bacPercent.value;
+  bool get dualAgencyAllowed => _dualAgencyAllowed.value;
+  bool get isListingAgent => _isListingAgent.value;
+  List<OpenHouseEntry> get openHouses => _openHouses;
+  
+  void updateBacPercent(double value) => _bacPercent.value = value;
+  void toggleDualAgency() => _dualAgencyAllowed.value = !_dualAgencyAllowed.value;
+  void setIsListingAgent(bool value) => _isListingAgent.value = value;
 
   // Property types
   final List<String> propertyTypes = [
@@ -73,72 +94,381 @@ class CreateListingController extends GetxController {
     }
   }
 
-  void addImage(String imageUrl) {
-    _images.add(imageUrl);
-  }
-
-  void removeImage(int index) {
-    if (index >= 0 && index < _images.length) {
-      _images.removeAt(index);
+  void addPhoto(File photoFile) {
+    if (_selectedPhotos.length < 10) {
+      _selectedPhotos.add(photoFile);
+    } else {
+      CustomSnackbar.showValidation('You can add up to 10 photos');
     }
   }
 
-  void submitForm() async {
+  void removePhoto(int index) {
+    if (index >= 0 && index < _selectedPhotos.length) {
+      _selectedPhotos.removeAt(index);
+    }
+  }
+  
+  void addOpenHouse() {
+    if (_openHouses.length >= 4) {
+      CustomSnackbar.showValidation('You can add up to 4 open houses');
+      return;
+    }
+    _openHouses.add(OpenHouseEntry());
+  }
+
+  void removeOpenHouse(int index) {
+    if (index >= 0 && index < _openHouses.length) {
+      _openHouses.removeAt(index);
+    }
+  }
+
+  void updateOpenHouseDate(int index, DateTime date) {
+    if (index >= 0 && index < _openHouses.length) {
+      _openHouses[index].date = date;
+    }
+  }
+
+  void updateOpenHouseStartTime(int index, TimeOfDay time) {
+    if (index >= 0 && index < _openHouses.length) {
+      _openHouses[index].startTime = time;
+    }
+  }
+
+  void updateOpenHouseEndTime(int index, TimeOfDay time) {
+    if (index >= 0 && index < _openHouses.length) {
+      _openHouses[index].endTime = time;
+    }
+  }
+
+  void updateOpenHouseNotes(int index, String notes) {
+    if (index >= 0 && index < _openHouses.length) {
+      _openHouses[index].notes = notes;
+    }
+  }
+  
+  String _formatTimeOfDay(TimeOfDay time) {
+    final hour = time.hour;
+    final minute = time.minute;
+    final period = hour >= 12 ? 'PM' : 'AM';
+    final displayHour = hour > 12 ? hour - 12 : (hour == 0 ? 12 : hour);
+    final displayMinute = minute.toString().padLeft(2, '0');
+    return '$displayHour:$displayMinute $period';
+  }
+
+  Future<void> submitForm() async {
     if (!_formKey.currentState!.validate()) {
       return;
     }
 
-    _isLoading.value = true;
+    // Validate required fields
+    if (!_validateForm()) {
+      return;
+    }
 
     try {
-      // Create property model
-      final property = PropertyModel(
-        id: 'prop_${DateTime.now().millisecondsSinceEpoch}',
-        title: titleController.text.trim(),
-        description: descriptionController.text.trim(),
-        address: addressController.text.trim(),
-        city: cityController.text.trim(),
-        state: stateController.text.trim(),
-        zipCode: zipCodeController.text.trim(),
-        price: (double.tryParse(priceController.text) ?? 0).toDouble(),
-        bedrooms: int.tryParse(bedroomsController.text) ?? 0,
-        bathrooms: int.tryParse(bathroomsController.text) ?? 0,
-        squareFeet: (int.tryParse(squareFeetController.text) ?? 0).toDouble(),
-        propertyType: _selectedPropertyType.value,
-        status: _selectedStatus.value,
-        images: _images.toList(),
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-        ownerId: 'user_1', // This would come from auth
-        features: Map.fromIterable(
-          _selectedFeatures,
-          key: (feature) => feature,
-          value: (feature) => true,
+      _isLoading.value = true;
+
+      // Get authenticated user ID
+      final authController = Get.find<global.AuthController>();
+      final currentUser = authController.currentUser;
+      final agentId = currentUser?.id ?? '';
+      final authToken = GetStorage().read('auth_token');
+
+      if (agentId.isEmpty) {
+        _isLoading.value = false;
+        try {
+          Get.snackbar(
+            'Error',
+            'Please login to create a listing',
+            snackPosition: SnackPosition.BOTTOM,
+            backgroundColor: Colors.red.shade600,
+            colorText: AppTheme.white,
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            borderRadius: 12,
+            duration: const Duration(seconds: 3),
+            snackStyle: SnackStyle.FLOATING,
+          );
+        } catch (e) {
+          if (kDebugMode) {
+            print('⚠️ Could not show snackbar: $e');
+          }
+        }
+        return;
+      }
+
+      // Prepare form data
+      final formData = FormData();
+
+      // Add text fields (matching API exactly)
+      formData.fields.addAll([
+        MapEntry('propertyTitle', titleController.text.trim()),
+        MapEntry('description', descriptionController.text.trim()),
+        MapEntry('price', priceController.text.trim()),
+        MapEntry('BACPercentage', _bacPercent.value.toString()),
+        MapEntry('listingAgent', _isListingAgent.value.toString()),
+        MapEntry('dualAgencyAllowed', _dualAgencyAllowed.value.toString()),
+        MapEntry('streetAddress', addressController.text.trim()),
+        MapEntry('city', cityController.text.trim()),
+        MapEntry('state', stateController.text.trim()),
+        MapEntry('zipCode', zipCodeController.text.trim()),
+        MapEntry('id', agentId),
+        MapEntry('status', _selectedStatus.value),
+        MapEntry('createdByRole', 'agent'),
+      ]);
+
+      // Format open houses as JSON array
+      final openHousesJson = _openHouses.map((oh) {
+        final dateStr = oh.date.toIso8601String().split('T')[0];
+        final startTimeStr = _formatTimeOfDay(oh.startTime);
+        final endTimeStr = _formatTimeOfDay(oh.endTime);
+
+        return {
+          'date': dateStr,
+          'fromTime': startTimeStr,
+          'toTime': endTimeStr,
+          if (oh.notes.isNotEmpty) 'specialNote': oh.notes,
+        };
+      }).toList();
+      formData.fields.add(MapEntry('openHouses', jsonEncode(openHousesJson)));
+
+      // Format propertyDetails as JSON object
+      final propertyDetailsJson = {
+        'type': _selectedPropertyType.value,
+        'status': _selectedStatus.value,
+        if (squareFeetController.text.trim().isNotEmpty)
+          'squareFeet': squareFeetController.text.trim(),
+        if (bedroomsController.text.trim().isNotEmpty)
+          'bedrooms': bedroomsController.text.trim(),
+        if (bathroomsController.text.trim().isNotEmpty)
+          'bathrooms': bathroomsController.text.trim(),
+      };
+      formData.fields.add(MapEntry('propertyDetails', jsonEncode(propertyDetailsJson)));
+
+      // Format propertyFeatures as JSON array
+      formData.fields.add(MapEntry('propertyFeatures', jsonEncode(_selectedFeatures)));
+
+      // Add property photos (files)
+      for (var photo in _selectedPhotos) {
+        final fileName = photo.path.split('/').last;
+        formData.files.add(
+          MapEntry(
+            'propertyPhotos',
+            await MultipartFile.fromFile(photo.path, filename: fileName),
+          ),
+        );
+      }
+
+      if (kDebugMode) {
+        print('🚀 Sending POST request to: ${ApiConstants.createListingEndpoint}');
+        print('📤 Request Data:');
+        print('  - propertyTitle: ${titleController.text.trim()}');
+        print('  - description: ${descriptionController.text.trim()}');
+        print('  - price: ${priceController.text.trim()}');
+        print('  - status: ${_selectedStatus.value}');
+        print('  - propertyDetails: $propertyDetailsJson');
+        print('  - propertyFeatures: $_selectedFeatures');
+        print('  - propertyPhotos: ${_selectedPhotos.length} file(s)');
+      }
+
+      // Setup Dio with auth token and timeouts
+      _dio.options.baseUrl = ApiConstants.apiBaseUrl;
+      _dio.options.headers = {
+        ...ApiConstants.ngrokHeaders,
+        if (authToken != null) 'Authorization': 'Bearer $authToken',
+      };
+      _dio.options.connectTimeout = const Duration(seconds: 30);
+      _dio.options.receiveTimeout = const Duration(seconds: 30);
+      _dio.options.sendTimeout = const Duration(seconds: 30);
+
+      // Make API call
+      final response = await _dio.post(
+        ApiConstants.createListingEndpoint,
+        data: formData,
+        options: Options(
+          headers: {
+            ...ApiConstants.ngrokHeaders,
+            if (authToken != null) 'Authorization': 'Bearer $authToken',
+          },
         ),
       );
 
-      // Here you would typically save to a database
-      // For now, we'll just show success and go back
+      // Handle successful response
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        if (kDebugMode) {
+          print('✅ SUCCESS - Status Code: ${response.statusCode}');
+          print('📥 Response Data:');
+          print(response.data);
+          print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        }
 
-      Get.snackbar(
-        'Success',
-        'Property listing created successfully!',
-        backgroundColor: Colors.green,
-        colorText: Colors.white,
-      );
+        _isLoading.value = false;
 
-      // Navigate back
-      Get.back(result: property);
-    } catch (e) {
-      Get.snackbar(
-        'Error',
-        'Failed to create listing: ${e.toString()}',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
-    } finally {
+        // Show success snackbar BEFORE navigating back (to avoid overlay issues)
+        try {
+          Get.snackbar(
+            'Success',
+            'Listing created successfully!',
+            snackPosition: SnackPosition.BOTTOM,
+            backgroundColor: AppTheme.lightGreen,
+            colorText: AppTheme.white,
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            borderRadius: 12,
+            duration: const Duration(seconds: 2),
+            snackStyle: SnackStyle.FLOATING,
+            icon: const Icon(
+              Icons.check_circle,
+              color: AppTheme.white,
+              size: 24,
+            ),
+          );
+        } catch (e) {
+          if (kDebugMode) {
+            print('⚠️ Could not show snackbar: $e');
+          }
+        }
+
+        // Clear all form fields
+        resetForm();
+
+        // Navigate back after a short delay
+        await Future.delayed(const Duration(milliseconds: 300));
+        Get.back();
+      }
+    } on DioException catch (e) {
       _isLoading.value = false;
+
+      if (kDebugMode) {
+        print('❌ ERROR - Status Code: ${e.response?.statusCode ?? "N/A"}');
+        print('📥 Error Response:');
+        print(e.response?.data ?? e.message);
+        print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      }
+
+      String errorMessage = 'Failed to create listing. Please try again.';
+
+      if (e.response != null) {
+        final responseData = e.response?.data;
+        if (responseData is Map && responseData.containsKey('message')) {
+          errorMessage = responseData['message'].toString();
+        } else if (responseData is Map && responseData.containsKey('error')) {
+          errorMessage = responseData['error'].toString();
+        } else if (e.response?.statusCode == 401) {
+          errorMessage = 'Unauthorized. Please login again.';
+        } else if (e.response?.statusCode == 400) {
+          errorMessage = 'Invalid request. Please check your input.';
+        } else if (e.response?.statusCode == 500) {
+          errorMessage = 'Server error. Please try again later.';
+        } else {
+          errorMessage = e.response?.statusMessage ?? errorMessage;
+        }
+      } else if (e.type == DioExceptionType.connectionTimeout ||
+          e.type == DioExceptionType.receiveTimeout) {
+        errorMessage =
+            'Connection timeout. Please check your internet connection.';
+      } else if (e.type == DioExceptionType.connectionError) {
+        errorMessage = 'No internet connection. Please check your network.';
+      }
+
+      // Use GetX snackbar directly to avoid overlay issues
+      try {
+        Get.snackbar(
+          'Error',
+          errorMessage,
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.red.shade600,
+          colorText: AppTheme.white,
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          borderRadius: 12,
+          duration: const Duration(seconds: 3),
+          snackStyle: SnackStyle.FLOATING,
+          icon: const Icon(
+            Icons.error_outline,
+            color: AppTheme.white,
+            size: 24,
+          ),
+        );
+      } catch (e) {
+        if (kDebugMode) {
+          print('⚠️ Could not show error snackbar: $e');
+        }
+      }
+    } catch (e) {
+      _isLoading.value = false;
+
+      if (kDebugMode) {
+        print('❌ Unexpected Error: ${e.toString()}');
+        print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      }
+
+      // Use GetX snackbar directly
+      try {
+        Get.snackbar(
+          'Error',
+          'Failed to create listing: ${e.toString()}',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.red.shade600,
+          colorText: AppTheme.white,
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          borderRadius: 12,
+          duration: const Duration(seconds: 3),
+          snackStyle: SnackStyle.FLOATING,
+          icon: const Icon(
+            Icons.error_outline,
+            color: AppTheme.white,
+            size: 24,
+          ),
+        );
+      } catch (e2) {
+        if (kDebugMode) {
+          print('⚠️ Could not show error snackbar: $e2');
+        }
+      }
     }
+  }
+
+  bool _validateForm() {
+    if (titleController.text.trim().isEmpty) {
+      CustomSnackbar.showValidation('Please enter a property title');
+      return false;
+    }
+
+    if (descriptionController.text.trim().isEmpty) {
+      CustomSnackbar.showValidation('Please enter a property description');
+      return false;
+    }
+
+    if (priceController.text.trim().isEmpty) {
+      CustomSnackbar.showValidation('Please enter a price');
+      return false;
+    }
+
+    final price = double.tryParse(priceController.text.trim());
+    if (price == null || price <= 0) {
+      CustomSnackbar.showValidation('Please enter a valid price');
+      return false;
+    }
+
+    if (addressController.text.trim().isEmpty) {
+      CustomSnackbar.showValidation('Please enter a street address');
+      return false;
+    }
+
+    if (cityController.text.trim().isEmpty) {
+      CustomSnackbar.showValidation('Please enter a city');
+      return false;
+    }
+
+    if (stateController.text.trim().isEmpty) {
+      CustomSnackbar.showValidation('Please enter a state');
+      return false;
+    }
+
+    if (zipCodeController.text.trim().isEmpty) {
+      CustomSnackbar.showValidation('Please enter a ZIP code');
+      return false;
+    }
+
+    return true;
   }
 
   void resetForm() {
@@ -153,9 +483,13 @@ class CreateListingController extends GetxController {
     bathroomsController.clear();
     squareFeetController.clear();
     _selectedPropertyType.value = 'house';
-    _selectedStatus.value = 'draft';
+    _selectedStatus.value = 'active';
     _selectedFeatures.clear();
-    _images.clear();
+    _selectedPhotos.clear();
+    _openHouses.clear();
+    _bacPercent.value = 2.5;
+    _dualAgencyAllowed.value = false;
+    _isListingAgent.value = true;
   }
 
   @override
@@ -173,3 +507,22 @@ class CreateListingController extends GetxController {
     super.onClose();
   }
 }
+
+// Helper class for managing open house entries during form filling
+class OpenHouseEntry {
+  DateTime date;
+  TimeOfDay startTime;
+  TimeOfDay endTime;
+  String notes;
+
+  OpenHouseEntry({
+    DateTime? date,
+    TimeOfDay? startTime,
+    TimeOfDay? endTime,
+    String? notes,
+  }) : date = date ?? DateTime.now(),
+       startTime = startTime ?? const TimeOfDay(hour: 10, minute: 0),
+       endTime = endTime ?? const TimeOfDay(hour: 14, minute: 0),
+       notes = notes ?? '';
+}
+

@@ -9,22 +9,28 @@ import 'package:getrebate/app/models/subscription_model.dart';
 import 'package:getrebate/app/models/promo_code_model.dart';
 import 'package:getrebate/app/services/zip_code_pricing_service.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart' as global;
-import 'package:getrebate/app/modules/messages/controllers/messages_controller.dart';
+import 'package:getrebate/app/utils/api_constants.dart';
 import 'dart:math';
 
 class AgentController extends GetxController {
   // API
   final Dio _dio = Dio();
   final _storage = GetStorage();
-  static const String _baseUrl = 'https://d3bae2a4822b.ngrok-free.app/api/v1';
+  // Using ApiConstants for centralized URL management
+  static String get _baseUrl => ApiConstants.apiBaseUrl;
 
   // Data
   final _claimedZipCodes = <ZipCodeModel>[].obs;
   final _availableZipCodes = <ZipCodeModel>[].obs;
   final _myListings = <AgentListingModel>[].obs;
+  final _allListings = <AgentListingModel>[].obs; // All listings from API (unfiltered)
   final _isLoading = false.obs;
   final _selectedTab = 0
       .obs; // 0: Dashboard, 1: ZIP Management, 2: My Listings, 3: Stats, 4: Billing
+  
+  // Filters
+  final _selectedStatusFilter = Rxn<MarketStatus>(); // null = all
+  final _searchQuery = ''.obs;
 
   // Stats
   final _searchesAppearedIn = 0.obs;
@@ -46,9 +52,55 @@ class AgentController extends GetxController {
   // Getters
   List<ZipCodeModel> get claimedZipCodes => _claimedZipCodes;
   List<ZipCodeModel> get availableZipCodes => _availableZipCodes;
-  List<AgentListingModel> get myListings => _myListings;
+  List<AgentListingModel> get myListings => _myListings; // Filtered listings
+  List<AgentListingModel> get allListings => _allListings; // All listings
   bool get isLoading => _isLoading.value;
   int get selectedTab => _selectedTab.value;
+  MarketStatus? get selectedStatusFilter => _selectedStatusFilter.value;
+  String get searchQuery => _searchQuery.value;
+  
+  // Filter methods
+  void setStatusFilter(MarketStatus? status) {
+    _selectedStatusFilter.value = status;
+    _applyFilters();
+  }
+  
+  void setSearchQuery(String query) {
+    _searchQuery.value = query;
+    _applyFilters();
+  }
+  
+  void clearFilters() {
+    _selectedStatusFilter.value = null;
+    _searchQuery.value = '';
+    _applyFilters();
+  }
+  
+  void _applyFilters() {
+    var filtered = List<AgentListingModel>.from(_allListings);
+    
+    // Apply status filter
+    if (_selectedStatusFilter.value != null) {
+      filtered = filtered.where((listing) => 
+        listing.marketStatus == _selectedStatusFilter.value
+      ).toList();
+    }
+    
+    // Apply search query filter
+    if (_searchQuery.value.isNotEmpty) {
+      final query = _searchQuery.value.toLowerCase();
+      filtered = filtered.where((listing) {
+        return listing.title.toLowerCase().contains(query) ||
+               listing.description.toLowerCase().contains(query) ||
+               listing.address.toLowerCase().contains(query) ||
+               listing.city.toLowerCase().contains(query) ||
+               listing.state.toLowerCase().contains(query) ||
+               listing.zipCode.contains(query);
+      }).toList();
+    }
+    
+    _myListings.value = filtered;
+  }
   int get searchesAppearedIn => _searchesAppearedIn.value;
   int get profileViews => _profileViews.value;
   int get contacts => _contacts.value;
@@ -67,7 +119,7 @@ class AgentController extends GetxController {
 
   // Listing limits
   int get freeListingLimit => 3;
-  int get currentListingCount => _myListings.length;
+  int get currentListingCount => _allListings.length; // Use allListings for count
   int get remainingFreeListings =>
       (freeListingLimit - currentListingCount).clamp(0, freeListingLimit);
   bool get canAddFreeListing => remainingFreeListings > 0;
@@ -83,42 +135,6 @@ class AgentController extends GetxController {
     
     // Fetch listings in background without blocking UI
     Future.microtask(() => fetchAgentListings());
-    
-    // Preload chat threads for instant access when agent opens messages
-    _preloadThreads();
-  }
-
-  /// Preloads chat threads for instant access when agent opens messages
-  void _preloadThreads() {
-    // Defer to next frame to avoid setState during build
-    Future.microtask(() {
-      try {
-        // Initialize messages controller if not already registered
-        if (!Get.isRegistered<MessagesController>()) {
-          Get.put(MessagesController(), permanent: true);
-        }
-        final messagesController = Get.find<MessagesController>();
-        
-        // Load threads in background - don't wait for it
-        messagesController.refreshThreads();
-        
-        // IMPORTANT: Ensure socket is connected for real-time message reception
-        // The socket should be initialized when MessagesController is created,
-        // but we'll ensure it's connected here as well
-        if (kDebugMode) {
-          print('🚀 Agent: Preloading chat threads and ensuring socket connection...');
-        }
-        
-        // The socket will be initialized in MessagesController.onInit()
-        // But we can also manually trigger it if needed
-        // The MessagesController should handle this automatically
-      } catch (e) {
-        if (kDebugMode) {
-          print('⚠️ Agent: Failed to preload threads: $e');
-        }
-        // Don't block initialization if preload fails
-      }
-    });
   }
 
   void _initializeSubscription() {
@@ -162,6 +178,11 @@ class AgentController extends GetxController {
 
   void setSelectedTab(int index) {
     _selectedTab.value = index;
+    
+    // Refresh listings when "My Listings" tab is selected
+    if (index == 2) {
+      Future.microtask(() => fetchAgentListings());
+    }
   }
 
   void _loadMockData() {
@@ -307,17 +328,18 @@ class AgentController extends GetxController {
   }
 
   void updateListingMarketStatus(String listingId, MarketStatus status) {
-    final index = _myListings.indexWhere((listing) => listing.id == listingId);
+    final index = _allListings.indexWhere((listing) => listing.id == listingId);
     if (index == -1) return;
 
-    final currentListing = _myListings[index];
+    final currentListing = _allListings[index];
     final updatedListing = currentListing.copyWith(
       marketStatus: status,
       updatedAt: DateTime.now(),
       isActive: status != MarketStatus.sold,
     );
 
-    _myListings[index] = updatedListing;
+    _allListings[index] = updatedListing;
+    _applyFilters(); // Apply filters to update displayed listings
 
     String message;
     switch (status) {
@@ -803,7 +825,10 @@ class AgentController extends GetxController {
         print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
         // Remove listing from local list
-        _myListings.removeWhere((listing) => listing.id == listingId);
+        _allListings.removeWhere((listing) => listing.id == listingId);
+        
+        // Apply filters to update displayed listings
+        _applyFilters();
 
         Get.snackbar(
           'Success',
@@ -833,7 +858,8 @@ class AgentController extends GetxController {
         } else if (e.response?.statusCode == 404) {
           errorMessage = 'Listing not found. It may have already been deleted.';
           // Still remove from local list if 404 and refresh
-          _myListings.removeWhere((listing) => listing.id == listingId);
+          _allListings.removeWhere((listing) => listing.id == listingId);
+          _applyFilters();
           await fetchAgentListings();
         } else if (e.response?.statusCode == 403) {
           errorMessage = 'You do not have permission to delete this listing.';
@@ -864,19 +890,22 @@ class AgentController extends GetxController {
       await Future.delayed(const Duration(seconds: 1));
 
       // Toggle listing status
-      final index = _myListings.indexWhere((l) => l.id == listingId);
+      final index = _allListings.indexWhere((l) => l.id == listingId);
       if (index != -1) {
-        final listing = _myListings[index];
-        _myListings[index] = listing.copyWith(
+        final listing = _allListings[index];
+        _allListings[index] = listing.copyWith(
           isActive: !listing.isActive,
           updatedAt: DateTime.now(),
         );
 
-        final status = _myListings[index].isActive
+        final status = _allListings[index].isActive
             ? 'activated'
             : 'deactivated';
         Get.snackbar('Success', 'Listing $status successfully!');
 
+        // Apply filters to update displayed listings
+        _applyFilters();
+        
         // Refresh listings from API
         await fetchAgentListings();
       }
@@ -923,12 +952,12 @@ class AgentController extends GetxController {
   int get totalListingSearches =>
       _myListings.fold(0, (sum, listing) => sum + listing.searchCount);
   int get activeListingsCount =>
-      _myListings.where((l) => l.marketStatus == MarketStatus.forSale).length;
+      _allListings.where((l) => l.marketStatus == MarketStatus.forSale).length;
   int get pendingListingsCount =>
-      _myListings.where((l) => l.marketStatus == MarketStatus.pending).length;
+      _allListings.where((l) => l.marketStatus == MarketStatus.pending).length;
   int get soldListingsCount =>
-      _myListings.where((l) => l.marketStatus == MarketStatus.sold).length;
-  int get staleListingsCount => _myListings.where((l) => l.isStale).length;
+      _allListings.where((l) => l.marketStatus == MarketStatus.sold).length;
+  int get staleListingsCount => _allListings.where((l) => l.isStale).length;
 
   // Fetch listings from API
   Future<void> fetchAgentListings() async {
@@ -976,18 +1005,43 @@ class AgentController extends GetxController {
 
         if (success && listingsData.isNotEmpty) {
           // Parse listings from API response
+          // First, update photo URLs with base URL before parsing
+          final baseUrl = ApiConstants.baseUrl;
           final listings = listingsData
-              .map(
-                (listingJson) => AgentListingModel.fromApiJson(
-                  listingJson as Map<String, dynamic>,
-                ),
-              )
+              .map((listingJson) {
+                final listingMap = Map<String, dynamic>.from(listingJson as Map<String, dynamic>);
+                
+                // Update propertyPhotos URLs with base URL
+                if (listingMap['propertyPhotos'] != null) {
+                  final photos = listingMap['propertyPhotos'] as List<dynamic>;
+                  listingMap['propertyPhotos'] = photos.map((photo) {
+                    final photoPath = photo.toString();
+                    if (photoPath.isEmpty) return photo;
+                    
+                    // If already a full URL, return as is
+                    if (photoPath.startsWith('http://') || photoPath.startsWith('https://')) {
+                      return photoPath;
+                    }
+                    
+                    // Otherwise, prepend base URL
+                    String path = photoPath;
+                    if (!path.startsWith('/')) {
+                      path = '/$path';
+                    }
+                    return '$baseUrl$path';
+                  }).toList();
+                }
+                
+                return AgentListingModel.fromApiJson(listingMap);
+              })
               .toList();
 
-          _myListings.value = listings;
+          _allListings.value = listings;
+          _applyFilters(); // Apply current filters
           print('✅ Loaded ${listings.length} listings from API');
         } else {
           // No listings found
+          _allListings.value = [];
           _myListings.value = [];
           print('ℹ️ No listings found for this agent');
         }

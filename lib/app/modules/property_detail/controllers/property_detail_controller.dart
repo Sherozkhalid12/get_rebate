@@ -73,21 +73,41 @@ class PropertyDetailController extends GetxController {
   }
 
   void openBuyerLeadForm() {
+    // Get agent info from property - check multiple possible fields
+    final agentInfo = property['agent'] as Map<String, dynamic>?;
+    final agentId = property['agentId']?.toString() ?? 
+                   property['id']?.toString() ?? // Sometimes agent ID is in 'id' field
+                   agentInfo?['id']?.toString() ??
+                   agentInfo?['_id']?.toString();
+    
+    // Build agent object if we have agentId but no agent info
+    final agent = agentInfo ?? (agentId != null ? {'id': agentId} : null);
+    
     Get.toNamed(
       '/buyer-lead-form',
       arguments: {
         'property': property,
-        'agent': property['agent'], // Assuming agent info is included
+        'agent': agent,
       },
     );
   }
 
   void openSellerLeadForm() {
+    // Get agent info from property - check multiple possible fields
+    final agentInfo = property['agent'] as Map<String, dynamic>?;
+    final agentId = property['agentId']?.toString() ?? 
+                   property['id']?.toString() ?? // Sometimes agent ID is in 'id' field
+                   agentInfo?['id']?.toString() ??
+                   agentInfo?['_id']?.toString();
+    
+    // Build agent object if we have agentId but no agent info
+    final agent = agentInfo ?? (agentId != null ? {'id': agentId} : null);
+    
     Get.toNamed(
       '/seller-lead-form',
       arguments: {
         'property': property,
-        'agent': property['agent'], // Assuming agent info is included
+        'agent': agent,
       },
     );
   }

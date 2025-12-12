@@ -25,13 +25,18 @@ extension MarketStatusLabel on MarketStatus {
 }
 
 MarketStatus _marketStatusFromString(String? value) {
-  switch (value) {
+  if (value == null || value.isEmpty) return MarketStatus.forSale;
+  
+  switch (value.toLowerCase()) {
     case 'pending':
+    case 'draft':
       return MarketStatus.pending;
     case 'sold':
       return MarketStatus.sold;
-    case 'forSale':
+    case 'active':
+    case 'forsale':
     case 'for_sale':
+    case 'for sale':
       return MarketStatus.forSale;
     default:
       return MarketStatus.forSale;
@@ -132,9 +137,6 @@ class AgentListingModel {
 
   // Factory method to parse API response format
   factory AgentListingModel.fromApiJson(Map<String, dynamic> json) {
-    // Base URL for images
-    const baseUrl = 'https://d3bae2a4822b.ngrok-free.app';
-
     // Convert price string to cents (e.g., "8000" -> 800000 cents)
     final priceString = json['price']?.toString() ?? '0';
     final priceDouble = double.tryParse(priceString) ?? 0.0;
@@ -144,39 +146,41 @@ class AgentListingModel {
     final bacPercentageString = json['BACPercentage']?.toString() ?? '0';
     final bacPercent = double.tryParse(bacPercentageString) ?? 0.0;
 
-    // Handle propertyPhotos - they might be relative paths, need to prepend base URL
+    // Handle propertyPhotos - URLs should already be processed by controller
+    // If they're full URLs, use as is; if relative, they should already have base URL prepended
     final propertyPhotos = json['propertyPhotos'] as List<dynamic>? ?? [];
     final photoUrls = propertyPhotos
         .map((photo) {
           final photoPath = photo.toString();
           if (photoPath.isEmpty) return null;
-
-          // If already a full URL, return as is
-          if (photoPath.startsWith('http://') ||
-              photoPath.startsWith('https://')) {
-            return photoPath;
-          }
-
-          // Otherwise, prepend base URL
-          String path = photoPath;
-          if (!path.startsWith('/')) {
-            path = '/$path';
-          }
-          return '$baseUrl$path';
+          return photoPath;
         })
         .where((photo) => photo != null)
         .cast<String>()
         .toList();
 
-    // Determine approval status - if active is false, it might be pending or inactive
-    // We'll assume active=true means approved, active=false means pending/inactive
+    // Determine approval status and market status
+    // status: "active" means For Sale, "draft" means pending approval
+    final statusString = json['status']?.toString() ?? '';
     final isActive = json['active'] ?? false;
-    final isApproved = isActive; // If active, assume approved
+    final isApproved = statusString == 'active' || isActive;
+    
+    // Map status to MarketStatus
+    MarketStatus marketStatus;
+    if (statusString == 'active') {
+      marketStatus = MarketStatus.forSale;
+    } else if (statusString == 'pending' || statusString == 'draft') {
+      marketStatus = MarketStatus.pending;
+    } else if (statusString == 'sold') {
+      marketStatus = MarketStatus.sold;
+    } else {
+      // Default based on active flag
+      marketStatus = isActive ? MarketStatus.forSale : MarketStatus.pending;
+    }
 
     return AgentListingModel(
       id: json['_id']?.toString() ?? json['id']?.toString() ?? '',
-      agentId:
-          json['id']?.toString() ?? '', // The agent ID field in API response
+      agentId: json['id']?.toString() ?? '', // The agent ID field in API response
       title: json['propertyTitle']?.toString() ?? '',
       description: json['description']?.toString() ?? '',
       priceCents: priceCents,
@@ -196,10 +200,10 @@ class AgentListingModel {
       updatedAt: json['updatedAt'] != null
           ? DateTime.parse(json['updatedAt'])
           : null,
-      searchCount: 0, // API doesn't provide this
-      viewCount: 0, // API doesn't provide this
-      contactCount: 0, // API doesn't provide this
-      marketStatus: _marketStatusFromString(json['marketStatus']?.toString()),
+      searchCount: json['searches'] ?? 0, // From API
+      viewCount: json['views'] ?? 0, // From API
+      contactCount: json['contacts'] ?? 0, // From API
+      marketStatus: marketStatus,
     );
   }
 

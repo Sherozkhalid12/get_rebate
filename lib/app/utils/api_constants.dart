@@ -28,7 +28,7 @@ class ApiConstants {
   // ============================================================================
   
   // Ngrok URL (update this when ngrok restarts)
-  static const String _ngrokUrl = 'https://d3bae2a4822b.ngrok-free.app';
+  static const String _ngrokUrl = 'https://ff5e5f9bfa22.ngrok-free.app';
   
   // Local network IP (update with your computer's IP address)
   static const String _localNetworkIp = '192.168.1.100'; // TODO: Update this!
@@ -107,6 +107,20 @@ class ApiConstants {
   // Auth specific endpoints
   static String get createUserEndpoint => "${authEndPoint}createUser";
   static String get loginEndpoint => "${authEndPoint}login";
+  
+  // Lead specific endpoints - Using same endpoint for both buyer and seller leads
+  static String get createLeadEndpoint => "$apiBaseUrl/buyer/createLead";
+  
+  // Listing specific endpoints
+  static String get createListingEndpoint => "$apiBaseUrl/agent/createListing/";
+  
+  static String getUpdateListingEndpoint(String listingId) {
+    return "$apiBaseUrl/agent/updateListing/$listingId";
+  }
+  
+  static String getDeleteListingEndpoint(String listingId) {
+    return "$apiBaseUrl/agent/deleteListing/$listingId";
+  }
   
   // Helper to get ngrok headers if using ngrok
   static Map<String, String> get ngrokHeaders {

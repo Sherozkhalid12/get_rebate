@@ -43,7 +43,19 @@ class PropertyListingsView extends GetView<PropertyListingsController> {
             _buildSearchAndFilters(context),
 
             // Properties List
-            Expanded(child: _buildPropertiesList(context)),
+            Expanded(
+              child: Obx(() {
+                if (controller.isLoading && controller.properties.isEmpty) {
+                  return const Center(
+                    child: CircularProgressIndicator(),
+                  );
+                }
+                return RefreshIndicator(
+                  onRefresh: () => controller.fetchListings(),
+                  child: _buildPropertiesList(context),
+                );
+              }),
+            ),
           ],
         ),
       ),
@@ -109,45 +121,47 @@ class PropertyListingsView extends GetView<PropertyListingsController> {
           SizedBox(height: 16.h),
 
           // Filter Chips
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                _buildFilterChip(
-                  context,
-                  'All',
-                  'all',
-                  controller.selectedStatus,
-                ),
-                SizedBox(width: 8.w),
-                _buildFilterChip(
-                  context,
-                  'Active',
-                  'active',
-                  controller.selectedStatus,
-                ),
-                SizedBox(width: 8.w),
-                _buildFilterChip(
-                  context,
-                  'Pending',
-                  'pending',
-                  controller.selectedStatus,
-                ),
-                SizedBox(width: 8.w),
-                _buildFilterChip(
-                  context,
-                  'Sold',
-                  'sold',
-                  controller.selectedStatus,
-                ),
-                SizedBox(width: 8.w),
-                _buildFilterChip(
-                  context,
-                  'Draft',
-                  'draft',
-                  controller.selectedStatus,
-                ),
-              ],
+          Obx(
+            () => SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _buildFilterChip(
+                    context,
+                    'All',
+                    'all',
+                    controller.selectedStatus,
+                  ),
+                  SizedBox(width: 8.w),
+                  _buildFilterChip(
+                    context,
+                    'Active',
+                    'active',
+                    controller.selectedStatus,
+                  ),
+                  SizedBox(width: 8.w),
+                  _buildFilterChip(
+                    context,
+                    'Pending',
+                    'pending',
+                    controller.selectedStatus,
+                  ),
+                  SizedBox(width: 8.w),
+                  _buildFilterChip(
+                    context,
+                    'Sold',
+                    'sold',
+                    controller.selectedStatus,
+                  ),
+                  SizedBox(width: 8.w),
+                  _buildFilterChip(
+                    context,
+                    'Draft',
+                    'draft',
+                    controller.selectedStatus,
+                  ),
+                ],
+              ),
             ),
           ),
 
@@ -212,12 +226,24 @@ class PropertyListingsView extends GetView<PropertyListingsController> {
     final isSelected = selectedValue == value;
 
     return FilterChip(
-      label: Text(label, style: TextStyle(fontSize: 12.sp)),
+      label: Text(
+        label,
+        style: TextStyle(
+          fontSize: 12.sp,
+          color: isSelected ? AppTheme.primaryBlue : AppTheme.darkGray,
+          fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+        ),
+      ),
       selected: isSelected,
       onSelected: (selected) => controller.setSelectedStatus(value),
       selectedColor: AppTheme.primaryBlue.withOpacity(0.2),
       checkmarkColor: AppTheme.primaryBlue,
       backgroundColor: AppTheme.lightGray,
+      side: BorderSide(
+        color: isSelected ? AppTheme.primaryBlue : AppTheme.mediumGray.withOpacity(0.3),
+        width: isSelected ? 1.5 : 1.0,
+      ),
+      padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
     );
   }
 
@@ -301,7 +327,7 @@ class PropertyListingsView extends GetView<PropertyListingsController> {
     return Obx(() {
       final filteredProperties = controller.filteredProperties;
 
-      if (filteredProperties.isEmpty) {
+      if (filteredProperties.isEmpty && !controller.isLoading) {
         return _buildEmptyState(context);
       }
 

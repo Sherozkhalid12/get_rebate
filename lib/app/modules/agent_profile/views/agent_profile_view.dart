@@ -1309,7 +1309,7 @@ class AgentProfileView extends GetView<AgentProfileController> {
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: property['status'] == 'For Sale'
+                        color: (property['rawStatus'] == 'active' && property['isActive'] == true) || property['status'] == 'For Sale'
                             ? AppTheme.lightGreen.withOpacity(0.1)
                             : AppTheme.mediumGray.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(12),
@@ -1317,7 +1317,7 @@ class AgentProfileView extends GetView<AgentProfileController> {
                       child: Text(
                         property['status'],
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: property['status'] == 'For Sale'
+                          color: (property['rawStatus'] == 'active' && property['isActive'] == true) || property['status'] == 'For Sale'
                               ? AppTheme.lightGreen
                               : AppTheme.mediumGray,
                           fontWeight: FontWeight.w600,
@@ -1325,7 +1325,7 @@ class AgentProfileView extends GetView<AgentProfileController> {
                       ),
                     ),
                     const Spacer(),
-                    if (property['status'] == 'For Sale')
+                    if ((property['rawStatus'] == 'active' && property['isActive'] == true) || property['status'] == 'For Sale')
                       ElevatedButton(
                         onPressed: () => _openBuyerLeadForm(property),
                         style: ElevatedButton.styleFrom(
@@ -1356,9 +1356,23 @@ class AgentProfileView extends GetView<AgentProfileController> {
   }
 
   void _openBuyerLeadForm(Map<String, dynamic> property) {
+    // Convert AgentModel to map for passing to lead form
+    final agent = controller.agent;
+    final agentMap = agent != null ? {
+      'id': agent.id,
+      '_id': agent.id,
+      'name': agent.name,
+      'email': agent.email,
+      'phone': agent.phone,
+      'profileImage': agent.profileImage,
+    } : null;
+    
     Get.toNamed(
       '/buyer-lead-form',
-      arguments: {'property': property, 'agent': controller.agent},
+      arguments: {
+        'property': property, 
+        'agent': agentMap,
+      },
     );
   }
 

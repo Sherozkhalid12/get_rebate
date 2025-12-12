@@ -6,13 +6,14 @@ import 'dart:io';
 import 'dart:convert';
 import 'package:getrebate/app/models/user_model.dart';
 import 'package:getrebate/app/routes/app_pages.dart';
+import 'package:getrebate/app/utils/api_constants.dart';
 
 class AuthController extends GetxController {
   final _storage = GetStorage();
   final Dio _dio = Dio();
 
-  // API Base URL
-  static const String _baseUrl = 'https://d3bae2a4822b.ngrok-free.app/api/v1';
+  // API Base URL - Using ApiConstants for centralized management
+  static String get _baseUrl => ApiConstants.apiBaseUrl;
 
   // Observable variables
   final _isLoading = false.obs;
@@ -39,10 +40,9 @@ class AuthController extends GetxController {
       // Check if ID is a generated one (starts with "user_")
       final isGeneratedId = user.id.startsWith('user_');
       // MongoDB ObjectIds are exactly 24 hex characters
-      final isValidMongoId =
-          user.id.length == 24 &&
-          RegExp(r'^[0-9a-fA-F]{24}$').hasMatch(user.id);
-
+      final isValidMongoId = user.id.length == 24 && 
+                            RegExp(r'^[0-9a-fA-F]{24}$').hasMatch(user.id);
+      
       if (isGeneratedId || (!isValidMongoId && user.id.isNotEmpty)) {
         print('⚠️ CRITICAL: Invalid user ID detected after init: ${user.id}');
         print('   Clearing invalid user data. User must log in again.');
@@ -75,37 +75,28 @@ class AuthController extends GetxController {
 
     if (userData != null) {
       final user = UserModel.fromJson(userData);
-
+      
       // Validate user ID - MongoDB ObjectIds are 24 hex characters
       // If it starts with "user_" it's a generated ID from old code, clear it
       // Also check if it's empty or doesn't look like a valid MongoDB ID
-      final isValidMongoId =
-          user.id.length == 24 &&
-          RegExp(r'^[0-9a-fA-F]{24}$').hasMatch(user.id);
+      final isValidMongoId = user.id.length == 24 && 
+                            RegExp(r'^[0-9a-fA-F]{24}$').hasMatch(user.id);
       final isGeneratedId = user.id.startsWith('user_');
-
+      
       if (isGeneratedId || (!isValidMongoId && user.id.isNotEmpty)) {
-        print(
-          '⚠️ WARNING: Detected invalid/generated user ID in storage: ${user.id}',
-        );
-        print(
-          '   Valid MongoDB IDs are 24 hex characters. Clearing invalid user data.',
-        );
+        print('⚠️ WARNING: Detected invalid/generated user ID in storage: ${user.id}');
+        print('   Valid MongoDB IDs are 24 hex characters. Clearing invalid user data.');
         _clearInvalidUserData();
-        print(
-          '   Please log in again to get the correct user ID from the API.',
-        );
+        print('   Please log in again to get the correct user ID from the API.');
         return;
       }
-
+      
       if (user.id.isEmpty) {
-        print(
-          '⚠️ WARNING: User ID is empty in storage. Clearing invalid user data.',
-        );
+        print('⚠️ WARNING: User ID is empty in storage. Clearing invalid user data.');
         _clearInvalidUserData();
         return;
       }
-
+      
       _currentUser.value = user;
       _isLoggedIn.value = true;
 
@@ -167,9 +158,7 @@ class AuthController extends GetxController {
             print('❌ CRITICAL ERROR: User ID is empty in API response!');
             print('   userData keys: ${userData.keys}');
             print('   userData: $userData');
-            throw Exception(
-              'User ID (_id) not found in login API response. Cannot proceed without valid user ID.',
-            );
+            throw Exception('User ID (_id) not found in login API response. Cannot proceed without valid user ID.');
           }
 
           print('✅ Extracted User ID from login: $userId');
@@ -276,15 +265,14 @@ class AuthController extends GetxController {
       if (e.response != null) {
         final statusCode = e.response?.statusCode;
         final responseData = e.response?.data;
-
+        
         // Handle 500 server errors
         if (statusCode == 500) {
           // Check if response contains MongoDB error
           final responseString = responseData?.toString() ?? '';
-          if (responseString.contains('MongooseError') ||
+          if (responseString.contains('MongooseError') || 
               responseString.contains('buffering timed out')) {
-            errorMessage =
-                'Server database connection error. Please try again in a moment.';
+            errorMessage = 'Server database connection error. Please try again in a moment.';
           } else {
             errorMessage = 'Server error. Please try again later.';
           }
@@ -1141,13 +1129,13 @@ class AuthController extends GetxController {
       // TODO: Implement actual social login API call
       // For now, throw error - we MUST get user ID from backend
       throw Exception(
-        'Social login not implemented. Must call backend API to get user ID.',
+        'Social login not implemented. Must call backend API to get user ID.'
       );
 
       // When implemented, the API should return user data with _id:
       // final response = await _dio.post('/auth/social-login', data: {...});
       // final responseData = response.data;
-      // final userId = responseData['user']['_id']?.toString() ??
+      // final userId = responseData['user']['_id']?.toString() ?? 
       //                responseData['user']['id']?.toString() ?? '';
       // if (userId.isEmpty) {
       //   throw Exception('User ID not found in social login response');

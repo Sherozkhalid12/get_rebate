@@ -314,18 +314,24 @@ class AgentProfileController extends GetxController {
     // Parse BAC percentage
     final bacPercent = double.tryParse(listing['BACPercentage']?.toString() ?? '0') ?? 0.0;
     
-    // Parse status
+    // Parse status - Check status field first, then active field
     String status = 'For Sale';
-    final active = listing['active'] ?? false;
-    final listingStatus = listing['status']?.toString() ?? 'draft';
-    if (!active || listingStatus == 'draft') {
+    final listingStatus = listing['status']?.toString().toLowerCase() ?? 'draft';
+    final active = listing['active'] ?? (listingStatus == 'active'); // Fallback to status check
+    
+    // If status is 'active', it's for sale regardless of active field
+    if (listingStatus == 'active') {
+      status = 'For Sale';
+    } else if (listingStatus == 'draft' || (!active && listingStatus != 'active')) {
       status = 'Pending Approval';
     } else if (listingStatus == 'sold') {
       status = 'Sold';
+    } else if (listingStatus == 'pending') {
+      status = 'Pending Approval';
     }
     
     if (kDebugMode) {
-      print('   Status: $listingStatus (active: $active) → Display: $status');
+      print('   Status: ${listing['status']} (active: $active) → Display: $status');
     }
     
     // Build full address
@@ -365,6 +371,8 @@ class AgentProfileController extends GetxController {
       'image': images.isNotEmpty ? images[0] : null,
       'images': images,
       'status': status,
+      'rawStatus': listing['status']?.toString() ?? 'draft', // Include raw status for checking 'active'
+      'isActive': listingStatus == 'active' || active, // Include active flag - true if status is 'active'
       'bacPercent': bacPercent,
       'city': city,
       'state': state,

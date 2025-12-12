@@ -757,6 +757,11 @@ class AgentView extends GetView<AgentController> {
 
           const SizedBox(height: 24),
 
+          // Filters Section
+          _buildFiltersSection(context),
+
+          const SizedBox(height: 24),
+
           // Enhanced Stats Section
           _buildListingStats(context),
 
@@ -764,6 +769,10 @@ class AgentView extends GetView<AgentController> {
 
           // Listings List
           Obx(() {
+            if (controller.myListings.isEmpty && controller.allListings.isNotEmpty) {
+              return _buildNoFilterResults(context);
+            }
+            
             if (controller.myListings.isEmpty) {
               return _buildEmptyListingsState(context);
             }
@@ -1003,26 +1012,67 @@ class AgentView extends GetView<AgentController> {
             ),
             child: Stack(
               children: [
-                // Property image placeholder
-                Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.home_outlined,
-                        size: 40,
-                        color: AppTheme.primaryBlue.withOpacity(0.6),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Property Image',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppTheme.mediumGray,
+                // Property image
+                if (listing.photoUrls.isNotEmpty)
+                  ClipRRect(
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(20),
+                      topRight: Radius.circular(20),
+                    ),
+                    child: Image.network(
+                      listing.photoUrls.first,
+                      width: double.infinity,
+                      height: 120,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          color: AppTheme.lightGray,
+                          child: Center(
+                            child: Icon(
+                              Icons.broken_image,
+                              size: 40,
+                              color: AppTheme.mediumGray,
+                            ),
+                          ),
+                        );
+                      },
+                      loadingBuilder: (context, child, loadingProgress) {
+                        if (loadingProgress == null) return child;
+                        return Container(
+                          color: AppTheme.lightGray,
+                          child: Center(
+                            child: CircularProgressIndicator(
+                              value: loadingProgress.expectedTotalBytes != null
+                                  ? loadingProgress.cumulativeBytesLoaded /
+                                      loadingProgress.expectedTotalBytes!
+                                  : null,
+                              strokeWidth: 2,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  )
+                else
+                  Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.home_outlined,
+                          size: 40,
+                          color: AppTheme.primaryBlue.withOpacity(0.6),
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 8),
+                        Text(
+                          'No Image',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: AppTheme.mediumGray,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
                 // Status chip with quick actions
                 Positioned(
                   top: 12,
@@ -1371,6 +1421,165 @@ class AgentView extends GetView<AgentController> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildFiltersSection(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Filters',
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            color: AppTheme.black,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 12),
+        
+        // Search Bar
+        Container(
+          decoration: BoxDecoration(
+            color: AppTheme.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: AppTheme.lightGray.withOpacity(0.5),
+            ),
+          ),
+          child: TextField(
+            onChanged: (value) => controller.setSearchQuery(value),
+            decoration: InputDecoration(
+              hintText: 'Search by title, address, city...',
+              prefixIcon: Icon(Icons.search, color: AppTheme.mediumGray),
+              suffixIcon: Obx(() => controller.searchQuery.isNotEmpty
+                  ? IconButton(
+                      icon: Icon(Icons.clear, color: AppTheme.mediumGray),
+                      onPressed: () => controller.setSearchQuery(''),
+                    )
+                  : const SizedBox.shrink()),
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 12,
+              ),
+            ),
+          ),
+        ),
+        
+        const SizedBox(height: 12),
+        
+        // Status Filter Chips
+        Obx(
+          () => Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _buildFilterChip(
+                context,
+                'All',
+                controller.selectedStatusFilter == null,
+                () => controller.setStatusFilter(null),
+              ),
+              _buildFilterChip(
+                context,
+                'For Sale',
+                controller.selectedStatusFilter == MarketStatus.forSale,
+                () => controller.setStatusFilter(MarketStatus.forSale),
+              ),
+              _buildFilterChip(
+                context,
+                'Pending',
+                controller.selectedStatusFilter == MarketStatus.pending,
+                () => controller.setStatusFilter(MarketStatus.pending),
+              ),
+              _buildFilterChip(
+                context,
+                'Sold',
+                controller.selectedStatusFilter == MarketStatus.sold,
+                () => controller.setStatusFilter(MarketStatus.sold),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFilterChip(
+    BuildContext context,
+    String label,
+    bool isSelected,
+    VoidCallback onTap,
+  ) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? AppTheme.primaryBlue
+              : AppTheme.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected
+                ? AppTheme.primaryBlue
+                : AppTheme.lightGray.withOpacity(0.5),
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        child: Text(
+          label,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: isSelected ? AppTheme.white : AppTheme.black,
+            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNoFilterResults(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 20),
+      padding: const EdgeInsets.all(40),
+      decoration: BoxDecoration(
+        color: AppTheme.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: AppTheme.lightGray.withOpacity(0.5),
+          width: 1,
+        ),
+      ),
+      child: Column(
+        children: [
+          Icon(
+            Icons.filter_alt_off,
+            size: 48,
+            color: AppTheme.mediumGray,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'No listings match your filters',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              color: AppTheme.black,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Try adjusting your search or filter criteria',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: AppTheme.mediumGray,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 16),
+          TextButton(
+            onPressed: () => controller.clearFilters(),
+            child: Text('Clear Filters'),
+          ),
+        ],
+      ),
     );
   }
 

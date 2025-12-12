@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/modules/create_listing/controllers/create_listing_controller.dart';
 import 'package:getrebate/app/widgets/custom_button.dart';
@@ -13,7 +15,12 @@ class CreateListingView extends GetView<CreateListingController> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.lightGray,
-      body: CustomScrollView(
+      body: GestureDetector(
+        onTap: () {
+          // Dismiss keyboard when tapping on screen
+          FocusScope.of(context).unfocus();
+        },
+        child: CustomScrollView(
         slivers: [
           // Custom App Bar
           SliverAppBar(
@@ -286,6 +293,7 @@ class CreateListingView extends GetView<CreateListingController> {
             ),
           ),
         ],
+        ),
       ),
     );
   }
@@ -656,7 +664,7 @@ class CreateListingView extends GetView<CreateListingController> {
                   borderRadius: BorderRadius.circular(20.r),
                 ),
                 child: TextButton.icon(
-                  onPressed: () => _addMockImage(),
+                  onPressed: () => _showAddPhotoDialog(context),
                   icon: Icon(Icons.add, size: 16.sp, color: AppTheme.white),
                   label: Text(
                     'Add Image',
@@ -672,186 +680,157 @@ class CreateListingView extends GetView<CreateListingController> {
           ),
           SizedBox(height: 16.h),
 
-          if (controller.images.isEmpty)
-            Container(
-              height: 140.h,
-              width: double.infinity,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    AppTheme.lightGray,
-                    AppTheme.lightGray.withOpacity(0.7),
+              if (controller.selectedPhotos.isEmpty)
+            GestureDetector(
+              onTap: () => _showAddPhotoDialog(context),
+              child: Container(
+                height: 140.h,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      AppTheme.lightGray,
+                      AppTheme.lightGray.withOpacity(0.7),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(16.r),
+                  border: Border.all(
+                    color: AppTheme.mediumGray.withOpacity(0.3),
+                    style: BorderStyle.solid,
+                  ),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: EdgeInsets.all(12.w),
+                      decoration: BoxDecoration(
+                        color: AppTheme.primaryBlue.withOpacity(0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.add_photo_alternate,
+                        size: 28.sp,
+                        color: AppTheme.primaryBlue,
+                      ),
+                    ),
+                    SizedBox(height: 8.h),
+                    Flexible(
+                      child: Text(
+                        'No images added yet',
+                        style: TextStyle(
+                          color: AppTheme.mediumGray,
+                          fontSize: 13.sp,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    SizedBox(height: 2.h),
+                    Flexible(
+                      child: Text(
+                        'Tap to add images',
+                        style: TextStyle(
+                          color: AppTheme.mediumGray.withOpacity(0.7),
+                          fontSize: 11.sp,
+                        ),
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
                   ],
                 ),
-                borderRadius: BorderRadius.circular(16.r),
-                border: Border.all(
-                  color: AppTheme.mediumGray.withOpacity(0.3),
-                  style: BorderStyle.solid,
-                ),
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(
-                    padding: EdgeInsets.all(16.w),
-                    decoration: BoxDecoration(
-                      color: AppTheme.primaryBlue.withOpacity(0.1),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      Icons.add_photo_alternate,
-                      size: 32.sp,
-                      color: AppTheme.primaryBlue,
-                    ),
-                  ),
-                  SizedBox(height: 12.h),
-                  Text(
-                    'No images added yet',
-                    style: TextStyle(
-                      color: AppTheme.mediumGray,
-                      fontSize: 14.sp,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  SizedBox(height: 4.h),
-                  Text(
-                    'Tap "Add Image" to get started',
-                    style: TextStyle(
-                      color: AppTheme.mediumGray.withOpacity(0.7),
-                      fontSize: 12.sp,
-                    ),
-                  ),
-                ],
               ),
             )
           else
-            SizedBox(
-              height: 140.h,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                itemCount: controller.images.length + 1, // +1 for add button
-                itemBuilder: (context, index) {
-                  if (index == controller.images.length) {
-                    // Add button
+            Obx(
+              () => SizedBox(
+                height: 140.h,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: controller.selectedPhotos.length,
+                  itemBuilder: (context, index) {
                     return Padding(
                       padding: EdgeInsets.only(right: 12.w),
-                      child: GestureDetector(
-                        onTap: () => _addMockImage(),
-                        child: Container(
-                          width: 120.w,
-                          height: 140.h,
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: AppTheme.primaryGradient,
-                            ),
-                            borderRadius: BorderRadius.circular(16.r),
-                            border: Border.all(
-                              color: AppTheme.primaryBlue.withOpacity(0.3),
-                              style: BorderStyle.solid,
+                      child: Stack(
+                        children: [
+                          Container(
+                            width: 120.w,
+                            height: 140.h,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(16.r),
+                              image: DecorationImage(
+                                image: FileImage(controller.selectedPhotos[index]),
+                                fit: BoxFit.cover,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.1),
+                                  blurRadius: 8.r,
+                                  offset: Offset(0, 4.h),
+                                ),
+                              ],
                             ),
                           ),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.add,
-                                color: AppTheme.white,
-                                size: 24.sp,
+                          Positioned(
+                            top: 8.h,
+                            right: 8.w,
+                            child: GestureDetector(
+                              onTap: () => controller.removePhoto(index),
+                              child: Container(
+                                padding: EdgeInsets.all(6.w),
+                                decoration: BoxDecoration(
+                                  color: Colors.red,
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.red.withOpacity(0.3),
+                                      blurRadius: 4.r,
+                                      offset: Offset(0, 2.h),
+                                    ),
+                                  ],
+                                ),
+                                child: Icon(
+                                  Icons.close,
+                                  color: Colors.white,
+                                  size: 14.sp,
+                                ),
                               ),
-                              SizedBox(height: 8.h),
-                              Text(
-                                'Add More',
+                            ),
+                          ),
+                          Positioned(
+                            bottom: 8.h,
+                            left: 8.w,
+                            child: Container(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: 8.w,
+                                vertical: 4.h,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withOpacity(0.6),
+                                borderRadius: BorderRadius.circular(12.r),
+                              ),
+                              child: Text(
+                                '${index + 1}',
                                 style: TextStyle(
-                                  color: AppTheme.white,
-                                  fontSize: 12.sp,
+                                  color: Colors.white,
+                                  fontSize: 10.sp,
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
-                            ],
+                            ),
                           ),
-                        ),
+                        ],
                       ),
                     );
-                  }
-
-                  return Padding(
-                    padding: EdgeInsets.only(right: 12.w),
-                    child: Stack(
-                      children: [
-                        Container(
-                          width: 120.w,
-                          height: 140.h,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(16.r),
-                            image: DecorationImage(
-                              image: NetworkImage(controller.images[index]),
-                              fit: BoxFit.cover,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.1),
-                                blurRadius: 8.r,
-                                offset: Offset(0, 4.h),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Positioned(
-                          top: 8.h,
-                          right: 8.w,
-                          child: GestureDetector(
-                            onTap: () => controller.removeImage(index),
-                            child: Container(
-                              padding: EdgeInsets.all(6.w),
-                              decoration: BoxDecoration(
-                                color: Colors.red,
-                                shape: BoxShape.circle,
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.red.withOpacity(0.3),
-                                    blurRadius: 4.r,
-                                    offset: Offset(0, 2.h),
-                                  ),
-                                ],
-                              ),
-                              child: Icon(
-                                Icons.close,
-                                color: Colors.white,
-                                size: 14.sp,
-                              ),
-                            ),
-                          ),
-                        ),
-                        Positioned(
-                          bottom: 8.h,
-                          left: 8.w,
-                          child: Container(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: 8.w,
-                              vertical: 4.h,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.black.withOpacity(0.6),
-                              borderRadius: BorderRadius.circular(12.r),
-                            ),
-                            child: Text(
-                              '${index + 1}',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 10.sp,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
+                  },
+                ),
               ),
             ),
         ],
@@ -859,16 +838,84 @@ class CreateListingView extends GetView<CreateListingController> {
     );
   }
 
-  void _addMockImage() {
-    // Add a mock image URL
-    final mockImages = [
-      'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=400&h=300&fit=crop',
-      'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=400&h=300&fit=crop',
-      'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=400&h=300&fit=crop',
-    ];
+  void _showAddPhotoDialog(BuildContext context) {
+    final ImagePicker picker = ImagePicker();
 
-    final randomImage =
-        mockImages[DateTime.now().millisecondsSinceEpoch % mockImages.length];
-    controller.addImage(randomImage);
+    Get.dialog(
+      AlertDialog(
+        title: const Text('Add Photos'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library),
+              title: const Text('Choose from Gallery'),
+              onTap: () async {
+                Get.back();
+                await _pickImages(context, picker, ImageSource.gallery);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.camera_alt),
+              title: const Text('Take Photo'),
+              onTap: () async {
+                Get.back();
+                await _pickImages(context, picker, ImageSource.camera);
+              },
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Get.back(), child: const Text('Cancel')),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _pickImages(
+    BuildContext context,
+    ImagePicker picker,
+    ImageSource source,
+  ) async {
+    try {
+      final List<XFile> images = await picker.pickMultiImage(
+        maxWidth: 1920,
+        maxHeight: 1920,
+        imageQuality: 85,
+      );
+
+      if (images.isNotEmpty) {
+        for (var image in images) {
+          if (controller.selectedPhotos.length >= 10) {
+            Get.snackbar('Limit Reached', 'You can add up to 10 photos');
+            break;
+          }
+          controller.addPhoto(File(image.path));
+        }
+      }
+    } catch (e) {
+      if (source == ImageSource.camera) {
+        // If multi-image fails for camera, try single image
+        try {
+          final XFile? image = await picker.pickImage(
+            source: source,
+            maxWidth: 1920,
+            maxHeight: 1920,
+            imageQuality: 85,
+          );
+          if (image != null) {
+            if (controller.selectedPhotos.length < 10) {
+              controller.addPhoto(File(image.path));
+            } else {
+              Get.snackbar('Limit Reached', 'You can add up to 10 photos');
+            }
+          }
+        } catch (e2) {
+          Get.snackbar('Error', 'Failed to pick image: ${e2.toString()}');
+        }
+      } else {
+        Get.snackbar('Error', 'Failed to pick images: ${e.toString()}');
+      }
+    }
   }
 }

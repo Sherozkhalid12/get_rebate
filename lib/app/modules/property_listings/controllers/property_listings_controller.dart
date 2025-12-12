@@ -1,10 +1,18 @@
 import 'package:get/get.dart';
-import 'package:get/get.dart';
 import 'package:flutter/material.dart';
+import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:get_storage/get_storage.dart';
 import 'package:getrebate/app/models/property_model.dart';
 import 'package:getrebate/app/routes/app_pages.dart';
+import 'package:getrebate/app/controllers/auth_controller.dart' as global;
+import 'package:getrebate/app/utils/api_constants.dart';
+import 'package:getrebate/app/theme/app_theme.dart';
 
 class PropertyListingsController extends GetxController {
+  final Dio _dio = Dio();
+  final _storage = GetStorage();
   final _properties = <PropertyModel>[].obs;
   final _isLoading = false.obs;
   final _selectedStatus =
@@ -26,7 +34,385 @@ class PropertyListingsController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    _loadMockData();
+    _setupDio();
+    // Fetch listings from API instead of mock data
+    fetchListings();
+  }
+
+  void _setupDio() {
+    _dio.options.baseUrl = ApiConstants.apiBaseUrl;
+    _dio.options.connectTimeout = const Duration(seconds: 30);
+    _dio.options.receiveTimeout = const Duration(seconds: 30);
+    _dio.options.sendTimeout = const Duration(seconds: 30);
+    _dio.options.headers = {
+      'Content-Type': 'application/json',
+      ...ApiConstants.ngrokHeaders,
+    };
+  }
+
+  Future<void> fetchListings() async {
+    try {
+      _isLoading.value = true;
+
+      // Get current user ID from AuthController
+      final authController = Get.find<global.AuthController>();
+      final currentUser = authController.currentUser;
+      final agentId = currentUser?.id;
+
+      if (agentId == null || agentId.isEmpty) {
+        if (kDebugMode) {
+          print('⚠️ No agent ID found. Cannot fetch listings.');
+        }
+        _isLoading.value = false;
+        return;
+      }
+
+      if (kDebugMode) {
+        print('🚀 Fetching listings for agent ID: $agentId');
+        print('📡 API Endpoint: ${ApiConstants.apiBaseUrl}/agent/getListingByAgentId/$agentId');
+      }
+
+      // Make API call with endpoint path (base URL is already set in _setupDio)
+      final authToken = _storage.read('auth_token');
+      final endpoint = '/agent/getListingByAgentId/$agentId';
+      final fullUrl = '${ApiConstants.apiBaseUrl}$endpoint';
+      
+      if (kDebugMode) {
+        print('📡 Full URL: $fullUrl');
+        print('📋 Base URL: ${ApiConstants.apiBaseUrl}');
+        print('📋 Endpoint: $endpoint');
+        print('📋 Ngrok Headers: ${ApiConstants.ngrokHeaders}');
+        print('🔑 Auth Token: ${authToken != null ? "Present" : "Missing"}');
+      }
+      
+      // Build headers
+      final headers = <String, String>{
+        'Content-Type': 'application/json',
+        ...ApiConstants.ngrokHeaders,
+        if (authToken != null) 'Authorization': 'Bearer $authToken',
+      };
+      
+      if (kDebugMode) {
+        print('📤 Request Headers: $headers');
+      }
+      
+      final response = await _dio.get(
+        endpoint,
+        options: Options(
+          headers: headers,
+          validateStatus: (status) => status != null && status < 500,
+          followRedirects: true,
+        ),
+      );
+
+      // Handle response (check status code)
+      if (kDebugMode) {
+        print('📥 Response Status Code: ${response.statusCode}');
+        print('📥 Response Data Type: ${response.data.runtimeType}');
+      }
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        if (kDebugMode) {
+          print('✅ SUCCESS - Status Code: ${response.statusCode}');
+          print('📥 Response Data:');
+          print(response.data);
+          print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        }
+
+        final responseData = response.data;
+        
+        // Handle both Map and direct response formats
+        Map<String, dynamic> dataMap;
+        if (responseData is Map<String, dynamic>) {
+          dataMap = responseData;
+        } else {
+          if (kDebugMode) {
+            print('⚠️ Unexpected response format: ${responseData.runtimeType}');
+          }
+          _isLoading.value = false;
+          return;
+        }
+
+        final success = dataMap['success'] ?? false;
+        final listingsData = dataMap['listings'] as List<dynamic>? ?? [];
+
+        if (success && listingsData.isNotEmpty) {
+          // Parse listings from API response
+          final baseUrl = ApiConstants.baseUrl;
+          final properties = listingsData
+              .map((listingJson) {
+                try {
+                  return _parseListingToProperty(
+                    listingJson as Map<String, dynamic>,
+                    baseUrl,
+                    agentId,
+                  );
+                } catch (e) {
+                  if (kDebugMode) {
+                    print('❌ Error parsing listing: $e');
+                    print('   Listing JSON: $listingJson');
+                  }
+                  return null;
+                }
+              })
+              .where((property) => property != null)
+              .cast<PropertyModel>()
+              .toList();
+
+          _properties.value = properties;
+          if (kDebugMode) {
+            print('✅ Loaded ${properties.length} listings from API');
+          }
+        } else {
+          // No listings found
+          _properties.value = [];
+          if (kDebugMode) {
+            print('ℹ️ No listings found for this agent (success: $success, count: ${listingsData.length})');
+          }
+        }
+      } else {
+        // Non-200 status code
+        _isLoading.value = false;
+        if (kDebugMode) {
+          print('⚠️ Unexpected status code: ${response.statusCode}');
+          print('   Response: ${response.data}');
+        }
+        Get.snackbar('Error', 'Failed to fetch listings. Status: ${response.statusCode}');
+      }
+    } on DioException catch (e) {
+      _isLoading.value = false;
+      if (kDebugMode) {
+        print('❌ ERROR - Status Code: ${e.response?.statusCode ?? "N/A"}');
+        print('📥 Error Response:');
+        print(e.response?.data ?? e.message);
+        print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      }
+
+      String errorMessage = 'Failed to fetch listings. Please try again.';
+
+      if (e.response != null) {
+        final responseData = e.response?.data;
+        if (responseData is Map && responseData.containsKey('message')) {
+          errorMessage = responseData['message'].toString();
+        } else if (e.response?.statusCode == 401) {
+          errorMessage = 'Unauthorized. Please login again.';
+        } else if (e.response?.statusCode == 404) {
+          // 404 is okay - just means no listings found
+          _properties.value = [];
+          if (kDebugMode) {
+            print('ℹ️ No listings found (404)');
+          }
+          _isLoading.value = false;
+          return;
+        }
+      } else if (e.type == DioExceptionType.connectionTimeout ||
+          e.type == DioExceptionType.receiveTimeout) {
+        errorMessage =
+            'Connection timeout. Please check your internet connection.';
+      } else if (e.type == DioExceptionType.connectionError) {
+        errorMessage = 'No internet connection. Please check your network.';
+        if (kDebugMode) {
+          print('🔌 Connection Error Details: ${e.message}');
+          print('   Error Type: ${e.type}');
+        }
+      }
+
+      // Only show snackbar if we have a valid context
+      try {
+        if (Get.isSnackbarOpen == false) {
+          Get.snackbar('Error', errorMessage);
+        }
+      } catch (snackbarError) {
+        if (kDebugMode) {
+          print('⚠️ Could not show error snackbar: $snackbarError');
+        }
+      }
+    } catch (e) {
+      _isLoading.value = false;
+      if (kDebugMode) {
+        print('❌ Unexpected Error: ${e.toString()}');
+        print('   Error Type: ${e.runtimeType}');
+        print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      }
+      
+      // Only show snackbar if we have a valid context
+      try {
+        if (Get.isSnackbarOpen == false) {
+          Get.snackbar('Error', 'Failed to fetch listings: ${e.toString()}');
+        }
+      } catch (snackbarError) {
+        if (kDebugMode) {
+          print('⚠️ Could not show error snackbar: $snackbarError');
+        }
+      }
+    } finally {
+      _isLoading.value = false;
+    }
+  }
+
+  // Silent refresh without loading indicator - public method
+  Future<void> refreshSilently() async {
+    try {
+      final authController = Get.find<global.AuthController>();
+      final currentUser = authController.currentUser;
+      final agentId = currentUser?.id;
+
+      if (agentId == null || agentId.isEmpty) {
+        return;
+      }
+
+      final authToken = _storage.read('auth_token');
+      final endpoint = '/agent/getListingByAgentId/$agentId';
+      
+      final headers = <String, String>{
+        'Content-Type': 'application/json',
+        ...ApiConstants.ngrokHeaders,
+        if (authToken != null) 'Authorization': 'Bearer $authToken',
+      };
+      
+      final response = await _dio.get(
+        endpoint,
+        options: Options(
+          headers: headers,
+          validateStatus: (status) => status != null && status < 500,
+        ),
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final responseData = response.data;
+        
+        if (responseData is Map<String, dynamic>) {
+          final success = responseData['success'] ?? false;
+          final listingsData = responseData['listings'] as List<dynamic>? ?? [];
+
+          if (success && listingsData.isNotEmpty) {
+            final baseUrl = ApiConstants.baseUrl;
+            final listings = listingsData
+                .map((listingJson) {
+                  try {
+                    return _parseListingToProperty(
+                      listingJson as Map<String, dynamic>,
+                      baseUrl,
+                      agentId,
+                    );
+                  } catch (e) {
+                    if (kDebugMode) {
+                      print('❌ Error parsing listing: $e');
+                    }
+                    return null;
+                  }
+                })
+                .where((property) => property != null)
+                .cast<PropertyModel>()
+                .toList();
+
+            _properties.value = listings; // This will trigger reactive update
+            if (kDebugMode) {
+              print('✅ Silently refreshed ${listings.length} listings');
+            }
+          } else {
+            _properties.value = [];
+          }
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('⚠️ Silent refresh error: $e');
+      }
+      // Silent fail - don't show error to user
+    }
+  }
+
+  PropertyModel _parseListingToProperty(
+    Map<String, dynamic> json,
+    String baseUrl,
+    String agentId,
+  ) {
+    // Parse propertyDetails
+    final propertyDetails = json['propertyDetails'] as Map<String, dynamic>? ?? {};
+    final bedrooms = int.tryParse(propertyDetails['bedrooms']?.toString() ?? '0') ?? 0;
+    final bathrooms = int.tryParse(propertyDetails['bathrooms']?.toString() ?? '0') ?? 0;
+    // API uses 'squareFootage' but also check 'squareFeet' for compatibility
+    final squareFeetStr = propertyDetails['squareFootage']?.toString() ?? 
+                         propertyDetails['squareFeet']?.toString() ?? '0';
+    final squareFeet = double.tryParse(squareFeetStr) ?? 0.0;
+    // API uses 'type' in propertyDetails, not 'propertyType'
+    final propertyType = propertyDetails['type']?.toString() ?? 
+                         propertyDetails['propertyType']?.toString() ?? 'house';
+    final yearBuilt = propertyDetails['yearBuilt'] != null
+        ? int.tryParse(propertyDetails['yearBuilt'].toString())
+        : null;
+
+    // Parse price
+    final priceString = json['price']?.toString() ?? '0';
+    final price = double.tryParse(priceString) ?? 0.0;
+
+    // Parse propertyPhotos and build full URLs
+    final propertyPhotos = json['propertyPhotos'] as List<dynamic>? ?? [];
+    final images = propertyPhotos
+        .map((photo) {
+          final photoPath = photo.toString();
+          if (photoPath.isEmpty) return null;
+
+          // If already a full URL, return as is
+          if (photoPath.startsWith('http://') || photoPath.startsWith('https://')) {
+            return photoPath;
+          }
+
+          // Otherwise, prepend base URL
+          String path = photoPath;
+          if (!path.startsWith('/')) {
+            path = '/$path';
+          }
+          return '$baseUrl$path';
+        })
+        .where((photo) => photo != null)
+        .cast<String>()
+        .toList();
+
+    // Parse propertyFeatures as features map
+    final propertyFeatures = json['propertyFeatures'] as List<dynamic>? ?? [];
+    final features = <String, dynamic>{};
+    for (var feature in propertyFeatures) {
+      features[feature.toString()] = true;
+    }
+
+    // Parse status
+    final statusString = json['status']?.toString() ?? 'draft';
+    final status = statusString == 'active' ? 'active' : 
+                   statusString == 'pending' ? 'pending' :
+                   statusString == 'sold' ? 'sold' : 'draft';
+
+    // Parse dates
+    final createdAt = json['createdAt'] != null
+        ? DateTime.parse(json['createdAt'])
+        : DateTime.now();
+    final updatedAt = json['updatedAt'] != null
+        ? DateTime.parse(json['updatedAt'])
+        : createdAt;
+
+    return PropertyModel(
+      id: json['_id']?.toString() ?? json['id']?.toString() ?? '',
+      title: json['propertyTitle']?.toString() ?? '',
+      description: json['description']?.toString() ?? '',
+      address: json['streetAddress']?.toString() ?? '',
+      city: json['city']?.toString() ?? '',
+      state: json['state']?.toString() ?? '',
+      zipCode: json['zipCode']?.toString() ?? '',
+      price: price,
+      bedrooms: bedrooms,
+      bathrooms: bathrooms,
+      squareFeet: squareFeet,
+      propertyType: propertyType.toLowerCase(),
+      status: status,
+      images: images,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+      ownerId: agentId,
+      agentId: json['id']?.toString() ?? agentId,
+      features: features.isNotEmpty ? features : null,
+      yearBuilt: yearBuilt,
+    );
   }
 
   void _loadMockData() {
@@ -131,6 +517,7 @@ class PropertyListingsController extends GetxController {
 
   void setSelectedStatus(String status) {
     _selectedStatus.value = status;
+    // filteredProperties getter will automatically recompute when _selectedStatus changes
   }
 
   void setSelectedPropertyType(String type) {
@@ -202,15 +589,19 @@ class PropertyListingsController extends GetxController {
   void createNewListing() async {
     // Navigate to create listing page
     try {
-      final result = await Get.toNamed('/create-listing');
-      if (result != null && result is PropertyModel) {
-        // Add the new property to the list
-        _properties.add(result);
-        Get.snackbar('Success', 'Property listing created successfully!');
-      }
+      final result = await Get.toNamed(AppPages.CREATE_LISTING);
+      // Always refresh when coming back, regardless of result
+      // This ensures we have the latest data even if user just navigated back
+      await refreshSilently();
     } catch (e) {
-      print('Navigation error: $e');
-      Get.snackbar('Error', 'Failed to navigate to create listing page');
+      if (kDebugMode) {
+        print('Navigation error: $e');
+      }
+      try {
+        Get.snackbar('Error', 'Failed to navigate to create listing page');
+      } catch (snackbarError) {
+        if (kDebugMode) print('Could not show snackbar: $snackbarError');
+      }
     }
   }
 
@@ -218,48 +609,398 @@ class PropertyListingsController extends GetxController {
     // Navigate to edit property page
     try {
       final result = await Get.toNamed(
-        '/edit-listing',
+        AppPages.EDIT_LISTING,
         arguments: {'property': property},
       );
-      if (result != null && result is PropertyModel) {
-        // Update the property in the list
-        final index = _properties.indexWhere((p) => p.id == result.id);
-        if (index != -1) {
-          _properties[index] = result;
-          Get.snackbar('Success', 'Property listing updated successfully!');
-        }
-      }
+      // Always refresh when coming back, regardless of result
+      // This ensures we have the latest data even if user just navigated back
+      await refreshSilently();
     } catch (e) {
-      print('Navigation error: $e');
-      Get.snackbar('Error', 'Failed to navigate to edit listing page');
+      if (kDebugMode) {
+        print('Navigation error: $e');
+      }
+      try {
+        Get.snackbar('Error', 'Failed to navigate to edit listing page');
+      } catch (snackbarError) {
+        if (kDebugMode) print('Could not show snackbar: $snackbarError');
+      }
     }
   }
 
-  void deleteProperty(String propertyId) {
-    _properties.removeWhere((property) => property.id == propertyId);
-    Get.snackbar('Success', 'Property deleted successfully');
+  Future<void> deleteProperty(String propertyId) async {
+    try {
+      _isDeleting.value = true;
+      _isLoading.value = true;
+
+      final authToken = _storage.read('auth_token');
+      final endpoint = ApiConstants.getDeleteListingEndpoint(propertyId);
+
+      if (kDebugMode) {
+        print('🗑️ Deleting listing: $propertyId');
+        print('📡 API Endpoint: $endpoint');
+      }
+
+      final headers = <String, String>{
+        'Content-Type': 'application/json',
+        ...ApiConstants.ngrokHeaders,
+        if (authToken != null) 'Authorization': 'Bearer $authToken',
+      };
+
+      final response = await _dio.delete(
+        endpoint.replaceFirst(ApiConstants.apiBaseUrl, ''),
+        options: Options(
+          headers: headers,
+          validateStatus: (status) => status != null && status < 500,
+        ),
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 204) {
+        if (kDebugMode) {
+          print('✅ SUCCESS - Listing deleted');
+          print('📥 Response: ${response.data}');
+        }
+
+        // Remove from local list immediately for instant UI update
+        _properties.removeWhere((property) => property.id == propertyId);
+
+        // Show success message
+        try {
+          Get.snackbar(
+            'Success',
+            'Property deleted successfully',
+            snackPosition: SnackPosition.BOTTOM,
+            backgroundColor: Colors.green.shade600,
+            colorText: Colors.white,
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            borderRadius: 12,
+            duration: const Duration(seconds: 2),
+            snackStyle: SnackStyle.FLOATING,
+            icon: const Icon(
+              Icons.check_circle,
+              color: Colors.white,
+              size: 24,
+            ),
+          );
+        } catch (snackbarError) {
+          if (kDebugMode) print('⚠️ Could not show snackbar: $snackbarError');
+        }
+
+        // Optionally refresh to ensure consistency
+        await refreshSilently();
+      } else {
+        _isLoading.value = false;
+        String errorMessage = 'Failed to delete property. Please try again.';
+        
+        if (response.statusCode == 404) {
+          errorMessage = 'Property not found. It may have already been deleted.';
+          // Remove from local list anyway
+          _properties.removeWhere((property) => property.id == propertyId);
+        } else if (response.statusCode == 401) {
+          errorMessage = 'Unauthorized. Please login again.';
+        } else if (response.statusCode == 403) {
+          errorMessage = 'You do not have permission to delete this property.';
+        }
+
+        try {
+          Get.snackbar(
+            'Error',
+            errorMessage,
+            snackPosition: SnackPosition.BOTTOM,
+            backgroundColor: Colors.red.shade600,
+            colorText: Colors.white,
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            borderRadius: 12,
+            duration: const Duration(seconds: 3),
+            snackStyle: SnackStyle.FLOATING,
+          );
+        } catch (snackbarError) {
+          if (kDebugMode) print('⚠️ Could not show error snackbar: $snackbarError');
+        }
+      }
+    } on DioException catch (e) {
+      _isLoading.value = false;
+
+      if (kDebugMode) {
+        print('❌ ERROR - Status Code: ${e.response?.statusCode ?? "N/A"}');
+        print('📥 Error Response:');
+        print(e.response?.data ?? e.message);
+      }
+
+      String errorMessage = 'Failed to delete property. Please try again.';
+
+      if (e.response != null) {
+        final responseData = e.response?.data;
+        if (responseData is Map && responseData.containsKey('message')) {
+          errorMessage = responseData['message'].toString();
+        } else if (e.response?.statusCode == 401) {
+          errorMessage = 'Unauthorized. Please login again.';
+        } else if (e.response?.statusCode == 404) {
+          errorMessage = 'Property not found. It may have already been deleted.';
+          // Remove from local list anyway
+          _properties.removeWhere((property) => property.id == propertyId);
+        } else if (e.response?.statusCode == 403) {
+          errorMessage = 'You do not have permission to delete this property.';
+        } else if (e.response?.statusCode == 500) {
+          errorMessage = 'Server error. Please try again later.';
+        }
+      } else if (e.type == DioExceptionType.connectionTimeout ||
+          e.type == DioExceptionType.receiveTimeout) {
+        errorMessage = 'Connection timeout. Please check your internet connection.';
+      } else if (e.type == DioExceptionType.connectionError) {
+        errorMessage = 'No internet connection. Please check your network.';
+      }
+
+      try {
+        Get.snackbar(
+          'Error',
+          errorMessage,
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.red.shade600,
+          colorText: Colors.white,
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          borderRadius: 12,
+          duration: const Duration(seconds: 3),
+          snackStyle: SnackStyle.FLOATING,
+        );
+      } catch (snackbarError) {
+        if (kDebugMode) print('⚠️ Could not show error snackbar: $snackbarError');
+      }
+    } catch (e) {
+      _isLoading.value = false;
+      if (kDebugMode) {
+        print('❌ Unexpected Error: ${e.toString()}');
+      }
+      try {
+        Get.snackbar(
+          'Error',
+          'Failed to delete property: ${e.toString()}',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.red.shade600,
+          colorText: Colors.white,
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          borderRadius: 12,
+          duration: const Duration(seconds: 3),
+          snackStyle: SnackStyle.FLOATING,
+        );
+      } catch (snackbarError) {
+        if (kDebugMode) print('⚠️ Could not show error snackbar: $snackbarError');
+      }
+    } finally {
+      _isLoading.value = false;
+      _isDeleting.value = false;
+    }
   }
+
+  final _isDeleting = false.obs;
+  bool get isDeleting => _isDeleting.value;
 
   void showDeleteConfirmation(String propertyId, String propertyTitle) {
     Get.dialog(
-      AlertDialog(
-        title: const Text('Delete Property'),
-        content: Text(
-          'Are you sure you want to delete "$propertyTitle"? This action cannot be undone.',
-        ),
-        actions: [
-          TextButton(onPressed: () => Get.back(), child: const Text('Cancel')),
-          TextButton(
-            onPressed: () {
-              Get.back();
-              deleteProperty(propertyId);
-            },
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Delete'),
+      Dialog(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        insetPadding: EdgeInsets.symmetric(horizontal: 24.w),
+        child: Obx(
+          () => Container(
+            constraints: BoxConstraints(maxWidth: 320.w),
+            decoration: BoxDecoration(
+              color: AppTheme.white,
+              borderRadius: BorderRadius.circular(16.r),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Padding(
+              padding: EdgeInsets.all(20.w),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Compact Icon
+                  Container(
+                    width: 60.w,
+                    height: 60.w,
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade50,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.delete_outline,
+                      size: 28.sp,
+                      color: Colors.red.shade600,
+                    ),
+                  ),
+                  SizedBox(height: 16.h),
+                  
+                  // Title
+                  Text(
+                    'Delete Property?',
+                    style: TextStyle(
+                      fontSize: 18.sp,
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.black,
+                    ),
+                  ),
+                  SizedBox(height: 8.h),
+                  
+                  // Message
+                  Text(
+                    '"$propertyTitle"',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 14.sp,
+                      color: AppTheme.mediumGray,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  SizedBox(height: 4.h),
+                  Text(
+                    'This action cannot be undone',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 12.sp,
+                      color: Colors.red.shade600,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  SizedBox(height: 20.h),
+                  
+                  // Buttons
+                  Row(
+                    children: [
+                      // Cancel Button
+                      Expanded(
+                        child: TextButton(
+                          onPressed: _isDeleting.value
+                              ? null
+                              : () {
+                                  try {
+                                    if (Get.isDialogOpen == true) {
+                                      // Use Navigator directly to avoid snackbar controller issues
+                                      Navigator.of(Get.context!, rootNavigator: true).pop();
+                                    }
+                                  } catch (e) {
+                                    if (kDebugMode) print('Error closing dialog: $e');
+                                    // Try Get.back() as fallback
+                                    try {
+                                      if (Get.isDialogOpen == true) {
+                                        Get.back();
+                                      }
+                                    } catch (_) {}
+                                  }
+                                },
+                          style: TextButton.styleFrom(
+                            padding: EdgeInsets.symmetric(vertical: 12.h),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8.r),
+                              side: BorderSide(
+                                color: AppTheme.mediumGray.withOpacity(0.3),
+                              ),
+                            ),
+                          ),
+                          child: Text(
+                            'Cancel',
+                            style: TextStyle(
+                              fontSize: 14.sp,
+                              fontWeight: FontWeight.w600,
+                              color: AppTheme.darkGray,
+                            ),
+                          ),
+                        ),
+                      ),
+                      SizedBox(width: 12.w),
+                      
+                      // Delete Button
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: _isDeleting.value
+                              ? null
+                              : () async {
+                                  _isDeleting.value = true;
+                                  try {
+                                    // Delete property first
+                                    await deleteProperty(propertyId);
+                                    // Close dialog after deletion completes
+                                    if (Get.isDialogOpen == true) {
+                                      try {
+                                        // Use Navigator directly to avoid snackbar controller issues
+                                        Navigator.of(Get.context!, rootNavigator: true).pop();
+                                      } catch (e) {
+                                        if (kDebugMode) print('Error closing dialog: $e');
+                                        // Try Get.back() as fallback
+                                        try {
+                                          if (Get.isDialogOpen == true) {
+                                            Get.back();
+                                          }
+                                        } catch (_) {}
+                                      }
+                                    }
+                                  } catch (e) {
+                                    if (kDebugMode) print('Error in delete: $e');
+                                    _isDeleting.value = false;
+                                    // Close dialog even on error
+                                    if (Get.isDialogOpen == true) {
+                                      try {
+                                        // Use Navigator directly to avoid snackbar controller issues
+                                        Navigator.of(Get.context!, rootNavigator: true).pop();
+                                      } catch (closeError) {
+                                        if (kDebugMode) print('Error closing dialog: $closeError');
+                                        // Try Get.back() as fallback
+                                        try {
+                                          if (Get.isDialogOpen == true) {
+                                            Get.back();
+                                          }
+                                        } catch (_) {}
+                                      }
+                                    }
+                                  }
+                                },
+                          style: ElevatedButton.styleFrom(
+                            padding: EdgeInsets.symmetric(vertical: 12.h),
+                            backgroundColor: Colors.red.shade600,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8.r),
+                            ),
+                            elevation: 0,
+                          ),
+                          child: _isDeleting.value
+                              ? SizedBox(
+                                  width: 16.w,
+                                  height: 16.w,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                  ),
+                                )
+                              : Text(
+                                  'Delete',
+                                  style: TextStyle(
+                                    fontSize: 14.sp,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
           ),
-        ],
+        ),
       ),
-    );
+      barrierDismissible: !_isDeleting.value,
+      barrierColor: Colors.black.withOpacity(0.5),
+    ).then((_) {
+      // Reset deleting state when dialog closes
+      _isDeleting.value = false;
+    });
   }
 
   void updatePropertyStatus(String propertyId, String newStatus) {

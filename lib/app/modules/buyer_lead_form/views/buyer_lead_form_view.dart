@@ -138,22 +138,26 @@ class BuyerLeadFormView extends GetView<BuyerLeadFormController> {
             ),
             const SizedBox(height: 16),
 
-            _buildRadioGroup(
-              context,
-              'Preferred Contact Method *',
-              controller.preferredContactMethod,
-              controller.contactMethods,
-              controller.setPreferredContactMethod,
+            Obx(
+              () => _buildRadioGroup(
+                context,
+                'Preferred Contact Method *',
+                controller.preferredContactMethod,
+                controller.contactMethods,
+                controller.setPreferredContactMethod,
+              ),
             ),
             const SizedBox(height: 16),
 
-            _buildDropdown(
-              context,
-              'Best Time to Reach You',
-              controller.bestTimeToReach,
-              controller.bestTimes,
-              controller.setBestTimeToReach,
-              Icons.access_time,
+            Obx(
+              () => _buildDropdown(
+                context,
+                'Best Time to Reach You',
+                controller.bestTimeToReach,
+                controller.bestTimes,
+                controller.setBestTimeToReach,
+                Icons.access_time,
+              ),
             ),
 
             const SizedBox(height: 24),
@@ -162,12 +166,14 @@ class BuyerLeadFormView extends GetView<BuyerLeadFormController> {
             _buildSectionHeader(context, 'Buying or Building', Icons.home_work),
             const SizedBox(height: 16),
 
-            _buildRadioGroup(
-              context,
-              'Are you looking to: *',
-              controller.lookingTo,
-              controller.lookingToOptions,
-              controller.setLookingTo,
+            Obx(
+              () => _buildRadioGroup(
+                context,
+                'Are you looking to: *',
+                controller.lookingTo,
+                controller.lookingToOptions,
+                controller.setLookingTo,
+              ),
             ),
             const SizedBox(height: 16),
 
@@ -179,12 +185,14 @@ class BuyerLeadFormView extends GetView<BuyerLeadFormController> {
             ),
             const SizedBox(height: 16),
 
-            _buildRadioGroup(
-              context,
-              'Are you currently living in the area or relocating?',
-              controller.currentlyLiving,
-              controller.livingOptions,
-              controller.setCurrentlyLiving,
+            Obx(
+              () => _buildRadioGroup(
+                context,
+                'Are you currently living in the area or relocating?',
+                controller.currentlyLiving,
+                controller.livingOptions,
+                controller.setCurrentlyLiving,
+              ),
             ),
 
             const SizedBox(height: 24),
@@ -193,49 +201,55 @@ class BuyerLeadFormView extends GetView<BuyerLeadFormController> {
             _buildSectionHeader(context, 'Property Details', Icons.home),
             const SizedBox(height: 16),
 
-            _buildMultiSelectChips(
-              context,
-              'Property Type *',
-              controller.propertyTypes,
-              controller.propertyTypeOptions,
-              controller.togglePropertyType,
+            Obx(
+              () => _buildMultiSelectChips(
+                context,
+                'Property Type *',
+                controller.propertyTypes,
+                controller.propertyTypeOptions,
+                controller.togglePropertyType,
+              ),
             ),
             const SizedBox(height: 16),
 
-            _buildDropdown(
-              context,
-              'Price Range *',
-              controller.priceRange,
-              controller.priceRanges,
-              controller.setPriceRange,
-              Icons.attach_money,
+            Obx(
+              () => _buildDropdown(
+                context,
+                'Price Range *',
+                controller.priceRange,
+                controller.priceRanges,
+                controller.setPriceRange,
+                Icons.attach_money,
+              ),
             ),
             const SizedBox(height: 16),
 
-            Row(
-              children: [
-                Expanded(
-                  child: _buildDropdown(
-                    context,
-                    'Bedrooms',
-                    controller.bedrooms,
-                    controller.bedroomOptions,
-                    controller.setBedrooms,
-                    Icons.bed,
+            Obx(
+              () => Row(
+                children: [
+                  Expanded(
+                    child: _buildDropdown(
+                      context,
+                      'Bedrooms',
+                      controller.bedrooms,
+                      controller.bedroomOptions,
+                      controller.setBedrooms,
+                      Icons.bed,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: _buildDropdown(
-                    context,
-                    'Bathrooms',
-                    controller.bathrooms,
-                    controller.bathroomOptions,
-                    controller.setBathrooms,
-                    Icons.bathtub,
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _buildDropdown(
+                      context,
+                      'Bathrooms',
+                      controller.bathrooms,
+                      controller.bathroomOptions,
+                      controller.setBathrooms,
+                      Icons.bathtub,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
             const SizedBox(height: 16),
 
@@ -257,40 +271,48 @@ class BuyerLeadFormView extends GetView<BuyerLeadFormController> {
             ),
             const SizedBox(height: 16),
 
-            _buildDropdown(
-              context,
-              'What\'s your time frame to buy/build? *',
-              controller.timeFrame,
-              controller.timeFrames,
-              controller.setTimeFrame,
-              Icons.calendar_today,
+            Obx(
+              () => _buildDropdown(
+                context,
+                'What\'s your time frame to buy/build? *',
+                controller.timeFrame,
+                controller.timeFrames,
+                controller.setTimeFrame,
+                Icons.calendar_today,
+              ),
             ),
             const SizedBox(height: 16),
 
-            _buildRadioGroup(
-              context,
-              'Are you currently working with an agent? *',
-              controller.workingWithAgent,
-              controller.yesNoOptions,
-              controller.setWorkingWithAgent,
+            Obx(
+              () => _buildRadioGroup(
+                context,
+                'Are you currently working with an agent? *',
+                controller.workingWithAgent,
+                controller.yesNoOptions,
+                controller.setWorkingWithAgent,
+              ),
             ),
             const SizedBox(height: 16),
 
-            _buildRadioGroup(
-              context,
-              'Have you been pre-approved for a mortgage? *',
-              controller.preApproved,
-              controller.preApprovedOptions,
-              controller.setPreApproved,
+            Obx(
+              () => _buildRadioGroup(
+                context,
+                'Have you been pre-approved for a mortgage? *',
+                controller.preApproved,
+                controller.preApprovedOptions,
+                controller.setPreApproved,
+              ),
             ),
             const SizedBox(height: 16),
 
-            _buildRadioGroup(
-              context,
-              'Would you like to see loan officers whose lenders allow rebates at closing?',
-              controller.searchForLoanOfficers,
-              controller.loanOfficerOptions,
-              controller.setSearchForLoanOfficers,
+            Obx(
+              () => _buildRadioGroup(
+                context,
+                'Would you like to see loan officers whose lenders allow rebates at closing?',
+                controller.searchForLoanOfficers,
+                controller.loanOfficerOptions,
+                controller.setSearchForLoanOfficers,
+              ),
             ),
 
             const SizedBox(height: 24),
@@ -303,22 +325,26 @@ class BuyerLeadFormView extends GetView<BuyerLeadFormController> {
             ),
             const SizedBox(height: 16),
 
-            _buildRadioGroup(
-              context,
-              'Did you know you can receive a real estate commission rebate when buying through one of our agents? *',
-              controller.rebateAwareness,
-              controller.rebateAwarenessOptions,
-              controller.setRebateAwareness,
+            Obx(
+              () => _buildRadioGroup(
+                context,
+                'Did you know you can receive a real estate commission rebate when buying through one of our agents? *',
+                controller.rebateAwareness,
+                controller.rebateAwarenessOptions,
+                controller.setRebateAwareness,
+              ),
             ),
             const SizedBox(height: 16),
 
-            _buildDropdown(
-              context,
-              'How did you hear about us?',
-              controller.howDidYouHear,
-              controller.howDidYouHearOptions,
-              controller.setHowDidYouHear,
-              Icons.info_outline,
+            Obx(
+              () => _buildDropdown(
+                context,
+                'How did you hear about us?',
+                controller.howDidYouHear,
+                controller.howDidYouHearOptions,
+                controller.setHowDidYouHear,
+                Icons.info_outline,
+              ),
             ),
             const SizedBox(height: 16),
 
@@ -404,7 +430,11 @@ class BuyerLeadFormView extends GetView<BuyerLeadFormController> {
                 title: Text(option),
                 value: option,
                 groupValue: selectedValue,
-                onChanged: (value) => onChanged(value ?? ''),
+                onChanged: (value) {
+                  if (value != null) {
+                    onChanged(value);
+                  }
+                },
                 activeColor: AppTheme.primaryBlue,
                 contentPadding: EdgeInsets.zero,
               ),
@@ -489,8 +519,9 @@ class BuyerLeadFormView extends GetView<BuyerLeadFormController> {
           runSpacing: 8,
           children: options.map((option) {
             final isSelected = selectedValues.contains(option);
-            return GestureDetector(
+            return InkWell(
               onTap: () => onToggle(option),
+              borderRadius: BorderRadius.circular(20),
               child: Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 12,

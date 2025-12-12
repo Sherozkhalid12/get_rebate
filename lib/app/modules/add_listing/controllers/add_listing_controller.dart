@@ -3,13 +3,17 @@ import 'package:get/get.dart' hide FormData, MultipartFile;
 import 'package:dio/dio.dart';
 import 'dart:io';
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart' as global;
 import 'package:getrebate/app/routes/app_pages.dart';
+import 'package:getrebate/app/utils/api_constants.dart';
+import 'package:getrebate/app/widgets/custom_snackbar.dart';
 import 'package:get_storage/get_storage.dart';
 
 class AddListingController extends GetxController {
   final Dio _dio = Dio();
-  static const String _baseUrl = 'https://d3bae2a4822b.ngrok-free.app/api/v1';
+  // Using ApiConstants for centralized URL management
+  static String get _baseUrl => ApiConstants.apiBaseUrl;
 
   // Form controllers
   final titleController = TextEditingController();
@@ -30,6 +34,19 @@ class AddListingController extends GetxController {
   final _dualAgencyTotalCommissionPercent =
       5.0.obs; // Default 5% total commission
   final _openHouses = <OpenHouseEntry>[].obs;
+  
+  // Property details fields (for propertyDetails JSON)
+  final _propertyType = 'house'.obs; // Default to 'house'
+  final _propertyStatus = 'active'.obs; // Default to 'active'
+  final _bedrooms = ''.obs;
+  final _bathrooms = ''.obs;
+  final _squareFeet = ''.obs;
+  
+  // Property features (array)
+  final _propertyFeatures = <String>[].obs;
+  
+  // Status field (separate from propertyDetails.status)
+  final _listingStatus = 'active'.obs; // Default to 'active'
 
   // Getters
   bool get isLoading => _isLoading.value;
@@ -43,6 +60,27 @@ class AddListingController extends GetxController {
       _dualAgencyTotalCommissionPercent.value;
   List<OpenHouseEntry> get openHouses => _openHouses;
   bool get canAddMoreOpenHouses => _openHouses.length < 4;
+  String get propertyType => _propertyType.value;
+  String get propertyStatus => _propertyStatus.value;
+  String get bedrooms => _bedrooms.value;
+  String get bathrooms => _bathrooms.value;
+  String get squareFeet => _squareFeet.value;
+  List<String> get propertyFeatures => _propertyFeatures;
+  String get listingStatus => _listingStatus.value;
+  
+  void setPropertyType(String type) => _propertyType.value = type;
+  void setPropertyStatus(String status) => _propertyStatus.value = status;
+  void setBedrooms(String value) => _bedrooms.value = value;
+  void setBathrooms(String value) => _bathrooms.value = value;
+  void setSquareFeet(String value) => _squareFeet.value = value;
+  void togglePropertyFeature(String feature) {
+    if (_propertyFeatures.contains(feature)) {
+      _propertyFeatures.remove(feature);
+    } else {
+      _propertyFeatures.add(feature);
+    }
+  }
+  void setListingStatus(String status) => _listingStatus.value = status;
 
   @override
   void onInit() {
@@ -147,14 +185,15 @@ class AddListingController extends GetxController {
       final authToken = GetStorage().read('auth_token');
 
       if (agentId.isEmpty) {
-        Get.snackbar('Error', 'Please login to create a listing');
+        _isLoading.value = false;
+        CustomSnackbar.showError('Please login to create a listing');
         return;
       }
 
       // Prepare form data
       final formData = FormData();
 
-      // Add text fields
+      // Add text fields (matching API exactly)
       formData.fields.addAll([
         MapEntry('propertyTitle', titleController.text.trim()),
         MapEntry('description', descriptionController.text.trim()),
@@ -167,27 +206,37 @@ class AddListingController extends GetxController {
         MapEntry('state', stateController.text.trim()),
         MapEntry('zipCode', zipCodeController.text.trim()),
         MapEntry('id', agentId),
+        MapEntry('status', _listingStatus.value), // Status field
+        MapEntry('createdByRole', 'agent'), // Always 'agent' for this form
       ]);
 
-      // Format open houses as JSON array
-      if (_openHouses.isNotEmpty) {
-        final openHousesJson = _openHouses.map((oh) {
-          final dateStr = oh.date.toIso8601String().split('T')[0]; // YYYY-MM-DD
-          final startTimeStr = _formatTimeOfDay(oh.startTime);
-          final endTimeStr = _formatTimeOfDay(oh.endTime);
+      // Format open houses as JSON array (matching API format)
+      final openHousesJson = _openHouses.map((oh) {
+        final dateStr = oh.date.toIso8601String().split('T')[0]; // YYYY-MM-DD
+        final startTimeStr = _formatTimeOfDay(oh.startTime);
+        final endTimeStr = _formatTimeOfDay(oh.endTime);
 
-          return {
-            'date': dateStr,
-            'fromTime': startTimeStr,
-            'toTime': endTimeStr,
-            'notes': oh.notes,
-          };
-        }).toList();
+        return {
+          'date': dateStr,
+          'fromTime': startTimeStr,
+          'toTime': endTimeStr,
+          if (oh.notes.isNotEmpty) 'specialNote': oh.notes,
+        };
+      }).toList();
+      formData.fields.add(MapEntry('openHouses', jsonEncode(openHousesJson)));
 
-        formData.fields.add(MapEntry('openHouses', jsonEncode(openHousesJson)));
-      } else {
-        formData.fields.add(MapEntry('openHouses', jsonEncode([])));
-      }
+      // Format propertyDetails as JSON object
+      final propertyDetailsJson = {
+        'type': _propertyType.value,
+        'status': _propertyStatus.value,
+        if (_squareFeet.value.isNotEmpty) 'squareFeet': _squareFeet.value,
+        if (_bedrooms.value.isNotEmpty) 'bedrooms': _bedrooms.value,
+        if (_bathrooms.value.isNotEmpty) 'bathrooms': _bathrooms.value,
+      };
+      formData.fields.add(MapEntry('propertyDetails', jsonEncode(propertyDetailsJson)));
+
+      // Format propertyFeatures as JSON array
+      formData.fields.add(MapEntry('propertyFeatures', jsonEncode(_propertyFeatures)));
 
       // Add property photos (files)
       for (var photo in _selectedPhotos) {
@@ -200,56 +249,80 @@ class AddListingController extends GetxController {
         );
       }
 
-      print('🚀 Sending POST request to: $_baseUrl/agent/createListing/');
-      print('📤 Request Data:');
-      print('  - propertyTitle: ${titleController.text.trim()}');
-      print('  - description: ${descriptionController.text.trim()}');
-      print('  - price: ${priceController.text.trim()}');
-      print('  - BACPercentage: ${_bacPercent.value}');
-      print('  - listingAgent: ${_isListingAgent.value ?? false}');
-      print('  - dualAgencyAllowed: ${_dualAgencyAllowed.value}');
-      print('  - streetAddress: ${addressController.text.trim()}');
-      print('  - city: ${cityController.text.trim()}');
-      print('  - state: ${stateController.text.trim()}');
-      print('  - zipCode: ${zipCodeController.text.trim()}');
-      print('  - id: $agentId');
-      print('  - propertyPhotos: ${_selectedPhotos.length} file(s)');
-      print('  - openHouses: ${_openHouses.length} entry(ies)');
+      if (kDebugMode) {
+        print('🚀 Sending POST request to: ${ApiConstants.createListingEndpoint}');
+        print('📤 Request Data:');
+        print('  - propertyTitle: ${titleController.text.trim()}');
+        print('  - description: ${descriptionController.text.trim()}');
+        print('  - price: ${priceController.text.trim()}');
+        print('  - BACPercentage: ${_bacPercent.value}');
+        print('  - listingAgent: ${_isListingAgent.value ?? false}');
+        print('  - dualAgencyAllowed: ${_dualAgencyAllowed.value}');
+        print('  - streetAddress: ${addressController.text.trim()}');
+        print('  - city: ${cityController.text.trim()}');
+        print('  - state: ${stateController.text.trim()}');
+        print('  - zipCode: ${zipCodeController.text.trim()}');
+        print('  - id: $agentId');
+        print('  - status: ${_listingStatus.value}');
+        print('  - createdByRole: agent');
+        print('  - propertyDetails: $propertyDetailsJson');
+        print('  - propertyFeatures: $_propertyFeatures');
+        print('  - propertyPhotos: ${_selectedPhotos.length} file(s)');
+        print('  - openHouses: ${_openHouses.length} entry(ies)');
+      }
 
-      // Setup Dio with auth token
-      _dio.options.baseUrl = _baseUrl;
+      // Setup Dio with auth token and timeouts
+      _dio.options.baseUrl = ApiConstants.apiBaseUrl;
       _dio.options.headers = {
-        'Content-Type': 'multipart/form-data',
-        'ngrok-skip-browser-warning': 'true',
+        ...ApiConstants.ngrokHeaders,
         if (authToken != null) 'Authorization': 'Bearer $authToken',
       };
+      _dio.options.connectTimeout = const Duration(seconds: 30);
+      _dio.options.receiveTimeout = const Duration(seconds: 30);
+      _dio.options.sendTimeout = const Duration(seconds: 30);
 
       // Make API call
-      final response = await _dio.post('/agent/createListing/', data: formData);
+      final response = await _dio.post(
+        ApiConstants.createListingEndpoint,
+        data: formData,
+        options: Options(
+          headers: {
+            ...ApiConstants.ngrokHeaders,
+            if (authToken != null) 'Authorization': 'Bearer $authToken',
+          },
+        ),
+      );
 
       // Handle successful response
       if (response.statusCode == 200 || response.statusCode == 201) {
-        print('✅ SUCCESS - Status Code: ${response.statusCode}');
-        print('📥 Response Data:');
-        print(response.data);
-        print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        if (kDebugMode) {
+          print('✅ SUCCESS - Status Code: ${response.statusCode}');
+          print('📥 Response Data:');
+          print(response.data);
+          print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        }
 
-        Get.snackbar(
+        _isLoading.value = false;
+        
+        // Show success snackbar
+        CustomSnackbar.showSuccess(
           'Success',
           'Listing created successfully!',
-          backgroundColor: Colors.green,
-          colorText: Colors.white,
         );
 
-        // Navigate to agent home page
-        Get.offAllNamed(AppPages.AGENT);
+        // Navigate back after a short delay
+        await Future.delayed(const Duration(milliseconds: 500));
+        Get.back();
       }
     } on DioException catch (e) {
-      // Handle Dio errors
-      print('❌ ERROR - Status Code: ${e.response?.statusCode ?? "N/A"}');
-      print('📥 Error Response:');
-      print(e.response?.data ?? e.message);
-      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      _isLoading.value = false;
+      
+      if (kDebugMode) {
+        print('❌ ERROR - Status Code: ${e.response?.statusCode ?? "N/A"}');
+        print('📥 Error Response:');
+        print(e.response?.data ?? e.message);
+        print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      }
 
       String errorMessage = 'Failed to create listing. Please try again.';
 
@@ -257,10 +330,14 @@ class AddListingController extends GetxController {
         final responseData = e.response?.data;
         if (responseData is Map && responseData.containsKey('message')) {
           errorMessage = responseData['message'].toString();
+        } else if (responseData is Map && responseData.containsKey('error')) {
+          errorMessage = responseData['error'].toString();
         } else if (e.response?.statusCode == 401) {
           errorMessage = 'Unauthorized. Please login again.';
         } else if (e.response?.statusCode == 400) {
           errorMessage = 'Invalid request. Please check your input.';
+        } else if (e.response?.statusCode == 500) {
+          errorMessage = 'Server error. Please try again later.';
         } else {
           errorMessage = e.response?.statusMessage ?? errorMessage;
         }
@@ -272,13 +349,16 @@ class AddListingController extends GetxController {
         errorMessage = 'No internet connection. Please check your network.';
       }
 
-      Get.snackbar('Error', errorMessage);
+      CustomSnackbar.showError(errorMessage);
     } catch (e) {
-      print('❌ Unexpected Error: ${e.toString()}');
-      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      Get.snackbar('Error', 'Failed to create listing: ${e.toString()}');
-    } finally {
       _isLoading.value = false;
+      
+      if (kDebugMode) {
+        print('❌ Unexpected Error: ${e.toString()}');
+        print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      }
+      
+      CustomSnackbar.showError('Failed to create listing: ${e.toString()}');
     }
   }
 
@@ -293,65 +373,50 @@ class AddListingController extends GetxController {
 
   bool _validateForm() {
     if (titleController.text.trim().isEmpty) {
-      Get.snackbar('Error', 'Please enter a title');
+      CustomSnackbar.showValidation('Please enter a property title');
       return false;
     }
 
     if (descriptionController.text.trim().isEmpty) {
-      Get.snackbar('Error', 'Please enter a description');
+      CustomSnackbar.showValidation('Please enter a property description');
       return false;
     }
 
     if (priceController.text.trim().isEmpty) {
-      Get.snackbar('Error', 'Please enter a price');
+      CustomSnackbar.showValidation('Please enter a price');
       return false;
     }
 
-    final price = double.tryParse(priceController.text);
+    final price = double.tryParse(priceController.text.trim());
     if (price == null || price <= 0) {
-      Get.snackbar('Error', 'Please enter a valid price');
+      CustomSnackbar.showValidation('Please enter a valid price');
       return false;
     }
 
     if (addressController.text.trim().isEmpty) {
-      Get.snackbar('Error', 'Please enter an address');
+      CustomSnackbar.showValidation('Please enter a street address');
       return false;
     }
 
     if (cityController.text.trim().isEmpty) {
-      Get.snackbar('Error', 'Please enter a city');
+      CustomSnackbar.showValidation('Please enter a city');
       return false;
     }
 
     if (stateController.text.trim().isEmpty) {
-      Get.snackbar('Error', 'Please enter a state');
+      CustomSnackbar.showValidation('Please enter a state');
       return false;
     }
 
     if (zipCodeController.text.trim().isEmpty) {
-      Get.snackbar('Error', 'Please enter a ZIP code');
+      CustomSnackbar.showValidation('Please enter a ZIP code');
       return false;
     }
 
     // CRITICAL: Verify listing agent status
     if (_isListingAgent.value == null) {
-      Get.snackbar(
-        'Error',
-        'Please confirm if you are the listing agent for this property',
-        duration: const Duration(seconds: 4),
-      );
+      CustomSnackbar.showValidation('Please confirm if you are the listing agent for this property');
       return false;
-    }
-
-    // Warning if not the listing agent
-    if (_isListingAgent.value == false) {
-      Get.snackbar(
-        'Warning',
-        'You indicated you are NOT the listing agent. Dual agency will not be available, and commission structure may differ.',
-        duration: const Duration(seconds: 5),
-        backgroundColor: Colors.orange,
-        colorText: Colors.white,
-      );
     }
 
     return true;

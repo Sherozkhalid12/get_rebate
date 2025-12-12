@@ -1,7 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:dio/dio.dart';
+import 'package:getrebate/app/services/lead_service.dart';
+import 'package:getrebate/app/controllers/auth_controller.dart';
+import 'package:getrebate/app/widgets/custom_snackbar.dart';
+import 'package:flutter/foundation.dart';
 
 class BuyerLeadFormController extends GetxController {
+  final _leadService = LeadService();
+  final _authController = Get.find<AuthController>();
+  
+  // Store property and agent info from arguments
+  Map<String, dynamic>? _property;
+  Map<String, dynamic>? _agent;
   // Form controllers
   final fullNameController = TextEditingController();
   final emailController = TextEditingController();
@@ -108,6 +119,19 @@ class BuyerLeadFormController extends GetxController {
     // Set default values
     _preferredContactMethod.value = 'Email';
     _lookingTo.value = 'Buy existing home';
+    
+    // Get arguments (property and agent info)
+    final arguments = Get.arguments;
+    if (arguments != null) {
+      _property = arguments['property'] as Map<String, dynamic>?;
+      _agent = arguments['agent'] as Map<String, dynamic>?;
+      
+      if (kDebugMode) {
+        print('📋 Buyer Lead Form initialized');
+        print('   Property: ${_property?['id'] ?? 'N/A'}');
+        print('   Agent: ${_agent?['id'] ?? 'N/A'}');
+      }
+    }
   }
 
   // Setters
@@ -190,37 +214,287 @@ class BuyerLeadFormController extends GetxController {
         _rebateAwareness.value.isNotEmpty;
   }
 
+  // Validate form and return specific error message
+  String? validateForm() {
+    if (fullNameController.text.trim().isEmpty) {
+      return 'Please enter your full name';
+    }
+
+    if (emailController.text.trim().isEmpty) {
+      return 'Please enter your email address';
+    }
+
+    // Email format validation
+    final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+    if (!emailRegex.hasMatch(emailController.text.trim())) {
+      return 'Please enter a valid email address';
+    }
+
+    if (phoneController.text.trim().isEmpty) {
+      return 'Please enter your phone number';
+    }
+
+    // Basic phone validation (at least 10 digits)
+    final phoneDigits = phoneController.text.replaceAll(RegExp(r'[^\d]'), '');
+    if (phoneDigits.length < 10) {
+      return 'Please enter a valid phone number (at least 10 digits)';
+    }
+
+    if (locationController.text.trim().isEmpty) {
+      return 'Please enter where you are planning to buy or build';
+    }
+
+    if (_lookingTo.value.isEmpty) {
+      return 'Please select whether you are buying or building';
+    }
+
+    if (_propertyTypes.isEmpty) {
+      return 'Please select at least one property type';
+    }
+
+    if (_priceRange.value.isEmpty) {
+      return 'Please select your price range';
+    }
+
+    if (_timeFrame.value.isEmpty) {
+      return 'Please select your time frame to buy/build';
+    }
+
+    if (_workingWithAgent.value.isEmpty) {
+      return 'Please indicate if you are currently working with an agent';
+    }
+
+    if (_preApproved.value.isEmpty) {
+      return 'Please indicate if you have been pre-approved for a mortgage';
+    }
+
+    if (_rebateAwareness.value.isEmpty) {
+      return 'Please indicate if you know about commission rebates';
+    }
+
+    return null; // Form is valid
+  }
+
   // Submit form
   Future<void> submitForm() async {
-    if (!isFormValid()) {
-      Get.snackbar('Error', 'Please fill in all required fields');
+    if (kDebugMode) {
+      print('🔘 Submit button pressed');
+    }
+
+    // Validate form and show specific error message
+    final validationError = validateForm();
+    if (validationError != null) {
+      if (kDebugMode) {
+        print('❌ Form validation failed: $validationError');
+      }
+      CustomSnackbar.showValidation(validationError);
       return;
     }
 
     _isLoading.value = true;
 
-    try {
-      // TODO: Implement API call to submit lead form
-      await Future.delayed(const Duration(seconds: 2)); // Simulate API call
+    if (kDebugMode) {
+      print('✅ Form validation passed, submitting...');
+    }
 
-      Get.snackbar(
-        'Success',
-        'Your information has been submitted successfully! A local agent will contact you soon.',
-        backgroundColor: Colors.green,
-        colorText: Colors.white,
-      );
+    try {
+      // Get current user
+      final currentUser = _authController.currentUser;
+      if (currentUser == null) {
+        _isLoading.value = false;
+        CustomSnackbar.showError('Please log in to submit a lead');
+        return;
+      }
+
+      // Get agent ID from property or agent argument
+      final agentId = _agent?['id']?.toString() ?? 
+                     _property?['agent']?['id']?.toString() ?? 
+                     _agent?['_id']?.toString() ??
+                     _property?['agentId']?.toString();
+      
+      if (agentId == null || agentId.isEmpty) {
+        _isLoading.value = false;
+        CustomSnackbar.showError('Agent information is missing. Please try again.');
+        return;
+      }
+
+      // Map form data to API format - only fields that exist in the frontend form
+      final leadData = <String, dynamic>{
+        'agentId': agentId,
+        'currentUserId': currentUser.id,
+        'leadType': 'buyer', // Identify this as a buyer lead
+        'fullName': fullNameController.text.trim(),
+        'email': emailController.text.trim(),
+        'phone': phoneController.text.trim(),
+        'preferredContact': _preferredContactMethod.value.toLowerCase(),
+      };
+
+      // Optional fields - only add if they have values
+      if (_bestTimeToReach.value.isNotEmpty) {
+        leadData['bestTime'] = _bestTimeToReach.value;
+      }
+
+      if (_lookingTo.value.isNotEmpty) {
+        leadData['buyingOrBuilding'] = _lookingTo.value.toLowerCase().contains('build') 
+            ? 'building' 
+            : 'buying';
+      }
+
+      if (_propertyTypes.isNotEmpty) {
+        leadData['propertyType'] = _propertyTypes.join(', ');
+      }
+
+      if (_priceRange.value.isNotEmpty) {
+        leadData['priceRange'] = _priceRange.value;
+      }
+
+      if (_bedrooms.value.isNotEmpty) {
+        leadData['bedrooms'] = int.tryParse(_bedrooms.value.replaceAll('+', '')) ?? 0;
+      }
+
+      if (_bathrooms.value.isNotEmpty) {
+        leadData['bathrooms'] = double.tryParse(_bathrooms.value.replaceAll('+', '')) ?? 0.0;
+      }
+
+      if (_workingWithAgent.value.isNotEmpty) {
+        leadData['workingWithAgent'] = _workingWithAgent.value.toLowerCase() == 'yes';
+      }
+
+      if (_rebateAwareness.value.isNotEmpty) {
+        leadData['rebateAwareness'] = _rebateAwareness.value;
+      }
+
+      if (_howDidYouHear.value.isNotEmpty) {
+        leadData['howHeard'] = _howDidYouHear.value;
+      }
+
+      // Comments - combine if both exist
+      final comments = <String>[];
+      if (commentsController.text.trim().isNotEmpty) {
+        comments.add(commentsController.text.trim());
+      }
+      if (mustHaveFeaturesController.text.trim().isNotEmpty) {
+        comments.add('Must have features: ${mustHaveFeaturesController.text.trim()}');
+      }
+      if (comments.isNotEmpty) {
+        leadData['comments'] = comments.join(' | ');
+      }
+
+      // Currently living
+      if (_currentlyLiving.value.isNotEmpty) {
+        leadData['currentlyLiving'] = _currentlyLiving.value;
+      }
+
+      // Time frame
+      if (_timeFrame.value.isNotEmpty) {
+        leadData['timeFrame'] = _timeFrame.value;
+      }
+
+      // Pre-approved
+      if (_preApproved.value.isNotEmpty) {
+        leadData['preApproved'] = _preApproved.value;
+      }
+
+      // Search for loan officers
+      if (_searchForLoanOfficers.value.isNotEmpty) {
+        leadData['searchForLoanOfficers'] = _searchForLoanOfficers.value;
+      }
+
+      // Add property information if available
+      if (_property != null) {
+        leadData['propertyInformation'] = {
+          'propertyAddress': _property!['address']?.toString() ?? locationController.text.trim(),
+          'city': _property!['city']?.toString() ?? '',
+          'zipCode': _property!['zip']?.toString() ?? '',
+          'yearBuilt': _property!['yearBuilt']?.toString() ?? '',
+          'squareFeet': _property!['sqft']?.toString() ?? '',
+        };
+      } else if (locationController.text.trim().isNotEmpty) {
+        // If no property but location is provided
+        leadData['propertyInformation'] = {
+          'propertyAddress': locationController.text.trim(),
+          'city': '',
+          'zipCode': '',
+          'yearBuilt': '',
+          'squareFeet': '',
+        };
+      }
+
+      if (kDebugMode) {
+        print('📤 Submitting buyer lead...');
+        print('   Agent ID: $agentId');
+        print('   User ID: ${currentUser.id}');
+      }
+
+      // Submit to API - using unified createLead endpoint
+      await _leadService.createLead(leadData, leadType: 'buyer');
+
+      // Reset loading state first
+      _isLoading.value = false;
 
       // Reset form
       resetForm();
 
-      // Navigate back or to next screen
+      // Navigate back first to ensure we have proper context
       Get.back();
-    } catch (e) {
-      Get.snackbar('Error', 'Failed to submit form. Please try again.');
-    } finally {
+
+      // Show success message after navigation (with delay to ensure context is ready)
+      await Future.delayed(const Duration(milliseconds: 300));
+      CustomSnackbar.showSuccess(
+        'Lead Submitted Successfully!',
+        'A local agent will contact you soon.',
+      );
+    } on DioException catch (e) {
       _isLoading.value = false;
+      if (kDebugMode) {
+        print('❌ DioException submitting buyer lead: $e');
+        print('   Status Code: ${e.response?.statusCode}');
+        print('   Response: ${e.response?.data}');
+      }
+      
+      String errorMessage = 'Failed to submit lead form. Please try again.';
+      
+      if (e.response?.statusCode == 400) {
+        errorMessage = 'Invalid form data. Please check all fields and try again.';
+      } else if (e.response?.statusCode == 401) {
+        errorMessage = 'Please log in to submit a lead.';
+      } else if (e.response?.statusCode == 404) {
+        errorMessage = 'Agent not found. Please try again.';
+      } else if (e.response?.statusCode == 500) {
+        errorMessage = 'Server error. Please try again later.';
+      } else if (e.response?.data != null) {
+        final errorData = e.response!.data;
+        if (errorData is Map<String, dynamic>) {
+          errorMessage = errorData['message']?.toString() ?? 
+                        errorData['error']?.toString() ?? 
+                        errorMessage;
+        } else if (errorData is String) {
+          errorMessage = errorData;
+        }
+      } else if (e.type == DioExceptionType.connectionTimeout || 
+                 e.type == DioExceptionType.receiveTimeout) {
+        errorMessage = 'Connection timeout. Please check your internet and try again.';
+      } else if (e.type == DioExceptionType.connectionError) {
+        errorMessage = 'No internet connection. Please check your network and try again.';
+      }
+      
+      CustomSnackbar.showError(errorMessage);
+    } catch (e) {
+      _isLoading.value = false;
+      if (kDebugMode) {
+        print('❌ Unexpected error submitting buyer lead: $e');
+        print('   Error type: ${e.runtimeType}');
+      }
+      
+      String errorMessage = 'An unexpected error occurred. Please try again.';
+      if (e.toString().contains('Exception')) {
+        errorMessage = e.toString().replaceAll('Exception: ', '');
+      }
+      
+      CustomSnackbar.showError(errorMessage);
     }
   }
+
 
   void resetForm() {
     fullNameController.clear();
