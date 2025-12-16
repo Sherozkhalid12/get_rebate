@@ -45,10 +45,16 @@ class LoanOfficerCard extends StatelessWidget {
                 child: CircleAvatar(
                   radius: 27,
                   backgroundColor: Colors.white,
-                  backgroundImage: loanOfficer.profileImage != null
+                  backgroundImage: (loanOfficer.profileImage != null && 
+                                    loanOfficer.profileImage!.isNotEmpty &&
+                                    (loanOfficer.profileImage!.startsWith('http://') || 
+                                     loanOfficer.profileImage!.startsWith('https://')))
                       ? NetworkImage(loanOfficer.profileImage!)
                       : null,
-                  child: loanOfficer.profileImage == null
+                  child: (loanOfficer.profileImage == null || 
+                         loanOfficer.profileImage!.isEmpty ||
+                         (!loanOfficer.profileImage!.startsWith('http://') && 
+                          !loanOfficer.profileImage!.startsWith('https://')))
                       ? const Icon(
                           Icons.account_balance,
                           color: AppTheme.lightGreen,

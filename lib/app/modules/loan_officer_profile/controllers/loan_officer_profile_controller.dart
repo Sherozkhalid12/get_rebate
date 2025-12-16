@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
+import 'package:get_storage/get_storage.dart';
+import 'package:dio/dio.dart';
 import 'package:getrebate/app/models/loan_officer_model.dart';
 import 'package:getrebate/app/models/mortgage_types.dart';
 import 'package:getrebate/app/controllers/main_navigation_controller.dart';
+import 'package:getrebate/app/controllers/auth_controller.dart';
 import 'package:getrebate/app/modules/messages/controllers/messages_controller.dart';
+import 'package:getrebate/app/utils/api_constants.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 
 class LoanOfficerProfileController extends GetxController {
@@ -11,7 +16,11 @@ class LoanOfficerProfileController extends GetxController {
   final _loanOfficer = Rxn<LoanOfficerModel>();
   final _isFavorite = false.obs;
   final _isLoading = false.obs;
+  final _isTogglingFavorite = false.obs;
   final _selectedTab = 0.obs; // 0: Overview, 1: Reviews, 2: Loan Programs
+  
+  // Dio for API calls
+  final Dio _dio = Dio();
 
   // Getters
   LoanOfficerModel? get loanOfficer => _loanOfficer.value;
@@ -22,7 +31,18 @@ class LoanOfficerProfileController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    _setupDio();
     _loadLoanOfficerData();
+  }
+  
+  void _setupDio() {
+    _dio.options.baseUrl = ApiConstants.baseUrl;
+    _dio.options.connectTimeout = const Duration(seconds: 30);
+    _dio.options.receiveTimeout = const Duration(seconds: 30);
+    _dio.options.headers = {
+      ...ApiConstants.ngrokHeaders,
+      'Content-Type': 'application/json',
+    };
   }
 
   void _loadLoanOfficerData() {
@@ -68,14 +88,124 @@ class LoanOfficerProfileController extends GetxController {
     _selectedTab.value = index;
   }
 
-  void toggleFavorite() {
-    _isFavorite.value = !_isFavorite.value;
-    Get.snackbar(
-      _isFavorite.value ? 'Added to Favorites' : 'Removed from Favorites',
-      _isFavorite.value
-          ? 'Loan officer added to your favorites'
-          : 'Loan officer removed from your favorites',
-    );
+  Future<void> toggleFavorite() async {
+    if (_loanOfficer.value == null) return;
+    if (_isTogglingFavorite.value) return; // Prevent multiple simultaneous calls
+    
+    try {
+      _isTogglingFavorite.value = true;
+      
+      // Get current user ID
+      final authController = Get.find<AuthController>();
+      final currentUser = authController.currentUser;
+      
+      if (currentUser == null || currentUser.id.isEmpty) {
+        Get.snackbar(
+          'Error',
+          'Please login to like loan officers',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+          duration: const Duration(seconds: 2),
+        );
+        return;
+      }
+      
+      final loanOfficerId = _loanOfficer.value!.id;
+      // Use the same endpoint pattern - assuming loan officers can be liked via the agent endpoint
+      // If there's a separate endpoint, update ApiConstants.getLikeLoanOfficerEndpoint
+      final endpoint = ApiConstants.getLikeLoanOfficerEndpoint(loanOfficerId);
+      
+      // Get auth token
+      final GetStorage storage = GetStorage();
+      final authToken = storage.read('auth_token');
+      
+      // Setup Dio headers
+      _dio.options.headers = {
+        ...ApiConstants.ngrokHeaders,
+        'Content-Type': 'application/json',
+        if (authToken != null) 'Authorization': 'Bearer $authToken',
+      };
+      
+      if (kDebugMode) {
+        print('❤️ Toggling favorite for loan officer: $loanOfficerId');
+        print('   Endpoint: $endpoint');
+        print('   Current User ID: ${currentUser.id}');
+      }
+      
+      // Make API call with currentUserId in body
+      final response = await _dio.post(
+        endpoint,
+        data: {'currentUserId': currentUser.id},
+      );
+      
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final responseData = response.data;
+        final success = responseData['success'] ?? false;
+        final isLiked = responseData['isLiked'] ?? false;
+        final action = responseData['action'] ?? 'liked';
+        final message = responseData['message'] ?? 'Success';
+        
+        if (success) {
+          // Update favorite state based on API response
+          _isFavorite.value = isLiked;
+          
+          // Show snackbar with appropriate message
+          Get.snackbar(
+            action == 'liked' ? 'Added to Favorites' : 'Removed from Favorites',
+            message.isNotEmpty 
+                ? message 
+                : (isLiked 
+                    ? 'Loan officer added to your favorites' 
+                    : 'Loan officer removed from your favorites'),
+            snackPosition: SnackPosition.BOTTOM,
+            backgroundColor: isLiked ? AppTheme.lightGreen : AppTheme.mediumGray,
+            colorText: Colors.white,
+            duration: const Duration(seconds: 2),
+            margin: const EdgeInsets.all(16),
+          );
+          
+          if (kDebugMode) {
+            print('✅ Favorite toggled successfully: $isLiked');
+          }
+        } else {
+          throw Exception(message);
+        }
+      } else {
+        throw Exception('Failed to update favorite status');
+      }
+    } on DioException catch (e) {
+      if (kDebugMode) {
+        print('❌ Error toggling favorite: ${e.response?.statusCode ?? "N/A"}');
+        print('   ${e.response?.data ?? e.message}');
+      }
+      
+      Get.snackbar(
+        'Error',
+        e.response?.data['message']?.toString() ?? 'Failed to update favorite. Please try again.',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+        duration: const Duration(seconds: 3),
+        margin: const EdgeInsets.all(16),
+      );
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Unexpected error toggling favorite: $e');
+      }
+      
+      Get.snackbar(
+        'Error',
+        'An unexpected error occurred. Please try again.',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+        duration: const Duration(seconds: 3),
+        margin: const EdgeInsets.all(16),
+      );
+    } finally {
+      _isTogglingFavorite.value = false;
+    }
   }
 
   void contactLoanOfficer() {

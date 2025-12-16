@@ -1,18 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
+import 'package:get_storage/get_storage.dart';
+import 'package:dio/dio.dart';
 import 'package:getrebate/app/models/agent_model.dart';
 import 'package:getrebate/app/models/loan_officer_model.dart';
 import 'package:getrebate/app/models/mortgage_types.dart';
 import 'package:getrebate/app/routes/app_pages.dart';
 import 'package:getrebate/app/models/listing.dart';
 import 'package:getrebate/app/models/open_house_model.dart';
+import 'package:getrebate/app/models/agent_listing_model.dart';
 import 'package:getrebate/app/services/listing_service.dart';
 import 'package:getrebate/app/services/agent_service.dart';
 import 'package:getrebate/app/services/loan_officer_service.dart';
 import 'package:getrebate/app/controllers/location_controller.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart';
 import 'package:getrebate/app/modules/messages/controllers/messages_controller.dart';
+import 'package:getrebate/app/modules/favorites/controllers/favorites_controller.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 
@@ -35,11 +39,15 @@ class BuyerController extends GetxController {
   final _favoriteLoanOfficers = <String>[].obs;
   final _isLoading = false.obs;
   final _selectedBuyerAgent = Rxn<AgentModel>(); // Track the buyer's selected agent
+  final _togglingFavorites = <String>{}.obs; // Track which IDs are currently being toggled
 
   // Services
   final ListingService _listingService = InMemoryListingService();
   final AgentService _agentService = AgentService();
   final LoanOfficerService _loanOfficerService = LoanOfficerService();
+  
+  // Dio for API calls
+  final Dio _dio = Dio();
 
   // Getters
   String get searchQuery => _searchQuery.value;
@@ -58,10 +66,21 @@ class BuyerController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    _setupDio();
     _printUserId();
     _loadMockData();
     searchController.addListener(_onSearchChanged);
     _preloadThreads();
+  }
+  
+  void _setupDio() {
+    _dio.options.baseUrl = ApiConstants.baseUrl;
+    _dio.options.connectTimeout = const Duration(seconds: 30);
+    _dio.options.receiveTimeout = const Duration(seconds: 30);
+    _dio.options.headers = {
+      ...ApiConstants.ngrokHeaders,
+      'Content-Type': 'application/json',
+    };
   }
 
   /// Preloads chat threads for instant access when user opens messages
@@ -122,9 +141,9 @@ class BuyerController extends GetxController {
     await _loadAgentsFromAPI();
     await _loadLoanOfficersFromAPI();
     
-    // Load mock listings and open houses (until API is ready)
-    await _seedMockListings();
-    _loadMockOpenHouses();
+    // Load listings and open houses from API
+    await _loadListingsFromAPI();
+    _extractOpenHousesFromListings();
   }
 
   /// Loads agents from the API
@@ -158,6 +177,23 @@ class BuyerController extends GetxController {
       }).toList();
       
       _agents.value = agentsWithUrls;
+      
+      // Initialize favorite agents list based on likes array from API
+      final currentUser = _authController.currentUser;
+      if (currentUser != null && currentUser.id.isNotEmpty) {
+        _favoriteAgents.clear();
+        for (final agent in agentsWithUrls) {
+          if (agent.likes != null && agent.likes!.contains(currentUser.id)) {
+            if (!_favoriteAgents.contains(agent.id)) {
+              _favoriteAgents.add(agent.id);
+            }
+          }
+        }
+        if (kDebugMode) {
+          print('✅ Initialized ${_favoriteAgents.length} favorite agents from API likes');
+        }
+      }
+      
       print('✅ Loaded ${agentsWithUrls.length} agents from API');
     } catch (e) {
       print('❌ Error loading agents: $e');
@@ -202,6 +238,22 @@ class BuyerController extends GetxController {
       
       _loanOfficers.value = loanOfficersWithUrls;
       
+      // Initialize favorite loan officers list based on likes array from API
+      final currentUser = _authController.currentUser;
+      if (currentUser != null && currentUser.id.isNotEmpty) {
+        _favoriteLoanOfficers.clear();
+        for (final loanOfficer in loanOfficersWithUrls) {
+          if (loanOfficer.likes != null && loanOfficer.likes!.contains(currentUser.id)) {
+            if (!_favoriteLoanOfficers.contains(loanOfficer.id)) {
+              _favoriteLoanOfficers.add(loanOfficer.id);
+            }
+          }
+        }
+        if (kDebugMode) {
+          print('✅ Initialized ${_favoriteLoanOfficers.length} favorite loan officers from API likes');
+        }
+      }
+      
       if (kDebugMode) {
         print('✅ Loaded ${loanOfficersWithUrls.length} loan officers from API');
       }
@@ -212,6 +264,209 @@ class BuyerController extends GetxController {
       // Don't show snackbar - it causes overlay errors on initial load
       // Just log the error and keep empty list
       _loanOfficers.value = [];
+    }
+  }
+
+  /// Loads listings from the API
+  Future<void> _loadListingsFromAPI() async {
+    try {
+      if (kDebugMode) {
+        print('📡 Fetching listings from API...');
+      }
+      
+      // Setup Dio headers
+      final GetStorage storage = GetStorage();
+      final authToken = storage.read('auth_token');
+      
+      _dio.options.headers = {
+        ...ApiConstants.ngrokHeaders,
+        'Content-Type': 'application/json',
+        if (authToken != null) 'Authorization': 'Bearer $authToken',
+      };
+      
+      // Call the API endpoint - get all listings (no agentId = all listings)
+      final endpoint = ApiConstants.getAllListingsEndpoint();
+      final response = await _dio.get(endpoint);
+      
+      if (response.statusCode == 200 && response.data != null) {
+        final responseData = response.data;
+        final List<dynamic> listingsData = responseData is List 
+            ? responseData 
+            : (responseData['listings'] as List? ?? 
+               responseData['data'] as List? ?? 
+               []);
+        
+        final List<Listing> fetchedListings = [];
+        final List<OpenHouseModel> extractedOpenHouses = [];
+        int openHouseIndex = 0;
+        
+        for (final listingJson in listingsData) {
+          try {
+            // Parse as AgentListingModel first (handles API format)
+            final agentListing = AgentListingModel.fromApiJson(listingJson);
+            
+            // Convert to Listing model
+            final listing = Listing(
+              id: agentListing.id,
+              agentId: agentListing.agentId,
+              priceCents: agentListing.priceCents,
+              address: ListingAddress(
+                street: agentListing.address,
+                city: agentListing.city,
+                state: agentListing.state,
+                zip: agentListing.zipCode,
+              ),
+              photoUrls: agentListing.photoUrls.map((url) {
+                // Build full URL if relative - handle leading slashes
+                if (url.isNotEmpty && !url.startsWith('http://') && !url.startsWith('https://')) {
+                  final cleanUrl = url.startsWith('/') ? url.substring(1) : url;
+                  final baseUrl = ApiConstants.baseUrl.endsWith('/') 
+                      ? ApiConstants.baseUrl.substring(0, ApiConstants.baseUrl.length - 1) 
+                      : ApiConstants.baseUrl;
+                  return '$baseUrl/$cleanUrl';
+                }
+                return url;
+              }).toList(),
+              bacPercent: agentListing.bacPercent,
+              dualAgencyAllowed: agentListing.dualAgencyAllowed,
+              dualAgencyCommissionPercent: agentListing.dualAgencyCommissionPercent,
+              createdAt: agentListing.createdAt,
+              stats: ListingStats(
+                searches: agentListing.searchCount,
+                views: agentListing.viewCount,
+                contacts: agentListing.contactCount,
+              ),
+            );
+            
+            fetchedListings.add(listing);
+            
+            // Extract open houses from listing data
+            if (listingJson is Map<String, dynamic>) {
+              final openHousesData = listingJson['openHouses'] as List?;
+              if (openHousesData != null && openHousesData.isNotEmpty) {
+                for (final ohData in openHousesData) {
+                  try {
+                    if (ohData is Map<String, dynamic>) {
+                      // Parse open house date/time
+                      DateTime? startTime;
+                      DateTime? endTime;
+                      
+                      // Try different date formats from API
+                      final dateStr = ohData['date']?.toString() ?? 
+                                     ohData['startDateTime']?.toString() ?? 
+                                     ohData['startTime']?.toString() ?? '';
+                      final fromTimeStr = ohData['fromTime']?.toString() ?? '10:00';
+                      final toTimeStr = ohData['toTime']?.toString() ?? '16:00';
+                      
+                      if (dateStr.isNotEmpty) {
+                        try {
+                          final baseDate = DateTime.parse(dateStr.split('T')[0]); // Get date part
+                          // Parse time strings (handle formats like "10:00 AM", "14:00", etc.)
+                          startTime = _parseDateTimeWithTime(baseDate, fromTimeStr);
+                          endTime = _parseDateTimeWithTime(baseDate, toTimeStr);
+                        } catch (e) {
+                          if (kDebugMode) {
+                            print('⚠️ Error parsing open house date: $e');
+                          }
+                        }
+                      }
+                      
+                      // Default to future date if parsing failed
+                      startTime ??= DateTime.now().add(Duration(days: openHouseIndex + 1, hours: 14));
+                      endTime ??= startTime!.add(const Duration(hours: 2));
+                      
+                      extractedOpenHouses.add(
+                        OpenHouseModel(
+                          id: ohData['id']?.toString() ?? ohData['_id']?.toString() ?? 'oh_$openHouseIndex',
+                          listingId: listing.id,
+                          agentId: listing.agentId,
+                          startTime: startTime!,
+                          endTime: endTime,
+                          notes: ohData['notes']?.toString(),
+                          createdAt: ohData['createdAt'] != null 
+                              ? DateTime.parse(ohData['createdAt']) 
+                              : DateTime.now(),
+                        ),
+                      );
+                      openHouseIndex++;
+                    }
+                  } catch (e) {
+                    if (kDebugMode) {
+                      print('⚠️ Error parsing open house: $e');
+                    }
+                  }
+                }
+              }
+            }
+          } catch (e) {
+            if (kDebugMode) {
+              print('⚠️ Error parsing listing: $e');
+            }
+          }
+        }
+        
+        _listings.value = fetchedListings;
+        _openHouses.value = extractedOpenHouses;
+        
+        if (kDebugMode) {
+          print('✅ Loaded ${fetchedListings.length} listings from API');
+          print('✅ Extracted ${extractedOpenHouses.length} open houses from listings');
+        }
+      } else {
+        if (kDebugMode) {
+          print('⚠️ No listings data in API response');
+        }
+        _listings.value = [];
+        _openHouses.value = [];
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Error loading listings: $e');
+      }
+      _listings.value = [];
+      _openHouses.value = [];
+    }
+  }
+
+  /// Helper method to parse date with time string
+  DateTime _parseDateTimeWithTime(DateTime baseDate, String timeStr) {
+    try {
+      // Handle formats like "10:00 AM", "14:00", "2:00 PM", etc.
+      timeStr = timeStr.trim();
+      bool isPM = timeStr.toUpperCase().contains('PM');
+      timeStr = timeStr.replaceAll(RegExp(r'[AP]M', caseSensitive: false), '').trim();
+      
+      final parts = timeStr.split(':');
+      if (parts.length >= 2) {
+        int hour = int.parse(parts[0]);
+        int minute = int.parse(parts[1].split(RegExp(r'[^0-9]'))[0]);
+        
+        // Convert to 24-hour format if needed
+        if (isPM && hour < 12) {
+          hour += 12;
+        } else if (!isPM && hour == 12) {
+          hour = 0;
+        }
+        
+        return DateTime(baseDate.year, baseDate.month, baseDate.day, hour, minute);
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('⚠️ Error parsing time: $timeStr, error: $e');
+      }
+    }
+    
+    // Default to 10:00 if parsing fails
+    return DateTime(baseDate.year, baseDate.month, baseDate.day, 10, 0);
+  }
+
+  /// Extracts open houses from listings data (kept for backward compatibility)
+  /// This is now called from _loadListingsFromAPI, but kept as separate method if needed
+  void _extractOpenHousesFromListings() {
+    // This method is now integrated into _loadListingsFromAPI
+    // Kept for backward compatibility
+    if (kDebugMode) {
+      print('ℹ️ Open houses extraction is now integrated into _loadListingsFromAPI');
     }
   }
   
@@ -638,28 +893,543 @@ class BuyerController extends GetxController {
     }
   }
 
-  void toggleFavoriteAgent(String agentId) {
-    if (_favoriteAgents.contains(agentId)) {
-      _favoriteAgents.remove(agentId);
-    } else {
-      _favoriteAgents.add(agentId);
+  Future<void> toggleFavoriteAgent(String agentId) async {
+    if (_togglingFavorites.contains(agentId)) return; // Prevent multiple simultaneous calls
+    
+    // Optimistic update - update UI immediately before API call
+    final currentUser = _authController.currentUser;
+    if (currentUser == null || currentUser.id.isEmpty) {
+      try {
+        Get.snackbar(
+          'Error',
+          'Please login to like agents',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+          duration: const Duration(seconds: 2),
+          margin: const EdgeInsets.all(16),
+        );
+      } catch (e) {
+        if (kDebugMode) {
+          print('⚠️ Could not show snackbar: $e');
+        }
+      }
+      return;
+    }
+    
+    // Optimistically update UI immediately (save original state for rollback)
+    int agentIndex = -1;
+    AgentModel? originalAgent;
+    bool originalIsLiked = false;
+    
+    agentIndex = _agents.indexWhere((agent) => agent.id == agentId);
+    if (agentIndex != -1) {
+      originalAgent = _agents[agentIndex];
+      final currentLikes = List<String>.from(originalAgent.likes ?? []);
+      originalIsLiked = currentLikes.contains(currentUser.id);
+      final willBeLiked = !originalIsLiked;
+      
+      // Update UI immediately
+      if (willBeLiked) {
+        currentLikes.add(currentUser.id);
+        if (!_favoriteAgents.contains(agentId)) {
+          _favoriteAgents.add(agentId);
+        }
+      } else {
+        currentLikes.remove(currentUser.id);
+        _favoriteAgents.remove(agentId);
+      }
+      
+      _agents[agentIndex] = originalAgent.copyWith(likes: currentLikes);
+      _agents.refresh();
+      
+      // Don't refresh here - will refresh after API call completes to avoid duplicate calls
+    }
+    
+    try {
+      _togglingFavorites.add(agentId);
+      
+      // Get current user ID (already validated above)
+      final userId = currentUser.id;
+      
+      final endpoint = ApiConstants.getLikeAgentEndpoint(agentId);
+      
+      // Get auth token
+      final GetStorage storage = GetStorage();
+      final authToken = storage.read('auth_token');
+      
+      // Setup Dio headers
+      _dio.options.headers = {
+        ...ApiConstants.ngrokHeaders,
+        'Content-Type': 'application/json',
+        if (authToken != null) 'Authorization': 'Bearer $authToken',
+      };
+      
+      if (kDebugMode) {
+        print('❤️ Toggling favorite for agent: $agentId');
+        print('   Endpoint: $endpoint');
+        print('   Current User ID: $userId');
+      }
+      
+      // Make API call with currentUserId in body
+      final response = await _dio.post(
+        endpoint,
+        data: {'currentUserId': userId},
+      );
+      
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final responseData = response.data;
+        final success = responseData['success'] ?? false;
+        final isLiked = responseData['isLiked'] ?? false;
+        final action = responseData['action'] ?? 'liked';
+        final message = responseData['message'] ?? 'Success';
+        
+        if (success) {
+          // UI already updated optimistically, just sync if API response differs
+          if (agentIndex != -1) {
+            final agent = _agents[agentIndex];
+            final currentLikes = List<String>.from(agent.likes ?? []);
+            final apiMatchesOptimistic = isLiked == currentLikes.contains(userId);
+            
+            // Only update if API response differs from optimistic update
+            if (!apiMatchesOptimistic) {
+              if (isLiked) {
+                if (!currentLikes.contains(userId)) {
+                  currentLikes.add(userId);
+                }
+                if (!_favoriteAgents.contains(agentId)) {
+                  _favoriteAgents.add(agentId);
+                }
+              } else {
+                currentLikes.remove(userId);
+                _favoriteAgents.remove(agentId);
+              }
+              _agents[agentIndex] = agent.copyWith(likes: currentLikes);
+              _agents.refresh();
+            }
+          }
+          
+          // Show snackbar with appropriate message (safely with delay to avoid overlay issues)
+          Future.delayed(const Duration(milliseconds: 200), () {
+            try {
+              Get.snackbar(
+                action == 'liked' ? 'Added to Favorites' : 'Removed from Favorites',
+                message.isNotEmpty 
+                    ? message 
+                    : (isLiked 
+                        ? 'Agent added to your favorites' 
+                        : 'Agent removed from your favorites'),
+                snackPosition: SnackPosition.BOTTOM,
+                backgroundColor: isLiked ? AppTheme.lightGreen : AppTheme.mediumGray,
+                colorText: Colors.white,
+                duration: const Duration(seconds: 2),
+                margin: const EdgeInsets.all(16),
+              );
+            } catch (e) {
+              // If snackbar fails, just print to console (overlay might not be available)
+              if (kDebugMode) {
+                print('⚠️ Could not show snackbar: $e');
+              }
+            }
+          });
+          
+          if (kDebugMode) {
+            print('✅ Favorite toggled successfully: $isLiked');
+          }
+          
+          // Notify favorites controller to refresh (if it exists)
+          try {
+            final favoritesController = Get.find<FavoritesController>();
+            favoritesController.refreshFavorites();
+          } catch (e) {
+            // Favorites controller might not be initialized yet, that's okay
+            if (kDebugMode) {
+              print('ℹ️ Favorites controller not found, skipping refresh: $e');
+            }
+          }
+        } else {
+          throw Exception(message);
+        }
+      } else {
+        throw Exception('Failed to update favorite status');
+      }
+    } on DioException catch (e) {
+      // Revert optimistic update on error
+      if (agentIndex != -1 && originalAgent != null) {
+        _agents[agentIndex] = originalAgent!;
+        _agents.refresh();
+        if (originalIsLiked) {
+          if (!_favoriteAgents.contains(agentId)) {
+            _favoriteAgents.add(agentId);
+          }
+        } else {
+          _favoriteAgents.remove(agentId);
+        }
+      }
+      
+      if (kDebugMode) {
+        print('❌ Error toggling favorite: ${e.response?.statusCode ?? "N/A"}');
+        print('   ${e.response?.data ?? e.message}');
+      }
+      
+      // Don't show snackbar for 404 errors (endpoint not implemented yet)
+      // Just log the error and revert optimistic update
+      if (e.response?.statusCode != 404) {
+        Future.delayed(const Duration(milliseconds: 100), () {
+          try {
+            if (Get.isSnackbarOpen) {
+              Get.closeCurrentSnackbar();
+            }
+            Get.snackbar(
+              'Error',
+              e.response?.data['message']?.toString() ?? 'Failed to update favorite. Please try again.',
+              snackPosition: SnackPosition.BOTTOM,
+              backgroundColor: Colors.red,
+              colorText: Colors.white,
+              duration: const Duration(seconds: 3),
+              margin: const EdgeInsets.all(16),
+            );
+          } catch (err) {
+            if (kDebugMode) {
+              print('⚠️ Could not show error snackbar: $err');
+            }
+          }
+        });
+      } else {
+        if (kDebugMode) {
+          print('⚠️ Loan officer like endpoint not available yet (404). Feature coming soon.');
+        }
+      }
+    } catch (e) {
+      // Revert optimistic update on error
+      if (agentIndex != -1 && originalAgent != null) {
+        _agents[agentIndex] = originalAgent!;
+        _agents.refresh();
+        if (originalIsLiked) {
+          if (!_favoriteAgents.contains(agentId)) {
+            _favoriteAgents.add(agentId);
+          }
+        } else {
+          _favoriteAgents.remove(agentId);
+        }
+      }
+      
+      if (kDebugMode) {
+        print('❌ Unexpected error toggling favorite: $e');
+      }
+      
+      try {
+        Get.snackbar(
+          'Error',
+          'An unexpected error occurred. Please try again.',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+          duration: const Duration(seconds: 3),
+          margin: const EdgeInsets.all(16),
+        );
+      } catch (e) {
+        if (kDebugMode) {
+          print('⚠️ Could not show error snackbar: $e');
+        }
+      }
+    } finally {
+      _togglingFavorites.remove(agentId);
     }
   }
 
-  void toggleFavoriteLoanOfficer(String loanOfficerId) {
-    if (_favoriteLoanOfficers.contains(loanOfficerId)) {
-      _favoriteLoanOfficers.remove(loanOfficerId);
-    } else {
-      _favoriteLoanOfficers.add(loanOfficerId);
+  Future<void> toggleFavoriteLoanOfficer(String loanOfficerId) async {
+    if (_togglingFavorites.contains(loanOfficerId)) return; // Prevent multiple simultaneous calls
+    
+    // Optimistic update - update UI immediately before API call
+    final currentUser = _authController.currentUser;
+    if (currentUser == null || currentUser.id.isEmpty) {
+      try {
+        Get.snackbar(
+          'Error',
+          'Please login to like loan officers',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+          duration: const Duration(seconds: 2),
+          margin: const EdgeInsets.all(16),
+        );
+      } catch (e) {
+        if (kDebugMode) {
+          print('⚠️ Could not show snackbar: $e');
+        }
+      }
+      return;
+    }
+    
+    // Optimistically update UI immediately (save original state for rollback)
+    int loanOfficerIndex = -1;
+    LoanOfficerModel? originalLoanOfficer;
+    bool originalIsLiked = false;
+    final userId = currentUser.id;
+    
+    loanOfficerIndex = _loanOfficers.indexWhere((lo) => lo.id == loanOfficerId);
+    if (loanOfficerIndex != -1) {
+      originalLoanOfficer = _loanOfficers[loanOfficerIndex];
+      final currentLikes = List<String>.from(originalLoanOfficer.likes ?? []);
+      originalIsLiked = currentLikes.contains(userId);
+      final willBeLiked = !originalIsLiked;
+      
+      // Update UI immediately
+      if (willBeLiked) {
+        currentLikes.add(userId);
+        if (!_favoriteLoanOfficers.contains(loanOfficerId)) {
+          _favoriteLoanOfficers.add(loanOfficerId);
+        }
+      } else {
+        currentLikes.remove(userId);
+        _favoriteLoanOfficers.remove(loanOfficerId);
+      }
+      
+      _loanOfficers[loanOfficerIndex] = originalLoanOfficer.copyWith(likes: currentLikes);
+      _loanOfficers.refresh();
+      
+      // Don't refresh here - will refresh after API call completes to avoid duplicate calls
+    }
+    
+    try {
+      _togglingFavorites.add(loanOfficerId);
+      
+      // Get current user ID (already validated above)
+      final currentUser = _authController.currentUser;
+      if (currentUser == null || currentUser.id.isEmpty) {
+        return; // Already handled in optimistic update
+      }
+      
+      final endpoint = ApiConstants.getLikeLoanOfficerEndpoint(loanOfficerId);
+      
+      // Get auth token
+      final GetStorage storage = GetStorage();
+      final authToken = storage.read('auth_token');
+      
+      // Setup Dio headers
+      _dio.options.headers = {
+        ...ApiConstants.ngrokHeaders,
+        'Content-Type': 'application/json',
+        if (authToken != null) 'Authorization': 'Bearer $authToken',
+      };
+      
+      if (kDebugMode) {
+        print('❤️ Toggling favorite for loan officer: $loanOfficerId');
+        print('   Endpoint: $endpoint');
+        print('   Current User ID: $userId');
+      }
+      
+      // Make API call with currentUserId in body
+      final response = await _dio.post(
+        endpoint,
+        data: {'currentUserId': userId},
+      );
+      
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final responseData = response.data;
+        final success = responseData['success'] ?? false;
+        final isLiked = responseData['isLiked'] ?? false;
+        final action = responseData['action'] ?? 'liked';
+        final message = responseData['message'] ?? 'Success';
+        
+        if (success) {
+          // UI already updated optimistically, just sync if API response differs
+          if (loanOfficerIndex != -1) {
+            final loanOfficer = _loanOfficers[loanOfficerIndex];
+            final currentLikes = List<String>.from(loanOfficer.likes ?? []);
+            final apiMatchesOptimistic = isLiked == currentLikes.contains(userId);
+            
+            // Only update if API response differs from optimistic update
+            if (!apiMatchesOptimistic) {
+              if (isLiked) {
+                if (!currentLikes.contains(userId)) {
+                  currentLikes.add(userId);
+                }
+                if (!_favoriteLoanOfficers.contains(loanOfficerId)) {
+                  _favoriteLoanOfficers.add(loanOfficerId);
+                }
+              } else {
+                currentLikes.remove(userId);
+                _favoriteLoanOfficers.remove(loanOfficerId);
+              }
+              _loanOfficers[loanOfficerIndex] = loanOfficer.copyWith(likes: currentLikes);
+              _loanOfficers.refresh();
+            }
+          }
+          
+          // Show snackbar with appropriate message (safely with delay to avoid overlay issues)
+          Future.delayed(const Duration(milliseconds: 200), () {
+            try {
+              Get.snackbar(
+                action == 'liked' ? 'Added to Favorites' : 'Removed from Favorites',
+                message.isNotEmpty 
+                    ? message 
+                    : (isLiked 
+                        ? 'Loan officer added to your favorites' 
+                        : 'Loan officer removed from your favorites'),
+                snackPosition: SnackPosition.BOTTOM,
+                backgroundColor: isLiked ? AppTheme.lightGreen : AppTheme.mediumGray,
+                colorText: Colors.white,
+                duration: const Duration(seconds: 2),
+                margin: const EdgeInsets.all(16),
+              );
+            } catch (e) {
+              // If snackbar fails, just print to console (overlay might not be available)
+              if (kDebugMode) {
+                print('⚠️ Could not show snackbar: $e');
+              }
+            }
+          });
+          
+          if (kDebugMode) {
+            print('✅ Favorite toggled successfully: $isLiked');
+          }
+          
+          // Notify favorites controller to refresh (if it exists) - only once after API success
+          if (Get.isRegistered<FavoritesController>()) {
+            Future.delayed(const Duration(milliseconds: 300), () {
+              try {
+                final favoritesController = Get.find<FavoritesController>();
+                favoritesController.refreshFavorites();
+              } catch (e) {
+                // Silently fail if refresh fails
+              }
+            });
+          }
+        } else {
+          throw Exception(message);
+        }
+      } else {
+        throw Exception('Failed to update favorite status');
+      }
+    } on DioException catch (e) {
+      // Revert optimistic update on error
+      if (loanOfficerIndex != -1 && originalLoanOfficer != null) {
+        _loanOfficers[loanOfficerIndex] = originalLoanOfficer!;
+        _loanOfficers.refresh();
+        if (originalIsLiked) {
+          if (!_favoriteLoanOfficers.contains(loanOfficerId)) {
+            _favoriteLoanOfficers.add(loanOfficerId);
+          }
+        } else {
+          _favoriteLoanOfficers.remove(loanOfficerId);
+        }
+      }
+      
+      if (kDebugMode) {
+        print('❌ Error toggling favorite: ${e.response?.statusCode ?? "N/A"}');
+        print('   ${e.response?.data ?? e.message}');
+      }
+      
+      // Don't show snackbar for 404 errors (endpoint not implemented yet)
+      // Just log the error and revert optimistic update
+      if (e.response?.statusCode != 404) {
+        Future.delayed(const Duration(milliseconds: 200), () {
+          try {
+            Get.snackbar(
+              'Error',
+              e.response?.data['message']?.toString() ?? 'Failed to update favorite. Please try again.',
+              snackPosition: SnackPosition.BOTTOM,
+              backgroundColor: Colors.red,
+              colorText: Colors.white,
+              duration: const Duration(seconds: 3),
+              margin: const EdgeInsets.all(16),
+            );
+          } catch (err) {
+            if (kDebugMode) {
+              print('⚠️ Could not show error snackbar: $err');
+            }
+          }
+        });
+      } else {
+        if (kDebugMode) {
+          print('⚠️ Loan officer like endpoint not available yet (404). Feature coming soon.');
+          print('   Backend needs to implement: POST /api/v1/buyer/likeLoanOfficer/{loanOfficerId}');
+        }
+      }
+    } catch (e) {
+      // Revert optimistic update on error
+      if (loanOfficerIndex != -1 && originalLoanOfficer != null) {
+        _loanOfficers[loanOfficerIndex] = originalLoanOfficer!;
+        _loanOfficers.refresh();
+        if (originalIsLiked) {
+          if (!_favoriteLoanOfficers.contains(loanOfficerId)) {
+            _favoriteLoanOfficers.add(loanOfficerId);
+          }
+        } else {
+          _favoriteLoanOfficers.remove(loanOfficerId);
+        }
+      }
+      
+      if (kDebugMode) {
+        print('❌ Unexpected error toggling favorite: $e');
+      }
+      
+      try {
+        Get.snackbar(
+          'Error',
+          'An unexpected error occurred. Please try again.',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+          duration: const Duration(seconds: 3),
+          margin: const EdgeInsets.all(16),
+        );
+      } catch (e) {
+        if (kDebugMode) {
+          print('⚠️ Could not show error snackbar: $e');
+        }
+      }
+    } finally {
+      _togglingFavorites.remove(loanOfficerId);
     }
   }
 
   bool isAgentFavorite(String agentId) {
-    return _favoriteAgents.contains(agentId);
+    // First check the cached list (fastest)
+    if (_favoriteAgents.contains(agentId)) {
+      return true;
+    }
+    
+    // Also check the agent's likes array (more reliable, null-safe)
+    try {
+      final agent = _agents.firstWhere((a) => a.id == agentId);
+      final likes = agent.likes;
+      if (likes != null && likes.isNotEmpty) {
+        final currentUser = _authController.currentUser;
+        if (currentUser != null && currentUser.id.isNotEmpty) {
+          return likes.contains(currentUser.id);
+        }
+      }
+    } catch (e) {
+      // Agent not found, return false
+    }
+    
+    return false;
   }
 
   bool isLoanOfficerFavorite(String loanOfficerId) {
-    return _favoriteLoanOfficers.contains(loanOfficerId);
+    // First check the cached list (fastest)
+    if (_favoriteLoanOfficers.contains(loanOfficerId)) {
+      return true;
+    }
+    
+    // Also check the loan officer's likes array (more reliable, null-safe)
+    try {
+      final loanOfficer = _loanOfficers.firstWhere((lo) => lo.id == loanOfficerId);
+      final likes = loanOfficer.likes;
+      if (likes != null && likes.isNotEmpty) {
+        final currentUser = _authController.currentUser;
+        if (currentUser != null && currentUser.id.isNotEmpty) {
+          return likes.contains(currentUser.id);
+        }
+      }
+    } catch (e) {
+      // Loan officer not found, return false
+    }
+    
+    return false;
   }
 
   Future<void> contactAgent(AgentModel agent) async {

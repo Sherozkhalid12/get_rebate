@@ -45,10 +45,16 @@ class AgentCard extends StatelessWidget {
                 child: CircleAvatar(
                   radius: 27,
                   backgroundColor: Colors.white,
-                  backgroundImage: agent.profileImage != null
+                  backgroundImage: (agent.profileImage != null && 
+                                    agent.profileImage!.isNotEmpty &&
+                                    (agent.profileImage!.startsWith('http://') || 
+                                     agent.profileImage!.startsWith('https://')))
                       ? NetworkImage(agent.profileImage!)
                       : null,
-                  child: agent.profileImage == null
+                  child: (agent.profileImage == null || 
+                         agent.profileImage!.isEmpty ||
+                         (!agent.profileImage!.startsWith('http://') && 
+                          !agent.profileImage!.startsWith('https://')))
                       ? const Icon(
                           Icons.person,
                           color: AppTheme.primaryBlue,

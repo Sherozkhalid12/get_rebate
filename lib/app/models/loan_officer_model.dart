@@ -28,6 +28,7 @@ class LoanOfficerModel {
   final bool isVerified;
   final bool isActive;
   final List<LoanOfficerReview>? reviews; // Dynamic reviews from API
+  final List<String>? likes; // Array of user IDs who liked this loan officer
 
   LoanOfficerModel({
     required this.id,
@@ -57,6 +58,7 @@ class LoanOfficerModel {
     this.isVerified = false,
     this.isActive = true,
     this.reviews,
+    this.likes,
   });
 
   factory LoanOfficerModel.fromJson(Map<String, dynamic> json) {
@@ -156,6 +158,13 @@ class LoanOfficerModel {
       }
     }
     
+    // Parse likes array from API
+    List<String>? likes;
+    final likesData = json['likes'];
+    if (likesData != null && likesData is List) {
+      likes = likesData.map((like) => like.toString()).toList();
+    }
+    
     return LoanOfficerModel(
       id: id,
       name: name,
@@ -186,6 +195,7 @@ class LoanOfficerModel {
       isVerified: json['verified'] is bool ? json['verified'] : false,
       isActive: true, // Assume active if in API response
       reviews: reviews,
+      likes: likes,
     );
   }
 
@@ -218,6 +228,7 @@ class LoanOfficerModel {
       'isVerified': isVerified,
       'isActive': isActive,
       'reviews': reviews?.map((r) => r.toJson()).toList(),
+      'likes': likes,
     };
   }
 
@@ -248,6 +259,7 @@ class LoanOfficerModel {
     DateTime? lastActiveAt,
     bool? isVerified,
     bool? isActive,
+    List<String>? likes,
   }) {
     return LoanOfficerModel(
       id: id ?? this.id,
@@ -278,6 +290,7 @@ class LoanOfficerModel {
       isVerified: isVerified ?? this.isVerified,
       isActive: isActive ?? this.isActive,
       reviews: reviews ?? this.reviews,
+      likes: likes ?? this.likes,
     );
   }
 }

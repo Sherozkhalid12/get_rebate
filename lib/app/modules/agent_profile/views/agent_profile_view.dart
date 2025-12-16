@@ -88,10 +88,16 @@ class AgentProfileView extends GetView<AgentProfileController> {
                 CircleAvatar(
                   radius: 40,
                   backgroundColor: AppTheme.primaryBlue.withOpacity(0.1),
-                  backgroundImage: agent.profileImage != null
+                  backgroundImage: (agent.profileImage != null && 
+                                    agent.profileImage!.isNotEmpty &&
+                                    (agent.profileImage!.startsWith('http://') || 
+                                     agent.profileImage!.startsWith('https://')))
                       ? NetworkImage(agent.profileImage!)
                       : null,
-                  child: agent.profileImage == null
+                  child: (agent.profileImage == null || 
+                         agent.profileImage!.isEmpty ||
+                         (!agent.profileImage!.startsWith('http://') && 
+                          !agent.profileImage!.startsWith('https://')))
                       ? const Icon(
                           Icons.person,
                           color: AppTheme.primaryBlue,
@@ -990,7 +996,9 @@ class AgentProfileView extends GetView<AgentProfileController> {
             Row(
               children: [
                 // Profile Picture or Initial
-                profilePicUrl != null && profilePicUrl.isNotEmpty
+                profilePicUrl != null && 
+                profilePicUrl.isNotEmpty &&
+                (profilePicUrl.startsWith('http://') || profilePicUrl.startsWith('https://'))
                     ? CircleAvatar(
                         radius: 20,
                         backgroundImage: NetworkImage(profilePicUrl),

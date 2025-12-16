@@ -37,6 +37,7 @@ class AgentModel {
   final String? thirdPartyReviewsUrl; // Zillow, Yelp, etc. (thirdPartReviewLink)
   final List<String>? serviceAreas; // Service areas (cities) - separate from serviceZipCodes
   final List<AgentReview>? reviews; // Dynamic reviews from API
+  final List<String>? likes; // Array of user IDs who liked this agent
 
   AgentModel({
     required this.id,
@@ -76,6 +77,7 @@ class AgentModel {
     this.thirdPartyReviewsUrl,
     this.serviceAreas,
     this.reviews,
+    this.likes,
   });
 
   factory AgentModel.fromJson(Map<String, dynamic> json) {
@@ -207,6 +209,13 @@ class AgentModel {
           .toList();
     }
     
+    // Parse likes array from API
+    List<String>? likes;
+    final likesData = json['likes'];
+    if (likesData != null && likesData is List) {
+      likes = likesData.map((like) => like.toString()).toList();
+    }
+    
     return AgentModel(
       id: id,
       name: name,
@@ -256,6 +265,7 @@ class AgentModel {
           json['thirdPartyReviewsUrl']?.toString(),
       serviceAreas: serviceAreas,
       reviews: reviews,
+      likes: likes,
     );
   }
 
@@ -298,6 +308,7 @@ class AgentModel {
       'thirdPartyReviewsUrl': thirdPartyReviewsUrl,
       'serviceAreas': serviceAreas,
       'reviews': reviews?.map((r) => r.toJson()).toList(),
+      'likes': likes,
     };
   }
 
@@ -338,6 +349,7 @@ class AgentModel {
     String? googleReviewsUrl,
     String? thirdPartyReviewsUrl,
     List<AgentReview>? reviews,
+    List<String>? likes,
   }) {
     return AgentModel(
       id: id ?? this.id,
@@ -375,6 +387,7 @@ class AgentModel {
       googleReviewsUrl: googleReviewsUrl ?? this.googleReviewsUrl,
       thirdPartyReviewsUrl: thirdPartyReviewsUrl ?? this.thirdPartyReviewsUrl,
       reviews: reviews ?? this.reviews,
+      likes: likes ?? this.likes,
     );
   }
 }

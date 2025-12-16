@@ -12,6 +12,15 @@ class FavoritesView extends GetView<FavoritesController> {
 
   @override
   Widget build(BuildContext context) {
+    // Always refresh favorites when view is built (user navigates to this screen)
+    // Use a delay to ensure buyer controller data is available
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Wait a bit longer to ensure agents/loan officers are loaded
+      Future.delayed(const Duration(milliseconds: 300), () {
+        controller.refreshFavorites();
+      });
+    });
+    
     return Scaffold(
       backgroundColor: AppTheme.lightGray,
       appBar: AppBar(
@@ -190,6 +199,12 @@ class FavoritesView extends GetView<FavoritesController> {
 
   Widget _buildAgentsList(BuildContext context) {
     return Obx(() {
+      if (controller.isLoading) {
+        return const Center(
+          child: CircularProgressIndicator(),
+        );
+      }
+      
       if (controller.favoriteAgents.isEmpty) {
         return _buildEmptyState(
           context,
@@ -233,6 +248,12 @@ class FavoritesView extends GetView<FavoritesController> {
 
   Widget _buildLoanOfficersList(BuildContext context) {
     return Obx(() {
+      if (controller.isLoading) {
+        return const Center(
+          child: CircularProgressIndicator(),
+        );
+      }
+      
       if (controller.favoriteLoanOfficers.isEmpty) {
         return _buildEmptyState(
           context,

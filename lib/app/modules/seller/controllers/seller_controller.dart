@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
+import 'package:get_storage/get_storage.dart';
+import 'package:dio/dio.dart';
 import 'package:getrebate/app/models/agent_model.dart';
 import 'package:getrebate/app/modules/messages/controllers/messages_controller.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart';
+import 'package:getrebate/app/utils/api_constants.dart';
+import 'package:getrebate/app/theme/app_theme.dart';
 
 class SellerController extends GetxController {
   final AuthController _authController = Get.find<AuthController>();
@@ -16,6 +20,10 @@ class SellerController extends GetxController {
   final _agents = <AgentModel>[].obs;
   final _favoriteAgents = <String>[].obs;
   final _isLoading = false.obs;
+  final _togglingFavorites = <String>{}.obs; // Track which IDs are currently being toggled
+  
+  // Dio for API calls
+  final Dio _dio = Dio();
 
   // Getters
   String get searchQuery => _searchQuery.value;
@@ -26,9 +34,20 @@ class SellerController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    _setupDio();
     _loadMockData();
     searchController.addListener(_onSearchChanged);
     _preloadThreads();
+  }
+  
+  void _setupDio() {
+    _dio.options.baseUrl = ApiConstants.baseUrl;
+    _dio.options.connectTimeout = const Duration(seconds: 30);
+    _dio.options.receiveTimeout = const Duration(seconds: 30);
+    _dio.options.headers = {
+      ...ApiConstants.ngrokHeaders,
+      'Content-Type': 'application/json',
+    };
   }
 
   /// Preloads chat threads for instant access when seller opens messages
@@ -191,11 +210,125 @@ class SellerController extends GetxController {
     }
   }
 
-  void toggleFavoriteAgent(String agentId) {
-    if (_favoriteAgents.contains(agentId)) {
-      _favoriteAgents.remove(agentId);
-    } else {
-      _favoriteAgents.add(agentId);
+  Future<void> toggleFavoriteAgent(String agentId) async {
+    if (_togglingFavorites.contains(agentId)) return; // Prevent multiple simultaneous calls
+    
+    try {
+      _togglingFavorites.add(agentId);
+      
+      // Get current user ID
+      final currentUser = _authController.currentUser;
+      
+      if (currentUser == null || currentUser.id.isEmpty) {
+        Get.snackbar(
+          'Error',
+          'Please login to like agents',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+          duration: const Duration(seconds: 2),
+          margin: const EdgeInsets.all(16),
+        );
+        return;
+      }
+      
+      final endpoint = ApiConstants.getLikeAgentEndpoint(agentId);
+      
+      // Get auth token
+      final GetStorage storage = GetStorage();
+      final authToken = storage.read('auth_token');
+      
+      // Setup Dio headers
+      _dio.options.headers = {
+        ...ApiConstants.ngrokHeaders,
+        'Content-Type': 'application/json',
+        if (authToken != null) 'Authorization': 'Bearer $authToken',
+      };
+      
+      if (kDebugMode) {
+        print('❤️ Toggling favorite for agent: $agentId');
+        print('   Endpoint: $endpoint');
+        print('   Current User ID: ${currentUser.id}');
+      }
+      
+      // Make API call with currentUserId in body
+      final response = await _dio.post(
+        endpoint,
+        data: {'currentUserId': currentUser.id},
+      );
+      
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final responseData = response.data;
+        final success = responseData['success'] ?? false;
+        final isLiked = responseData['isLiked'] ?? false;
+        final action = responseData['action'] ?? 'liked';
+        final message = responseData['message'] ?? 'Success';
+        
+        if (success) {
+          // Update favorite state based on API response
+          if (isLiked) {
+            if (!_favoriteAgents.contains(agentId)) {
+              _favoriteAgents.add(agentId);
+            }
+          } else {
+            _favoriteAgents.remove(agentId);
+          }
+          
+          // Show snackbar with appropriate message
+          Get.snackbar(
+            action == 'liked' ? 'Added to Favorites' : 'Removed from Favorites',
+            message.isNotEmpty 
+                ? message 
+                : (isLiked 
+                    ? 'Agent added to your favorites' 
+                    : 'Agent removed from your favorites'),
+            snackPosition: SnackPosition.BOTTOM,
+            backgroundColor: isLiked ? AppTheme.lightGreen : AppTheme.mediumGray,
+            colorText: Colors.white,
+            duration: const Duration(seconds: 2),
+            margin: const EdgeInsets.all(16),
+          );
+          
+          if (kDebugMode) {
+            print('✅ Favorite toggled successfully: $isLiked');
+          }
+        } else {
+          throw Exception(message);
+        }
+      } else {
+        throw Exception('Failed to update favorite status');
+      }
+    } on DioException catch (e) {
+      if (kDebugMode) {
+        print('❌ Error toggling favorite: ${e.response?.statusCode ?? "N/A"}');
+        print('   ${e.response?.data ?? e.message}');
+      }
+      
+      Get.snackbar(
+        'Error',
+        e.response?.data['message']?.toString() ?? 'Failed to update favorite. Please try again.',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+        duration: const Duration(seconds: 3),
+        margin: const EdgeInsets.all(16),
+      );
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Unexpected error toggling favorite: $e');
+      }
+      
+      Get.snackbar(
+        'Error',
+        'An unexpected error occurred. Please try again.',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+        duration: const Duration(seconds: 3),
+        margin: const EdgeInsets.all(16),
+      );
+    } finally {
+      _togglingFavorites.remove(agentId);
     }
   }
 
