@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
+import 'package:get_storage/get_storage.dart';
 import 'package:dio/dio.dart';
 import 'package:getrebate/app/models/agent_model.dart';
 import 'package:getrebate/app/controllers/main_navigation_controller.dart';
+import 'package:getrebate/app/controllers/auth_controller.dart';
 import 'package:getrebate/app/modules/buyer/controllers/buyer_controller.dart';
 import 'package:getrebate/app/modules/messages/controllers/messages_controller.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
@@ -15,6 +17,7 @@ class AgentProfileController extends GetxController {
   final _isFavorite = false.obs;
   final _isLoading = false.obs;
   final _isLoadingProperties = false.obs;
+  final _isTogglingFavorite = false.obs;
   final _selectedTab = 0.obs; // 0: Overview, 1: Reviews, 2: Properties
   final _properties = <Map<String, dynamic>>[].obs;
   
@@ -406,14 +409,122 @@ class AgentProfileController extends GetxController {
     }
   }
 
-  void toggleFavorite() {
-    _isFavorite.value = !_isFavorite.value;
-    Get.snackbar(
-      _isFavorite.value ? 'Added to Favorites' : 'Removed from Favorites',
-      _isFavorite.value
-          ? 'Agent added to your favorites'
-          : 'Agent removed from your favorites',
-    );
+  Future<void> toggleFavorite() async {
+    if (_agent.value == null) return;
+    if (_isTogglingFavorite.value) return; // Prevent multiple simultaneous calls
+    
+    try {
+      _isTogglingFavorite.value = true;
+      
+      // Get current user ID
+      final authController = Get.find<AuthController>();
+      final currentUser = authController.currentUser;
+      
+      if (currentUser == null || currentUser.id.isEmpty) {
+        Get.snackbar(
+          'Error',
+          'Please login to like agents',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+          duration: const Duration(seconds: 2),
+        );
+        return;
+      }
+      
+      final agentId = _agent.value!.id;
+      final endpoint = ApiConstants.getLikeAgentEndpoint(agentId);
+      
+      // Get auth token
+      final GetStorage storage = GetStorage();
+      final authToken = storage.read('auth_token');
+      
+      // Setup Dio headers
+      _dio.options.headers = {
+        ...ApiConstants.ngrokHeaders,
+        'Content-Type': 'application/json',
+        if (authToken != null) 'Authorization': 'Bearer $authToken',
+      };
+      
+      if (kDebugMode) {
+        print('❤️ Toggling favorite for agent: $agentId');
+        print('   Endpoint: $endpoint');
+        print('   Current User ID: ${currentUser.id}');
+      }
+      
+      // Make API call with currentUserId in body
+      final response = await _dio.post(
+        endpoint,
+        data: {'currentUserId': currentUser.id},
+      );
+      
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final responseData = response.data;
+        final success = responseData['success'] ?? false;
+        final isLiked = responseData['isLiked'] ?? false;
+        final action = responseData['action'] ?? 'liked';
+        final message = responseData['message'] ?? 'Success';
+        
+        if (success) {
+          // Update favorite state based on API response
+          _isFavorite.value = isLiked;
+          
+          // Show snackbar with appropriate message
+          Get.snackbar(
+            action == 'liked' ? 'Added to Favorites' : 'Removed from Favorites',
+            message.isNotEmpty 
+                ? message 
+                : (isLiked 
+                    ? 'Agent added to your favorites' 
+                    : 'Agent removed from your favorites'),
+            snackPosition: SnackPosition.BOTTOM,
+            backgroundColor: isLiked ? AppTheme.lightGreen : AppTheme.mediumGray,
+            colorText: Colors.white,
+            duration: const Duration(seconds: 2),
+            margin: const EdgeInsets.all(16),
+          );
+          
+          if (kDebugMode) {
+            print('✅ Favorite toggled successfully: $isLiked');
+          }
+        } else {
+          throw Exception(message);
+        }
+      } else {
+        throw Exception('Failed to update favorite status');
+      }
+    } on DioException catch (e) {
+      if (kDebugMode) {
+        print('❌ Error toggling favorite: ${e.response?.statusCode ?? "N/A"}');
+        print('   ${e.response?.data ?? e.message}');
+      }
+      
+      Get.snackbar(
+        'Error',
+        e.response?.data['message']?.toString() ?? 'Failed to update favorite. Please try again.',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+        duration: const Duration(seconds: 3),
+        margin: const EdgeInsets.all(16),
+      );
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Unexpected error toggling favorite: $e');
+      }
+      
+      Get.snackbar(
+        'Error',
+        'An unexpected error occurred. Please try again.',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+        duration: const Duration(seconds: 3),
+        margin: const EdgeInsets.all(16),
+      );
+    } finally {
+      _isTogglingFavorite.value = false;
+    }
   }
 
   void contactAgent() {

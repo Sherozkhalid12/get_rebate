@@ -28,7 +28,7 @@ class ApiConstants {
   // ============================================================================
   
   // Ngrok URL (update this when ngrok restarts)
-  static const String _ngrokUrl = 'https://ff5e5f9bfa22.ngrok-free.app';
+  static const String _ngrokUrl = 'https://81c560cf313c.ngrok-free.app';
   
   // Local network IP (update with your computer's IP address)
   static const String _localNetworkIp = '192.168.1.100'; // TODO: Update this!
@@ -92,6 +92,14 @@ class ApiConstants {
     return "$apiBaseUrl/agent/getListingByAgentId/$agentId";
   }
   
+  // Get all listings endpoint (for buyer home screen)
+  static String getAllListingsEndpoint({String? agentId}) {
+    if (agentId != null && agentId.isNotEmpty) {
+      return "$apiBaseUrl/agent/getListings?id=$agentId";
+    }
+    return "$apiBaseUrl/agent/getListings";
+  }
+  
   // Loan Officer specific endpoints
   static String get allLoanOfficersEndpoint => "$apiBaseUrl/loan-officers/all";
   
@@ -110,6 +118,18 @@ class ApiConstants {
   
   // Lead specific endpoints - Using same endpoint for both buyer and seller leads
   static String get createLeadEndpoint => "$apiBaseUrl/buyer/createLead";
+  
+  // Like/Unlike agent endpoint
+  static String getLikeAgentEndpoint(String agentId) {
+    return "$apiBaseUrl/buyer/likeAgent/$agentId";
+  }
+  
+  // Like/Unlike loan officer endpoint
+  // Based on loan-officers endpoints using /loan-officers/ prefix
+  // Using RESTful pattern: /loan-officers/{id}/like
+  static String getLikeLoanOfficerEndpoint(String loanOfficerId) {
+    return "$apiBaseUrl/loan-officers/$loanOfficerId/like";
+  }
   
   // Listing specific endpoints
   static String get createListingEndpoint => "$apiBaseUrl/agent/createListing/";
