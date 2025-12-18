@@ -6,6 +6,7 @@ import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/modules/rebate_calculator/controllers/rebate_calculator_controller.dart';
 import 'package:getrebate/app/widgets/custom_text_field.dart';
 import 'package:getrebate/app/widgets/custom_button.dart';
+import 'package:getrebate/app/services/rebate_calculator_api_service.dart';
 
 class RebateCalculatorView extends StatelessWidget {
   const RebateCalculatorView({super.key});
@@ -251,8 +252,66 @@ class RebateCalculatorView extends StatelessWidget {
 
             const SizedBox(height: 16),
             _buildRebateInfoNote(context),
+
+            const SizedBox(height: 24),
+            // Convert/Calculate Button
+            Obx(() => _buildConvertButton(context, c)),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildConvertButton(
+    BuildContext context,
+    RebateCalculatorController c,
+  ) {
+    final isLoading = c.isLoading;
+    final isFormValid = c.isFormValid;
+
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton(
+        onPressed: (isFormValid && !isLoading)
+            ? () {
+                switch (c.currentMode.value) {
+                  case 0:
+                    c.calculateEstimated();
+                    break;
+                  case 1:
+                    c.calculateActual();
+                    break;
+                  case 2:
+                    c.calculateSeller();
+                    break;
+                }
+              }
+            : null,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppTheme.primaryBlue,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          elevation: 2,
+        ),
+        child: isLoading
+            ? const SizedBox(
+                height: 20,
+                width: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              )
+            : Text(
+                'Convert',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+              ),
       ),
     );
   }
@@ -395,6 +454,14 @@ class RebateCalculatorView extends StatelessWidget {
 
   // RESULTS
   Widget _buildResults(BuildContext context, RebateCalculatorController c) {
+    // Show API results if available, otherwise show local calculations
+    final apiResult = c.currentApiResult;
+    
+    if (apiResult != null && apiResult.success) {
+      return _buildApiResults(context, c, apiResult);
+    }
+
+    // Fallback to local calculations
     if (c.estimatedRebate.value <= 0 && c.currentMode.value != 0) {
       return _emptyState(context, "Enter details to calculate");
     }
@@ -659,5 +726,225 @@ class RebateCalculatorView extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  /// Builds API results display
+  Widget _buildApiResults(
+    BuildContext context,
+    RebateCalculatorController c,
+    RebateCalculatorResponse result,
+  ) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              c.currentMode.value == 0
+                  ? 'Estimated Rebate Results'
+                  : c.currentMode.value == 1
+                  ? 'Exact Rebate Results'
+                  : 'Seller Conversion Results',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+            const SizedBox(height: 20),
+
+            // Tier
+            if (result.tier != null && result.tier!.isNotEmpty)
+              _buildResultRow(
+                context,
+                'Tier',
+                result.tier!,
+                AppTheme.primaryBlue,
+              ),
+
+            // Rebate Percentage
+            if (result.rebatePercentage != null)
+              _buildResultRow(
+                context,
+                'Rebate Percentage',
+                '${result.rebatePercentage!.toStringAsFixed(1)}%',
+                AppTheme.lightGreen,
+              ),
+
+            // Estimated Rebate Range
+            if (result.minRebate != null && result.maxRebate != null)
+              _buildResultRow(
+                context,
+                'Estimated Rebate Range',
+                _formatCurrencyRange(result.minRebate!, result.maxRebate!),
+                AppTheme.lightGreen,
+                isBold: true,
+              )
+            else if (result.minRebate != null)
+              _buildResultRow(
+                context,
+                'Rebate Amount',
+                _formatCurrency(result.minRebate!),
+                AppTheme.lightGreen,
+                isBold: true,
+              ),
+
+            // Commission Range for Tier
+            if (result.minCommission != null && result.maxCommission != null)
+              _buildResultRow(
+                context,
+                'Commission Range for Tier',
+                '${result.minCommission!.toStringAsFixed(2)}% – ${result.maxCommission!.toStringAsFixed(2)}%',
+                AppTheme.mediumGray,
+              ),
+
+            // Notes
+            if (result.notes != null && result.notes!.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              ExpansionTile(
+                title: Text(
+                  'Notes',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: AppTheme.darkGray,
+                      ),
+                ),
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: result.notes!.map((note) {
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Text(
+                            note,
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                  color: AppTheme.mediumGray,
+                                ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+
+            // Warnings
+            if (result.warnings != null && result.warnings!.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Colors.orange.shade300,
+                    width: 1.5,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.warning_amber_rounded,
+                          color: Colors.orange.shade700,
+                          size: 24,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Warnings',
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                color: Colors.orange.shade900,
+                                fontWeight: FontWeight.w600,
+                              ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    ...result.warnings!.map((warning) {
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(
+                              Icons.circle,
+                              size: 6,
+                              color: Colors.orange.shade700,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                warning,
+                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                      color: Colors.orange.shade900,
+                                    ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                  ],
+                ),
+              ),
+            ],
+
+            const SizedBox(height: 20),
+            CustomButton(text: 'Find Agents', onPressed: () {}),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildResultRow(
+    BuildContext context,
+    String label,
+    String value,
+    Color color, {
+    bool isBold = false,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            flex: 2,
+            child: Text(
+              label,
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    fontWeight: isBold ? FontWeight.w600 : FontWeight.w500,
+                    color: AppTheme.darkGray,
+                  ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              value,
+              textAlign: TextAlign.right,
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: color,
+                    fontWeight: isBold ? FontWeight.bold : FontWeight.w600,
+                    fontSize: isBold ? 18 : 16,
+                  ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatCurrency(double amount) {
+    return '\$${amount.toStringAsFixed(2).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}';
+  }
+
+  String _formatCurrencyRange(double min, double max) {
+    return '${_formatCurrency(min)} – ${_formatCurrency(max)}';
   }
 }

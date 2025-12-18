@@ -3,10 +3,24 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
+import 'package:getrebate/app/services/rebate_calculator_api_service.dart';
 
 class RebateCalculatorController extends GetxController {
   // MODE: 0 = Tiers, 1 = Actual, 2 = Seller Conversion
   final currentMode = 0.obs;
+
+  // API Service
+  final _apiService = RebateCalculatorApiService();
+
+  // Loading states for each tab
+  final isLoadingEstimated = false.obs;
+  final isLoadingActual = false.obs;
+  final isLoadingSeller = false.obs;
+
+  // API Results for each tab
+  final apiResultEstimated = Rxn<RebateCalculatorResponse>();
+  final apiResultActual = Rxn<RebateCalculatorResponse>();
+  final apiResultSeller = Rxn<RebateCalculatorResponse>();
 
   // FORM CONTROLLERS - Only Sales Price, BAC, and State needed
   final homePriceController = TextEditingController();
@@ -153,12 +167,44 @@ class RebateCalculatorController extends GetxController {
   void onInit() {
     super.onInit();
     _setupListeners();
+    _updateFormValidity(); // Initial validation check
   }
 
+  // Observable for form validity
+  final _isFormValid = false.obs;
+
   void _setupListeners() {
-    homePriceController.addListener(_calculate);
-    agentCommissionController.addListener(_calculate);
-    sellerOriginalFeeController.addListener(_calculate);
+    homePriceController.addListener(() {
+      _calculate();
+      _updateFormValidity();
+    });
+    agentCommissionController.addListener(() {
+      _calculate();
+      _updateFormValidity();
+    });
+    sellerOriginalFeeController.addListener(() {
+      _calculate();
+      _updateFormValidity();
+    });
+    _selectedState.listen((_) => _updateFormValidity());
+    currentMode.listen((_) => _updateFormValidity());
+  }
+
+  void _updateFormValidity() {
+    final priceText = homePriceController.text.replaceAll(RegExp(r'[,\$]'), '');
+    final price = double.tryParse(priceText);
+    
+    String commissionText;
+    if (currentMode.value == 2) {
+      commissionText = sellerOriginalFeeController.text;
+    } else {
+      commissionText = agentCommissionController.text;
+    }
+    final commission = double.tryParse(commissionText);
+
+    _isFormValid.value = (price != null && price > 0) &&
+           (commission != null && commission > 0) &&
+           _selectedState.value.isNotEmpty;
   }
 
   // MAIN CALCULATION - Only uses Sales Price and BAC
@@ -328,14 +374,260 @@ class RebateCalculatorController extends GetxController {
     sellerOriginalFeeController.clear();
     _selectedState.value = 'CA'; // Default to California (rebates allowed)
     _resetResults();
+    _resetApiResults();
     _calculate();
   }
+
+  void _resetApiResults() {
+    apiResultEstimated.value = null;
+    apiResultActual.value = null;
+    apiResultSeller.value = null;
+  }
+
+  /// Validates form inputs for API call
+  bool _validateInputs() {
+    final priceText = homePriceController.text.replaceAll(RegExp(r'[,\$]'), '');
+    final price = double.tryParse(priceText);
+    
+    String commissionText;
+    if (currentMode.value == 2) {
+      commissionText = sellerOriginalFeeController.text;
+    } else {
+      commissionText = agentCommissionController.text;
+    }
+    final commission = double.tryParse(commissionText);
+
+    if (price == null || price <= 0) {
+      Get.snackbar(
+        'Validation Error',
+        'Please enter a valid home price greater than 0.',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red.shade100,
+        colorText: Colors.red.shade900,
+      );
+      return false;
+    }
+
+    if (commission == null || commission <= 0) {
+      Get.snackbar(
+        'Validation Error',
+        'Please enter a valid commission percentage greater than 0.',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red.shade100,
+        colorText: Colors.red.shade900,
+      );
+      return false;
+    }
+
+    if (_selectedState.value.isEmpty) {
+      Get.snackbar(
+        'Validation Error',
+        'Please select a state.',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red.shade100,
+        colorText: Colors.red.shade900,
+      );
+      return false;
+    }
+
+    return true;
+  }
+
+  /// Formats price for API (removes commas and dollar sign)
+  String _formatPriceForApi(String priceText) {
+    return priceText.replaceAll(RegExp(r'[,\$]'), '');
+  }
+
+  /// Calls API for Estimated tab (Mode 0)
+  Future<void> calculateEstimated() async {
+    if (!_validateInputs()) return;
+
+    isLoadingEstimated.value = true;
+    apiResultEstimated.value = null;
+
+    try {
+      final priceText = _formatPriceForApi(homePriceController.text);
+      final commissionText = agentCommissionController.text;
+
+      final response = await _apiService.estimateRebate(
+        price: priceText,
+        commission: commissionText,
+        state: _selectedState.value,
+      );
+
+      if (response.success) {
+        apiResultEstimated.value = response;
+      } else {
+        Get.snackbar(
+          'Calculation Failed',
+          'Unable to estimate rebate. Please try again.',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.orange.shade100,
+          colorText: Colors.orange.shade900,
+        );
+      }
+    } on RebateCalculatorApiException catch (e) {
+      Get.snackbar(
+        'Error',
+        e.message,
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red.shade100,
+        colorText: Colors.red.shade900,
+        duration: const Duration(seconds: 4),
+      );
+    } catch (e) {
+      Get.snackbar(
+        'Error',
+        'Failed to calculate rebate. Please try again.',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red.shade100,
+        colorText: Colors.red.shade900,
+        duration: const Duration(seconds: 4),
+      );
+    } finally {
+      isLoadingEstimated.value = false;
+    }
+  }
+
+  /// Calls API for Actual tab (Mode 1)
+  Future<void> calculateActual() async {
+    if (!_validateInputs()) return;
+
+    isLoadingActual.value = true;
+    apiResultActual.value = null;
+
+    try {
+      final priceText = _formatPriceForApi(homePriceController.text);
+      final commissionText = agentCommissionController.text;
+
+      final response = await _apiService.calculateExactRebate(
+        price: priceText,
+        commission: commissionText,
+        state: _selectedState.value,
+      );
+
+      if (response.success) {
+        apiResultActual.value = response;
+      } else {
+        Get.snackbar(
+          'Calculation Failed',
+          'Unable to calculate exact rebate. Please try again.',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.orange.shade100,
+          colorText: Colors.orange.shade900,
+        );
+      }
+    } on RebateCalculatorApiException catch (e) {
+      Get.snackbar(
+        'Error',
+        e.message,
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red.shade100,
+        colorText: Colors.red.shade900,
+        duration: const Duration(seconds: 4),
+      );
+    } catch (e) {
+      Get.snackbar(
+        'Error',
+        'Failed to calculate rebate. Please try again.',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red.shade100,
+        colorText: Colors.red.shade900,
+        duration: const Duration(seconds: 4),
+      );
+    } finally {
+      isLoadingActual.value = false;
+    }
+  }
+
+  /// Calls API for Seller Conversion tab (Mode 2)
+  Future<void> calculateSeller() async {
+    if (!_validateInputs()) return;
+
+    isLoadingSeller.value = true;
+    apiResultSeller.value = null;
+
+    try {
+      final priceText = _formatPriceForApi(homePriceController.text);
+      final commissionText = sellerOriginalFeeController.text;
+
+      final response = await _apiService.calculateSellerRate(
+        price: priceText,
+        commission: commissionText,
+        state: _selectedState.value,
+      );
+
+      if (response.success) {
+        apiResultSeller.value = response;
+      } else {
+        Get.snackbar(
+          'Calculation Failed',
+          'Unable to calculate seller rate. Please try again.',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.orange.shade100,
+          colorText: Colors.orange.shade900,
+        );
+      }
+    } on RebateCalculatorApiException catch (e) {
+      Get.snackbar(
+        'Error',
+        e.message,
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red.shade100,
+        colorText: Colors.red.shade900,
+        duration: const Duration(seconds: 4),
+      );
+    } catch (e) {
+      Get.snackbar(
+        'Error',
+        'Failed to calculate seller rate. Please try again.',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red.shade100,
+        colorText: Colors.red.shade900,
+        duration: const Duration(seconds: 4),
+      );
+    } finally {
+      isLoadingSeller.value = false;
+    }
+  }
+
+  /// Gets current loading state based on mode
+  bool get isLoading {
+    switch (currentMode.value) {
+      case 0:
+        return isLoadingEstimated.value;
+      case 1:
+        return isLoadingActual.value;
+      case 2:
+        return isLoadingSeller.value;
+      default:
+        return false;
+    }
+  }
+
+  /// Gets current API result based on mode
+  RebateCalculatorResponse? get currentApiResult {
+    switch (currentMode.value) {
+      case 0:
+        return apiResultEstimated.value;
+      case 1:
+        return apiResultActual.value;
+      case 2:
+        return apiResultSeller.value;
+      default:
+        return null;
+    }
+  }
+
+  /// Checks if form is valid for current mode (reactive)
+  bool get isFormValid => _isFormValid.value;
 
   @override
   void onClose() {
     homePriceController.dispose();
     agentCommissionController.dispose();
     sellerOriginalFeeController.dispose();
+    _apiService.dispose();
     super.onClose();
   }
 }
