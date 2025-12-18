@@ -586,23 +586,30 @@ class PropertyListingsController extends GetxController {
     return filtered;
   }
 
-  void createNewListing() async {
-    // Navigate to create listing page
-    try {
-      final result = await Get.toNamed(AppPages.CREATE_LISTING);
-      // Always refresh when coming back, regardless of result
-      // This ensures we have the latest data even if user just navigated back
-      await refreshSilently();
-    } catch (e) {
-      if (kDebugMode) {
-        print('Navigation error: $e');
-      }
-      try {
-        Get.snackbar('Error', 'Failed to navigate to create listing page');
-      } catch (snackbarError) {
-        if (kDebugMode) print('Could not show snackbar: $snackbarError');
-      }
-    }
+  // DISABLED: Buyer listing creation - buyers cannot create listings anymore
+  // void createNewListing() async {
+  //   // Navigate to create listing page
+  //   try {
+  //     final result = await Get.toNamed(AppPages.CREATE_LISTING);
+  //     // Always refresh when coming back, regardless of result
+  //     // This ensures we have the latest data even if user just navigated back
+  //     await refreshSilently();
+  //   } catch (e) {
+  //     if (kDebugMode) {
+  //       print('Navigation error: $e');
+  //     }
+  //     try {
+  //       Get.snackbar('Error', 'Failed to navigate to create listing page');
+  //     } catch (snackbarError) {
+  //       if (kDebugMode) print('Could not show snackbar: $snackbarError');
+  //     }
+  //   }
+  // }
+  
+  // Placeholder method to prevent errors
+  void createNewListing() {
+    // Buyers cannot create listings anymore
+    Get.snackbar('Info', 'Buyers cannot create listings. Please contact an agent.');
   }
 
   void editProperty(PropertyModel property) async {

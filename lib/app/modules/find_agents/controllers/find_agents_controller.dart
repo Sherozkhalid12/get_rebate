@@ -1,6 +1,11 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:dio/dio.dart';
 import 'package:getrebate/app/models/agent_model.dart';
 import 'package:getrebate/app/models/listing.dart';
+import 'package:getrebate/app/utils/api_constants.dart';
+import 'package:getrebate/app/services/agent_service.dart';
 
 class FindAgentsController extends GetxController {
   final RxList<AgentModel> agents = <AgentModel>[].obs;
@@ -8,12 +13,40 @@ class FindAgentsController extends GetxController {
   final RxString searchQuery = ''.obs;
   final RxString selectedZipCode = ''.obs;
   final Rx<Listing?> listing = Rx<Listing?>(null);
+  final TextEditingController searchController = TextEditingController();
+  
+  // Store all loaded agents for filtering
+  final List<AgentModel> _allLoadedAgents = [];
+  
+  // Services
+  final AgentService _agentService = AgentService();
+  final Dio _dio = Dio();
 
   @override
   void onInit() {
     super.onInit();
+    _setupDio();
     _loadArguments();
     _loadAgents();
+    
+    // Note: Search is handled by onChanged callback in the view
+    // No need for listener here to avoid duplicate calls
+  }
+  
+  @override
+  void onClose() {
+    searchController.dispose();
+    super.onClose();
+  }
+  
+  void _setupDio() {
+    _dio.options.baseUrl = ApiConstants.baseUrl;
+    _dio.options.connectTimeout = const Duration(seconds: 30);
+    _dio.options.receiveTimeout = const Duration(seconds: 30);
+    _dio.options.headers = {
+      'ngrok-skip-browser-warning': 'true',
+      'Content-Type': 'application/json',
+    };
   }
 
   void _loadArguments() {
@@ -24,14 +57,193 @@ class FindAgentsController extends GetxController {
     }
   }
 
-  void _loadAgents() {
+  Future<void> _loadAgents() async {
+    if (selectedZipCode.value.isEmpty) {
+      if (kDebugMode) {
+        print('⚠️ No ZIP code provided for agent search');
+      }
+      agents.value = [];
+      isLoading.value = false;
+      return;
+    }
+
     isLoading.value = true;
 
-    // Simulate API call - in real app, this would fetch from backend
-    Future.delayed(const Duration(seconds: 1), () {
-      agents.value = _getMockAgents();
+    try {
+      final endpoint = ApiConstants.getAgentsByZipCodeEndpoint(selectedZipCode.value);
+      
+      if (kDebugMode) {
+        print('📡 Fetching agents by ZIP code: ${selectedZipCode.value}');
+        print('   URL: $endpoint');
+      }
+
+      final response = await _dio.get(endpoint);
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        if (kDebugMode) {
+          print('✅ Agents response received');
+          print('   Status Code: ${response.statusCode}');
+          print('   Response Type: ${response.data.runtimeType}');
+        }
+
+        final responseData = response.data;
+        
+        // Handle different response formats
+        List<dynamic> agentsData = [];
+        
+        if (responseData is Map<String, dynamic>) {
+          // Try different possible keys
+          if (responseData['agents'] != null) {
+            agentsData = responseData['agents'] as List<dynamic>? ?? [];
+          } else if (responseData['data'] != null) {
+            agentsData = responseData['data'] as List<dynamic>? ?? [];
+          } else if (responseData['results'] != null) {
+            agentsData = responseData['results'] as List<dynamic>? ?? [];
+          } else if (responseData['agentList'] != null) {
+            agentsData = responseData['agentList'] as List<dynamic>? ?? [];
+          }
+        } else if (responseData is List) {
+          agentsData = responseData;
+        }
+
+        if (kDebugMode) {
+          print('   Found ${agentsData.length} agents in response');
+          if (agentsData.isNotEmpty) {
+            print('   Sample agent data: ${agentsData[0]}');
+          }
+        }
+
+        // Parse agents from API response
+        final fetchedAgents = <AgentModel>[];
+        for (int i = 0; i < agentsData.length; i++) {
+          try {
+            final agentData = agentsData[i];
+            if (agentData is Map<String, dynamic>) {
+              // Build full profile image URL if needed
+              final agentJson = Map<String, dynamic>.from(agentData);
+              if (agentJson['profilePic'] != null && 
+                  agentJson['profilePic'].toString().isNotEmpty &&
+                  !agentJson['profilePic'].toString().startsWith('http')) {
+                final baseUrl = ApiConstants.baseUrl.endsWith('/') 
+                    ? ApiConstants.baseUrl.substring(0, ApiConstants.baseUrl.length - 1)
+                    : ApiConstants.baseUrl;
+                final profilePic = agentJson['profilePic'].toString().replaceAll('\\', '/');
+                final cleanPic = profilePic.startsWith('/') ? profilePic.substring(1) : profilePic;
+                agentJson['profilePic'] = '$baseUrl/$cleanPic';
+              }
+              
+              final agent = AgentModel.fromJson(agentJson);
+              fetchedAgents.add(agent);
+              
+              if (kDebugMode && i == 0) {
+                print('   ✅ Successfully parsed first agent: ${agent.name}');
+              }
+            } else {
+              if (kDebugMode) {
+                print('⚠️ Agent at index $i is not a Map: ${agentData.runtimeType}');
+              }
+            }
+          } catch (e, stackTrace) {
+            if (kDebugMode) {
+              print('⚠️ Error parsing agent at index $i: $e');
+              print('   Stack trace: $stackTrace');
+              print('   Agent data: ${agentsData[i]}');
+            }
+          }
+        }
+
+        _allLoadedAgents.clear();
+        _allLoadedAgents.addAll(fetchedAgents);
+        agents.value = List.from(_allLoadedAgents);
+        
+        if (kDebugMode) {
+          print('✅ Successfully loaded ${agents.length} agents from API');
+        }
+        
+        if (fetchedAgents.isEmpty && agentsData.isNotEmpty) {
+          // If we got data but couldn't parse it, show error
+          Get.snackbar(
+            'Warning',
+            'Received agent data but could not parse it. Please check the API response format.',
+            snackPosition: SnackPosition.BOTTOM,
+            duration: const Duration(seconds: 4),
+          );
+        }
+      } else {
+        if (kDebugMode) {
+          print('⚠️ Unexpected status code: ${response.statusCode}');
+          print('   Response: ${response.data}');
+        }
+        throw Exception('Unexpected status code: ${response.statusCode}');
+      }
+    } on DioException catch (e) {
+      if (kDebugMode) {
+        print('❌ DioException fetching agents:');
+        print('   Type: ${e.type}');
+        print('   Message: ${e.message}');
+        print('   Response: ${e.response?.data}');
+        print('   Status Code: ${e.response?.statusCode}');
+      }
+      
+      String errorMessage = 'Could not load agents from server.';
+      if (e.response?.statusCode == 404) {
+        errorMessage = 'No agents found for this ZIP code.';
+      } else if (e.type == DioExceptionType.connectionTimeout || 
+                 e.type == DioExceptionType.receiveTimeout) {
+        errorMessage = 'Connection timeout. Please check your internet connection.';
+      } else if (e.type == DioExceptionType.connectionError) {
+        errorMessage = 'Cannot connect to server. Please ensure the server is running.';
+      }
+      
+      // Only show fallback mock data if it's not a 404 (no agents found)
+      if (e.response?.statusCode != 404) {
+        final mockAgents = _getMockAgents();
+        _allLoadedAgents.clear();
+        _allLoadedAgents.addAll(mockAgents);
+        agents.value = List.from(_allLoadedAgents);
+        Get.snackbar(
+          'Warning',
+          '$errorMessage Showing sample data.',
+          snackPosition: SnackPosition.BOTTOM,
+          duration: const Duration(seconds: 4),
+        );
+      } else {
+        _allLoadedAgents.clear();
+        agents.value = [];
+        Get.snackbar(
+          'Info',
+          errorMessage,
+          snackPosition: SnackPosition.BOTTOM,
+          duration: const Duration(seconds: 3),
+        );
+      }
+    } catch (e, stackTrace) {
+      if (kDebugMode) {
+        print('❌ Error fetching agents: $e');
+        print('   Stack trace: $stackTrace');
+      }
+      // Fallback to mock data on error
+      final mockAgents = _getMockAgents();
+      _allLoadedAgents.clear();
+      _allLoadedAgents.addAll(mockAgents);
+      agents.value = List.from(_allLoadedAgents);
+      Get.snackbar(
+        'Warning',
+        'Could not load agents from server. Showing sample data.',
+        snackPosition: SnackPosition.BOTTOM,
+        duration: const Duration(seconds: 3),
+      );
+    } finally {
       isLoading.value = false;
-    });
+    }
+  }
+  
+  /// Refresh agents list
+  Future<void> refreshAgents() async {
+    // Clear search when refreshing
+    searchController.clear();
+    searchQuery.value = '';
+    await _loadAgents();
   }
 
   List<AgentModel> _getMockAgents() {
@@ -141,25 +353,69 @@ class FindAgentsController extends GetxController {
 
   void searchAgents(String query) {
     searchQuery.value = query;
-    if (query.isEmpty) {
-      _loadAgents();
+    final searchTerm = query.trim().toLowerCase();
+    
+    if (searchTerm.isEmpty) {
+      // Show all loaded agents (already filtered by ZIP code)
+      agents.value = List.from(_allLoadedAgents);
+      if (kDebugMode) {
+        print('🔍 Search cleared. Showing all ${_allLoadedAgents.length} agents');
+      }
     } else {
-      agents.value = _getMockAgents()
-          .where(
-            (agent) =>
-                agent.name.toLowerCase().contains(query.toLowerCase()) ||
-                agent.brokerage.toLowerCase().contains(query.toLowerCase()),
-          )
-          .toList();
+      // Filter loaded agents by search query - search in multiple fields
+      final filteredAgents = _allLoadedAgents.where((agent) {
+        // Search in name
+        final nameMatch = agent.name.toLowerCase().contains(searchTerm);
+        
+        // Search in brokerage
+        final brokerageMatch = agent.brokerage.toLowerCase().contains(searchTerm);
+        
+        // Search in email
+        final emailMatch = agent.email.toLowerCase().contains(searchTerm);
+        
+        // Search in bio if available
+        final bioMatch = agent.bio != null && 
+                        agent.bio!.toLowerCase().contains(searchTerm);
+        
+        // Search in license number
+        final licenseMatch = agent.licenseNumber.toLowerCase().contains(searchTerm);
+        
+        // Search in licensed states
+        final statesMatch = agent.licensedStates.any(
+          (state) => state.toLowerCase().contains(searchTerm)
+        );
+        
+        // Return true if any field matches
+        return nameMatch || 
+               brokerageMatch || 
+               emailMatch || 
+               bioMatch || 
+               licenseMatch || 
+               statesMatch;
+      }).toList();
+      
+      agents.value = filteredAgents;
+      
+      if (kDebugMode) {
+        print('🔍 Search: "$query"');
+        print('   Found ${filteredAgents.length} matching agents out of ${_allLoadedAgents.length}');
+        if (filteredAgents.isNotEmpty) {
+          print('   Matching agents: ${filteredAgents.map((a) => a.name).join(", ")}');
+        }
+      }
     }
   }
 
   void contactAgent(AgentModel agent) {
-    // Navigate to messages with agent and listing context
+    // Navigate directly to messages screen with agent context
     Get.toNamed(
       '/messages',
       arguments: {
         'agent': agent,
+        'userId': agent.id,
+        'userName': agent.name,
+        'userProfilePic': agent.profileImage,
+        'userRole': 'agent',
         'listing': listing.value,
         'propertyAddress': listing.value?.address.toString(),
       },

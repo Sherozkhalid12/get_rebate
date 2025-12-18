@@ -6,6 +6,7 @@ import 'package:getrebate/app/modules/find_agents/controllers/find_agents_contro
 import 'package:getrebate/app/models/agent_model.dart';
 import 'package:getrebate/app/widgets/custom_text_field.dart';
 import 'package:getrebate/app/widgets/custom_button.dart';
+import 'package:getrebate/app/utils/api_constants.dart';
 
 class FindAgentsView extends GetView<FindAgentsController> {
   const FindAgentsView({super.key});
@@ -37,14 +38,18 @@ class FindAgentsView extends GetView<FindAgentsController> {
         centerTitle: true,
       ),
       body: SafeArea(
-        child: Column(
-          children: [
-            // Search Section
-            _buildSearchSection(context),
+        child: RefreshIndicator(
+          onRefresh: () => controller.refreshAgents(),
+          color: AppTheme.primaryBlue,
+          child: Column(
+            children: [
+              // Search Section
+              _buildSearchSection(context),
 
-            // Agents List
-            Expanded(child: _buildAgentsList(context)),
-          ],
+              // Agents List
+              Expanded(child: _buildAgentsList(context)),
+            ],
+          ),
         ),
       ),
     );
@@ -66,8 +71,8 @@ class FindAgentsView extends GetView<FindAgentsController> {
           ),
           const SizedBox(height: 12),
           CustomTextField(
-            controller: TextEditingController(),
-            labelText: 'Search agents by name or brokerage',
+            controller: controller.searchController,
+            labelText: 'Search agents by name, brokerage, or other details',
             prefixIcon: Icons.search,
             onChanged: controller.searchAgents,
           ),
@@ -105,6 +110,22 @@ class FindAgentsView extends GetView<FindAgentsController> {
   }
 
   Widget _buildAgentCard(BuildContext context, AgentModel agent) {
+    // Build full profile image URL if needed
+    String? profileImageUrl = agent.profileImage;
+    if (profileImageUrl != null && 
+        profileImageUrl.isNotEmpty && 
+        !profileImageUrl.startsWith('http://') && 
+        !profileImageUrl.startsWith('https://')) {
+      final baseUrl = ApiConstants.baseUrl.endsWith('/') 
+          ? ApiConstants.baseUrl.substring(0, ApiConstants.baseUrl.length - 1)
+          : ApiConstants.baseUrl;
+      profileImageUrl = profileImageUrl.replaceAll('\\', '/');
+      final cleanUrl = profileImageUrl.startsWith('/') 
+          ? profileImageUrl.substring(1) 
+          : profileImageUrl;
+      profileImageUrl = '$baseUrl/$cleanUrl';
+    }
+    
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -120,10 +141,16 @@ class FindAgentsView extends GetView<FindAgentsController> {
                 CircleAvatar(
                   radius: 30,
                   backgroundColor: AppTheme.primaryBlue.withOpacity(0.1),
-                  backgroundImage: agent.profileImage != null
-                      ? NetworkImage(agent.profileImage!)
+                  backgroundImage: (profileImageUrl != null && 
+                                   profileImageUrl.isNotEmpty &&
+                                   (profileImageUrl.startsWith('http://') || 
+                                    profileImageUrl.startsWith('https://')))
+                      ? NetworkImage(profileImageUrl)
                       : null,
-                  child: agent.profileImage == null
+                  child: (profileImageUrl == null || 
+                         profileImageUrl.isEmpty ||
+                         (!profileImageUrl.startsWith('http://') && 
+                          !profileImageUrl.startsWith('https://')))
                       ? const Icon(
                           Icons.person,
                           color: AppTheme.primaryBlue,
@@ -150,27 +177,31 @@ class FindAgentsView extends GetView<FindAgentsController> {
                             ),
                           ),
                           if (agent.isVerified)
-                            const Icon(
-                              Icons.verified,
-                              color: AppTheme.primaryBlue,
-                              size: 20,
+                            const Padding(
+                              padding: EdgeInsets.only(left: 4),
+                              child: Icon(
+                                Icons.verified,
+                                color: AppTheme.primaryBlue,
+                                size: 20,
+                              ),
                             ),
                         ],
                       ),
                       const SizedBox(height: 4),
-                      Text(
-                        agent.brokerage,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: AppTheme.mediumGray,
+                      if (agent.brokerage.isNotEmpty)
+                        Text(
+                          agent.brokerage,
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: AppTheme.mediumGray,
+                          ),
                         ),
-                      ),
                       const SizedBox(height: 4),
                       Row(
                         children: [
                           Icon(Icons.star, color: Colors.amber, size: 16),
                           const SizedBox(width: 4),
                           Text(
-                            '${agent.rating} (${agent.reviewCount} reviews)',
+                            '${agent.rating.toStringAsFixed(1)} (${agent.reviewCount} ${agent.reviewCount == 1 ? 'review' : 'reviews'})',
                             style: Theme.of(context).textTheme.bodySmall
                                 ?.copyWith(
                                   color: AppTheme.darkGray,
@@ -188,7 +219,7 @@ class FindAgentsView extends GetView<FindAgentsController> {
             const SizedBox(height: 12),
 
             // Bio
-            if (agent.bio != null) ...[
+            if (agent.bio != null && agent.bio!.isNotEmpty) ...[
               Text(
                 agent.bio!,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -201,18 +232,54 @@ class FindAgentsView extends GetView<FindAgentsController> {
               const SizedBox(height: 12),
             ],
 
+            // Licensed States
+            if (agent.licensedStates.isNotEmpty) ...[
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: agent.licensedStates.take(3).map((state) {
+                  return Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppTheme.primaryBlue.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      state,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppTheme.primaryBlue,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 10,
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 12),
+            ],
+
             // Stats
             Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
                 _buildStatItem(
                   context,
                   'Searches',
                   agent.searchesAppearedIn.toString(),
                 ),
-                const SizedBox(width: 16),
-                _buildStatItem(context, 'Views', agent.profileViews.toString()),
-                const SizedBox(width: 16),
-                _buildStatItem(context, 'Contacts', agent.contacts.toString()),
+                _buildStatItem(
+                  context,
+                  'Views',
+                  agent.profileViews.toString(),
+                ),
+                _buildStatItem(
+                  context,
+                  'Contacts',
+                  agent.contacts.toString(),
+                ),
               ],
             ),
 
@@ -223,9 +290,9 @@ class FindAgentsView extends GetView<FindAgentsController> {
               children: [
                 Expanded(
                   child: CustomButton(
-                    text: 'Contact',
+                    text: 'Chat',
                     onPressed: () => controller.contactAgent(agent),
-                    icon: Icons.message,
+                    icon: Icons.chat,
                     height: 48,
                   ),
                 ),
@@ -248,23 +315,28 @@ class FindAgentsView extends GetView<FindAgentsController> {
   }
 
   Widget _buildStatItem(BuildContext context, String label, String value) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          value,
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            color: AppTheme.primaryBlue,
-            fontWeight: FontWeight.w600,
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Text(
+            value,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              color: AppTheme.primaryBlue,
+              fontWeight: FontWeight.w600,
+            ),
           ),
-        ),
-        Text(
-          label,
-          style: Theme.of(
-            context,
-          ).textTheme.bodySmall?.copyWith(color: AppTheme.mediumGray),
-        ),
-      ],
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: AppTheme.mediumGray,
+              fontSize: 11,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
     );
   }
 
@@ -298,14 +370,16 @@ class FindAgentsView extends GetView<FindAgentsController> {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 12),
-            Text(
-              'No agents are currently available in this area. Try searching in a different ZIP code.',
+            Obx(() => Text(
+              controller.selectedZipCode.value.isNotEmpty
+                  ? 'No agents are currently available in ZIP code ${controller.selectedZipCode.value}. Try searching in a different ZIP code.'
+                  : 'No agents are currently available in this area. Try searching in a different ZIP code.',
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                 color: AppTheme.mediumGray,
                 height: 1.5,
               ),
               textAlign: TextAlign.center,
-            ),
+            )),
             const SizedBox(height: 32),
             CustomButton(
               text: 'Search Different Area',

@@ -29,8 +29,15 @@ class BuyerController extends GetxController {
   final _searchQuery = ''.obs;
   final _selectedTab =
       0.obs; // 0: Agents, 1: Homes for Sale, 2: Open Houses, 3: Loan Officers
+  final _currentZipCode = Rxn<String>(); // Current ZIP code filter
 
-  // Data
+  // Data - Store original unfiltered data
+  final _allAgents = <AgentModel>[].obs;
+  final _allLoanOfficers = <LoanOfficerModel>[].obs;
+  final _allListings = <Listing>[].obs;
+  final _allOpenHouses = <OpenHouseModel>[].obs;
+  
+  // Filtered data (computed from originals based on ZIP code)
   final _agents = <AgentModel>[].obs;
   final _loanOfficers = <LoanOfficerModel>[].obs;
   final _listings = <Listing>[].obs;
@@ -176,7 +183,8 @@ class BuyerController extends GetxController {
         );
       }).toList();
       
-      _agents.value = agentsWithUrls;
+      _allAgents.value = agentsWithUrls;
+      _applyZipCodeFilter(); // Apply filter after loading
       
       // Initialize favorite agents list based on likes array from API
       final currentUser = _authController.currentUser;
@@ -199,7 +207,8 @@ class BuyerController extends GetxController {
       print('❌ Error loading agents: $e');
       // Don't show snackbar - it causes overlay errors on initial load
       // Just log the error and keep empty list
-      _agents.value = [];
+      _allAgents.value = [];
+      _applyZipCodeFilter(); // Apply filter after setting empty list
     } finally {
       _isLoading.value = false;
     }
@@ -236,7 +245,8 @@ class BuyerController extends GetxController {
         );
       }).toList();
       
-      _loanOfficers.value = loanOfficersWithUrls;
+      _allLoanOfficers.value = loanOfficersWithUrls;
+      _applyZipCodeFilter(); // Apply filter after loading
       
       // Initialize favorite loan officers list based on likes array from API
       final currentUser = _authController.currentUser;
@@ -263,7 +273,8 @@ class BuyerController extends GetxController {
       }
       // Don't show snackbar - it causes overlay errors on initial load
       // Just log the error and keep empty list
-      _loanOfficers.value = [];
+      _allLoanOfficers.value = [];
+      _applyZipCodeFilter(); // Apply filter after setting empty list
     }
   }
 
@@ -405,26 +416,29 @@ class BuyerController extends GetxController {
           }
         }
         
-        _listings.value = fetchedListings;
-        _openHouses.value = extractedOpenHouses;
+        _allListings.value = fetchedListings;
+        _allOpenHouses.value = extractedOpenHouses;
+        _applyZipCodeFilter(); // Apply filter after loading
         
         if (kDebugMode) {
           print('✅ Loaded ${fetchedListings.length} listings from API');
           print('✅ Extracted ${extractedOpenHouses.length} open houses from listings');
         }
       } else {
-        if (kDebugMode) {
-          print('⚠️ No listings data in API response');
-        }
-        _listings.value = [];
-        _openHouses.value = [];
+      if (kDebugMode) {
+        print('⚠️ No listings data in API response');
+      }
+      _allListings.value = [];
+      _allOpenHouses.value = [];
+      _applyZipCodeFilter(); // Apply filter after loading
       }
     } catch (e) {
       if (kDebugMode) {
         print('❌ Error loading listings: $e');
       }
-      _listings.value = [];
-      _openHouses.value = [];
+      _allListings.value = [];
+      _allOpenHouses.value = [];
+      _applyZipCodeFilter(); // Apply filter after loading
     }
   }
 
@@ -700,13 +714,15 @@ class BuyerController extends GetxController {
       );
     }
 
-    _openHouses.value = mockOpenHouses;
+    _allOpenHouses.value = mockOpenHouses;
+    _applyZipCodeFilter(); // Apply filter after setting mock data
   }
 
   Future<void> _seedMockListings() async {
     final List<Listing> existing = await _listingService.listListings();
     if (existing.isNotEmpty) {
-      _listings.value = existing;
+      _allListings.value = existing;
+      _applyZipCodeFilter(); // Apply filter after setting existing listings
       return;
     }
 
@@ -835,7 +851,8 @@ class BuyerController extends GetxController {
     for (final Listing l in seeds) {
       await _listingService.createListing(l);
     }
-    _listings.value = await _listingService.listListings();
+    _allListings.value = await _listingService.listListings();
+    _applyZipCodeFilter(); // Apply filter after loading listings
   }
 
   Future<void> _searchAgentsAndLoanOfficers() async {
@@ -856,40 +873,129 @@ class BuyerController extends GetxController {
     }
   }
 
+  /// Applies ZIP code filter to all data
+  void _applyZipCodeFilter() {
+    final zipCode = _currentZipCode.value;
+    
+    if (zipCode == null || zipCode.isEmpty) {
+      // No filter - show all data from original lists
+      // Use refresh() to ensure UI updates
+      _agents.value = List.from(_allAgents);
+      _loanOfficers.value = List.from(_allLoanOfficers);
+      _listings.value = List.from(_allListings);
+      _openHouses.value = List.from(_allOpenHouses);
+      
+      // Force refresh to ensure UI updates
+      _agents.refresh();
+      _loanOfficers.refresh();
+      _listings.refresh();
+      _openHouses.refresh();
+      
+      if (kDebugMode) {
+        print('📋 Showing all data (no filter)');
+        print('   All Agents: ${_allAgents.length}');
+        print('   All Loan Officers: ${_allLoanOfficers.length}');
+        print('   All Listings: ${_allListings.length}');
+        print('   All Open Houses: ${_allOpenHouses.length}');
+      }
+      return;
+    }
+    
+    // Filter agents by ZIP code (check both claimedZipCodes and serviceZipCodes)
+    _agents.value = _allAgents.where((agent) {
+      return agent.claimedZipCodes.contains(zipCode) || 
+             agent.serviceZipCodes.contains(zipCode);
+    }).toList();
+    
+    // Filter loan officers by ZIP code
+    _loanOfficers.value = _allLoanOfficers.where((loanOfficer) {
+      return loanOfficer.claimedZipCodes.contains(zipCode);
+    }).toList();
+    
+    // Filter listings by ZIP code
+    _listings.value = _allListings.where((listing) {
+      return listing.address.zip == zipCode;
+    }).toList();
+    
+    // Filter open houses by listings in that ZIP
+    final listingIds = _listings.map((l) => l.id).toSet();
+    _openHouses.value = _allOpenHouses.where((oh) {
+      return listingIds.contains(oh.listingId);
+    }).toList();
+    
+    if (kDebugMode) {
+      print('🔍 Applied ZIP code filter: $zipCode');
+      print('   Filtered Agents: ${_agents.length} / ${_allAgents.length}');
+      print('   Filtered Loan Officers: ${_loanOfficers.length} / ${_allLoanOfficers.length}');
+      print('   Filtered Listings: ${_listings.length} / ${_allListings.length}');
+      print('   Filtered Open Houses: ${_openHouses.length} / ${_allOpenHouses.length}');
+    }
+  }
+
   Future<void> searchByZipCode(String zipCode) async {
     try {
-      _isLoading.value = true;
-
-      // Simulate API call to find agents/loan officers in specific ZIP
-      await Future.delayed(const Duration(milliseconds: 800));
-
-      // Filter agents and loan officers by ZIP code
-      final zipAgents = _agents
-          .where((agent) => agent.claimedZipCodes.contains(zipCode))
-          .toList();
-
-      final zipLoanOfficers = _loanOfficers
-          .where((loanOfficer) => loanOfficer.claimedZipCodes.contains(zipCode))
-          .toList();
-
-      // Update the lists with ZIP-specific results
-      if (zipAgents.isNotEmpty || zipLoanOfficers.isNotEmpty) {
-        _agents.value = zipAgents;
-        _loanOfficers.value = zipLoanOfficers;
+      // Validate ZIP code format (5 digits)
+      if (zipCode.length != 5 || !RegExp(r'^\d+$').hasMatch(zipCode)) {
+        // Don't set loading state for invalid input
+        Get.snackbar(
+          'Invalid ZIP Code',
+          'Please enter a valid 5-digit ZIP code',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+          duration: const Duration(seconds: 2),
+        );
+        return;
       }
-
-      // Filter listings by ZIP as well
-      _listings.value = await _listingService.listListings(zip: zipCode);
-
-      // Filter open houses by listings in that ZIP
-      final listingIds = _listings.map((l) => l.id).toSet();
-      _openHouses.value = _openHouses
-          .where((oh) => listingIds.contains(oh.listingId))
-          .toList();
+      
+      _isLoading.value = true;
+      
+      // Set the ZIP code filter
+      _currentZipCode.value = zipCode;
+      
+      // Apply filter to all data
+      _applyZipCodeFilter();
+      
+      if (kDebugMode) {
+        print('🔍 Filtered by ZIP code: $zipCode');
+        print('   Agents: ${_agents.length}');
+        print('   Loan Officers: ${_loanOfficers.length}');
+        print('   Listings: ${_listings.length}');
+        print('   Open Houses: ${_openHouses.length}');
+      }
     } catch (e) {
+      if (kDebugMode) {
+        print('❌ Error filtering by ZIP code: $e');
+      }
       Get.snackbar('Error', 'Search failed: ${e.toString()}');
     } finally {
       _isLoading.value = false;
+    }
+  }
+  
+  /// Clears the ZIP code filter
+  void clearZipCodeFilter() {
+    if (kDebugMode) {
+      print('🧹 Clearing ZIP code filter');
+      print('   Current ZIP: ${_currentZipCode.value}');
+      print('   All Agents count: ${_allAgents.length}');
+      print('   All Loan Officers count: ${_allLoanOfficers.length}');
+      print('   All Listings count: ${_allListings.length}');
+      print('   All Open Houses count: ${_allOpenHouses.length}');
+    }
+    
+    // Clear the ZIP code filter
+    _currentZipCode.value = null;
+    
+    // Immediately apply filter (which will show all data since zipCode is null)
+    _applyZipCodeFilter();
+    
+    if (kDebugMode) {
+      print('✅ Filter cleared - showing all data');
+      print('   Agents: ${_agents.length}');
+      print('   Loan Officers: ${_loanOfficers.length}');
+      print('   Listings: ${_listings.length}');
+      print('   Open Houses: ${_openHouses.length}');
     }
   }
 
@@ -1433,8 +1539,9 @@ class BuyerController extends GetxController {
   }
 
   Future<void> contactAgent(AgentModel agent) async {
-    // Navigate to contact screen first
-    Get.toNamed('/contact', arguments: {
+    // Navigate directly to messages screen
+    Get.toNamed('/messages', arguments: {
+      'agent': agent,
       'userId': agent.id,
       'userName': agent.name,
       'userProfilePic': agent.profileImage,

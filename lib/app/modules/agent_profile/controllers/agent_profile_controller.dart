@@ -578,8 +578,9 @@ class AgentProfileController extends GetxController {
       return;
     }
 
-    // Navigate to contact screen first
-    Get.toNamed('/contact', arguments: {
+    // Navigate directly to messages screen
+    Get.toNamed('/messages', arguments: {
+      'agent': _agent.value,
       'userId': _agent.value!.id,
       'userName': _agent.value!.name,
       'userProfilePic': _agent.value!.profileImage,

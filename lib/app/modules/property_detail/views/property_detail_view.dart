@@ -395,23 +395,24 @@ class PropertyDetailView extends GetView<PropertyDetailController> {
         onPressed: () => Get.back(),
         icon: const Icon(Icons.arrow_back, color: AppTheme.white),
       ),
-      actions: [
-        Obx(
-          () => IconButton(
-            onPressed: controller.toggleFavorite,
-            icon: Icon(
-              controller.isFavorite ? Icons.favorite : Icons.favorite_border,
-              color: controller.isFavorite ? Colors.red : AppTheme.white,
-            ),
-          ),
-        ),
-        IconButton(
-          onPressed: () {
-            Get.snackbar('Share', 'Share functionality coming soon!');
-          },
-          icon: const Icon(Icons.share, color: AppTheme.white),
-        ),
-      ],
+      // REMOVED: Favorite and Share icons from property view
+      // actions: [
+      //   Obx(
+      //     () => IconButton(
+      //       onPressed: controller.toggleFavorite,
+      //       icon: Icon(
+      //         controller.isFavorite ? Icons.favorite : Icons.favorite_border,
+      //         color: controller.isFavorite ? Colors.red : AppTheme.white,
+      //       ),
+      //     ),
+      //   ),
+      //   IconButton(
+      //     onPressed: () {
+      //       Get.snackbar('Share', 'Share functionality coming soon!');
+      //     },
+      //     icon: const Icon(Icons.share, color: AppTheme.white),
+      //   ),
+      // ],
       flexibleSpace: FlexibleSpaceBar(
         background: Container(
           decoration: BoxDecoration(
@@ -758,7 +759,7 @@ class PropertyDetailView extends GetView<PropertyDetailController> {
         // === REBATE DISPLAY WIDGET ===
         RebateDisplayWidget(
           listing: mockListing,
-          onFindAgents: () => _showNearbyAgents(context, mockListing),
+          onFindAgents: () => _navigateToFindAgents(mockListing),
           onDualAgencyInfo: dualAgencyAllowed
               ? () => _showDualAgencyInfo(context)
               : null,
@@ -1009,6 +1010,27 @@ class PropertyDetailView extends GetView<PropertyDetailController> {
     );
   }
 
+  /// Navigate to Find Agents screen with ZIP code from listing
+  void _navigateToFindAgents(Listing listing) {
+    final zipCode = listing.address.zip;
+    if (zipCode.isEmpty) {
+      Get.snackbar(
+        'Error',
+        'ZIP code not available for this property',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      return;
+    }
+    
+    Get.toNamed(
+      '/find-agents',
+      arguments: {
+        'zip': zipCode,
+        'listing': listing,
+      },
+    );
+  }
+
   void _showNearbyAgents(BuildContext context, Listing listing) {
     showModalBottomSheet(
       context: context,
@@ -1077,25 +1099,12 @@ class PropertyDetailView extends GetView<PropertyDetailController> {
   Widget _buildActionButtons(BuildContext context) {
     return Column(
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: CustomButton(
-                text: 'I am interested in this property',
-                onPressed: controller.openBuyerLeadForm,
-                fontSize: 11.sp,
-                icon: Icons.shopping_cart,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: CustomButton(
-                text: 'Sell My Property',
-                onPressed: controller.openSellerLeadForm,
-                icon: Icons.sell,
-              ),
-            ),
-          ],
+        CustomButton(
+          text: 'I am interested in this property',
+          onPressed: controller.openBuyerLeadForm,
+          fontSize: 11.sp,
+          icon: Icons.shopping_cart,
+          width: double.infinity,
         ),
         const SizedBox(height: 12),
         CustomButton(

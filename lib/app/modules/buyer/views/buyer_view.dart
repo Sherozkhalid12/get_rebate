@@ -82,16 +82,34 @@ class BuyerView extends GetView<BuyerController> {
       color: AppTheme.white,
       child: Column(
         children: [
-          // Search Field
+          // Search Field - ZIP Code Only
           CustomSearchField(
             controller: controller.searchController,
-            hintText: 'Enter ZIP code or drop pin',
+            hintText: 'Enter ZIP code (5 digits)',
             onChanged: (value) {
-              if (value.length >= 5) {
+              // Handle empty or cleared input - always clear filter immediately
+              if (value.isEmpty || value.trim().isEmpty) {
+                controller.clearZipCodeFilter();
+                return;
+              }
+              
+              // Only process if it's a valid 5-digit ZIP code
+              if (value.length == 5 && RegExp(r'^\d+$').hasMatch(value)) {
                 controller.searchByZipCode(value);
+              }
+              // If user is typing but hasn't reached 5 digits yet, clear the filter
+              // This ensures partial input doesn't keep the old filter active
+              else if (value.length < 5) {
+                // Clear filter when user is deleting/typing partial ZIP
+                // This ensures that when user deletes characters, filter is cleared
+                controller.clearZipCodeFilter();
               }
             },
             onLocationTap: () => controller.useCurrentLocation(),
+            onClear: () {
+              controller.searchController.clear();
+              controller.clearZipCodeFilter();
+            },
           ),
 
           const SizedBox(height: 20),
