@@ -229,6 +229,7 @@ class ChatService {
         print('✅ Thread created successfully');
         print('   Status Code: ${response.statusCode}');
         print('   Response: ${response.data}');
+        print('   Response: ${response.statusCode}');
       }
 
       // Handle different response formats

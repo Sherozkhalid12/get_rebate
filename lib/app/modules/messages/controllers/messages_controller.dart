@@ -579,7 +579,9 @@ class MessagesController extends GetxController {
           _allConversations[allIndex] = updatedConversation;
           _allConversations.sort((a, b) => b.lastMessageTime.compareTo(a.lastMessageTime));
         }
-        
+
+
+        ;
         // Update in filtered conversations
         final filteredIndex = _conversations.indexWhere((c) => c.id == chatId);
         if (filteredIndex != -1) {

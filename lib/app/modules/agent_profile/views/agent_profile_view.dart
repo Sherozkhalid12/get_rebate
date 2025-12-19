@@ -337,6 +337,7 @@ class AgentProfileView extends GetView<AgentProfileController> {
     );
 
     return ClipRRect(
+
       borderRadius: BorderRadius.circular(12),
       child: YoutubePlayer(
         controller: controller,
