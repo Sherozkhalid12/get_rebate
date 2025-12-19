@@ -7,8 +7,10 @@ import 'package:flutter/foundation.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart' as global;
 import 'package:getrebate/app/routes/app_pages.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
-import 'package:getrebate/app/widgets/custom_snackbar.dart';
+import 'package:getrebate/app/utils/snackbar_helper.dart';
 import 'package:get_storage/get_storage.dart';
+
+import '../../../widgets/custom_snackbar.dart';
 
 class AddListingController extends GetxController {
   final Dio _dio = Dio();
@@ -126,7 +128,7 @@ class AddListingController extends GetxController {
       // Max 10 photos
       _selectedPhotos.add(photoFile);
     } else {
-      Get.snackbar('Limit Reached', 'You can add up to 10 photos');
+      SnackbarHelper.showInfo('You can add up to 10 photos', title: 'Limit Reached');
     }
   }
 
@@ -136,7 +138,7 @@ class AddListingController extends GetxController {
 
   void addOpenHouse() {
     if (_openHouses.length >= 4) {
-      Get.snackbar('Limit Reached', 'You can add up to 4 open houses');
+      SnackbarHelper.showInfo('You can add up to 4 open houses', title: 'Limit Reached');
       return;
     }
     _openHouses.add(OpenHouseEntry());
@@ -186,7 +188,7 @@ class AddListingController extends GetxController {
 
       if (agentId.isEmpty) {
         _isLoading.value = false;
-        CustomSnackbar.showError('Please login to create a listing');
+        SnackbarHelper.showError('Please login to create a listing');
         return;
       }
 
@@ -305,14 +307,14 @@ class AddListingController extends GetxController {
         _isLoading.value = false;
         
         // Show success snackbar
-        CustomSnackbar.showSuccess(
-          'Success',
+        SnackbarHelper.showSuccess(
           'Listing created successfully!',
+          title: 'Success',
         );
 
         // Navigate back after a short delay
         await Future.delayed(const Duration(milliseconds: 500));
-        Get.back();
+        Navigator.pop(Get.context!);
       }
     } on DioException catch (e) {
       _isLoading.value = false;
@@ -349,7 +351,7 @@ class AddListingController extends GetxController {
         errorMessage = 'No internet connection. Please check your network.';
       }
 
-      CustomSnackbar.showError(errorMessage);
+      SnackbarHelper.showError(errorMessage);
     } catch (e) {
       _isLoading.value = false;
       
@@ -373,49 +375,49 @@ class AddListingController extends GetxController {
 
   bool _validateForm() {
     if (titleController.text.trim().isEmpty) {
-      CustomSnackbar.showValidation('Please enter a property title');
+      SnackbarHelper.showValidation('Please enter a property title');
       return false;
     }
 
     if (descriptionController.text.trim().isEmpty) {
-      CustomSnackbar.showValidation('Please enter a property description');
+      SnackbarHelper.showValidation('Please enter a property description');
       return false;
     }
 
     if (priceController.text.trim().isEmpty) {
-      CustomSnackbar.showValidation('Please enter a price');
+      SnackbarHelper.showValidation('Please enter a price');
       return false;
     }
 
     final price = double.tryParse(priceController.text.trim());
     if (price == null || price <= 0) {
-      CustomSnackbar.showValidation('Please enter a valid price');
+      SnackbarHelper.showValidation('Please enter a valid price');
       return false;
     }
 
     if (addressController.text.trim().isEmpty) {
-      CustomSnackbar.showValidation('Please enter a street address');
+      SnackbarHelper.showValidation('Please enter a street address');
       return false;
     }
 
     if (cityController.text.trim().isEmpty) {
-      CustomSnackbar.showValidation('Please enter a city');
+      SnackbarHelper.showValidation('Please enter a city');
       return false;
     }
 
     if (stateController.text.trim().isEmpty) {
-      CustomSnackbar.showValidation('Please enter a state');
+      SnackbarHelper.showValidation('Please enter a state');
       return false;
     }
 
     if (zipCodeController.text.trim().isEmpty) {
-      CustomSnackbar.showValidation('Please enter a ZIP code');
+      SnackbarHelper.showValidation('Please enter a ZIP code');
       return false;
     }
 
     // CRITICAL: Verify listing agent status
     if (_isListingAgent.value == null) {
-      CustomSnackbar.showValidation('Please confirm if you are the listing agent for this property');
+      SnackbarHelper.showValidation('Please confirm if you are the listing agent for this property');
       return false;
     }
 

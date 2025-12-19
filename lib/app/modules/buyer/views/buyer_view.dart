@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/modules/buyer/controllers/buyer_controller.dart';
 import 'package:getrebate/app/widgets/custom_search_field.dart';
@@ -291,7 +292,12 @@ class BuyerView extends GetView<BuyerController> {
             : isOpenHouses
             ? Colors.orange
             : AppTheme.primaryBlue;
-        return Center(child: CircularProgressIndicator(color: primaryColor));
+        return Center(
+          child: SpinKitFadingCircle(
+            color: primaryColor,
+            size: 40,
+          ),
+        );
       }
 
       if (controller.selectedTab == 0) {
@@ -336,13 +342,18 @@ class BuyerView extends GetView<BuyerController> {
                       ),
                     )
                     .animate()
-                    .slideX(
-                      begin: 0.3,
-                      duration: 600.ms,
-                      curve: Curves.easeOut,
-                      delay: (index * 100).ms,
+                    .scale(
+                      begin: const Offset(0.95, 0.95),
+                      end: const Offset(1.0, 1.0),
+                      duration: 200.ms,
+                      curve: Curves.easeOutCubic,
+                      delay: (index * 20).ms,
                     )
-                    .fadeIn(duration: 600.ms, delay: (index * 100).ms),
+                    .fadeIn(
+                      duration: 200.ms,
+                      delay: (index * 20).ms,
+                      curve: Curves.easeOut,
+                    ),
           );
         },
       );
@@ -383,13 +394,18 @@ class BuyerView extends GetView<BuyerController> {
                       ),
                     )
                     .animate()
-                    .slideX(
-                      begin: 0.3,
-                      duration: 600.ms,
-                      curve: Curves.easeOut,
-                      delay: (index * 100).ms,
+                    .scale(
+                      begin: const Offset(0.95, 0.95),
+                      end: const Offset(1.0, 1.0),
+                      duration: 200.ms,
+                      curve: Curves.easeOutCubic,
+                      delay: (index * 20).ms,
                     )
-                    .fadeIn(duration: 600.ms, delay: (index * 100).ms),
+                    .fadeIn(
+                      duration: 200.ms,
+                      delay: (index * 20).ms,
+                      curve: Curves.easeOut,
+                    ),
           );
         },
       );
@@ -746,13 +762,18 @@ class BuyerView extends GetView<BuyerController> {
                       ),
                     )
                     .animate()
-                    .slideX(
-                      begin: 0.3,
-                      duration: 600.ms,
-                      curve: Curves.easeOut,
-                      delay: (index * 100).ms,
+                    .scale(
+                      begin: const Offset(0.95, 0.95),
+                      end: const Offset(1.0, 1.0),
+                      duration: 200.ms,
+                      curve: Curves.easeOutCubic,
+                      delay: (index * 20).ms,
                     )
-                    .fadeIn(duration: 600.ms, delay: (index * 100).ms),
+                    .fadeIn(
+                      duration: 200.ms,
+                      delay: (index * 20).ms,
+                      curve: Curves.easeOut,
+                    ),
           );
         },
       );

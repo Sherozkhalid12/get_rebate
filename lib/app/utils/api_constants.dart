@@ -28,7 +28,7 @@ class ApiConstants {
   // ============================================================================
 
   // Ngrok URL (update this when ngrok restarts)
-  static const String _ngrokUrl = 'https://6b84b3644e66.ngrok-free.app';
+  static const String _ngrokUrl = 'https://91411ae26075.ngrok-free.app';
 
   // Local network IP (update with your computer's IP address)
   static const String _localNetworkIp = '192.168.1.100'; // TODO: Update this!
@@ -134,6 +134,19 @@ class ApiConstants {
   // Using RESTful pattern: /loan-officers/{id}/like
   static String getLikeLoanOfficerEndpoint(String loanOfficerId) {
     return "$apiBaseUrl/loan-officers/$loanOfficerId/like";
+  }
+
+  // Agent tracking endpoints
+  static String getAddSearchEndpoint(String agentId) {
+    return "$apiBaseUrl/agent/addSearch/$agentId";
+  }
+
+  static String getAddContactEndpoint(String agentId) {
+    return "$apiBaseUrl/agent/addContact/$agentId";
+  }
+
+  static String getAddProfileViewEndpoint(String agentId) {
+    return "$apiBaseUrl/agent/addProfileView/$agentId";
   }
 
   // Listing specific endpoints

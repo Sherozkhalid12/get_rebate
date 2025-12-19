@@ -31,7 +31,7 @@ class EditListingView extends GetView<EditListingController> {
         backgroundColor: AppTheme.primaryBlue,
         elevation: 0,
         leading: IconButton(
-          onPressed: () => Get.back(),
+          onPressed: () => Navigator.pop(context),
           icon: Icon(Icons.arrow_back, color: AppTheme.white),
         ),
         actions: [

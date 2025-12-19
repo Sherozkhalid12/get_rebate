@@ -39,7 +39,7 @@ class AgentEditProfileView extends GetView<AgentEditProfileController> {
         ),
         centerTitle: true,
         leading: IconButton(
-          onPressed: () => Get.back(),
+          onPressed: () => Navigator.pop(context),
           icon: const Icon(Icons.arrow_back, color: AppTheme.white),
         ),
       ),

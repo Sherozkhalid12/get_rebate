@@ -95,7 +95,7 @@ class EditListingController extends GetxController {
       _originalProperty = property;
       _populateForm(property);
     } else {
-      Get.back();
+      Navigator.pop(Get.context!);
       Get.snackbar('Error', 'Property data not found');
     }
   }
@@ -425,7 +425,7 @@ class EditListingController extends GetxController {
 
         // Navigate back after a short delay
         await Future.delayed(const Duration(milliseconds: 300));
-        Get.back(result: true); // Return true to indicate success
+        Navigator.pop(Get.context!, true); // Return true to indicate success
       }
     } on DioException catch (e) {
       _isLoading.value = false;

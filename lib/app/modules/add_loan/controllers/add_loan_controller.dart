@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:getrebate/app/models/loan_model.dart';
 import 'package:getrebate/app/modules/loan_officer/controllers/loan_officer_controller.dart';
+import 'package:getrebate/app/utils/snackbar_helper.dart';
 
 class AddLoanController extends GetxController {
   // Form controllers
@@ -98,16 +99,11 @@ class AddLoanController extends GetxController {
       await loanOfficerController.addLoan(loan);
 
       // Navigate back
-      Get.back();
+      Navigator.pop(Get.context!);
 
-      Get.snackbar(
-        'Success',
-        'Loan added successfully!',
-        backgroundColor: Get.theme.primaryColor,
-        colorText: Colors.white,
-      );
+      SnackbarHelper.showSuccess('Loan added successfully!');
     } catch (e) {
-      Get.snackbar('Error', 'Failed to add loan: ${e.toString()}');
+      SnackbarHelper.showError('Failed to add loan: ${e.toString()}');
     } finally {
       _isLoading.value = false;
     }
@@ -115,29 +111,29 @@ class AddLoanController extends GetxController {
 
   bool _validateForm() {
     if (borrowerNameController.text.trim().isEmpty) {
-      Get.snackbar('Error', 'Please enter borrower name');
+      SnackbarHelper.showValidation('Please enter borrower name');
       return false;
     }
 
     if (loanAmountController.text.trim().isEmpty) {
-      Get.snackbar('Error', 'Please enter loan amount');
+      SnackbarHelper.showValidation('Please enter loan amount');
       return false;
     }
 
     final loanAmount = double.tryParse(loanAmountController.text);
     if (loanAmount == null || loanAmount <= 0) {
-      Get.snackbar('Error', 'Please enter a valid loan amount');
+      SnackbarHelper.showValidation('Please enter a valid loan amount');
       return false;
     }
 
     if (interestRateController.text.trim().isEmpty) {
-      Get.snackbar('Error', 'Please enter interest rate');
+      SnackbarHelper.showValidation('Please enter interest rate');
       return false;
     }
 
     final interestRate = double.tryParse(interestRateController.text);
     if (interestRate == null || interestRate < 0 || interestRate > 30) {
-      Get.snackbar('Error', 'Please enter a valid interest rate (0-30)');
+      SnackbarHelper.showValidation('Please enter a valid interest rate (0-30)');
       return false;
     }
 

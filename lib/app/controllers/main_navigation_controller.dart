@@ -38,10 +38,22 @@ class MainNavigationController extends GetxController {
       final oldIndex = _currentIndex.value;
       _currentIndex.value = validIndex;
       
+      // Always show navbar when navigating to main navigation pages
+      _isNavBarVisible.value = true;
+      
       if (kDebugMode) {
         print('🔄 Navigation changed: ${_getPageName(oldIndex)} -> ${_getPageName(validIndex)}');
         print('   Index: $oldIndex -> $validIndex');
         print('   Pages array: [Home(0), Favorites(1), Messages(2), Profile(3)]');
+        print('   Navbar visibility: true');
+      }
+    } else {
+      // Even if index hasn't changed, ensure navbar is visible
+      if (!_isNavBarVisible.value) {
+        _isNavBarVisible.value = true;
+        if (kDebugMode) {
+          print('🔄 Navbar visibility restored (index unchanged: $validIndex)');
+        }
       }
     }
   }
@@ -97,6 +109,12 @@ class MainNavigationController extends GetxController {
           print('⚠️ Icon count ($iconCount) does not match page count ($pageCount)');
         }
         
+        // Ensure current index is valid
+        final safeIndex = _currentIndex.value.clamp(0, 3);
+        if (safeIndex != _currentIndex.value && kDebugMode) {
+          print('⚠️ CircleNavBar: Corrected index from ${_currentIndex.value} to $safeIndex');
+        }
+        
         return CircleNavBar(
           activeIcons: [
             Icon(Icons.home, color: AppTheme.primaryBlue, size: 24.sp),      // Icon 0 -> Page 0: Home
@@ -113,7 +131,7 @@ class MainNavigationController extends GetxController {
           color: Colors.white,
           height: 60.h,
           circleWidth: 45.w,
-          initIndex: _currentIndex.value.clamp(0, 3), // Clamp to 0-3 (4 items)
+          initIndex: safeIndex, // Use safe clamped index
           onChanged: (iconIndex) {
             // Map icon index directly to page index (they should match now)
             final pageIndex = iconIndex.clamp(0, pages.length - 1);
@@ -122,6 +140,7 @@ class MainNavigationController extends GetxController {
               print('📱 CircleNavBar tapped icon index: $iconIndex');
               print('   Mapping to page index: $pageIndex');
               print('   Page at index $pageIndex: ${_getPageName(pageIndex)}');
+              print('   Current index before change: ${_currentIndex.value}');
             }
             
             // Ensure the index is valid before changing
@@ -130,6 +149,7 @@ class MainNavigationController extends GetxController {
             } else {
               if (kDebugMode) {
                 print('❌ Invalid page index: $pageIndex (max: ${pages.length - 1})');
+                print('   Rejecting navigation to invalid index');
               }
             }
           },

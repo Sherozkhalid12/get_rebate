@@ -24,7 +24,7 @@ class PrivacyPolicyView extends StatelessWidget {
         ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: AppTheme.white),
-          onPressed: () => Get.back(),
+          onPressed: () => Navigator.pop(context),
         ),
         title: Text(
           'Privacy Policy',
@@ -261,4 +261,5 @@ class PrivacyPolicyView extends StatelessWidget {
     );
   }
 }
+
 

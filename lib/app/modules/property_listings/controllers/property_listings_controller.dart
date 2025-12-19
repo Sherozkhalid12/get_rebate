@@ -3,11 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:getrebate/app/models/property_model.dart';
 import 'package:getrebate/app/routes/app_pages.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart' as global;
 import 'package:getrebate/app/utils/api_constants.dart';
+import 'package:getrebate/app/utils/snackbar_helper.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 
 class PropertyListingsController extends GetxController {
@@ -177,7 +179,7 @@ class PropertyListingsController extends GetxController {
           print('⚠️ Unexpected status code: ${response.statusCode}');
           print('   Response: ${response.data}');
         }
-        Get.snackbar('Error', 'Failed to fetch listings. Status: ${response.statusCode}');
+        SnackbarHelper.showError('Failed to fetch listings. Status: ${response.statusCode}');
       }
     } on DioException catch (e) {
       _isLoading.value = false;
@@ -220,7 +222,7 @@ class PropertyListingsController extends GetxController {
       // Only show snackbar if we have a valid context
       try {
         if (Get.isSnackbarOpen == false) {
-          Get.snackbar('Error', errorMessage);
+          SnackbarHelper.showError(errorMessage);
         }
       } catch (snackbarError) {
         if (kDebugMode) {
@@ -238,7 +240,7 @@ class PropertyListingsController extends GetxController {
       // Only show snackbar if we have a valid context
       try {
         if (Get.isSnackbarOpen == false) {
-          Get.snackbar('Error', 'Failed to fetch listings: ${e.toString()}');
+          SnackbarHelper.showError('Failed to fetch listings: ${e.toString()}');
         }
       } catch (snackbarError) {
         if (kDebugMode) {
@@ -609,7 +611,7 @@ class PropertyListingsController extends GetxController {
   // Placeholder method to prevent errors
   void createNewListing() {
     // Buyers cannot create listings anymore
-    Get.snackbar('Info', 'Buyers cannot create listings. Please contact an agent.');
+    SnackbarHelper.showInfo('Buyers cannot create listings. Please contact an agent.');
   }
 
   void editProperty(PropertyModel property) async {
@@ -627,7 +629,7 @@ class PropertyListingsController extends GetxController {
         print('Navigation error: $e');
       }
       try {
-        Get.snackbar('Error', 'Failed to navigate to edit listing page');
+        SnackbarHelper.showError('Failed to navigate to edit listing page');
       } catch (snackbarError) {
         if (kDebugMode) print('Could not show snackbar: $snackbarError');
       }
@@ -672,21 +674,10 @@ class PropertyListingsController extends GetxController {
 
         // Show success message
         try {
-          Get.snackbar(
-            'Success',
+          SnackbarHelper.showSuccess(
             'Property deleted successfully',
-            snackPosition: SnackPosition.BOTTOM,
-            backgroundColor: Colors.green.shade600,
-            colorText: Colors.white,
-            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-            borderRadius: 12,
+            title: 'Success',
             duration: const Duration(seconds: 2),
-            snackStyle: SnackStyle.FLOATING,
-            icon: const Icon(
-              Icons.check_circle,
-              color: Colors.white,
-              size: 24,
-            ),
           );
         } catch (snackbarError) {
           if (kDebugMode) print('⚠️ Could not show snackbar: $snackbarError');
@@ -709,16 +700,9 @@ class PropertyListingsController extends GetxController {
         }
 
         try {
-          Get.snackbar(
-            'Error',
+          SnackbarHelper.showError(
             errorMessage,
-            snackPosition: SnackPosition.BOTTOM,
-            backgroundColor: Colors.red.shade600,
-            colorText: Colors.white,
-            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-            borderRadius: 12,
             duration: const Duration(seconds: 3),
-            snackStyle: SnackStyle.FLOATING,
           );
         } catch (snackbarError) {
           if (kDebugMode) print('⚠️ Could not show error snackbar: $snackbarError');
@@ -758,17 +742,7 @@ class PropertyListingsController extends GetxController {
       }
 
       try {
-        Get.snackbar(
-          'Error',
-          errorMessage,
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: Colors.red.shade600,
-          colorText: Colors.white,
-          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-          borderRadius: 12,
-          duration: const Duration(seconds: 3),
-          snackStyle: SnackStyle.FLOATING,
-        );
+        SnackbarHelper.showError(errorMessage);
       } catch (snackbarError) {
         if (kDebugMode) print('⚠️ Could not show error snackbar: $snackbarError');
       }
@@ -778,16 +752,9 @@ class PropertyListingsController extends GetxController {
         print('❌ Unexpected Error: ${e.toString()}');
       }
       try {
-        Get.snackbar(
-          'Error',
+        SnackbarHelper.showError(
           'Failed to delete property: ${e.toString()}',
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: Colors.red.shade600,
-          colorText: Colors.white,
-          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-          borderRadius: 12,
           duration: const Duration(seconds: 3),
-          snackStyle: SnackStyle.FLOATING,
         );
       } catch (snackbarError) {
         if (kDebugMode) print('⚠️ Could not show error snackbar: $snackbarError');
@@ -893,10 +860,10 @@ class PropertyListingsController extends GetxController {
                                     }
                                   } catch (e) {
                                     if (kDebugMode) print('Error closing dialog: $e');
-                                    // Try Get.back() as fallback
+                                    // Try Navigator.pop() as fallback
                                     try {
                                       if (Get.isDialogOpen == true) {
-                                        Get.back();
+                                        Navigator.pop(Get.context!);
                                       }
                                     } catch (_) {}
                                   }
@@ -939,10 +906,10 @@ class PropertyListingsController extends GetxController {
                                         Navigator.of(Get.context!, rootNavigator: true).pop();
                                       } catch (e) {
                                         if (kDebugMode) print('Error closing dialog: $e');
-                                        // Try Get.back() as fallback
+                                        // Try Navigator.pop() as fallback
                                         try {
                                           if (Get.isDialogOpen == true) {
-                                            Get.back();
+                                            Navigator.pop(Get.context!);
                                           }
                                         } catch (_) {}
                                       }
@@ -957,10 +924,10 @@ class PropertyListingsController extends GetxController {
                                         Navigator.of(Get.context!, rootNavigator: true).pop();
                                       } catch (closeError) {
                                         if (kDebugMode) print('Error closing dialog: $closeError');
-                                        // Try Get.back() as fallback
+                                        // Try Navigator.pop() as fallback
                                         try {
                                           if (Get.isDialogOpen == true) {
-                                            Get.back();
+                                            Navigator.pop(Get.context!);
                                           }
                                         } catch (_) {}
                                       }
@@ -980,9 +947,9 @@ class PropertyListingsController extends GetxController {
                               ? SizedBox(
                                   width: 16.w,
                                   height: 16.w,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                  child: SpinKitFadingCircle(
+                                    color: Colors.white,
+                                    size: 16.w,
                                   ),
                                 )
                               : Text(

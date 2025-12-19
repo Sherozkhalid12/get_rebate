@@ -227,7 +227,7 @@ class BACExplanationDialog extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: () => Get.back(),
+                onPressed: () => Navigator.pop(context),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppTheme.primaryBlue,
                   foregroundColor: AppTheme.white,
@@ -331,7 +331,7 @@ class DualAgencyExplanationDialog extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: () => Get.back(),
+                onPressed: () => Navigator.pop(context),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppTheme.lightGreen,
                   foregroundColor: AppTheme.white,

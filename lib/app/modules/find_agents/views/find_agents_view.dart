@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/modules/find_agents/controllers/find_agents_controller.dart';
 import 'package:getrebate/app/models/agent_model.dart';
@@ -72,9 +73,10 @@ class FindAgentsView extends GetView<FindAgentsController> {
           const SizedBox(height: 12),
           CustomTextField(
             controller: controller.searchController,
-            labelText: 'Search agents by name, brokerage, or other details',
+            labelText: 'Search by name, ZIP code, or other details',
             prefixIcon: Icons.search,
             onChanged: controller.searchAgents,
+            keyboardType: TextInputType.text,
           ),
         ],
       ),
@@ -84,9 +86,10 @@ class FindAgentsView extends GetView<FindAgentsController> {
   Widget _buildAgentsList(BuildContext context) {
     return Obx(() {
       if (controller.isLoading.value) {
-        return const Center(
-          child: CircularProgressIndicator(
-            valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primaryBlue),
+        return Center(
+          child: SpinKitFadingCircle(
+            color: AppTheme.primaryBlue,
+            size: 40,
           ),
         );
       }
@@ -383,7 +386,7 @@ class FindAgentsView extends GetView<FindAgentsController> {
             const SizedBox(height: 32),
             CustomButton(
               text: 'Search Different Area',
-              onPressed: () => Get.back(),
+              onPressed: () => Navigator.pop(context),
               icon: Icons.search,
               height: 48,
             ),

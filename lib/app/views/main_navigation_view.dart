@@ -16,6 +16,8 @@ class MainNavigationView extends GetView<MainNavigationController> {
           // If we're not on the home screen (index 0), go back to home
           if (controller.currentIndex != 0) {
             controller.changeIndex(0);
+            // Ensure navbar is visible when going back to home
+            controller.showNavBar();
           } else {
             // If we're on home screen, allow app to exit
             // You can add an exit confirmation dialog here if needed

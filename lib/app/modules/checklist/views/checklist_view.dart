@@ -427,7 +427,7 @@ class ChecklistView extends GetView<ChecklistController> {
                     ),
                   ),
                   IconButton(
-                    onPressed: () => Get.back(),
+                    onPressed: () => Navigator.pop(context),
                     icon: const Icon(Icons.close),
                   ),
                 ],
@@ -489,7 +489,7 @@ class ChecklistView extends GetView<ChecklistController> {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   TextButton(
-                    onPressed: () => Get.back(),
+                    onPressed: () => Navigator.pop(context),
                     child: const Text('Close'),
                   ),
                   const SizedBox(width: 8),

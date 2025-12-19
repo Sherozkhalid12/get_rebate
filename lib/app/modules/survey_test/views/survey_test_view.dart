@@ -437,7 +437,7 @@ class SurveyTestView extends StatelessWidget {
               ),
               const SizedBox(height: 24),
               ElevatedButton(
-                onPressed: () => Get.back(),
+                onPressed: () => Navigator.pop(Get.context!),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppTheme.lightGreen,
                   foregroundColor: AppTheme.white,
@@ -504,7 +504,7 @@ class SurveyTestView extends StatelessWidget {
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: () => Get.back(),
+                    onPressed: () => Navigator.pop(context),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppTheme.lightGreen,
                       foregroundColor: AppTheme.white,

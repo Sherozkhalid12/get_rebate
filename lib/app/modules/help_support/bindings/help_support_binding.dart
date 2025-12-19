@@ -8,3 +8,4 @@ class HelpSupportBinding extends Bindings {
   }
 }
 
+

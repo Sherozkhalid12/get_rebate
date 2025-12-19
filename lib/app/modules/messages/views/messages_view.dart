@@ -36,36 +36,6 @@ class MessagesView extends GetView<MessagesController> {
 
     return Scaffold(
       backgroundColor: AppTheme.lightGray,
-      appBar: AppBar(
-        backgroundColor: AppTheme.primaryBlue,
-        elevation: 0,
-        flexibleSpace: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: AppTheme.primaryGradient,
-            ),
-          ),
-        ),
-        title: Obx(() {
-          final conversation = controller.selectedConversation;
-          // Update navbar visibility outside of Obx
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            _updateNavBarVisibility(conversation != null);
-          });
-          
-          return Text(
-            conversation != null ? conversation.senderName : 'Messages',
-            style: TextStyle(
-              color: AppTheme.white,
-              fontSize: 18.sp,
-              fontWeight: FontWeight.w600,
-            ),
-          );
-        }),
-        centerTitle: true,
-      ),
       body: SafeArea(
         child: Obx(() {
           if (controller.selectedConversation != null) {
@@ -102,7 +72,7 @@ class MessagesView extends GetView<MessagesController> {
       child: Row(
         children: [
           IconButton(
-            onPressed: () => Get.back(),
+            onPressed: () => Navigator.pop(context),
             icon: const Icon(Icons.arrow_back, color: AppTheme.darkGray),
           ),
           Expanded(
@@ -731,7 +701,7 @@ class MessagesView extends GetView<MessagesController> {
       case 'loan_officer':
         return 'Loan Officer';
       default:
-        return 'User';
+        return 'Loan Officer';
     }
   }
 

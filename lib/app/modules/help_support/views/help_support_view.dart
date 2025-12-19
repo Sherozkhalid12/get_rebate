@@ -25,7 +25,7 @@ class HelpSupportView extends StatelessWidget {
         ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: AppTheme.white),
-          onPressed: () => Get.back(),
+          onPressed: () => Navigator.pop(context),
         ),
         title: Text(
           'Help & Support',
@@ -508,4 +508,5 @@ class HelpSupportView extends StatelessWidget {
     }
   }
 }
+
 

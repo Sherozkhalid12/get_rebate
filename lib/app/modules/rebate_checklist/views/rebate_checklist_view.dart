@@ -71,7 +71,7 @@ class RebateChecklistView extends GetView<RebateChecklistController> {
                   ),
                   const SizedBox(height: 32),
                   ElevatedButton.icon(
-                    onPressed: () => Get.back(),
+                    onPressed: () => Navigator.pop(context),
                     icon: const Icon(Icons.arrow_back),
                     label: const Text('Go Back'),
                     style: ElevatedButton.styleFrom(
@@ -351,7 +351,7 @@ class RebateChecklistView extends GetView<RebateChecklistController> {
                     ),
                   ),
                   IconButton(
-                    onPressed: () => Get.back(),
+                    onPressed: () => Navigator.pop(context),
                     icon: const Icon(Icons.close),
                   ),
                 ],
@@ -406,7 +406,7 @@ class RebateChecklistView extends GetView<RebateChecklistController> {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   TextButton(
-                    onPressed: () => Get.back(),
+                    onPressed: () => Navigator.pop(context),
                     child: const Text('Close'),
                   ),
                   const SizedBox(width: 8),
@@ -467,7 +467,7 @@ class RebateChecklistView extends GetView<RebateChecklistController> {
                     ),
                   ),
                   IconButton(
-                    onPressed: () => Get.back(),
+                    onPressed: () => Navigator.pop(context),
                     icon: const Icon(Icons.close),
                   ),
                 ],
@@ -492,7 +492,7 @@ class RebateChecklistView extends GetView<RebateChecklistController> {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   TextButton(
-                    onPressed: () => Get.back(),
+                    onPressed: () => Navigator.pop(context),
                     child: const Text('Close'),
                   ),
                   const SizedBox(width: 8),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/modules/loan_officer_profile/controllers/loan_officer_profile_controller.dart';
 import 'package:getrebate/app/widgets/custom_button.dart';
@@ -39,7 +40,12 @@ class LoanOfficerProfileView extends GetView<LoanOfficerProfileController> {
       body: SafeArea(
         child: Obx(() {
           if (controller.loanOfficer == null) {
-            return const Center(child: CircularProgressIndicator());
+            return const Center(
+              child: SpinKitFadingCircle(
+                color: AppTheme.primaryBlue,
+                size: 40,
+              ),
+            );
           }
           return _buildProfile(context);
         }),

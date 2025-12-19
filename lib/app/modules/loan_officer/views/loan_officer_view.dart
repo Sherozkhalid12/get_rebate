@@ -633,11 +633,11 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
           'Are you sure you want to delete the loan for ${loan.borrowerName}?',
         ),
         actions: [
-          TextButton(onPressed: () => Get.back(), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
           TextButton(
             onPressed: () {
               controller.deleteLoan(loan.id);
-              Get.back();
+              Navigator.pop(context);
             },
             child: Text('Delete', style: TextStyle(color: Colors.red.shade600)),
           ),
@@ -711,12 +711,12 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Get.back(),
+            onPressed: () => Navigator.pop(context),
             child: Text('Cancel', style: TextStyle(color: AppTheme.mediumGray)),
           ),
           TextButton(
             onPressed: () {
-              Get.back();
+              Navigator.pop(context);
               final authController = Get.find<global.AuthController>();
               authController.logout();
             },
@@ -1157,12 +1157,12 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Get.back(),
+            onPressed: () => Navigator.pop(context),
             child: const Text('Keep Subscription'),
           ),
           TextButton(
             onPressed: () {
-              Get.back();
+              Navigator.pop(context);
               controller.cancelSubscription();
             },
             style: TextButton.styleFrom(

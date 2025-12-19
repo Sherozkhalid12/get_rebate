@@ -17,7 +17,9 @@ import 'package:getrebate/app/controllers/location_controller.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart';
 import 'package:getrebate/app/modules/messages/controllers/messages_controller.dart';
 import 'package:getrebate/app/modules/favorites/controllers/favorites_controller.dart';
+import 'package:getrebate/app/controllers/main_navigation_controller.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
+import 'package:getrebate/app/utils/snackbar_helper.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 
 class BuyerController extends GetxController {
@@ -423,6 +425,45 @@ class BuyerController extends GetxController {
         if (kDebugMode) {
           print('✅ Loaded ${fetchedListings.length} listings from API');
           print('✅ Extracted ${extractedOpenHouses.length} open houses from listings');
+          
+          // Print all homes for sale data
+          print('\n' + '='*80);
+          print('🏠 HOMES FOR SALE - FULL DATA');
+          print('='*80);
+          for (int i = 0; i < fetchedListings.length; i++) {
+            final listing = fetchedListings[i];
+            print('\n📋 Listing #${i + 1}:');
+            print('   ID: ${listing.id}');
+            print('   Agent ID: ${listing.agentId}');
+            print('   Price: \$${(listing.priceCents / 100).toStringAsFixed(2)} (${listing.priceCents} cents)');
+            print('   Address:');
+            print('     Street: ${listing.address.street}');
+            print('     City: ${listing.address.city}');
+            print('     State: ${listing.address.state}');
+            print('     ZIP: ${listing.address.zip}');
+            print('     Full Address: ${listing.address.toString()}');
+            print('   Photos (${listing.photoUrls.length}):');
+            for (int j = 0; j < listing.photoUrls.length; j++) {
+              print('     [${j + 1}] ${listing.photoUrls[j]}');
+            }
+            print('   BAC Percent: ${listing.bacPercent}%');
+            print('   Dual Agency Allowed: ${listing.dualAgencyAllowed}');
+            if (listing.dualAgencyCommissionPercent != null) {
+              print('   Dual Agency Commission: ${listing.dualAgencyCommissionPercent}%');
+            }
+            print('   Created At: ${listing.createdAt}');
+            print('   Stats:');
+            print('     Searches: ${listing.stats.searches}');
+            print('     Views: ${listing.stats.views}');
+            print('     Contacts: ${listing.stats.contacts}');
+            print('   JSON: ${listing.toJson()}');
+            if (i < fetchedListings.length - 1) {
+              print('   ' + '-'*76);
+            }
+          }
+          print('\n' + '='*80);
+          print('✅ Total Listings: ${fetchedListings.length}');
+          print('='*80 + '\n');
         }
       } else {
       if (kDebugMode) {
@@ -853,6 +894,47 @@ class BuyerController extends GetxController {
     }
     _allListings.value = await _listingService.listListings();
     _applyZipCodeFilter(); // Apply filter after loading listings
+    
+    // Print all mock listings data
+    if (kDebugMode) {
+      print('\n' + '='*80);
+      print('🏠 HOMES FOR SALE (MOCK DATA) - FULL DATA');
+      print('='*80);
+      for (int i = 0; i < _allListings.length; i++) {
+        final listing = _allListings[i];
+        print('\n📋 Listing #${i + 1}:');
+        print('   ID: ${listing.id}');
+        print('   Agent ID: ${listing.agentId}');
+        print('   Price: \$${(listing.priceCents / 100).toStringAsFixed(2)} (${listing.priceCents} cents)');
+        print('   Address:');
+        print('     Street: ${listing.address.street}');
+        print('     City: ${listing.address.city}');
+        print('     State: ${listing.address.state}');
+        print('     ZIP: ${listing.address.zip}');
+        print('     Full Address: ${listing.address.toString()}');
+        print('   Photos (${listing.photoUrls.length}):');
+        for (int j = 0; j < listing.photoUrls.length; j++) {
+          print('     [${j + 1}] ${listing.photoUrls[j]}');
+        }
+        print('   BAC Percent: ${listing.bacPercent}%');
+        print('   Dual Agency Allowed: ${listing.dualAgencyAllowed}');
+        if (listing.dualAgencyCommissionPercent != null) {
+          print('   Dual Agency Commission: ${listing.dualAgencyCommissionPercent}%');
+        }
+        print('   Created At: ${listing.createdAt}');
+        print('   Stats:');
+        print('     Searches: ${listing.stats.searches}');
+        print('     Views: ${listing.stats.views}');
+        print('     Contacts: ${listing.stats.contacts}');
+        print('   JSON: ${listing.toJson()}');
+        if (i < _allListings.length - 1) {
+          print('   ' + '-'*76);
+        }
+      }
+      print('\n' + '='*80);
+      print('✅ Total Mock Listings: ${_allListings.length}');
+      print('='*80 + '\n');
+    }
   }
 
   Future<void> _searchAgentsAndLoanOfficers() async {
@@ -867,7 +949,7 @@ class BuyerController extends GetxController {
       // In real app, this would filter based on search query and location
       // For now, we'll just show all agents/loan officers
     } catch (e) {
-      Get.snackbar('Error', 'Search failed: ${e.toString()}');
+      SnackbarHelper.showError('Search failed: ${e.toString()}');
     } finally {
       _isLoading.value = false;
     }
@@ -901,10 +983,33 @@ class BuyerController extends GetxController {
       return;
     }
     
-    // Filter agents by ZIP code (check both claimedZipCodes and serviceZipCodes)
+    // Filter agents by ZIP code (comprehensive check like FindAgentsController)
     _agents.value = _allAgents.where((agent) {
-      return agent.claimedZipCodes.contains(zipCode) || 
-             agent.serviceZipCodes.contains(zipCode);
+      // Check 1: claimedZipCodes (array of strings - extracted from postalCode objects)
+      final hasClaimedZip = agent.claimedZipCodes.contains(zipCode);
+      
+      // Check 2: serviceZipCodes (array of strings)
+      final hasServiceZip = agent.serviceZipCodes.contains(zipCode);
+      
+      // Check 3: serviceAreas (array of strings - can contain ZIP codes)
+      final hasServiceArea = agent.serviceAreas?.contains(zipCode) ?? false;
+      
+      // Check 4: Check if agent has any listings with this ZIP code
+      final hasListingZip = _allListings.any((listing) => 
+        listing.agentId == agent.id && listing.address.zip == zipCode
+      );
+      
+      final matches = hasClaimedZip || hasServiceZip || hasServiceArea || hasListingZip;
+      
+      if (kDebugMode && matches) {
+        print('   ✅ Agent "${agent.name}" matches ZIP $zipCode');
+        print('      claimedZipCodes: ${agent.claimedZipCodes}');
+        print('      serviceZipCodes: ${agent.serviceZipCodes}');
+        print('      serviceAreas: ${agent.serviceAreas}');
+        print('      hasListingZip: $hasListingZip');
+      }
+      
+      return matches;
     }).toList();
     
     // Filter loan officers by ZIP code
@@ -917,10 +1022,32 @@ class BuyerController extends GetxController {
       return listing.address.zip == zipCode;
     }).toList();
     
-    // Filter open houses by listings in that ZIP
+    // Filter open houses by listings in that ZIP code
+    // Open houses are linked to listings, so filter by listing ZIP codes
     final listingIds = _listings.map((l) => l.id).toSet();
     _openHouses.value = _allOpenHouses.where((oh) {
-      return listingIds.contains(oh.listingId);
+      final matches = listingIds.contains(oh.listingId);
+      
+      if (kDebugMode && matches) {
+        final listing = _allListings.firstWhere(
+          (l) => l.id == oh.listingId,
+          orElse: () => Listing(
+            id: '',
+            agentId: '',
+            priceCents: 0,
+            address: const ListingAddress(street: '', city: '', state: '', zip: ''),
+            photoUrls: const [],
+            bacPercent: 0,
+            dualAgencyAllowed: false,
+            createdAt: DateTime.now(),
+          ),
+        );
+        if (listing.id.isNotEmpty) {
+          print('   ✅ Open House matches ZIP $zipCode (Listing: ${listing.address.zip})');
+        }
+      }
+      
+      return matches;
     }).toList();
     
     if (kDebugMode) {
@@ -930,6 +1057,55 @@ class BuyerController extends GetxController {
       print('   Filtered Listings: ${_listings.length} / ${_allListings.length}');
       print('   Filtered Open Houses: ${_openHouses.length} / ${_allOpenHouses.length}');
     }
+    
+    // Record search for all displayed agents
+    _recordSearchesForDisplayedAgents();
+  }
+  
+  /// Records search tracking for all currently displayed agents
+  Future<void> _recordSearchesForDisplayedAgents() async {
+    if (_currentZipCode.value == null || _currentZipCode.value!.isEmpty) {
+      return; // Only track when there's an active search/filter
+    }
+    
+    // Record search for each displayed agent (fire and forget)
+    for (final agent in _agents) {
+      _recordSearch(agent.id);
+    }
+  }
+  
+  /// Records a search for an agent
+  Future<void> _recordSearch(String agentId) async {
+    try {
+      final response = await _agentService.recordSearch(agentId);
+      if (response != null && kDebugMode) {
+        print('📊 Search Response for agent $agentId:');
+        print('   Message: ${response['message'] ?? 'N/A'}');
+        print('   Searches: ${response['searches'] ?? 'N/A'}');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('⚠️ Error recording search: $e');
+      }
+      // Don't show error to user - tracking is silent
+    }
+  }
+  
+  /// Records a contact action for an agent
+  Future<void> _recordContact(String agentId) async {
+    try {
+      final response = await _agentService.recordContact(agentId);
+      if (response != null && kDebugMode) {
+        print('📞 Contact Response for agent $agentId:');
+        print('   Message: ${response['message'] ?? 'N/A'}');
+        print('   Contacts: ${response['contacts'] ?? 'N/A'}');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('⚠️ Error recording contact: $e');
+      }
+      // Don't show error to user - tracking is silent
+    }
   }
 
   Future<void> searchByZipCode(String zipCode) async {
@@ -937,12 +1113,9 @@ class BuyerController extends GetxController {
       // Validate ZIP code format (5 digits)
       if (zipCode.length != 5 || !RegExp(r'^\d+$').hasMatch(zipCode)) {
         // Don't set loading state for invalid input
-        Get.snackbar(
-          'Invalid ZIP Code',
+        SnackbarHelper.showError(
           'Please enter a valid 5-digit ZIP code',
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
+          title: 'Invalid ZIP Code',
           duration: const Duration(seconds: 2),
         );
         return;
@@ -1006,14 +1179,9 @@ class BuyerController extends GetxController {
     final currentUser = _authController.currentUser;
     if (currentUser == null || currentUser.id.isEmpty) {
       try {
-        Get.snackbar(
-          'Error',
+        SnackbarHelper.showError(
           'Please login to like agents',
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
           duration: const Duration(seconds: 2),
-          margin: const EdgeInsets.all(16),
         );
       } catch (e) {
         if (kDebugMode) {
@@ -1118,18 +1286,14 @@ class BuyerController extends GetxController {
           // Show snackbar with appropriate message (safely with delay to avoid overlay issues)
           Future.delayed(const Duration(milliseconds: 200), () {
             try {
-              Get.snackbar(
-                action == 'liked' ? 'Added to Favorites' : 'Removed from Favorites',
+              SnackbarHelper.showSuccess(
                 message.isNotEmpty 
                     ? message 
                     : (isLiked 
                         ? 'Agent added to your favorites' 
                         : 'Agent removed from your favorites'),
-                snackPosition: SnackPosition.BOTTOM,
-                backgroundColor: isLiked ? AppTheme.lightGreen : AppTheme.mediumGray,
-                colorText: Colors.white,
+                title: action == 'liked' ? 'Added to Favorites' : 'Removed from Favorites',
                 duration: const Duration(seconds: 2),
-                margin: const EdgeInsets.all(16),
               );
             } catch (e) {
               // If snackbar fails, just print to console (overlay might not be available)
@@ -1225,14 +1389,9 @@ class BuyerController extends GetxController {
       }
       
       try {
-        Get.snackbar(
-          'Error',
+        SnackbarHelper.showError(
           'An unexpected error occurred. Please try again.',
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
           duration: const Duration(seconds: 3),
-          margin: const EdgeInsets.all(16),
         );
       } catch (e) {
         if (kDebugMode) {
@@ -1251,14 +1410,9 @@ class BuyerController extends GetxController {
     final currentUser = _authController.currentUser;
     if (currentUser == null || currentUser.id.isEmpty) {
       try {
-        Get.snackbar(
-          'Error',
+        SnackbarHelper.showError(
           'Please login to like loan officers',
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
           duration: const Duration(seconds: 2),
-          margin: const EdgeInsets.all(16),
         );
       } catch (e) {
         if (kDebugMode) {
@@ -1364,28 +1518,17 @@ class BuyerController extends GetxController {
             }
           }
           
-          // Show snackbar with appropriate message (safely with delay to avoid overlay issues)
+          // Show snackbar with appropriate message
           Future.delayed(const Duration(milliseconds: 200), () {
-            try {
-              Get.snackbar(
-                action == 'liked' ? 'Added to Favorites' : 'Removed from Favorites',
-                message.isNotEmpty 
-                    ? message 
-                    : (isLiked 
-                        ? 'Loan officer added to your favorites' 
-                        : 'Loan officer removed from your favorites'),
-                snackPosition: SnackPosition.BOTTOM,
-                backgroundColor: isLiked ? AppTheme.lightGreen : AppTheme.mediumGray,
-                colorText: Colors.white,
-                duration: const Duration(seconds: 2),
-                margin: const EdgeInsets.all(16),
-              );
-            } catch (e) {
-              // If snackbar fails, just print to console (overlay might not be available)
-              if (kDebugMode) {
-                print('⚠️ Could not show snackbar: $e');
-              }
-            }
+            SnackbarHelper.showSuccess(
+              message.isNotEmpty 
+                  ? message 
+                  : (isLiked 
+                      ? 'Loan officer added to your favorites' 
+                      : 'Loan officer removed from your favorites'),
+              title: action == 'liked' ? 'Added to Favorites' : 'Removed from Favorites',
+              duration: const Duration(seconds: 2),
+            );
           });
           
           if (kDebugMode) {
@@ -1432,21 +1575,10 @@ class BuyerController extends GetxController {
       // Just log the error and revert optimistic update
       if (e.response?.statusCode != 404) {
         Future.delayed(const Duration(milliseconds: 200), () {
-          try {
-            Get.snackbar(
-              'Error',
-              e.response?.data['message']?.toString() ?? 'Failed to update favorite. Please try again.',
-              snackPosition: SnackPosition.BOTTOM,
-              backgroundColor: Colors.red,
-              colorText: Colors.white,
-              duration: const Duration(seconds: 3),
-              margin: const EdgeInsets.all(16),
-            );
-          } catch (err) {
-            if (kDebugMode) {
-              print('⚠️ Could not show error snackbar: $err');
-            }
-          }
+          SnackbarHelper.showError(
+            e.response?.data['message']?.toString() ?? 'Failed to update favorite. Please try again.',
+            duration: const Duration(seconds: 3),
+          );
         });
       } else {
         if (kDebugMode) {
@@ -1473,14 +1605,9 @@ class BuyerController extends GetxController {
       }
       
       try {
-        Get.snackbar(
-          'Error',
+        SnackbarHelper.showError(
           'An unexpected error occurred. Please try again.',
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
           duration: const Duration(seconds: 3),
-          margin: const EdgeInsets.all(16),
         );
       } catch (e) {
         if (kDebugMode) {
@@ -1539,22 +1666,120 @@ class BuyerController extends GetxController {
   }
 
   Future<void> contactAgent(AgentModel agent) async {
-    // Navigate directly to messages screen
-    Get.toNamed('/messages', arguments: {
-      'agent': agent,
-      'userId': agent.id,
-      'userName': agent.name,
-      'userProfilePic': agent.profileImage,
-      'userRole': 'agent',
-    });
+    // Record contact action
+    _recordContact(agent.id);
+    
+    // Check if conversation exists with this agent
+    final messagesController = Get.find<MessagesController>();
+    
+    // Wait for threads to load if needed
+    if (messagesController.allConversations.isEmpty && !messagesController.isLoadingThreads) {
+      await messagesController.loadThreads();
+    }
+    
+    // Wait a bit for threads to load
+    int retries = 0;
+    while (messagesController.allConversations.isEmpty && messagesController.isLoadingThreads && retries < 10) {
+      await Future.delayed(const Duration(milliseconds: 200));
+      retries++;
+    }
+    
+    // Check if conversation exists
+    ConversationModel? existingConversation;
+    try {
+      existingConversation = messagesController.allConversations.firstWhere(
+        (conv) => conv.senderId == agent.id,
+      );
+    } catch (e) {
+      existingConversation = null;
+    }
+    
+    if (existingConversation != null) {
+      // Conversation exists - go directly to chat
+      messagesController.selectConversation(existingConversation);
+      // Navigate to main navigation and switch to messages tab (index 2)
+      if (Get.isRegistered<MainNavigationController>()) {
+        try {
+          final mainNavController = Get.find<MainNavigationController>();
+          mainNavController.changeIndex(2); // Messages is at index 2
+          // Navigate to main if not already there
+          if (Get.currentRoute != AppPages.MAIN) {
+            Get.offAllNamed(AppPages.MAIN);
+          }
+        } catch (e) {
+          // Fallback to route navigation if controller not found
+          Get.toNamed('/messages');
+        }
+      } else {
+        Get.toNamed('/messages');
+      }
+    } else {
+      // No conversation - show Start Chat screen
+      Get.toNamed('/contact', arguments: {
+        'userId': agent.id,
+        'userName': agent.name,
+        'userProfilePic': agent.profileImage,
+        'userRole': 'agent',
+        'agent': agent,
+      });
+    }
   }
 
-  void contactLoanOfficer(LoanOfficerModel loanOfficer) {
-    // Navigate to contact loan officer screen for now
-    Get.toNamed(
-      AppPages.CONTACT_LOAN_OFFICER,
-      arguments: {'loanOfficer': loanOfficer},
-    );
+  Future<void> contactLoanOfficer(LoanOfficerModel loanOfficer) async {
+    // Check if conversation exists with this loan officer
+    final messagesController = Get.find<MessagesController>();
+    
+    // Wait for threads to load if needed
+    if (messagesController.allConversations.isEmpty && !messagesController.isLoadingThreads) {
+      await messagesController.loadThreads();
+    }
+    
+    // Wait a bit for threads to load
+    int retries = 0;
+    while (messagesController.allConversations.isEmpty && messagesController.isLoadingThreads && retries < 10) {
+      await Future.delayed(const Duration(milliseconds: 200));
+      retries++;
+    }
+    
+    // Check if conversation exists
+    ConversationModel? existingConversation;
+    try {
+      existingConversation = messagesController.allConversations.firstWhere(
+        (conv) => conv.senderId == loanOfficer.id,
+      );
+    } catch (e) {
+      existingConversation = null;
+    }
+    
+    if (existingConversation != null) {
+      // Conversation exists - go directly to chat
+      messagesController.selectConversation(existingConversation);
+      // Navigate to main navigation and switch to messages tab (index 2)
+      if (Get.isRegistered<MainNavigationController>()) {
+        try {
+          final mainNavController = Get.find<MainNavigationController>();
+          mainNavController.changeIndex(2); // Messages is at index 2
+          // Navigate to main if not already there
+          if (Get.currentRoute != AppPages.MAIN) {
+            Get.offAllNamed(AppPages.MAIN);
+          }
+        } catch (e) {
+          // Fallback to route navigation if controller not found
+          Get.toNamed('/messages');
+        }
+      } else {
+        Get.toNamed('/messages');
+      }
+    } else {
+      // No conversation - show Start Chat screen
+      Get.toNamed('/contact', arguments: {
+        'userId': loanOfficer.id,
+        'userName': loanOfficer.name,
+        'userProfilePic': loanOfficer.profileImage,
+        'userRole': 'loan_officer',
+        'loanOfficer': loanOfficer,
+      });
+    }
   }
 
   void viewAgentProfile(AgentModel agent) {

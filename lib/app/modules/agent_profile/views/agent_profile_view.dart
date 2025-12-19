@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/modules/agent_profile/controllers/agent_profile_controller.dart';
 import 'package:getrebate/app/widgets/custom_button.dart';
@@ -41,7 +42,12 @@ class AgentProfileView extends GetView<AgentProfileController> {
       body: SafeArea(
         child: Obx(() {
           if (controller.agent == null) {
-            return const Center(child: CircularProgressIndicator());
+            return Center(
+              child: SpinKitFadingCircle(
+                color: AppTheme.primaryBlue,
+                size: 40,
+              ),
+            );
           }
           return _buildProfile(context);
         }),
@@ -247,13 +253,13 @@ class AgentProfileView extends GetView<AgentProfileController> {
             Column(
               children: [
                 // Primary Action: Select as My Agent
-                CustomButton(
-                  text: 'Select as My Agent',
-                  onPressed: controller.selectAsMyAgent,
-                  icon: Icons.check_circle,
-                  width: double.infinity,
-                  backgroundColor: AppTheme.lightGreen,
-                ),
+                // CustomButton(
+                //   text: 'Select as My Agent',
+                //   onPressed: controller.selectAsMyAgent,
+                //   icon: Icons.check_circle,
+                //   width: double.infinity,
+                //   backgroundColor: AppTheme.lightGreen,
+                // ),
                 const SizedBox(height: 12),
                 // Secondary Actions
                 Row(
@@ -1119,7 +1125,10 @@ class AgentProfileView extends GetView<AgentProfileController> {
                     padding: const EdgeInsets.all(40),
                     child: Column(
                       children: [
-                        CircularProgressIndicator(color: AppTheme.primaryBlue),
+                        SpinKitFadingCircle(
+                          color: AppTheme.primaryBlue,
+                          size: 24,
+                        ),
                         const SizedBox(height: 16),
                         Text(
                           'Loading properties...',

@@ -3,7 +3,7 @@ import 'package:get/get.dart';
 import 'package:dio/dio.dart';
 import 'package:getrebate/app/services/lead_service.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart';
-import 'package:getrebate/app/widgets/custom_snackbar.dart';
+import 'package:getrebate/app/utils/snackbar_helper.dart';
 import 'package:flutter/foundation.dart';
 
 class BuyerLeadFormController extends GetxController {
@@ -287,7 +287,7 @@ class BuyerLeadFormController extends GetxController {
       if (kDebugMode) {
         print('❌ Form validation failed: $validationError');
       }
-      CustomSnackbar.showValidation(validationError);
+      SnackbarHelper.showValidation(validationError);
       return;
     }
 
@@ -302,7 +302,7 @@ class BuyerLeadFormController extends GetxController {
       final currentUser = _authController.currentUser;
       if (currentUser == null) {
         _isLoading.value = false;
-        CustomSnackbar.showError('Please log in to submit a lead');
+        SnackbarHelper.showError('Please log in to submit a lead');
         return;
       }
 
@@ -314,7 +314,7 @@ class BuyerLeadFormController extends GetxController {
       
       if (agentId == null || agentId.isEmpty) {
         _isLoading.value = false;
-        CustomSnackbar.showError('Agent information is missing. Please try again.');
+        SnackbarHelper.showError('Agent information is missing. Please try again.');
         return;
       }
 
@@ -436,13 +436,13 @@ class BuyerLeadFormController extends GetxController {
       resetForm();
 
       // Navigate back first to ensure we have proper context
-      Get.back();
+      Navigator.pop(Get.context!);
 
       // Show success message after navigation (with delay to ensure context is ready)
       await Future.delayed(const Duration(milliseconds: 300));
-      CustomSnackbar.showSuccess(
-        'Lead Submitted Successfully!',
+      SnackbarHelper.showSuccess(
         'A local agent will contact you soon.',
+        title: 'Lead Submitted Successfully!',
       );
     } on DioException catch (e) {
       _isLoading.value = false;
@@ -478,7 +478,7 @@ class BuyerLeadFormController extends GetxController {
         errorMessage = 'No internet connection. Please check your network and try again.';
       }
       
-      CustomSnackbar.showError(errorMessage);
+      SnackbarHelper.showError(errorMessage);
     } catch (e) {
       _isLoading.value = false;
       if (kDebugMode) {
@@ -491,7 +491,7 @@ class BuyerLeadFormController extends GetxController {
         errorMessage = e.toString().replaceAll('Exception: ', '');
       }
       
-      CustomSnackbar.showError(errorMessage);
+      SnackbarHelper.showError(errorMessage);
     }
   }
 

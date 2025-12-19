@@ -7,3 +7,4 @@ class PrivacyPolicyController extends GetxController {
   }
 }
 
+

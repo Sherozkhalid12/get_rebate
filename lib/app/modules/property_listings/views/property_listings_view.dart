@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:get/get.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -47,7 +48,10 @@ class PropertyListingsView extends GetView<PropertyListingsController> {
               child: Obx(() {
                 if (controller.isLoading && controller.properties.isEmpty) {
                   return const Center(
-                    child: CircularProgressIndicator(),
+                    child: SpinKitFadingCircle(
+                      color: AppTheme.primaryBlue,
+                      size: 40,
+                    ),
                   );
                 }
                 return RefreshIndicator(
@@ -81,7 +85,7 @@ class PropertyListingsView extends GetView<PropertyListingsController> {
         children: [
           // Back Button
           IconButton(
-            onPressed: () => Get.back(),
+            onPressed: () => Navigator.pop(context),
             icon: const Icon(Icons.arrow_back, color: AppTheme.darkGray),
           ),
 

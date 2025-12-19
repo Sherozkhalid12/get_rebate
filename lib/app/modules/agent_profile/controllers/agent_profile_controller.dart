@@ -9,7 +9,9 @@ import 'package:getrebate/app/controllers/auth_controller.dart';
 import 'package:getrebate/app/modules/buyer/controllers/buyer_controller.dart';
 import 'package:getrebate/app/modules/messages/controllers/messages_controller.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
+import 'package:getrebate/app/utils/snackbar_helper.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
+import 'package:getrebate/app/services/agent_service.dart';
 
 class AgentProfileController extends GetxController {
   // Data
@@ -23,6 +25,9 @@ class AgentProfileController extends GetxController {
   
   // Dio for API calls
   final Dio _dio = Dio();
+  
+  // Agent service for tracking
+  final AgentService _agentService = AgentService();
 
   // Getters
   AgentModel? get agent => _agent.value;
@@ -66,6 +71,9 @@ class AgentProfileController extends GetxController {
       
       // Load properties for this agent
       _loadAgentProperties();
+      
+      // Record profile view
+      _recordProfileView();
     } else {
       // Fallback to mock data
       _agent.value = AgentModel(
@@ -197,6 +205,27 @@ class AgentProfileController extends GetxController {
       _properties.value = [];
     } finally {
       _isLoadingProperties.value = false;
+    }
+  }
+  
+  /// Records a profile view for the current agent
+  Future<void> _recordProfileView() async {
+    if (_agent.value == null || _agent.value!.id.isEmpty) {
+      return;
+    }
+    
+    try {
+      final response = await _agentService.recordProfileView(_agent.value!.id);
+      if (response != null && kDebugMode) {
+        print('📊 Profile View Response:');
+        print('   Message: ${response['message'] ?? 'N/A'}');
+        print('   Views: ${response['views'] ?? 'N/A'}');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('⚠️ Error recording profile view: $e');
+      }
+      // Don't show error to user - tracking is silent
     }
   }
   
@@ -421,12 +450,8 @@ class AgentProfileController extends GetxController {
       final currentUser = authController.currentUser;
       
       if (currentUser == null || currentUser.id.isEmpty) {
-        Get.snackbar(
-          'Error',
+        SnackbarHelper.showError(
           'Please login to like agents',
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
           duration: const Duration(seconds: 2),
         );
         return;
@@ -499,28 +524,18 @@ class AgentProfileController extends GetxController {
         print('   ${e.response?.data ?? e.message}');
       }
       
-      Get.snackbar(
-        'Error',
+      SnackbarHelper.showError(
         e.response?.data['message']?.toString() ?? 'Failed to update favorite. Please try again.',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
         duration: const Duration(seconds: 3),
-        margin: const EdgeInsets.all(16),
       );
     } catch (e) {
       if (kDebugMode) {
         print('❌ Unexpected error toggling favorite: $e');
       }
       
-      Get.snackbar(
-        'Error',
+      SnackbarHelper.showError(
         'An unexpected error occurred. Please try again.',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
         duration: const Duration(seconds: 3),
-        margin: const EdgeInsets.all(16),
       );
     } finally {
       _isTogglingFavorite.value = false;
@@ -541,8 +556,8 @@ class AgentProfileController extends GetxController {
               title: const Text('Call'),
               subtitle: Text(_agent.value!.phone ?? 'No phone number'),
               onTap: () {
-                Get.back();
-                Get.snackbar('Calling', 'Opening phone dialer...');
+                Navigator.pop(Get.context!);
+                SnackbarHelper.showInfo('Opening phone dialer...', title: 'Calling');
               },
             ),
             ListTile(
@@ -550,8 +565,8 @@ class AgentProfileController extends GetxController {
               title: const Text('Email'),
               subtitle: Text(_agent.value!.email),
               onTap: () {
-                Get.back();
-                Get.snackbar('Emailing', 'Opening email client...');
+                Navigator.pop(Get.context!);
+                SnackbarHelper.showInfo('Opening email client...', title: 'Emailing');
               },
             ),
             ListTile(
@@ -559,14 +574,17 @@ class AgentProfileController extends GetxController {
               title: const Text('Message'),
               subtitle: const Text('Send a message'),
               onTap: () {
-                Get.back();
+                Navigator.pop(Get.context!);
                 Get.toNamed('/messages');
               },
             ),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Get.back(), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(Get.context!),
+            child: const Text('Cancel'),
+          )
         ],
       ),
     );
@@ -574,7 +592,74 @@ class AgentProfileController extends GetxController {
 
   Future<void> startChat() async {
     if (_agent.value == null) {
-      Get.snackbar('Error', 'Agent information not available');
+      SnackbarHelper.showError('Agent information not available');
+      return;
+    }
+
+    // Record contact action
+    _recordContact(_agent.value!.id);
+
+    // Check if conversation exists with this agent
+    final messagesController = Get.find<MessagesController>();
+    
+    // Wait for threads to load if needed
+    if (messagesController.allConversations.isEmpty && !messagesController.isLoadingThreads) {
+      await messagesController.loadThreads();
+    }
+    
+    // Wait a bit for threads to load
+    int retries = 0;
+    while (messagesController.allConversations.isEmpty && messagesController.isLoadingThreads && retries < 10) {
+      await Future.delayed(const Duration(milliseconds: 200));
+      retries++;
+    }
+    
+    // Check if conversation exists
+    ConversationModel? existingConversation;
+    try {
+      existingConversation = messagesController.allConversations.firstWhere(
+        (conv) => conv.senderId == _agent.value!.id,
+      );
+    } catch (e) {
+      existingConversation = null;
+    }
+    
+    if (existingConversation != null) {
+      // Conversation exists - go directly to chat
+      messagesController.selectConversation(existingConversation);
+      Get.toNamed('/messages');
+    } else {
+      // No conversation - show Start Chat screen
+      Get.toNamed('/contact', arguments: {
+        'userId': _agent.value!.id,
+        'userName': _agent.value!.name,
+        'userProfilePic': _agent.value!.profileImage,
+        'userRole': 'agent',
+        'agent': _agent.value,
+      });
+    }
+  }
+  
+  /// Records a contact action for the current agent
+  Future<void> _recordContact(String agentId) async {
+    try {
+      final response = await _agentService.recordContact(agentId);
+      if (response != null && kDebugMode) {
+        print('📞 Contact Response:');
+        print('   Message: ${response['message'] ?? 'N/A'}');
+        print('   Contacts: ${response['contacts'] ?? 'N/A'}');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('⚠️ Error recording contact: $e');
+      }
+      // Don't show error to user - tracking is silent
+    }
+  }
+  
+  Future<void> _oldStartChat() async {
+    if (_agent.value == null) {
+      SnackbarHelper.showError('Agent information not available');
       return;
     }
 
@@ -589,11 +674,11 @@ class AgentProfileController extends GetxController {
   }
 
   void viewProperties() {
-    Get.snackbar('Properties', 'Property listings coming soon!');
+    SnackbarHelper.showInfo('Property listings coming soon!', title: 'Properties');
   }
 
   void shareProfile() {
-    Get.snackbar('Share', 'Profile sharing feature coming soon!');
+    SnackbarHelper.showInfo('Profile sharing feature coming soon!', title: 'Share');
   }
 
   void selectAsMyAgent() {
@@ -602,7 +687,7 @@ class AgentProfileController extends GetxController {
     try {
       final buyerController = Get.find<BuyerController>();
       buyerController.selectBuyerAgent(_agent.value!);
-      Get.back(); // Go back to previous screen after selection
+      Navigator.pop(Get.context!); // Go back to previous screen after selection
     } catch (e) {
       // BuyerController might not be available if user is not a buyer
       Get.snackbar(

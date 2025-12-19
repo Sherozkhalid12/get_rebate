@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/modules/agent/controllers/agent_controller.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart' as global;
@@ -10,6 +11,7 @@ import 'package:getrebate/app/models/agent_listing_model.dart';
 import 'package:getrebate/app/widgets/custom_button.dart';
 import 'package:getrebate/app/widgets/custom_text_field.dart';
 import 'package:getrebate/app/widgets/gradient_card.dart';
+import 'package:getrebate/app/utils/snackbar_helper.dart';
 
 class AgentView extends GetView<AgentController> {
   const AgentView({super.key});
@@ -339,12 +341,12 @@ class AgentView extends GetView<AgentController> {
             )
             .animate()
             .slideY(
-              begin: 0.3,
-              duration: 600.ms,
-              curve: Curves.easeOut,
-              delay: (index * 100).ms,
+              begin: 0.2,
+              duration: 300.ms,
+              curve: Curves.easeOutCubic,
+              delay: (index * 50).ms,
             )
-            .fadeIn(duration: 600.ms, delay: (index * 100).ms);
+            .fadeIn(duration: 250.ms, delay: (index * 50).ms, curve: Curves.easeOut);
       },
     );
   }
@@ -390,7 +392,7 @@ class AgentView extends GetView<AgentController> {
                 child: CustomButton(
                   text: 'Compliance Tutorial',
                   onPressed: () {
-                    Get.snackbar('Info', 'Compliance tutorial coming soon!');
+                    SnackbarHelper.showInfo('Compliance tutorial coming soon!');
                   },
                   icon: Icons.school,
                   isOutlined: true,
@@ -1041,13 +1043,10 @@ class AgentView extends GetView<AgentController> {
                         return Container(
                           color: AppTheme.lightGray,
                           child: Center(
-                            child: CircularProgressIndicator(
-                              value: loadingProgress.expectedTotalBytes != null
-                                  ? loadingProgress.cumulativeBytesLoaded /
-                                      loadingProgress.expectedTotalBytes!
-                                  : null,
-                              strokeWidth: 2,
-                            ),
+                            child: SpinKitFadingCircle(
+                            color: AppTheme.primaryBlue,
+                            size: 24,
+                          ),
                           ),
                         );
                       },
@@ -1698,10 +1697,10 @@ class AgentView extends GetView<AgentController> {
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Get.back(), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
           ElevatedButton(
             onPressed: () {
-              Get.back();
+              Navigator.pop(context);
               // Process payment and then navigate to add listing
               controller.purchaseAdditionalListing().then((_) {
                 Get.toNamed('/add-listing');
@@ -1728,7 +1727,7 @@ class AgentView extends GetView<AgentController> {
           'This feature will be implemented in the next update.',
         ),
         actions: [
-          TextButton(onPressed: () => Get.back(), child: const Text('OK')),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK')),
         ],
       ),
     );
@@ -1743,10 +1742,10 @@ class AgentView extends GetView<AgentController> {
         title: const Text('Delete Listing'),
         content: Text('Are you sure you want to delete "${listing.title}"?'),
         actions: [
-          TextButton(onPressed: () => Get.back(), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
           TextButton(
             onPressed: () {
-              Get.back();
+              Navigator.pop(context);
               controller.deleteListing(listing.id);
             },
             child: const Text('Delete', style: TextStyle(color: Colors.red)),
@@ -1772,12 +1771,12 @@ class AgentView extends GetView<AgentController> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Get.back(),
+            onPressed: () => Navigator.pop(context),
             child: Text('Cancel', style: TextStyle(color: AppTheme.mediumGray)),
           ),
           TextButton(
             onPressed: () {
-              Get.back();
+              Navigator.pop(context);
               final authController = Get.find<global.AuthController>();
               authController.logout();
             },
@@ -1982,10 +1981,7 @@ class AgentView extends GetView<AgentController> {
                                 text: 'Apply',
                                 onPressed: () {
                                   if (controller.promoCodeInput.isEmpty) {
-                                    Get.snackbar(
-                                      'Error',
-                                      'Please enter a promo code',
-                                    );
+                                    SnackbarHelper.showError('Please enter a promo code');
                                     return;
                                   }
                                   controller.applyPromoCode(
@@ -2089,10 +2085,7 @@ class AgentView extends GetView<AgentController> {
                                       onPressed: () {
                                         // Copy to clipboard
                                         // Clipboard.setData(ClipboardData(text: promo.code));
-                                        Get.snackbar(
-                                          'Copied',
-                                          'Promo code copied to clipboard',
-                                        );
+                                        SnackbarHelper.showSuccess('Promo code copied to clipboard', title: 'Copied');
                                       },
                                     ),
                                   ],
@@ -2180,12 +2173,12 @@ class AgentView extends GetView<AgentController> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Get.back(),
+            onPressed: () => Navigator.pop(context),
             child: const Text('Keep Subscription'),
           ),
           TextButton(
             onPressed: () {
-              Get.back();
+              Navigator.pop(context);
               controller.cancelSubscription();
             },
             style: TextButton.styleFrom(foregroundColor: Colors.red),

@@ -8,9 +8,13 @@ import 'package:getrebate/app/modules/buyer/controllers/buyer_controller.dart';
 import 'package:getrebate/app/models/agent_model.dart';
 import 'package:getrebate/app/models/listing.dart';
 import 'package:getrebate/app/utils/rebate.dart';
+import 'package:getrebate/app/utils/api_constants.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/widgets/custom_button.dart';
 import 'package:getrebate/app/widgets/pros_cons_chart_widget.dart';
+import 'package:getrebate/app/services/agent_service.dart';
+import 'package:getrebate/app/utils/snackbar_helper.dart';
+import 'package:flutter_spinkit/flutter_spinkit.dart';
 
 class ListingDetailView extends GetView<ListingDetailController> {
   const ListingDetailView({super.key});
@@ -121,27 +125,10 @@ class ListingDetailView extends GetView<ListingDetailController> {
               ),
               child: IconButton(
                 icon: const Icon(Icons.arrow_back, color: Colors.white),
-                onPressed: () => Get.back(),
+                onPressed: () => Navigator.pop(context),
               ),
             ),
-            actions: [
-              Container(
-                margin: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.3),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: IconButton(
-                  icon: const Icon(Icons.favorite_border, color: Colors.white),
-                  onPressed: () {
-                    Get.snackbar(
-                      'Added to Favorites',
-                      'Property saved to your favorites',
-                    );
-                  },
-                ),
-              ),
-            ],
+            actions: [],
           ),
 
           // Content
@@ -394,10 +381,17 @@ class ListingDetailView extends GetView<ListingDetailController> {
                         CustomButton(
                           text: 'Find Agents Near This Property',
                           onPressed: () {
+                            final zipCode = listing.address.zip;
+                            if (kDebugMode) {
+                              print('🔍 Listing Detail - Navigating to Find Agents');
+                              print('   Listing ID: ${listing.id}');
+                              print('   Listing Address: ${listing.address.toString()}');
+                              print('   ZIP Code: $zipCode');
+                            }
                             Get.toNamed(
                               '/find-agents',
                               arguments: {
-                                'zip': listing.address.zip,
+                                'zip': zipCode,
                                 'listing': listing,
                               },
                             );
@@ -596,7 +590,7 @@ class ListingDetailView extends GetView<ListingDetailController> {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   TextButton(
-                    onPressed: () => Get.back(),
+                    onPressed: () => Navigator.pop(context),
                     child: Text(
                       'Cancel',
                       style: TextStyle(color: AppTheme.mediumGray),
@@ -605,7 +599,7 @@ class ListingDetailView extends GetView<ListingDetailController> {
                   const SizedBox(width: 8),
                   TextButton(
                     onPressed: () {
-                      Get.back();
+                      Navigator.pop(context);
                       // Still allow contact but with full understanding
                       if (controller.listing != null) {
                         _showContactListingAgentDialog(context, controller.listing!);
@@ -670,27 +664,11 @@ class ListingDetailView extends GetView<ListingDetailController> {
     );
   }
 
-  void _showContactListingAgentDialog(BuildContext context, Listing listing) {
-    // Get buyer controller to find agent by ID
-    final buyerController = Get.find<BuyerController>();
+  void _showContactListingAgentDialog(BuildContext context, Listing listing) async {
     final agentId = listing.agentId;
+    final agentService = AgentService();
     
-    // Try to find the agent in the agents list
-    AgentModel? agent;
-    try {
-      if (buyerController.agents.isNotEmpty && agentId.isNotEmpty) {
-        final foundAgents = buyerController.agents.where((a) => a.id == agentId);
-        if (foundAgents.isNotEmpty) {
-          agent = foundAgents.first;
-        }
-      }
-    } catch (e) {
-      // Agent not found, use null
-      if (kDebugMode) {
-        print('⚠️ Agent with ID $agentId not found in agents list: $e');
-      }
-    }
-
+    // Show dialog with loading state
     Get.dialog(
       Dialog(
         shape: RoundedRectangleBorder(
@@ -699,204 +677,422 @@ class ListingDetailView extends GetView<ListingDetailController> {
         child: Container(
           padding: const EdgeInsets.all(24),
           constraints: const BoxConstraints(maxWidth: 400),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Header
-                Row(
+          child: FutureBuilder<AgentModel?>(
+            future: agentService.getAgentById(agentId),
+            builder: (context, snapshot) {
+              // Loading state
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    if (agent?.profileImage != null && agent!.profileImage!.isNotEmpty)
-                      CircleAvatar(
-                        radius: 24,
-                        backgroundImage: NetworkImage(agent.profileImage!),
-                      )
-                    else
-                      CircleAvatar(
-                        radius: 24,
-                        backgroundColor: AppTheme.primaryBlue.withOpacity(0.1),
-                        child: Icon(
-                          Icons.person,
-                          color: AppTheme.primaryBlue,
-                          size: 24,
-                        ),
-                      ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            agent?.name ?? 'Listing Agent',
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Loading Agent Details',
                             style: Theme.of(context).textTheme.titleLarge?.copyWith(
                               color: AppTheme.black,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
-                          if (agent?.brokerage != null && agent!.brokerage!.isNotEmpty)
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 32),
+                    SpinKitFadingCircle(
+                      color: AppTheme.primaryBlue,
+                      size: 40,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Fetching agent information...',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppTheme.mediumGray,
+                      ),
+                    ),
+                  ],
+                );
+              }
+
+              // Error state
+              if (snapshot.hasError) {
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Listing Agent',
+                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              color: AppTheme.black,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    Icon(
+                      Icons.error_outline,
+                      color: Colors.red,
+                      size: 48,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Could not load agent details',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: AppTheme.darkGray,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      snapshot.error.toString(),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppTheme.mediumGray,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 24),
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Close'),
+                    ),
+                  ],
+                );
+              }
+
+              // Success state - agent found
+              final agent = snapshot.data;
+              if (agent == null) {
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Listing Agent',
+                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              color: AppTheme.black,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    Icon(
+                      Icons.person_outline,
+                      color: AppTheme.mediumGray,
+                      size: 48,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Agent information not available',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppTheme.darkGray,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Close'),
+                    ),
+                  ],
+                );
+              }
+
+              // Agent details loaded successfully
+              return SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Header with agent info
+                    Row(
+                      children: [
+                        if (agent.profileImage != null && agent.profileImage!.isNotEmpty)
+                          CircleAvatar(
+                            radius: 28,
+                            backgroundImage: NetworkImage(
+                              agent.profileImage!.startsWith('http')
+                                  ? agent.profileImage!
+                                  : '${ApiConstants.baseUrl}/${agent.profileImage!.replaceAll('\\', '/').replaceFirst('/', '')}',
+                            ),
+                            onBackgroundImageError: (_, __) {},
+                          )
+                        else
+                          CircleAvatar(
+                            radius: 28,
+                            backgroundColor: AppTheme.primaryBlue.withOpacity(0.1),
+                            child: Icon(
+                              Icons.person,
+                              color: AppTheme.primaryBlue,
+                              size: 28,
+                            ),
+                          ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                agent.name,
+                                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                  color: AppTheme.black,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              if (agent.brokerage != null && agent.brokerage!.isNotEmpty) ...[
+                                const SizedBox(height: 4),
+                                Text(
+                                  agent.brokerage!,
+                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: AppTheme.mediumGray,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    
+                    // Bio section
+                    if (agent.bio != null && agent.bio!.isNotEmpty) ...[
+                      Text(
+                        'About',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          color: AppTheme.black,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        agent.bio!,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: AppTheme.darkGray,
+                          height: 1.5,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                    ],
+                    
+                    // Contact Information Section
+                    Text(
+                      'Contact Information',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: AppTheme.black,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    
+                    // Phone - Clickable
+                    if (agent.phone != null && agent.phone!.isNotEmpty) ...[
+                      _buildContactItem(
+                        context,
+                        Icons.phone_rounded,
+                        'Phone',
+                        agent.phone!,
+                        onTap: () async {
+                          try {
+                            // Clean phone number (remove spaces, dashes, etc.)
+                            final cleanPhone = agent.phone!.replaceAll(RegExp(r'[^\d+]'), '');
+                            final uri = Uri.parse('tel:$cleanPhone');
+                            if (await canLaunchUrl(uri)) {
+                              await launchUrl(uri);
+                            } else {
+                              SnackbarHelper.showError('Could not open phone dialer');
+                            }
+                          } catch (e) {
+                            SnackbarHelper.showError('Could not open phone dialer: ${e.toString()}');
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                    
+                    // Email - Clickable
+                    _buildContactItem(
+                      context,
+                      Icons.email_rounded,
+                      'Email',
+                      agent.email,
+                      onTap: () async {
+                        try {
+                          final uri = Uri.parse('mailto:${agent.email}?subject=Inquiry about Property Listing');
+                          if (await canLaunchUrl(uri)) {
+                            await launchUrl(uri);
+                          } else {
+                            SnackbarHelper.showError('Could not open email client');
+                          }
+                        } catch (e) {
+                          SnackbarHelper.showError('Could not open email client: ${e.toString()}');
+                        }
+                      },
+                    ),
+                    
+                    // License Number
+                    if (agent.licenseNumber.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      _buildContactItem(
+                        context,
+                        Icons.badge_rounded,
+                        'License Number',
+                        agent.licenseNumber,
+                      ),
+                    ],
+                    
+                    // Brokerage
+                    if (agent.brokerage != null && agent.brokerage!.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      _buildContactItem(
+                        context,
+                        Icons.business_rounded,
+                        'Brokerage',
+                        agent.brokerage!,
+                      ),
+                    ],
+                    
+                    // Licensed States
+                    if (agent.licensedStates.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      _buildContactItem(
+                        context,
+                        Icons.location_on_rounded,
+                        'Licensed States',
+                        agent.licensedStates.join(', '),
+                      ),
+                    ],
+                    
+                    // Website - Clickable
+                    if (agent.websiteUrl != null && agent.websiteUrl!.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      _buildContactItem(
+                        context,
+                        Icons.language_rounded,
+                        'Website',
+                        agent.websiteUrl!,
+                        onTap: () async {
+                          try {
+                            final website = agent.websiteUrl!;
+                            final uri = Uri.parse(
+                              website.startsWith('http') ? website : 'https://$website',
+                            );
+                            if (await canLaunchUrl(uri)) {
+                              await launchUrl(uri, mode: LaunchMode.externalApplication);
+                            } else {
+                              SnackbarHelper.showError('Could not open website');
+                            }
+                          } catch (e) {
+                            SnackbarHelper.showError('Could not open website: ${e.toString()}');
+                          }
+                        },
+                      ),
+                    ],
+                    
+                    // Rating & Reviews
+                    if (agent.rating > 0) ...[
+                      const SizedBox(height: 24),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.star_rounded,
+                            color: Colors.amber,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            '${agent.rating.toStringAsFixed(1)}',
+                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              color: AppTheme.black,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          if (agent.reviewCount > 0) ...[
+                            const SizedBox(width: 4),
                             Text(
-                              agent.brokerage!,
+                              '(${agent.reviewCount} reviews)',
                               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                                 color: AppTheme.mediumGray,
                               ),
                             ),
+                          ],
                         ],
                       ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.close),
-                      onPressed: () => Get.back(),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-                
-                // Contact Information
-                if (agent != null) ...[
-                  if (agent!.phone != null && agent!.phone!.isNotEmpty) ...[
-                    _buildContactItem(
-                      context,
-                      Icons.phone,
-                      'Phone',
-                      agent!.phone!,
-                      onTap: () async {
-                        final phone = agent!.phone!;
-                        final uri = Uri.parse('tel:$phone');
-                        if (await canLaunchUrl(uri)) {
-                          await launchUrl(uri);
-                        } else {
-                          Get.snackbar('Error', 'Could not open phone dialer');
-                        }
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                  ],
-                  _buildContactItem(
-                    context,
-                    Icons.email,
-                    'Email',
-                    agent!.email,
-                    onTap: () async {
-                      final email = agent!.email;
-                      final uri = Uri.parse('mailto:$email');
-                      if (await canLaunchUrl(uri)) {
-                        await launchUrl(uri);
-                      } else {
-                        Get.snackbar('Error', 'Could not open email client');
-                      }
-                    },
-                  ),
-                  if (agent!.licenseNumber.isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    _buildContactItem(
-                      context,
-                      Icons.badge,
-                      'License Number',
-                      agent!.licenseNumber,
-                    ),
-                  ],
-                  if (agent!.brokerage.isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    _buildContactItem(
-                      context,
-                      Icons.business,
-                      'Brokerage',
-                      agent!.brokerage,
-                    ),
-                  ],
-                  if (agent!.websiteUrl != null && agent!.websiteUrl!.isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    _buildContactItem(
-                      context,
-                      Icons.language,
-                      'Website',
-                      agent!.websiteUrl!,
-                      onTap: () async {
-                        final website = agent!.websiteUrl!;
-                        final uri = Uri.parse(website.startsWith('http') ? website : 'https://$website');
-                        if (await canLaunchUrl(uri)) {
-                          await launchUrl(uri, mode: LaunchMode.externalApplication);
-                        } else {
-                          Get.snackbar('Error', 'Could not open website');
-                        }
-                      },
-                    ),
-                  ],
-                  const SizedBox(height: 24),
-                ] else ...[
-                  // Agent not found - show basic info and suggest fetching
-                  Text(
-                    'Agent Information',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppTheme.darkGray,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Agent details are being loaded...',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AppTheme.mediumGray,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Agent ID: $agentId',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AppTheme.mediumGray,
-                      fontFamily: 'monospace',
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                ],
-                
-                // Action Buttons
-                Row(
-                  children: [
-                    if (agent != null)
-                      Expanded(
-                        child: CustomButton(
-                          text: 'View Profile',
-                          onPressed: () {
-                            Get.back();
-                            Get.toNamed(
-                              '/agent-profile',
-                              arguments: {'agent': agent},
-                            );
-                          },
-                          icon: Icons.person,
-                          isOutlined: true,
+                    ],
+                    
+                    const SizedBox(height: 24),
+                    
+                    // Action Buttons
+                    Row(
+                      children: [
+                        Expanded(
+                          child: CustomButton(
+                            text: 'View Profile',
+                            onPressed: () {
+                              Navigator.pop(context);
+                              Get.toNamed(
+                                '/agent-profile',
+                                arguments: {'agent': agent},
+                              );
+                            },
+                            icon: Icons.person,
+                            isOutlined: true,
+                          ),
                         ),
-                      ),
-                    if (agent != null) const SizedBox(width: 12),
-                    Expanded(
-                      child: CustomButton(
-                        text: 'Send Message',
-                        onPressed: () {
-                          Get.back();
-                          Get.toNamed('/contact', arguments: {
-                            'userId': agent?.id ?? agentId,
-                            'userName': agent?.name ?? 'Listing Agent',
-                            'userProfilePic': agent?.profileImage,
-                            'userRole': 'agent',
-                          });
-                        },
-                        icon: Icons.message,
-                      ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: CustomButton(
+                            text: 'Send Message',
+                            onPressed: () {
+                              Navigator.pop(context);
+                              Get.toNamed('/contact', arguments: {
+                                'userId': agent.id,
+                                'userName': agent.name,
+                                'userProfilePic': agent.profileImage,
+                                'userRole': 'agent',
+                                'agent': agent,
+                              });
+                            },
+                            icon: Icons.message,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Close'),
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
-                TextButton(
-                  onPressed: () => Get.back(),
-                  child: const Text('Close'),
-                ),
-              ],
-            ),
+              );
+            },
           ),
         ),
       ),
+      barrierDismissible: true,
     );
   }
 

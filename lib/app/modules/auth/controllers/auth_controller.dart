@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:getrebate/app/controllers/auth_controller.dart' as global;
 import 'package:getrebate/app/models/user_model.dart';
+import 'package:getrebate/app/utils/snackbar_helper.dart';
 
 class AuthViewController extends GetxController {
   final global.AuthController _globalAuthController =
@@ -203,7 +204,7 @@ class AuthViewController extends GetxController {
         _selectedCompanyLogo.value = File(image.path);
       }
     } catch (e) {
-      Get.snackbar('Error', 'Failed to pick company logo: ${e.toString()}');
+      SnackbarHelper.showError('Failed to pick company logo: ${e.toString()}');
     }
   }
 
@@ -221,7 +222,7 @@ class AuthViewController extends GetxController {
         _selectedVideo.value = File(video.path);
       }
     } catch (e) {
-      Get.snackbar('Error', 'Failed to pick video: ${e.toString()}');
+      SnackbarHelper.showError('Failed to pick video: ${e.toString()}');
     }
   }
 

@@ -24,7 +24,7 @@ class TermsOfServiceView extends StatelessWidget {
         ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: AppTheme.white),
-          onPressed: () => Get.back(),
+          onPressed: () => Navigator.pop(context),
         ),
         title: Text(
           'Terms of Service',
@@ -282,4 +282,5 @@ class TermsOfServiceView extends StatelessWidget {
     );
   }
 }
+
 
