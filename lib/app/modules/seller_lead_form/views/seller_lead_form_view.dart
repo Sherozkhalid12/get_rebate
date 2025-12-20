@@ -16,7 +16,7 @@ class SellerLeadFormView extends GetView<SellerLeadFormController> {
         backgroundColor: AppTheme.primaryBlue,
         elevation: 0,
         leading: IconButton(
-          onPressed: () => Get.back(),
+          onPressed: () => Navigator.pop(context),
           icon: const Icon(Icons.arrow_back, color: AppTheme.white),
         ),
         title: Text(

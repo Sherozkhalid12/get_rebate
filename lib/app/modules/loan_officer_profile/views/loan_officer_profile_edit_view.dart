@@ -50,7 +50,7 @@ class _LoanOfficerProfileEditViewState
         centerTitle: true,
         leading: IconButton(
           icon: const Icon(Icons.close, color: AppTheme.white),
-          onPressed: () => Get.back(),
+          onPressed: () => Navigator.pop(context),
         ),
         actions: [
           TextButton(
@@ -242,6 +242,6 @@ class _LoanOfficerProfileEditViewState
       backgroundColor: AppTheme.lightGreen,
       colorText: AppTheme.white,
     );
-    Get.back();
+    Navigator.pop(context);
   }
 }

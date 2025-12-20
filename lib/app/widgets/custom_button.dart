@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 
 class CustomButton extends StatelessWidget {
@@ -44,11 +45,9 @@ class CustomButton extends StatelessWidget {
           SizedBox(
             width: 20.w,
             height: 20.w,
-            child: CircularProgressIndicator(
-              strokeWidth: 2.w,
-              valueColor: AlwaysStoppedAnimation<Color>(
-                isOutlined ? AppTheme.primaryBlue : AppTheme.white,
-              ),
+            child: SpinKitFadingCircle(
+              color: isOutlined ? AppTheme.primaryBlue : AppTheme.white,
+              size: 20.w,
             ),
           ),
           SizedBox(width: 12.w),

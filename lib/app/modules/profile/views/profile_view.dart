@@ -253,7 +253,7 @@ class ProfileView extends GetView<ProfileController> {
                 size: 16,
               ),
               onTap: () {
-                Get.snackbar('Info', 'Privacy policy coming soon!');
+                Get.toNamed('/privacy-policy');
               },
               contentPadding: EdgeInsets.zero,
             ),
@@ -274,7 +274,7 @@ class ProfileView extends GetView<ProfileController> {
                 size: 16,
               ),
               onTap: () {
-                Get.snackbar('Info', 'Terms of service coming soon!');
+                Get.toNamed('/terms-of-service');
               },
               contentPadding: EdgeInsets.zero,
             ),
@@ -295,7 +295,7 @@ class ProfileView extends GetView<ProfileController> {
                 size: 16,
               ),
               onTap: () {
-                Get.snackbar('Info', 'Help & support coming soon!');
+                Get.toNamed('/help-support');
               },
               contentPadding: EdgeInsets.zero,
             ),

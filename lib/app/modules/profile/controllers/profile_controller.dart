@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart';
 import 'package:getrebate/app/models/user_model.dart';
 import 'package:getrebate/app/routes/app_pages.dart';
+import 'package:getrebate/app/utils/snackbar_helper.dart';
 
 class ProfileController extends GetxController {
   final AuthController _authController = Get.find<AuthController>();
@@ -74,7 +75,7 @@ class ProfileController extends GetxController {
       if (updatedUser != null) {
         _authController.updateUser(updatedUser);
         _isEditing.value = false;
-        Get.snackbar('Success', 'Profile updated successfully!');
+        SnackbarHelper.showSuccess('Profile updated successfully!');
         
         // Wait a moment for snackbar to be visible, then navigate to home page
         await Future.delayed(const Duration(milliseconds: 500));
@@ -96,7 +97,7 @@ class ProfileController extends GetxController {
         }
       }
     } catch (e) {
-      Get.snackbar('Error', 'Failed to update profile: ${e.toString()}');
+      SnackbarHelper.showError('Failed to update profile: ${e.toString()}');
     } finally {
       _isLoading.value = false;
     }
@@ -110,7 +111,7 @@ class ProfileController extends GetxController {
       // Mock image selection
       _selectedImage.value = 'https://i.pravatar.cc/150?img=3';
     } catch (e) {
-      Get.snackbar('Error', 'Failed to select image: ${e.toString()}');
+      SnackbarHelper.showError('Failed to select image: ${e.toString()}');
     }
   }
 
@@ -120,10 +121,10 @@ class ProfileController extends GetxController {
         title: Text('Logout'),
         content: Text('Are you sure you want to logout?'),
         actions: [
-          TextButton(onPressed: () => Get.back(), child: Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(Get.context!), child: Text('Cancel')),
           TextButton(
             onPressed: () {
-              Get.back();
+              Navigator.pop(Get.context!);
               _authController.logout();
             },
             child: Text('Logout'),
@@ -135,17 +136,17 @@ class ProfileController extends GetxController {
 
   bool _validateForm() {
     if (nameController.text.trim().isEmpty) {
-      Get.snackbar('Error', 'Please enter your name');
+      SnackbarHelper.showValidation('Please enter your name');
       return false;
     }
 
     if (emailController.text.trim().isEmpty) {
-      Get.snackbar('Error', 'Please enter your email');
+      SnackbarHelper.showValidation('Please enter your email');
       return false;
     }
 
     if (!GetUtils.isEmail(emailController.text.trim())) {
-      Get.snackbar('Error', 'Please enter a valid email');
+      SnackbarHelper.showValidation('Please enter a valid email');
       return false;
     }
 

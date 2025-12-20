@@ -9,6 +9,7 @@ import 'package:getrebate/app/controllers/main_navigation_controller.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart';
 import 'package:getrebate/app/modules/messages/controllers/messages_controller.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
+import 'package:getrebate/app/utils/snackbar_helper.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/controllers/current_loan_officer_controller.dart';
 
@@ -135,12 +136,8 @@ class LoanOfficerProfileController extends GetxController {
       final currentUser = authController.currentUser;
       
       if (currentUser == null || currentUser.id.isEmpty) {
-        Get.snackbar(
-          'Error',
+        SnackbarHelper.showError(
           'Please login to like loan officers',
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
           duration: const Duration(seconds: 2),
         );
         return;
@@ -186,18 +183,14 @@ class LoanOfficerProfileController extends GetxController {
           _isFavorite.value = isLiked;
           
           // Show snackbar with appropriate message
-          Get.snackbar(
-            action == 'liked' ? 'Added to Favorites' : 'Removed from Favorites',
+          SnackbarHelper.showSuccess(
             message.isNotEmpty 
                 ? message 
                 : (isLiked 
                     ? 'Loan officer added to your favorites' 
                     : 'Loan officer removed from your favorites'),
-            snackPosition: SnackPosition.BOTTOM,
-            backgroundColor: isLiked ? AppTheme.lightGreen : AppTheme.mediumGray,
-            colorText: Colors.white,
+            title: action == 'liked' ? 'Added to Favorites' : 'Removed from Favorites',
             duration: const Duration(seconds: 2),
-            margin: const EdgeInsets.all(16),
           );
           
           if (kDebugMode) {
@@ -215,28 +208,18 @@ class LoanOfficerProfileController extends GetxController {
         print('   ${e.response?.data ?? e.message}');
       }
       
-      Get.snackbar(
-        'Error',
+      SnackbarHelper.showError(
         e.response?.data['message']?.toString() ?? 'Failed to update favorite. Please try again.',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
         duration: const Duration(seconds: 3),
-        margin: const EdgeInsets.all(16),
       );
     } catch (e) {
       if (kDebugMode) {
         print('❌ Unexpected error toggling favorite: $e');
       }
       
-      Get.snackbar(
-        'Error',
+      SnackbarHelper.showError(
         'An unexpected error occurred. Please try again.',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
         duration: const Duration(seconds: 3),
-        margin: const EdgeInsets.all(16),
       );
     } finally {
       _isTogglingFavorite.value = false;
@@ -257,8 +240,8 @@ class LoanOfficerProfileController extends GetxController {
               title: const Text('Call'),
               subtitle: Text(_loanOfficer.value!.phone ?? 'No phone number'),
               onTap: () {
-                Get.back();
-                Get.snackbar('Calling', 'Opening phone dialer...');
+                Navigator.pop(Get.context!);
+                SnackbarHelper.showInfo('Opening phone dialer...', title: 'Calling');
               },
             ),
             ListTile(
@@ -266,8 +249,8 @@ class LoanOfficerProfileController extends GetxController {
               title: const Text('Email'),
               subtitle: Text(_loanOfficer.value!.email),
               onTap: () {
-                Get.back();
-                Get.snackbar('Emailing', 'Opening email client...');
+                Navigator.pop(Get.context!);
+                SnackbarHelper.showInfo('Opening email client...', title: 'Emailing');
               },
             ),
             ListTile(
@@ -275,14 +258,14 @@ class LoanOfficerProfileController extends GetxController {
               title: const Text('Message'),
               subtitle: const Text('Send a message'),
               onTap: () {
-                Get.back();
+                Navigator.pop(Get.context!);
                 Get.toNamed('/messages');
               },
             ),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Get.back(), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(Get.context!), child: const Text('Cancel')),
         ],
       ),
     );
@@ -290,25 +273,57 @@ class LoanOfficerProfileController extends GetxController {
 
   Future<void> startChat() async {
     if (_loanOfficer.value == null) {
-      Get.snackbar('Error', 'Loan officer information not available');
+      SnackbarHelper.showError('Loan officer information not available');
       return;
     }
 
-    // Navigate to contact screen first
-    Get.toNamed('/contact', arguments: {
-      'userId': _loanOfficer.value!.id,
-      'userName': _loanOfficer.value!.name,
-      'userProfilePic': _loanOfficer.value!.profileImage,
-      'userRole': 'loan_officer',
-    });
+    // Check if conversation exists with this loan officer
+    final messagesController = Get.find<MessagesController>();
+    
+    // Wait for threads to load if needed
+    if (messagesController.allConversations.isEmpty && !messagesController.isLoadingThreads) {
+      await messagesController.loadThreads();
+    }
+    
+    // Wait a bit for threads to load
+    int retries = 0;
+    while (messagesController.allConversations.isEmpty && messagesController.isLoadingThreads && retries < 10) {
+      await Future.delayed(const Duration(milliseconds: 200));
+      retries++;
+    }
+    
+    // Check if conversation exists
+    ConversationModel? existingConversation;
+    try {
+      existingConversation = messagesController.allConversations.firstWhere(
+        (conv) => conv.senderId == _loanOfficer.value!.id,
+      );
+    } catch (e) {
+      existingConversation = null;
+    }
+    
+    if (existingConversation != null) {
+      // Conversation exists - go directly to chat
+      messagesController.selectConversation(existingConversation);
+      Get.toNamed('/messages');
+    } else {
+      // No conversation - show Start Chat screen
+      Get.toNamed('/contact', arguments: {
+        'userId': _loanOfficer.value!.id,
+        'userName': _loanOfficer.value!.name,
+        'userProfilePic': _loanOfficer.value!.profileImage,
+        'userRole': 'loan_officer',
+        'loanOfficer': _loanOfficer.value,
+      });
+    }
   }
 
   void viewLoanPrograms() {
-    Get.snackbar('Loan Programs', 'Loan program details coming soon!');
+    SnackbarHelper.showInfo('Loan program details coming soon!', title: 'Loan Programs');
   }
 
   void shareProfile() {
-    Get.snackbar('Share', 'Profile sharing feature coming soon!');
+    SnackbarHelper.showInfo('Profile sharing feature coming soon!', title: 'Share');
   }
 
   /// Returns dynamic reviews from loan officer data

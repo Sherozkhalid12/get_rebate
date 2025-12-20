@@ -7,6 +7,7 @@ import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/modules/add_listing/controllers/add_listing_controller.dart';
 import 'package:getrebate/app/widgets/custom_button.dart';
 import 'package:getrebate/app/widgets/custom_text_field.dart';
+import 'package:getrebate/app/utils/snackbar_helper.dart';
 
 class AddListingView extends GetView<AddListingController> {
   const AddListingView({super.key});
@@ -37,7 +38,7 @@ class AddListingView extends GetView<AddListingController> {
         ),
         centerTitle: true,
         leading: IconButton(
-          onPressed: () => Get.back(),
+          onPressed: () => Navigator.pop(context),
           icon: const Icon(Icons.arrow_back, color: AppTheme.white),
         ),
       ),
@@ -1115,7 +1116,7 @@ class AddListingView extends GetView<AddListingController> {
               leading: const Icon(Icons.photo_library),
               title: const Text('Choose from Gallery'),
               onTap: () async {
-                Get.back();
+                Navigator.pop(context);
                 await _pickImages(context, picker, ImageSource.gallery);
               },
             ),
@@ -1123,14 +1124,14 @@ class AddListingView extends GetView<AddListingController> {
               leading: const Icon(Icons.camera_alt),
               title: const Text('Take Photo'),
               onTap: () async {
-                Get.back();
+                Navigator.pop(context);
                 await _pickImages(context, picker, ImageSource.camera);
               },
             ),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Get.back(), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
         ],
       ),
     );
@@ -1151,7 +1152,7 @@ class AddListingView extends GetView<AddListingController> {
       if (images.isNotEmpty) {
         for (var image in images) {
           if (controller.selectedPhotos.length >= 10) {
-            Get.snackbar('Limit Reached', 'You can add up to 10 photos');
+            SnackbarHelper.showInfo('You can add up to 10 photos', title: 'Limit Reached');
             break;
           }
           controller.addPhoto(File(image.path));
@@ -1171,14 +1172,14 @@ class AddListingView extends GetView<AddListingController> {
             if (controller.selectedPhotos.length < 10) {
               controller.addPhoto(File(image.path));
             } else {
-              Get.snackbar('Limit Reached', 'You can add up to 10 photos');
+              SnackbarHelper.showInfo('You can add up to 10 photos', title: 'Limit Reached');
             }
           }
         } catch (e2) {
-          Get.snackbar('Error', 'Failed to pick image: ${e2.toString()}');
+          SnackbarHelper.showError('Failed to pick image: ${e2.toString()}');
         }
       } else {
-        Get.snackbar('Error', 'Failed to pick images: ${e.toString()}');
+        SnackbarHelper.showError('Failed to pick images: ${e.toString()}');
       }
     }
   }
@@ -1197,7 +1198,7 @@ class AddListingView extends GetView<AddListingController> {
           'This will be used to show potential buyers a rebate range. The actual Buyer Agent Commission (BAC) will not be shared with potential buyers.',
         ),
         actions: [
-          TextButton(onPressed: () => Get.back(), child: const Text('Got it')),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Got it')),
         ],
       ),
     );
@@ -1217,7 +1218,7 @@ class AddListingView extends GetView<AddListingController> {
           'This will be used to show potential buyers a potential rebate if they work directly with the listing agent. The actual Listing Agent Commission (LAC) will not be shared with potential buyers.',
         ),
         actions: [
-          TextButton(onPressed: () => Get.back(), child: const Text('Got it')),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Got it')),
         ],
       ),
     );

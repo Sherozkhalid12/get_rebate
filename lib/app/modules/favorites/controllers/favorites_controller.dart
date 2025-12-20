@@ -377,10 +377,10 @@ class FavoritesController extends GetxController {
         title: const Text('Clear All Favorites'),
         content: const Text('Are you sure you want to remove all favorites?'),
         actions: [
-          TextButton(onPressed: () => Get.back(), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(Get.context!), child: const Text('Cancel')),
           TextButton(
             onPressed: () async {
-              Get.back();
+              Navigator.pop(Get.context!);
               
               // Unlike all agents and loan officers via API
               try {

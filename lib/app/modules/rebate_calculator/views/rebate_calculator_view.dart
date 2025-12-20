@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/modules/rebate_calculator/controllers/rebate_calculator_controller.dart';
 import 'package:getrebate/app/widgets/custom_text_field.dart';
@@ -54,7 +55,7 @@ class RebateCalculatorView extends StatelessWidget {
       child: Row(
         children: [
           IconButton(
-            onPressed: () => Get.back(),
+            onPressed: () => Navigator.pop(context),
             icon: const Icon(Icons.arrow_back),
           ),
           Expanded(
@@ -297,12 +298,12 @@ class RebateCalculatorView extends StatelessWidget {
           elevation: 2,
         ),
         child: isLoading
-            ? const SizedBox(
+            ? SizedBox(
                 height: 20,
                 width: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                child: SpinKitFadingCircle(
+                  color: Colors.white,
+                  size: 20,
                 ),
               )
             : Text(

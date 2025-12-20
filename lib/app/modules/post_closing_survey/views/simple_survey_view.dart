@@ -160,7 +160,7 @@ class SimpleSurveyView extends GetView<SimpleSurveyController> {
               // Close Button
               CustomButton(
                 text: 'Close Survey',
-                onPressed: () => Get.back(),
+                onPressed: () => Navigator.pop(context),
                 isOutlined: true,
                 icon: Icons.close,
               ),

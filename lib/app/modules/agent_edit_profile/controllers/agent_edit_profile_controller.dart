@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:getrebate/app/controllers/auth_controller.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
+import 'package:getrebate/app/utils/snackbar_helper.dart';
 
 class AgentEditProfileController extends GetxController {
   final AuthController _authController = Get.find<AuthController>();
@@ -138,7 +139,7 @@ class AgentEditProfileController extends GetxController {
         _selectedProfilePic.value = File(image.path);
       }
     } catch (e) {
-      Get.snackbar('Error', 'Failed to pick image: ${e.toString()}');
+      SnackbarHelper.showError('Failed to pick image: ${e.toString()}');
     }
   }
 
@@ -159,7 +160,7 @@ class AgentEditProfileController extends GetxController {
         _selectedCompanyLogo.value = File(image.path);
       }
     } catch (e) {
-      Get.snackbar('Error', 'Failed to pick company logo: ${e.toString()}');
+      SnackbarHelper.showError('Failed to pick company logo: ${e.toString()}');
     }
   }
 
@@ -177,7 +178,7 @@ class AgentEditProfileController extends GetxController {
         _selectedVideo.value = File(video.path);
       }
     } catch (e) {
-      Get.snackbar('Error', 'Failed to pick video: ${e.toString()}');
+      SnackbarHelper.showError('Failed to pick video: ${e.toString()}');
     }
   }
 
@@ -221,18 +222,13 @@ class AgentEditProfileController extends GetxController {
 
       final currentUser = _authController.currentUser;
       if (currentUser == null) {
-        Get.snackbar('Error', 'User not found. Please login again.');
+        SnackbarHelper.showError('User not found. Please login again.');
         return;
       }
 
       // Validate user ID - must be a valid MongoDB ObjectId, not a generated one
       if (currentUser.id.isEmpty || currentUser.id.startsWith('user_')) {
-        Get.snackbar(
-          'Error',
-          'Invalid user ID. Please logout and login again.',
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
-        );
+        SnackbarHelper.showError('Invalid user ID. Please logout and login again.');
         return;
       }
 
@@ -295,7 +291,7 @@ class AgentEditProfileController extends GetxController {
       // Success snackbar is shown in updateUserProfile method
       // Wait a moment for snackbar to be visible, then navigate back
       await Future.delayed(const Duration(milliseconds: 500));
-      Get.back();
+      Navigator.pop(Get.context!);
     } catch (e) {
       // Error is already handled in updateUserProfile method
       // Just log it here
@@ -307,33 +303,27 @@ class AgentEditProfileController extends GetxController {
 
   bool _validateForm() {
     if (fullNameController.text.trim().isEmpty) {
-      Get.snackbar('Error', 'Please enter your full name');
+      SnackbarHelper.showValidation('Please enter your full name');
       return false;
     }
 
     if (emailController.text.trim().isEmpty) {
-      Get.snackbar('Error', 'Please enter your email');
+      SnackbarHelper.showValidation('Please enter your email');
       return false;
     }
 
     if (!GetUtils.isEmail(emailController.text.trim())) {
-      Get.snackbar('Error', 'Please enter a valid email');
+      SnackbarHelper.showValidation('Please enter a valid email');
       return false;
     }
 
     if (_dualAgencyState.value == null) {
-      Get.snackbar(
-        'Error',
-        'Please answer if dual agency is allowed in your state',
-      );
+      SnackbarHelper.showValidation('Please answer if dual agency is allowed in your state');
       return false;
     }
 
     if (_dualAgencyBrokerage.value == null) {
-      Get.snackbar(
-        'Error',
-        'Please answer if dual agency is allowed at your brokerage',
-      );
+      SnackbarHelper.showValidation('Please answer if dual agency is allowed at your brokerage');
       return false;
     }
 

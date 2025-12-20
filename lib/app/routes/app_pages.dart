@@ -25,8 +25,9 @@ import 'package:getrebate/app/modules/seller_lead_form/bindings/seller_lead_form
 import 'package:getrebate/app/modules/seller_lead_form/views/seller_lead_form_view.dart';
 import 'package:getrebate/app/modules/property_detail/bindings/property_detail_binding.dart';
 import 'package:getrebate/app/modules/property_detail/views/property_detail_view.dart';
-import 'package:getrebate/app/modules/create_listing/bindings/create_listing_binding.dart';
-import 'package:getrebate/app/modules/create_listing/views/create_listing_view.dart';
+// DISABLED: Create listing imports - buyers cannot create listings anymore
+// import 'package:getrebate/app/modules/create_listing/bindings/create_listing_binding.dart';
+// import 'package:getrebate/app/modules/create_listing/views/create_listing_view.dart';
 import 'package:getrebate/app/modules/edit_listing/bindings/edit_listing_binding.dart';
 import 'package:getrebate/app/modules/edit_listing/views/edit_listing_view.dart';
 import 'package:getrebate/app/modules/messages/bindings/messages_binding.dart';
@@ -35,8 +36,9 @@ import 'package:getrebate/app/modules/listing_detail/bindings/listing_detail_bin
 import 'package:getrebate/app/modules/listing_detail/views/listing_detail_view.dart';
 import 'package:getrebate/app/modules/find_agents/bindings/find_agents_binding.dart';
 import 'package:getrebate/app/modules/find_agents/views/find_agents_view.dart';
-import 'package:getrebate/app/modules/add_listing/bindings/add_listing_binding.dart';
-import 'package:getrebate/app/modules/add_listing/views/add_listing_view.dart';
+// DISABLED: Add listing imports - buyers cannot create listings anymore
+// import 'package:getrebate/app/modules/add_listing/bindings/add_listing_binding.dart';
+// import 'package:getrebate/app/modules/add_listing/views/add_listing_view.dart';
 import 'package:getrebate/app/modules/add_loan/bindings/add_loan_binding.dart';
 import 'package:getrebate/app/modules/add_loan/views/add_loan_view.dart';
 import 'package:getrebate/app/modules/post_closing_survey/bindings/post_closing_survey_binding.dart';
@@ -53,6 +55,12 @@ import 'package:getrebate/app/models/agent_model.dart';
 import 'package:getrebate/app/modules/messages/controllers/messages_controller.dart';
 import 'package:getrebate/app/modules/contact/views/contact_view.dart';
 import 'package:getrebate/app/modules/contact/bindings/contact_binding.dart';
+import 'package:getrebate/app/modules/privacy_policy/views/privacy_policy_view.dart';
+import 'package:getrebate/app/modules/privacy_policy/bindings/privacy_policy_binding.dart';
+import 'package:getrebate/app/modules/help_support/views/help_support_view.dart';
+import 'package:getrebate/app/modules/help_support/bindings/help_support_binding.dart';
+import 'package:getrebate/app/modules/terms_of_service/views/terms_of_service_view.dart';
+import 'package:getrebate/app/modules/terms_of_service/bindings/terms_of_service_binding.dart';
 import 'package:flutter/material.dart';
 
 class AppPages {
@@ -83,6 +91,9 @@ class AppPages {
   static const SIMPLE_SURVEY = '/simple-survey';
   static const REBATE_CHECKLIST = '/rebate-checklist';
   static const CHECKLIST = '/checklist';
+  static const PRIVACY_POLICY = '/privacy-policy';
+  static const HELP_SUPPORT = '/help-support';
+  static const TERMS_OF_SERVICE = '/terms-of-service';
 
   static final routes = [
     GetPage(
@@ -173,21 +184,23 @@ class AppPages {
       page: () => const MessagesView(),
       binding: MessagesBinding(),
     ),
-    GetPage(
-      name: CREATE_LISTING,
-      page: () => const CreateListingView(),
-      binding: CreateListingBinding(),
-    ),
+    // DISABLED: Create listing route - buyers cannot create listings anymore
+    // GetPage(
+    //   name: CREATE_LISTING,
+    //   page: () => const CreateListingView(),
+    //   binding: CreateListingBinding(),
+    // ),
     GetPage(
       name: EDIT_LISTING,
       page: () => const EditListingView(),
       binding: EditListingBinding(),
     ),
-    GetPage(
-      name: ADD_LISTING,
-      page: () => const AddListingView(),
-      binding: AddListingBinding(),
-    ),
+    // DISABLED: Add listing route - buyers cannot create listings anymore
+    // GetPage(
+    //   name: ADD_LISTING,
+    //   page: () => const AddListingView(),
+    //   binding: AddListingBinding(),
+    // ),
     GetPage(
       name: ADD_LOAN,
       page: () => const AddLoanView(),
@@ -214,6 +227,21 @@ class AppPages {
       name: CHECKLIST,
       page: () => const ChecklistView(),
       binding: ChecklistBinding(),
+    ),
+    GetPage(
+      name: PRIVACY_POLICY,
+      page: () => const PrivacyPolicyView(),
+      binding: PrivacyPolicyBinding(),
+    ),
+    GetPage(
+      name: HELP_SUPPORT,
+      page: () => const HelpSupportView(),
+      binding: HelpSupportBinding(),
+    ),
+    GetPage(
+      name: TERMS_OF_SERVICE,
+      page: () => const TermsOfServiceView(),
+      binding: TermsOfServiceBinding(),
     ),
   ];
 }

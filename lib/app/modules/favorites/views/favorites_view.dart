@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/modules/favorites/controllers/favorites_controller.dart';
 import 'package:getrebate/app/widgets/agent_card.dart';
@@ -71,7 +72,7 @@ class FavoritesView extends GetView<FavoritesController> {
       child: Row(
         children: [
           IconButton(
-            onPressed: () => Get.back(),
+            onPressed: () => Navigator.pop(context),
             icon: const Icon(Icons.arrow_back, color: AppTheme.darkGray),
           ),
           Expanded(
@@ -200,8 +201,11 @@ class FavoritesView extends GetView<FavoritesController> {
   Widget _buildAgentsList(BuildContext context) {
     return Obx(() {
       if (controller.isLoading) {
-        return const Center(
-          child: CircularProgressIndicator(),
+        return Center(
+          child: SpinKitFadingCircle(
+            color: AppTheme.primaryBlue,
+            size: 40,
+          ),
         );
       }
       
@@ -249,8 +253,11 @@ class FavoritesView extends GetView<FavoritesController> {
   Widget _buildLoanOfficersList(BuildContext context) {
     return Obx(() {
       if (controller.isLoading) {
-        return const Center(
-          child: CircularProgressIndicator(),
+        return Center(
+          child: SpinKitFadingCircle(
+            color: AppTheme.primaryBlue,
+            size: 40,
+          ),
         );
       }
       

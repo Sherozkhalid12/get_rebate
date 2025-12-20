@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:getrebate/app/utils/snackbar_helper.dart';
 
 class PostClosingSurveyController extends GetxController {
   late final String agentId, agentName, userId, transactionId;
@@ -88,11 +89,9 @@ class PostClosingSurveyController extends GetxController {
     _isLoading.value = true;
     await Future.delayed(const Duration(seconds: 2));
 
-    Get.snackbar('Thank You!', 'Your feedback was saved!',
-        backgroundColor: Colors.green.withOpacity(0.1),
-        colorText: Colors.green.shade700);
+    SnackbarHelper.showSuccess('Your feedback was saved!', title: 'Thank You!');
 
-    Get.back();
+    Navigator.pop(Get.context!);
     _isLoading.value = false;
   }
 

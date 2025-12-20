@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:get/get.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -47,7 +48,10 @@ class PropertyListingsView extends GetView<PropertyListingsController> {
               child: Obx(() {
                 if (controller.isLoading && controller.properties.isEmpty) {
                   return const Center(
-                    child: CircularProgressIndicator(),
+                    child: SpinKitFadingCircle(
+                      color: AppTheme.primaryBlue,
+                      size: 40,
+                    ),
                   );
                 }
                 return RefreshIndicator(
@@ -59,11 +63,12 @@ class PropertyListingsView extends GetView<PropertyListingsController> {
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: controller.createNewListing,
-        backgroundColor: AppTheme.primaryBlue,
-        child: const Icon(Icons.add, color: Colors.white),
-      ),
+      // DISABLED: Floating action button for creating listings - buyers cannot create listings anymore
+      // floatingActionButton: FloatingActionButton(
+      //   onPressed: controller.createNewListing,
+      //   backgroundColor: AppTheme.primaryBlue,
+      //   child: const Icon(Icons.add, color: Colors.white),
+      // ),
     );
   }
 
@@ -80,7 +85,7 @@ class PropertyListingsView extends GetView<PropertyListingsController> {
         children: [
           // Back Button
           IconButton(
-            onPressed: () => Get.back(),
+            onPressed: () => Navigator.pop(context),
             icon: const Icon(Icons.arrow_back, color: AppTheme.darkGray),
           ),
 
@@ -95,11 +100,11 @@ class PropertyListingsView extends GetView<PropertyListingsController> {
             ),
           ),
 
-          // Add Property Button
-          IconButton(
-            onPressed: controller.createNewListing,
-            icon: const Icon(Icons.add, color: AppTheme.primaryBlue),
-          ),
+          // DISABLED: Add Property Button - buyers cannot create listings anymore
+          // IconButton(
+          //   onPressed: controller.createNewListing,
+          //   icon: const Icon(Icons.add, color: AppTheme.primaryBlue),
+          // ),
         ],
       ),
     );
@@ -603,11 +608,12 @@ class PropertyListingsView extends GetView<PropertyListingsController> {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 32),
-            CustomButton(
-              text: 'Create Listing',
-              onPressed: controller.createNewListing,
-              icon: Icons.add,
-            ),
+            // DISABLED: Create Listing button - buyers cannot create listings anymore
+            // CustomButton(
+            //   text: 'Create Listing',
+            //   onPressed: controller.createNewListing,
+            //   icon: Icons.add,
+            // ),
           ],
         ),
       ),

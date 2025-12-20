@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 import '../controllers/post_closing_survey_controller.dart';
 
@@ -400,9 +401,9 @@ class PostClosingSurveyView extends GetView<PostClosingSurveyController> {
                     ? SizedBox(
                         width: 20,
                         height: 20,
-                        child: CircularProgressIndicator(
+                        child: SpinKitFadingCircle(
                           color: Colors.white,
-                          strokeWidth: 2,
+                          size: 20,
                         ),
                       )
                     : Text(

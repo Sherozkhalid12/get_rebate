@@ -6,7 +6,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart' as global;
 import 'package:getrebate/app/utils/api_constants.dart';
-import 'package:getrebate/app/widgets/custom_snackbar.dart';
+import 'package:getrebate/app/utils/snackbar_helper.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:get_storage/get_storage.dart';
 
@@ -98,7 +98,7 @@ class CreateListingController extends GetxController {
     if (_selectedPhotos.length < 10) {
       _selectedPhotos.add(photoFile);
     } else {
-      CustomSnackbar.showValidation('You can add up to 10 photos');
+      SnackbarHelper.showValidation('You can add up to 10 photos');
     }
   }
 
@@ -110,7 +110,7 @@ class CreateListingController extends GetxController {
   
   void addOpenHouse() {
     if (_openHouses.length >= 4) {
-      CustomSnackbar.showValidation('You can add up to 4 open houses');
+      SnackbarHelper.showValidation('You can add up to 4 open houses');
       return;
     }
     _openHouses.add(OpenHouseEntry());
@@ -176,23 +176,10 @@ class CreateListingController extends GetxController {
 
       if (agentId.isEmpty) {
         _isLoading.value = false;
-        try {
-          Get.snackbar(
-            'Error',
-            'Please login to create a listing',
-            snackPosition: SnackPosition.BOTTOM,
-            backgroundColor: Colors.red.shade600,
-            colorText: AppTheme.white,
-            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-            borderRadius: 12,
-            duration: const Duration(seconds: 3),
-            snackStyle: SnackStyle.FLOATING,
-          );
-        } catch (e) {
-          if (kDebugMode) {
-            print('⚠️ Could not show snackbar: $e');
-          }
-        }
+        SnackbarHelper.showError(
+          'Please login to create a listing',
+          duration: const Duration(seconds: 3),
+        );
         return;
       }
 
@@ -305,21 +292,10 @@ class CreateListingController extends GetxController {
 
         // Show success snackbar BEFORE navigating back (to avoid overlay issues)
         try {
-          Get.snackbar(
-            'Success',
+          SnackbarHelper.showSuccess(
             'Listing created successfully!',
-            snackPosition: SnackPosition.BOTTOM,
-            backgroundColor: AppTheme.lightGreen,
-            colorText: AppTheme.white,
-            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-            borderRadius: 12,
+            title: 'Success',
             duration: const Duration(seconds: 2),
-            snackStyle: SnackStyle.FLOATING,
-            icon: const Icon(
-              Icons.check_circle,
-              color: AppTheme.white,
-              size: 24,
-            ),
           );
         } catch (e) {
           if (kDebugMode) {
@@ -332,7 +308,7 @@ class CreateListingController extends GetxController {
 
         // Navigate back after a short delay
         await Future.delayed(const Duration(milliseconds: 300));
-        Get.back();
+        Navigator.pop(Get.context!);
       }
     } on DioException catch (e) {
       _isLoading.value = false;
@@ -369,29 +345,10 @@ class CreateListingController extends GetxController {
         errorMessage = 'No internet connection. Please check your network.';
       }
 
-      // Use GetX snackbar directly to avoid overlay issues
-      try {
-        Get.snackbar(
-          'Error',
-          errorMessage,
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: Colors.red.shade600,
-          colorText: AppTheme.white,
-          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-          borderRadius: 12,
-          duration: const Duration(seconds: 3),
-          snackStyle: SnackStyle.FLOATING,
-          icon: const Icon(
-            Icons.error_outline,
-            color: AppTheme.white,
-            size: 24,
-          ),
-        );
-      } catch (e) {
-        if (kDebugMode) {
-          print('⚠️ Could not show error snackbar: $e');
-        }
-      }
+      SnackbarHelper.showError(
+        errorMessage,
+        duration: const Duration(seconds: 3),
+      );
     } catch (e) {
       _isLoading.value = false;
 
@@ -400,71 +357,52 @@ class CreateListingController extends GetxController {
         print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       }
 
-      // Use GetX snackbar directly
-      try {
-        Get.snackbar(
-          'Error',
-          'Failed to create listing: ${e.toString()}',
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: Colors.red.shade600,
-          colorText: AppTheme.white,
-          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-          borderRadius: 12,
-          duration: const Duration(seconds: 3),
-          snackStyle: SnackStyle.FLOATING,
-          icon: const Icon(
-            Icons.error_outline,
-            color: AppTheme.white,
-            size: 24,
-          ),
-        );
-      } catch (e2) {
-        if (kDebugMode) {
-          print('⚠️ Could not show error snackbar: $e2');
-        }
-      }
+      SnackbarHelper.showError(
+        'Failed to create listing: ${e.toString()}',
+        duration: const Duration(seconds: 3),
+      );
     }
   }
 
   bool _validateForm() {
     if (titleController.text.trim().isEmpty) {
-      CustomSnackbar.showValidation('Please enter a property title');
+      SnackbarHelper.showValidation('Please enter a property title');
       return false;
     }
 
     if (descriptionController.text.trim().isEmpty) {
-      CustomSnackbar.showValidation('Please enter a property description');
+      SnackbarHelper.showValidation('Please enter a property description');
       return false;
     }
 
     if (priceController.text.trim().isEmpty) {
-      CustomSnackbar.showValidation('Please enter a price');
+      SnackbarHelper.showValidation('Please enter a price');
       return false;
     }
 
     final price = double.tryParse(priceController.text.trim());
     if (price == null || price <= 0) {
-      CustomSnackbar.showValidation('Please enter a valid price');
+      SnackbarHelper.showValidation('Please enter a valid price');
       return false;
     }
 
     if (addressController.text.trim().isEmpty) {
-      CustomSnackbar.showValidation('Please enter a street address');
+      SnackbarHelper.showValidation('Please enter a street address');
       return false;
     }
 
     if (cityController.text.trim().isEmpty) {
-      CustomSnackbar.showValidation('Please enter a city');
+      SnackbarHelper.showValidation('Please enter a city');
       return false;
     }
 
     if (stateController.text.trim().isEmpty) {
-      CustomSnackbar.showValidation('Please enter a state');
+      SnackbarHelper.showValidation('Please enter a state');
       return false;
     }
 
     if (zipCodeController.text.trim().isEmpty) {
-      CustomSnackbar.showValidation('Please enter a ZIP code');
+      SnackbarHelper.showValidation('Please enter a ZIP code');
       return false;
     }
 

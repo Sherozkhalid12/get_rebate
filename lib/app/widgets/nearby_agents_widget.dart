@@ -434,10 +434,10 @@ class _NearbyAgentsWidgetState extends State<NearbyAgentsWidget> {
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Get.back(), child: const Text('Close')),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close')),
           ElevatedButton.icon(
             onPressed: () {
-              Get.back();
+              Navigator.pop(context);
               // TODO: Send inquiry to agent with property details
               _sendInquiryToAgent(agent, widget.listing);
             },

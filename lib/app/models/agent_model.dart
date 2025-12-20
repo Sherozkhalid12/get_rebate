@@ -131,7 +131,25 @@ class AgentModel {
         json['LisencedStates'] ?? json['licensedStates'] ?? [];
     final licensedStates = List<String>.from(licensedStatesList);
 
-    // Service areas/ZIP codes
+    // Parse claimedZipCodes - can be array of objects with postalCode or array of strings
+    List<String> claimedZipCodesList = [];
+    final claimedZipCodesData = json['claimedZipCodes'];
+    if (claimedZipCodesData != null && claimedZipCodesData is List) {
+      for (var item in claimedZipCodesData) {
+        if (item is Map) {
+          // Extract postalCode from object
+          final postalCode = item['postalCode']?.toString();
+          if (postalCode != null && postalCode.isNotEmpty) {
+            claimedZipCodesList.add(postalCode);
+          }
+        } else if (item is String) {
+          // Direct string value
+          claimedZipCodesList.add(item);
+        }
+      }
+    }
+
+    // Service areas/ZIP codes - can be from serviceAreas or serviceZipCodes
     final serviceAreasList =
         json['serviceAreas'] ?? json['serviceZipCodes'] ?? [];
     final serviceZipCodes = List<String>.from(serviceAreasList);
@@ -226,7 +244,7 @@ class AgentModel {
       brokerage: brokerage,
       licenseNumber: licenseNumber,
       licensedStates: licensedStates,
-      claimedZipCodes: serviceZipCodes, // Use serviceAreas as claimedZipCodes
+      claimedZipCodes: claimedZipCodesList, // Use parsed claimedZipCodes from API
       bio: json['bio']?.toString() ?? json['description']?.toString(),
       rating: rating,
       reviewCount: reviewCount,

@@ -7,6 +7,7 @@ import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/modules/create_listing/controllers/create_listing_controller.dart';
 import 'package:getrebate/app/widgets/custom_button.dart';
 import 'package:getrebate/app/widgets/gradient_card.dart';
+import 'package:getrebate/app/utils/snackbar_helper.dart';
 
 class CreateListingView extends GetView<CreateListingController> {
   const CreateListingView({super.key});
@@ -29,7 +30,7 @@ class CreateListingView extends GetView<CreateListingController> {
             pinned: true,
             backgroundColor: AppTheme.primaryBlue,
             leading: IconButton(
-              onPressed: () => Get.back(),
+              onPressed: () => Navigator.pop(context),
               icon: Icon(Icons.arrow_back, color: AppTheme.white),
             ),
             // actions: [
@@ -851,7 +852,7 @@ class CreateListingView extends GetView<CreateListingController> {
               leading: const Icon(Icons.photo_library),
               title: const Text('Choose from Gallery'),
               onTap: () async {
-                Get.back();
+                Navigator.pop(context);
                 await _pickImages(context, picker, ImageSource.gallery);
               },
             ),
@@ -859,14 +860,14 @@ class CreateListingView extends GetView<CreateListingController> {
               leading: const Icon(Icons.camera_alt),
               title: const Text('Take Photo'),
               onTap: () async {
-                Get.back();
+                Navigator.pop(context);
                 await _pickImages(context, picker, ImageSource.camera);
               },
             ),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Get.back(), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
         ],
       ),
     );
@@ -887,7 +888,7 @@ class CreateListingView extends GetView<CreateListingController> {
       if (images.isNotEmpty) {
         for (var image in images) {
           if (controller.selectedPhotos.length >= 10) {
-            Get.snackbar('Limit Reached', 'You can add up to 10 photos');
+            SnackbarHelper.showInfo('You can add up to 10 photos', title: 'Limit Reached');
             break;
           }
           controller.addPhoto(File(image.path));
@@ -907,14 +908,14 @@ class CreateListingView extends GetView<CreateListingController> {
             if (controller.selectedPhotos.length < 10) {
               controller.addPhoto(File(image.path));
             } else {
-              Get.snackbar('Limit Reached', 'You can add up to 10 photos');
+              SnackbarHelper.showInfo('You can add up to 10 photos', title: 'Limit Reached');
             }
           }
         } catch (e2) {
-          Get.snackbar('Error', 'Failed to pick image: ${e2.toString()}');
+          SnackbarHelper.showError('Failed to pick image: ${e2.toString()}');
         }
       } else {
-        Get.snackbar('Error', 'Failed to pick images: ${e.toString()}');
+        SnackbarHelper.showError('Failed to pick images: ${e.toString()}');
       }
     }
   }

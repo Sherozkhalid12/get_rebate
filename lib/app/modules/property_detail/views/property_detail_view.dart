@@ -8,6 +8,7 @@ import 'package:getrebate/app/widgets/custom_button.dart';
 import 'package:getrebate/app/widgets/rebate_display_widget.dart';
 import 'package:getrebate/app/widgets/nearby_agents_widget.dart';
 import 'package:getrebate/app/models/listing.dart';
+import 'package:getrebate/app/utils/snackbar_helper.dart';
 import 'package:intl/intl.dart';
 
 class PropertyDetailView extends GetView<PropertyDetailController> {
@@ -374,12 +375,9 @@ class PropertyDetailView extends GetView<PropertyDetailController> {
 
   void _getDirections(BuildContext context) {
     // TODO: Implement directions to property
-    Get.snackbar(
-      'Get Directions',
+    SnackbarHelper.showInfo(
       'Opening maps...',
-      snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: AppTheme.primaryBlue,
-      colorText: AppTheme.white,
+      title: 'Get Directions',
     );
   }
 
@@ -392,26 +390,27 @@ class PropertyDetailView extends GetView<PropertyDetailController> {
       pinned: true,
       backgroundColor: AppTheme.primaryBlue,
       leading: IconButton(
-        onPressed: () => Get.back(),
+        onPressed: () => Navigator.pop(context),
         icon: const Icon(Icons.arrow_back, color: AppTheme.white),
       ),
-      actions: [
-        Obx(
-          () => IconButton(
-            onPressed: controller.toggleFavorite,
-            icon: Icon(
-              controller.isFavorite ? Icons.favorite : Icons.favorite_border,
-              color: controller.isFavorite ? Colors.red : AppTheme.white,
-            ),
-          ),
-        ),
-        IconButton(
-          onPressed: () {
-            Get.snackbar('Share', 'Share functionality coming soon!');
-          },
-          icon: const Icon(Icons.share, color: AppTheme.white),
-        ),
-      ],
+      // REMOVED: Favorite and Share icons from property view
+      // actions: [
+      //   Obx(
+      //     () => IconButton(
+      //       onPressed: controller.toggleFavorite,
+      //       icon: Icon(
+      //         controller.isFavorite ? Icons.favorite : Icons.favorite_border,
+      //         color: controller.isFavorite ? Colors.red : AppTheme.white,
+      //       ),
+      //     ),
+      //   ),
+      //   IconButton(
+      //     onPressed: () {
+      //       Get.snackbar('Share', 'Share functionality coming soon!');
+      //     },
+      //     icon: const Icon(Icons.share, color: AppTheme.white),
+      //   ),
+      // ],
       flexibleSpace: FlexibleSpaceBar(
         background: Container(
           decoration: BoxDecoration(
@@ -734,15 +733,39 @@ class PropertyDetailView extends GetView<PropertyDetailController> {
     final rebateAmount = buyerCommission * (rebatePercent / 100);
 
     // === 3. MOCK LISTING FOR WIDGETS ===
+    // Extract ZIP code from various possible locations in property data
+    String zipCode = '';
+    if (property['zip'] != null) {
+      zipCode = property['zip'].toString();
+    } else if (property['zipCode'] != null) {
+      zipCode = property['zipCode'].toString();
+    } else if (property['address'] is Map) {
+      final address = property['address'] as Map<String, dynamic>;
+      zipCode = address['zip']?.toString() ?? 
+                address['zipCode']?.toString() ?? 
+                '';
+    }
+    
+    if (kDebugMode) {
+      print('📍 Property Detail - Extracted ZIP Code: $zipCode');
+      print('   From property[\'zip\']: ${property['zip']}');
+      print('   From property[\'zipCode\']: ${property['zipCode']}');
+      if (property['address'] is Map) {
+        print('   From property[\'address\'][\'zip\']: ${(property['address'] as Map)['zip']}');
+      }
+    }
+    
     final mockListing = Listing(
       id: property['id'] ?? 'mock',
       agentId: property['agentId'] ?? 'mock_agent',
       priceCents: (price * 100).toInt(),
       address: ListingAddress(
-        street: property['address'] ?? '123 Luxury Ave',
+        street: property['address'] is Map 
+            ? (property['address'] as Map)['street']?.toString() ?? property['address']?.toString() ?? '123 Luxury Ave'
+            : property['address']?.toString() ?? '123 Luxury Ave',
         city: property['city'] ?? 'Beverly Hills',
         state: property['state'] ?? 'CA',
-        zip: property['zip'] ?? '90210',
+        zip: zipCode.isNotEmpty ? zipCode : '90210',
       ),
       photoUrls: List<String>.from(
         property['images'] ?? [property['image'] ?? ''],
@@ -758,7 +781,7 @@ class PropertyDetailView extends GetView<PropertyDetailController> {
         // === REBATE DISPLAY WIDGET ===
         RebateDisplayWidget(
           listing: mockListing,
-          onFindAgents: () => _showNearbyAgents(context, mockListing),
+          onFindAgents: () => _navigateToFindAgents(mockListing),
           onDualAgencyInfo: dualAgencyAllowed
               ? () => _showDualAgencyInfo(context)
               : null,
@@ -1003,9 +1026,64 @@ class PropertyDetailView extends GetView<PropertyDetailController> {
       builder: (context) => RebateDisclosureDialog(
         onAcknowledge: () {
           controller.acknowledgeRebateDisclosure();
-          Get.back();
+          Navigator.pop(context);
         },
       ),
+    );
+  }
+
+  /// Navigate to Find Agents screen with ZIP code from listing
+  void _navigateToFindAgents(Listing listing) {
+    final zipCode = listing.address.zip;
+    
+    if (kDebugMode) {
+      print('🔍 Navigating to Find Agents');
+      print('   Listing ID: ${listing.id}');
+      print('   Listing Address: ${listing.address.toString()}');
+      print('   ZIP Code from listing: $zipCode');
+    }
+    
+    if (zipCode.isEmpty || zipCode == '90210') {
+      // Try to get ZIP from property data if listing ZIP is missing or default
+      final property = controller.property;
+      String fallbackZip = '';
+      if (property['zip'] != null) {
+        fallbackZip = property['zip'].toString();
+      } else if (property['zipCode'] != null) {
+        fallbackZip = property['zipCode'].toString();
+      } else if (property['address'] is Map) {
+        final address = property['address'] as Map<String, dynamic>;
+        fallbackZip = address['zip']?.toString() ?? 
+                     address['zipCode']?.toString() ?? 
+                     '';
+      }
+      
+      if (kDebugMode) {
+        print('   Fallback ZIP from property: $fallbackZip');
+      }
+      
+      if (fallbackZip.isNotEmpty && fallbackZip != '90210') {
+        // Use fallback ZIP
+        Get.toNamed(
+          '/find-agents',
+          arguments: {
+            'zip': fallbackZip,
+            'listing': listing,
+          },
+        );
+        return;
+      }
+      
+      SnackbarHelper.showError('ZIP code not available for this property');
+      return;
+    }
+    
+    Get.toNamed(
+      '/find-agents',
+      arguments: {
+        'zip': zipCode,
+        'listing': listing,
+      },
     );
   }
 
@@ -1043,7 +1121,7 @@ class PropertyDetailView extends GetView<PropertyDetailController> {
                     ),
                   ),
                   IconButton(
-                    onPressed: () => Get.back(),
+                    onPressed: () => Navigator.pop(context),
                     icon: const Icon(Icons.close),
                   ),
                 ],
@@ -1077,25 +1155,12 @@ class PropertyDetailView extends GetView<PropertyDetailController> {
   Widget _buildActionButtons(BuildContext context) {
     return Column(
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: CustomButton(
-                text: 'I am interested in this property',
-                onPressed: controller.openBuyerLeadForm,
-                fontSize: 11.sp,
-                icon: Icons.shopping_cart,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: CustomButton(
-                text: 'Sell My Property',
-                onPressed: controller.openSellerLeadForm,
-                icon: Icons.sell,
-              ),
-            ),
-          ],
+        CustomButton(
+          text: 'I am interested in this property',
+          onPressed: controller.openBuyerLeadForm,
+          fontSize: 11.sp,
+          icon: Icons.shopping_cart,
+          width: double.infinity,
         ),
         const SizedBox(height: 12),
         CustomButton(
@@ -1185,7 +1250,7 @@ class _RebateDisclosureDialogState extends State<RebateDisclosureDialog> {
                     ),
                   ),
                   IconButton(
-                    onPressed: () => Get.back(),
+                    onPressed: () => Navigator.pop(context),
                     icon: const Icon(Icons.close),
                   ),
                 ],
@@ -1297,7 +1362,7 @@ class DualAgencyExplanationDialog extends StatelessWidget {
             ),
             const SizedBox(height: 20),
             ElevatedButton(
-              onPressed: () => Get.back(),
+              onPressed: () => Navigator.pop(context),
               child: const Text('Got it'),
             ),
           ],

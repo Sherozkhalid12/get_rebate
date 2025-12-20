@@ -35,7 +35,7 @@ class AddLoanView extends GetView<AddLoanController> {
         ),
         centerTitle: true,
         leading: IconButton(
-          onPressed: () => Get.back(),
+          onPressed: () => Navigator.pop(context),
           icon: const Icon(Icons.arrow_back, color: AppTheme.white),
         ),
       ),

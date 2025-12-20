@@ -32,7 +32,7 @@ class RebateCalculatorOptionsBottomSheet extends StatelessWidget {
                 ),
               ),
               IconButton(
-                onPressed: () => Get.back(),
+                onPressed: () => Navigator.pop(context),
                 icon: const Icon(Icons.close, color: AppTheme.darkGray),
               ),
             ],
@@ -45,7 +45,7 @@ class RebateCalculatorOptionsBottomSheet extends StatelessWidget {
             title: 'Estimated Rebate Tiers',
             subtitle: 'Enter estimated price → see all 6 rebate tiers',
             onTap: () {
-              Get.back();
+              Navigator.pop(context);
               Get.to(() => const RebateCalculatorView(), arguments: {'mode': 0});
             },
           ),
@@ -57,7 +57,7 @@ class RebateCalculatorOptionsBottomSheet extends StatelessWidget {
             title: 'Actual Rebate Calculator',
             subtitle: 'Enter actual price + BAC → exact rebate',
             onTap: () {
-              Get.back();
+              Navigator.pop(context);
               Get.to(() => const RebateCalculatorView(), arguments: {'mode': 1});
             },
           ),
@@ -69,7 +69,7 @@ class RebateCalculatorOptionsBottomSheet extends StatelessWidget {
             title: 'Seller Rebate Conversion',
             subtitle: 'Convert original fee → new effective % after rebate',
             onTap: () {
-              Get.back();
+              Navigator.pop(context);
               Get.to(() => const RebateCalculatorView(), arguments: {'mode': 2});
             },
           ),

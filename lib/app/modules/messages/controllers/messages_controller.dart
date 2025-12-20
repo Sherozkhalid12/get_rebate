@@ -9,6 +9,7 @@ import 'package:getrebate/app/services/chat_service.dart';
 import 'package:getrebate/app/services/user_service.dart';
 import 'package:getrebate/app/services/socket_service.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
+import 'package:getrebate/app/utils/snackbar_helper.dart';
 
 class MessageModel {
   final String id;
@@ -242,7 +243,7 @@ class MessagesController extends GetxController {
         }
         // Only load threads on first init if not already loading
         if (!_isLoadingThreads.value) {
-          _loadThreads();
+          loadThreads();
         }
         _initializeSocket();
       } else {
@@ -578,7 +579,9 @@ class MessagesController extends GetxController {
           _allConversations[allIndex] = updatedConversation;
           _allConversations.sort((a, b) => b.lastMessageTime.compareTo(a.lastMessageTime));
         }
-        
+
+
+        ;
         // Update in filtered conversations
         final filteredIndex = _conversations.indexWhere((c) => c.id == chatId);
         if (filteredIndex != -1) {
@@ -592,42 +595,17 @@ class MessagesController extends GetxController {
   }
 
   void _loadArguments() {
+    // Just load arguments but don't auto-open conversations
+    // This allows navigation to messages screen to show threads list
     final args = Get.arguments as Map<String, dynamic>?;
-    if (args != null && args['agent'] != null) {
-      // Create a new conversation with the agent
-      final agent = args['agent'] as Map<String, dynamic>;
-      final listing = args['listing'] as Map<String, dynamic>?;
-      final propertyAddress = args['propertyAddress'] as String?;
-
-      final newConversation = ConversationModel(
-        id: 'conv_${agent['id']}_${DateTime.now().millisecondsSinceEpoch}',
-        senderId: agent['id'] as String,
-        senderName: agent['name'] as String,
-        senderType: 'agent',
-        senderImage: agent['profileImage'] as String?,
-        lastMessage:
-            'Hi! I\'m interested in learning more about this property.',
-        lastMessageTime: DateTime.now(),
-        unreadCount: 0,
-        propertyAddress: propertyAddress,
-        propertyPrice: listing?['priceCents'] != null
-            ? '\$${((listing!['priceCents'] as int) / 100).toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}'
-            : null,
-      );
-
-      // Add to both lists if not already exists
-      if (!_allConversations.any((conv) => conv.senderId == agent['id'])) {
-        _allConversations.insert(0, newConversation);
-        _conversations.insert(0, newConversation);
-      }
-
-      // Select this conversation
-      selectConversation(newConversation);
+    if (args != null && kDebugMode) {
+      print('📱 Messages screen loaded with arguments: ${args.keys}');
     }
+    // Don't auto-select conversations - let user choose from threads list
   }
 
   /// Loads chat threads from the API - optimized and fast
-  Future<void> _loadThreads() async {
+  Future<void> loadThreads() async {
     // Prevent multiple simultaneous loads
     if (_isLoadingThreads.value) {
       print('⚠️ Threads already loading, skipping duplicate call');
@@ -1022,13 +1000,7 @@ class MessagesController extends GetxController {
       // Clear messages on error
       _messages.clear();
       // Show error to user
-      Get.snackbar(
-        'Error',
-        'Failed to load messages. Please try again.',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red.shade400,
-        colorText: Colors.white,
-      );
+      SnackbarHelper.showError('Failed to load messages. Please try again.');
     } finally {
       _isLoadingMessages.value = false;
       if (kDebugMode) {
@@ -1211,7 +1183,7 @@ class MessagesController extends GetxController {
       _selectedConversation.value = null;
       _messages.clear();
     }
-    Get.snackbar('Deleted', 'Conversation deleted');
+    SnackbarHelper.showSuccess('Conversation deleted', title: 'Deleted');
   }
 
   void goBack() {
@@ -1240,7 +1212,7 @@ class MessagesController extends GetxController {
   Future<void> refreshThreads() async {
     // Only load if not already loading
     if (!_isLoadingThreads.value) {
-      await _loadThreads();
+      await loadThreads();
     }
   }
 
@@ -1377,12 +1349,12 @@ class MessagesController extends GetxController {
   }) async {
     final user = _authController.currentUser;
     if (user == null || user.id.isEmpty) {
-      Get.snackbar('Error', 'Please login to start a chat');
+      SnackbarHelper.showError('Please login to start a chat');
       return null;
     }
 
     if (otherUserId.isEmpty) {
-      Get.snackbar('Error', 'Invalid user ID');
+      SnackbarHelper.showError('Invalid user ID');
       return null;
     }
 
@@ -1557,7 +1529,7 @@ class MessagesController extends GetxController {
       if (_selectedConversation.value?.id == tempConversation.id) {
         _selectedConversation.value = null;
       }
-      Get.snackbar('Error', 'Failed to create chat thread. Please try again.');
+      SnackbarHelper.showError('Failed to create chat thread. Please try again.');
     }
   }
 
