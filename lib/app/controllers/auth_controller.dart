@@ -7,6 +7,7 @@ import 'dart:convert';
 import 'package:getrebate/app/models/user_model.dart';
 import 'package:getrebate/app/routes/app_pages.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
+import 'package:getrebate/app/controllers/current_loan_officer_controller.dart';
 
 class AuthController extends GetxController {
   final _storage = GetStorage();
@@ -109,6 +110,30 @@ class AuthController extends GetxController {
       print('   User ID: ${_currentUser.value?.id}');
       print('   Email: ${_currentUser.value?.email}');
       print('   Role: ${_currentUser.value?.role}');
+
+      // If this is a loan officer, eagerly load their full profile
+      if (_currentUser.value?.role == UserRole.loanOfficer) {
+        try {
+          final loanOfficerId = _currentUser.value!.id;
+          print('📡 AuthController._checkAuthStatus: Detected loan officer session.');
+          print('   Loan officer ID to load: $loanOfficerId');
+
+          final currentLoanOfficerController =
+              Get.isRegistered<CurrentLoanOfficerController>()
+                  ? Get.find<CurrentLoanOfficerController>()
+                  : Get.put(CurrentLoanOfficerController(), permanent: true);
+
+          currentLoanOfficerController
+              .fetchCurrentLoanOfficer(loanOfficerId)
+              .then((_) {
+            print('✅ AuthController._checkAuthStatus: Current loan officer profile loaded after session restore.');
+          }).catchError((e) {
+            print('❌ AuthController._checkAuthStatus: Failed to load current loan officer profile: $e');
+          });
+        } catch (e) {
+          print('⚠️ AuthController._checkAuthStatus: Error initializing CurrentLoanOfficerController: $e');
+        }
+      }
     } else {
       print('ℹ️ No saved user session found');
       _isLoggedIn.value = false;
@@ -1164,7 +1189,35 @@ class AuthController extends GetxController {
   }
 
   void _navigateToRoleBasedScreen() {
-    switch (_currentUser.value?.role) {
+    final role = _currentUser.value?.role;
+    final userId = _currentUser.value?.id;
+
+    print('🔀 AuthController._navigateToRoleBasedScreen called.');
+    print('   Role: $role');
+    print('   User ID: $userId');
+
+    // If loan officer, ensure we trigger loading of full loan officer profile
+    if (role == UserRole.loanOfficer && userId != null && userId.isNotEmpty) {
+      try {
+        print('📡 AuthController._navigateToRoleBasedScreen: Loading current loan officer profile before navigation...');
+        final currentLoanOfficerController =
+            Get.isRegistered<CurrentLoanOfficerController>()
+                ? Get.find<CurrentLoanOfficerController>()
+                : Get.put(CurrentLoanOfficerController(), permanent: true);
+
+        currentLoanOfficerController
+            .fetchCurrentLoanOfficer(userId)
+            .then((_) {
+          print('✅ AuthController._navigateToRoleBasedScreen: Loan officer profile loaded.');
+        }).catchError((e) {
+          print('❌ AuthController._navigateToRoleBasedScreen: Failed to load loan officer profile: $e');
+        });
+      } catch (e) {
+        print('⚠️ AuthController._navigateToRoleBasedScreen: Error initializing CurrentLoanOfficerController: $e');
+      }
+    }
+
+    switch (role) {
       case UserRole.buyerSeller:
         Get.offAllNamed(AppPages.MAIN);
         break;

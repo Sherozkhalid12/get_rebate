@@ -10,6 +10,7 @@ import 'package:getrebate/app/controllers/auth_controller.dart';
 import 'package:getrebate/app/modules/messages/controllers/messages_controller.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
+import 'package:getrebate/app/controllers/current_loan_officer_controller.dart';
 
 class LoanOfficerProfileController extends GetxController {
   // Data
@@ -47,41 +48,75 @@ class LoanOfficerProfileController extends GetxController {
 
   void _loadLoanOfficerData() {
     final args = Get.arguments;
+
+    // 1) If a specific loan officer was passed in (e.g. from a search result),
+    // use that as the source of truth.
     if (args != null && args['loanOfficer'] != null) {
       _loanOfficer.value = args['loanOfficer'] as LoanOfficerModel;
-    } else {
-      // Fallback to mock data
-      _loanOfficer.value = LoanOfficerModel(
-        id: 'loan_1',
-        name: 'Jennifer Davis',
-        email: 'jennifer@example.com',
-        phone: '+1 (555) 345-6789',
-        profileImage: 'https://i.pravatar.cc/150?img=2',
-        companyLogoUrl:
-            'https://images.unsplash.com/photo-1489515217757-5fd1be406fef?w=400',
-        company: 'First National Bank',
-        licenseNumber: 'LO123456',
-        licensedStates: ['NY', 'NJ', 'CT'],
-        claimedZipCodes: ['10001', '10002'],
-        specialtyProducts: [
-          MortgageTypes.fhaLoans,
-          MortgageTypes.vaLoans,
-          MortgageTypes.conventionalConforming,
-          MortgageTypes.fthbPrograms,
-        ],
-        bio:
-            'Senior loan officer with over 15 years of experience in mortgage lending. I specialize in conventional, FHA, and VA loans, helping clients secure the best rates and terms for their home financing needs.',
-        rating: 4.9,
-        reviewCount: 156,
-        searchesAppearedIn: 67,
-        profileViews: 289,
-        contacts: 134,
-        allowsRebates: true,
-        mortgageApplicationUrl: 'https://www.example.com/apply/jennifer-davis',
-        createdAt: DateTime.now().subtract(const Duration(days: 400)),
-        isVerified: true,
-      );
+      debugPrint(
+          '✅ LoanOfficerProfileController: Loaded loan officer from Get.arguments (id=${_loanOfficer.value?.id}).');
+      return;
     }
+
+    // 2) Otherwise, fall back to the currently authenticated loan officer
+    // from the global CurrentLoanOfficerController.
+    try {
+      final currentLoanOfficerController =
+          Get.isRegistered<CurrentLoanOfficerController>()
+              ? Get.find<CurrentLoanOfficerController>()
+              : null;
+
+      if (currentLoanOfficerController != null &&
+          currentLoanOfficerController.currentLoanOfficer.value != null) {
+        _loanOfficer.value =
+            currentLoanOfficerController.currentLoanOfficer.value;
+        debugPrint(
+            '✅ LoanOfficerProfileController: Loaded current authenticated loan officer from CurrentLoanOfficerController (id=${_loanOfficer.value?.id}).');
+        return;
+      } else {
+        debugPrint(
+            '⚠️ LoanOfficerProfileController: CurrentLoanOfficerController not available or currentLoanOfficer is null. Falling back to mock data.');
+      }
+    } catch (e) {
+      debugPrint(
+          '⚠️ LoanOfficerProfileController: Error accessing CurrentLoanOfficerController: $e');
+    }
+
+    // 3) Final fallback to mock data so the UI still works in isolation,
+    // but this should not happen in production if API + auth are wired correctly.
+    _loanOfficer.value = LoanOfficerModel(
+      id: 'loan_1',
+      name: 'Jennifer Davis',
+      email: 'jennifer@example.com',
+      phone: '+1 (555) 345-6789',
+      profileImage: 'https://i.pravatar.cc/150?img=2',
+      companyLogoUrl:
+          'https://images.unsplash.com/photo-1489515217757-5fd1be406fef?w=400',
+      company: 'First National Bank',
+      licenseNumber: 'LO123456',
+      licensedStates: ['NY', 'NJ', 'CT'],
+      claimedZipCodes: ['10001', '10002'],
+      specialtyProducts: [
+        MortgageTypes.fhaLoans,
+        MortgageTypes.vaLoans,
+        MortgageTypes.conventionalConforming,
+        MortgageTypes.fthbPrograms,
+      ],
+      bio:
+          'Senior loan officer with over 15 years of experience in mortgage lending. I specialize in conventional, FHA, and VA loans, helping clients secure the best rates and terms for their home financing needs.',
+      rating: 4.9,
+      reviewCount: 156,
+      searchesAppearedIn: 67,
+      profileViews: 289,
+      contacts: 134,
+      allowsRebates: true,
+      mortgageApplicationUrl: 'https://www.example.com/apply/jennifer-davis',
+      createdAt: DateTime.now().subtract(const Duration(days: 400)),
+      isVerified: true,
+    );
+
+    debugPrint(
+        'ℹ️ LoanOfficerProfileController: Using mock loan officer data as a last resort.');
   }
 
   void setSelectedTab(int index) {
