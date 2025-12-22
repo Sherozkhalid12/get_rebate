@@ -8,6 +8,7 @@ import 'package:getrebate/app/models/user_model.dart';
 import 'package:getrebate/app/services/chat_service.dart';
 import 'package:getrebate/app/services/user_service.dart';
 import 'package:getrebate/app/services/socket_service.dart';
+import 'package:getrebate/app/services/agent_service.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
 
@@ -1488,6 +1489,27 @@ class MessagesController extends GetxController {
     if (otherUserId.isEmpty) {
       SnackbarHelper.showError('Invalid user ID');
       return null;
+    }
+
+    // Record contact if chatting with an agent
+    if (otherUserRole == 'agent' && otherUserId.isNotEmpty) {
+      try {
+        if (Get.isRegistered<AgentService>()) {
+          final agentService = Get.find<AgentService>();
+          agentService.recordContact(otherUserId);
+        } else {
+          final agentService = AgentService();
+          agentService.recordContact(otherUserId);
+        }
+        if (kDebugMode) {
+          print('📞 Recording contact for agent: $otherUserId');
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          print('⚠️ Error recording contact: $e');
+        }
+        // Don't block chat if contact recording fails
+      }
     }
 
     // Build profile pic URL - set to null if empty or invalid to avoid 404 errors

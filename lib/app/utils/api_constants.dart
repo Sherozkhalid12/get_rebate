@@ -138,8 +138,9 @@ class ApiConstants {
   }
 
   // Agent tracking endpoints
-  static String getAddSearchEndpoint(String agentId) {
-    return "$apiBaseUrl/agent/addSearch/$agentId";
+  // Note: addSearch endpoint expects agent name, not ID
+  static String getAddSearchEndpoint(String agentIdentifier) {
+    return "$apiBaseUrl/agent/addSearch/$agentIdentifier";
   }
 
   static String getAddContactEndpoint(String agentId) {

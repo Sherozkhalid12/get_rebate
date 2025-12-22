@@ -1087,15 +1087,16 @@ class BuyerController extends GetxController {
     }
     
     // Record search for each displayed agent (fire and forget)
+    // Pass agent name to the API as it expects name, not ID
     for (final agent in _agents) {
-      _recordSearch(agent.id);
+      _recordSearch(agent.id, agentName: agent.name);
     }
   }
   
   /// Records a search for an agent
-  Future<void> _recordSearch(String agentId) async {
+  Future<void> _recordSearch(String agentId, {String? agentName}) async {
     try {
-      final response = await _agentService.recordSearch(agentId);
+      final response = await _agentService.recordSearch(agentId, agentName: agentName);
       if (response != null && kDebugMode) {
         print('📊 Search Response for agent $agentId:');
         print('   Message: ${response['message'] ?? 'N/A'}');

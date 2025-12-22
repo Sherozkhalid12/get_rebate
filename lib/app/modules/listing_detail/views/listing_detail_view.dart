@@ -916,6 +916,20 @@ class ListingDetailView extends GetView<ListingDetailController> {
                         agent.phone!,
                         onTap: () async {
                           try {
+                            // Record contact when user taps to call
+                            try {
+                              final agentService = AgentService();
+                              await agentService.recordContact(agent.id);
+                              if (kDebugMode) {
+                                print('📞 Recording contact for agent: ${agent.id}');
+                              }
+                            } catch (e) {
+                              if (kDebugMode) {
+                                print('⚠️ Error recording contact: $e');
+                              }
+                              // Don't block call if contact recording fails
+                            }
+                            
                             // Clean phone number (remove spaces, dashes, etc.)
                             final cleanPhone = agent.phone!.replaceAll(RegExp(r'[^\d+]'), '');
                             final uri = Uri.parse('tel:$cleanPhone');

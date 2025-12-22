@@ -557,6 +557,8 @@ class AgentProfileController extends GetxController {
               subtitle: Text(_agent.value!.phone ?? 'No phone number'),
               onTap: () {
                 Navigator.pop(Get.context!);
+                // Record contact when user taps to call
+                _recordContact(_agent.value!.id);
                 SnackbarHelper.showInfo('Opening phone dialer...', title: 'Calling');
               },
             ),
@@ -575,7 +577,10 @@ class AgentProfileController extends GetxController {
               subtitle: const Text('Send a message'),
               onTap: () {
                 Navigator.pop(Get.context!);
-                Get.toNamed('/messages');
+                // Record contact when user taps to message
+                _recordContact(_agent.value!.id);
+                // Start chat which will navigate to messages
+                startChat();
               },
             ),
           ],
