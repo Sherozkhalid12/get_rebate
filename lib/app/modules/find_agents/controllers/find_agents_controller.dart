@@ -82,73 +82,32 @@ class FindAgentsController extends GetxController {
   }
 
   Future<void> _loadAgents() async {
-    if (selectedZipCode.value.isEmpty) {
-      if (kDebugMode) {
-        print('⚠️ No ZIP code provided for agent search');
-      }
-      agents.value = [];
-      isLoading.value = false;
-      return;
-    }
-
     isLoading.value = true;
 
     try {
       if (kDebugMode) {
-        print('📡 Fetching all agents from API...');
-        print('   Will filter by ZIP code: ${selectedZipCode.value}');
+        print('📡 Fetching ALL agents from API...');
       }
 
-      // Use getAllAgents endpoint (which actually exists)
+      // Use getAllAgents endpoint to get ALL agents (no filtering)
       final allAgents = await _agentService.getAllAgents();
 
       if (kDebugMode) {
         print('✅ Successfully fetched ${allAgents.length} agents from API');
+        print('   Showing all agents initially (no ZIP code filtering)');
       }
 
-      // Also fetch raw agent data to check listings
-      final rawAgentsData = await _fetchRawAgentsData();
-
-      // Filter agents by ZIP code
-      final targetZip = selectedZipCode.value;
-      final filteredAgents = allAgents.where((agent) {
-        // Check 1: claimedZipCodes (array of strings - extracted from postalCode objects)
-        final hasClaimedZip = agent.claimedZipCodes.contains(targetZip);
-        
-        // Check 2: serviceZipCodes (array of strings)
-        final hasServiceZip = agent.serviceZipCodes.contains(targetZip);
-        
-        // Check 3: serviceAreas (array of strings - can contain ZIP codes)
-        final hasServiceArea = agent.serviceAreas?.contains(targetZip) ?? false;
-        
-        // Check 4: Check if agent has any listings with this ZIP code
-        final hasListingZip = _checkAgentListingsForZip(agent.id, targetZip, rawAgentsData);
-        
-        final matches = hasClaimedZip || hasServiceZip || hasServiceArea || hasListingZip;
-        
-        if (kDebugMode && matches) {
-          print('   ✅ Agent "${agent.name}" matches ZIP $targetZip');
-          print('      claimedZipCodes: ${agent.claimedZipCodes}');
-          print('      serviceZipCodes: ${agent.serviceZipCodes}');
-          print('      serviceAreas: ${agent.serviceAreas}');
-          print('      hasListingZip: $hasListingZip');
-        }
-        
-        return matches;
-      }).toList();
-
-      if (kDebugMode) {
-        print('📍 Filtered to ${filteredAgents.length} agents for ZIP code: $targetZip');
-        if (filteredAgents.isEmpty) {
-          print('   No agents found for ZIP code $targetZip');
-        } else {
-          print('   Found agents: ${filteredAgents.map((a) => a.name).join(", ")}');
-        }
-      }
-
+      // Store all agents without filtering
       _allLoadedAgents.clear();
-      _allLoadedAgents.addAll(filteredAgents);
-      agents.value = List.from(_allLoadedAgents);
+      _allLoadedAgents.addAll(allAgents);
+      
+      // Show all agents initially (no search query applied)
+      if (searchQuery.value.isEmpty) {
+        agents.value = List.from(_allLoadedAgents);
+      } else {
+        // If there's a search query, apply it
+        searchAgents(searchQuery.value);
+      }
       
       // Record search for all displayed agents
       _recordSearchesForDisplayedAgents();
@@ -165,49 +124,45 @@ class FindAgentsController extends GetxController {
         errorMessage = 'Connection timeout. Please check your internet connection.';
       }
       
-      // Show fallback mock data filtered by ZIP code
+      // Show fallback mock data (all agents, no filtering)
       final mockAgents = _getMockAgents();
       _allLoadedAgents.clear();
       _allLoadedAgents.addAll(mockAgents);
-      agents.value = List.from(_allLoadedAgents);
       
-      if (agents.isEmpty) {
-        SnackbarHelper.showInfo(
-          'No agents found for ZIP code ${selectedZipCode.value}.',
-          title: 'Info',
-          duration: const Duration(seconds: 3),
-        );
+      // Apply search if there's a query
+      if (searchQuery.value.isEmpty) {
+        agents.value = List.from(_allLoadedAgents);
       } else {
-        SnackbarHelper.showWarning(
-          '$errorMessage Showing sample data.',
-          title: 'Warning',
-          duration: const Duration(seconds: 4),
-        );
+        searchAgents(searchQuery.value);
       }
+      
+      SnackbarHelper.showWarning(
+        '$errorMessage Showing sample data.',
+        title: 'Warning',
+        duration: const Duration(seconds: 4),
+      );
     } catch (e, stackTrace) {
       if (kDebugMode) {
         print('❌ Error fetching agents: $e');
         print('   Stack trace: $stackTrace');
       }
-      // Fallback to mock data on error (filtered by ZIP code)
+      // Fallback to mock data on error (all agents, no filtering)
       final mockAgents = _getMockAgents();
       _allLoadedAgents.clear();
       _allLoadedAgents.addAll(mockAgents);
-      agents.value = List.from(_allLoadedAgents);
       
-      if (agents.isEmpty) {
-        SnackbarHelper.showInfo(
-          'No agents found for ZIP code ${selectedZipCode.value}.',
-          title: 'Info',
-          duration: const Duration(seconds: 3),
-        );
+      // Apply search if there's a query
+      if (searchQuery.value.isEmpty) {
+        agents.value = List.from(_allLoadedAgents);
       } else {
-        SnackbarHelper.showWarning(
-          'Could not load agents from server. Showing sample data.',
-          title: 'Warning',
-          duration: const Duration(seconds: 3),
-        );
+        searchAgents(searchQuery.value);
       }
+      
+      SnackbarHelper.showWarning(
+        'Could not load agents from server. Showing sample data.',
+        title: 'Warning',
+        duration: const Duration(seconds: 3),
+      );
     } finally {
       isLoading.value = false;
     }
@@ -329,26 +284,10 @@ class FindAgentsController extends GetxController {
   void searchAgents(String query) {
     searchQuery.value = query;
     final searchTerm = query.trim();
-    
-    // Check if the search term is a ZIP code (5 digits)
-    final isZipCode = RegExp(r'^\d{5}$').hasMatch(searchTerm);
-    
-    if (isZipCode && searchTerm != selectedZipCode.value) {
-      // User entered a new ZIP code - reload agents for that ZIP
-      if (kDebugMode) {
-        print('📍 New ZIP code detected: $searchTerm');
-        print('   Previous ZIP: ${selectedZipCode.value}');
-      }
-      selectedZipCode.value = searchTerm;
-      _loadAgents();
-      return;
-    }
-    
-    // Regular text search - filter by name and other fields
     final searchLower = searchTerm.toLowerCase();
     
     if (searchLower.isEmpty) {
-      // Show all loaded agents (already filtered by ZIP code)
+      // Show all loaded agents (no filtering)
       agents.value = List.from(_allLoadedAgents);
       if (kDebugMode) {
         print('🔍 Search cleared. Showing all ${_allLoadedAgents.length} agents');
@@ -356,7 +295,7 @@ class FindAgentsController extends GetxController {
       // Record search for all displayed agents
       _recordSearchesForDisplayedAgents();
     } else {
-      // Filter loaded agents by search query - search in multiple fields
+      // Filter all loaded agents by search query - search in multiple fields
       final filteredAgents = _allLoadedAgents.where((agent) {
         // Search in name
         final nameMatch = agent.name.toLowerCase().contains(searchLower);
@@ -379,13 +318,21 @@ class FindAgentsController extends GetxController {
           (state) => state.toLowerCase().contains(searchLower)
         );
         
+        // Search in ZIP codes (claimedZipCodes, serviceZipCodes)
+        final zipMatch = agent.claimedZipCodes.any(
+          (zip) => zip.contains(searchTerm)
+        ) || agent.serviceZipCodes.any(
+          (zip) => zip.contains(searchTerm)
+        );
+        
         // Return true if any field matches
         return nameMatch || 
                brokerageMatch || 
                emailMatch || 
                bioMatch || 
                licenseMatch || 
-               statesMatch;
+               statesMatch ||
+               zipMatch;
       }).toList();
       
       agents.value = filteredAgents;

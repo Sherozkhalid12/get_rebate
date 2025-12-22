@@ -84,8 +84,8 @@ class BuyerController extends GetxController {
   
   void _setupDio() {
     _dio.options.baseUrl = ApiConstants.baseUrl;
-    _dio.options.connectTimeout = const Duration(seconds: 30);
-    _dio.options.receiveTimeout = const Duration(seconds: 30);
+    _dio.options.connectTimeout = const Duration(seconds: 10); // Reduced from 30 to 10
+    _dio.options.receiveTimeout = const Duration(seconds: 10); // Reduced from 30 to 10
     _dio.options.headers = {
       ...ApiConstants.ngrokHeaders,
       'Content-Type': 'application/json',
@@ -146,21 +146,39 @@ class BuyerController extends GetxController {
   }
 
   void _loadMockData() async {
-    // Load real data from API
-    await _loadAgentsFromAPI();
-    await _loadLoanOfficersFromAPI();
+    // Load all data in parallel for faster loading
+    _isLoading.value = true;
     
-    // Load listings and open houses from API
-    await _loadListingsFromAPI();
-    _extractOpenHousesFromListings();
+    try {
+      // Start all API calls in parallel
+      final results = await Future.wait([
+        _loadAgentsFromAPI(),
+        _loadLoanOfficersFromAPI(),
+        _loadListingsFromAPI(),
+      ], eagerError: false); // Don't fail all if one fails
+      
+      // Extract open houses after listings are loaded
+      _extractOpenHousesFromListings();
+      
+      if (kDebugMode) {
+        print('✅ All data loaded in parallel');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('⚠️ Some data failed to load: $e');
+      }
+      // Continue with whatever data loaded successfully
+    } finally {
+      _isLoading.value = false;
+    }
   }
 
   /// Loads agents from the API
   Future<void> _loadAgentsFromAPI() async {
     try {
-      _isLoading.value = true;
-      
-      print('📡 Fetching agents from API...');
+      if (kDebugMode) {
+        print('📡 Fetching agents from API...');
+      }
       final agents = await _agentService.getAllAgents();
       
       // Build full URLs for profile pictures
@@ -1265,22 +1283,22 @@ class BuyerController extends GetxController {
             final currentLikes = List<String>.from(agent.likes ?? []);
             final apiMatchesOptimistic = isLiked == currentLikes.contains(userId);
             
-            // Only update if API response differs from optimistic update
-            if (!apiMatchesOptimistic) {
-              if (isLiked) {
-                if (!currentLikes.contains(userId)) {
-                  currentLikes.add(userId);
-                }
-                if (!_favoriteAgents.contains(agentId)) {
-                  _favoriteAgents.add(agentId);
-                }
-              } else {
-                currentLikes.remove(userId);
-                _favoriteAgents.remove(agentId);
+            // Always update the agent's likes array to match API response
+            // This ensures the likes array is in sync with the server
+            if (isLiked) {
+              // Ensure userId is at the END of the array (most recent = highest index)
+              currentLikes.remove(userId); // Remove if exists anywhere
+              currentLikes.add(userId); // Add at the end (most recent)
+              if (!_favoriteAgents.contains(agentId)) {
+                _favoriteAgents.add(agentId);
               }
-              _agents[agentIndex] = agent.copyWith(likes: currentLikes);
-              _agents.refresh();
+            } else {
+              currentLikes.remove(userId);
+              _favoriteAgents.remove(agentId);
             }
+            // Always update the agent to ensure likes array is correct
+            _agents[agentIndex] = agent.copyWith(likes: currentLikes);
+            _agents.refresh();
           }
           
           // Show snackbar with appropriate message (safely with delay to avoid overlay issues)
@@ -1307,10 +1325,35 @@ class BuyerController extends GetxController {
             print('✅ Favorite toggled successfully: $isLiked');
           }
           
-          // Notify favorites controller to refresh (if it exists)
+          // Notify favorites controller to add agent to top immediately, then refresh
           try {
             final favoritesController = Get.find<FavoritesController>();
-            favoritesController.refreshFavorites();
+            if (isLiked && agentIndex != -1) {
+              // Get the agent - it should already have updated likes array from above
+              final agent = _agents[agentIndex];
+              
+              // Immediately add to top of favorites list for instant feedback
+              favoritesController.addFavoriteAgentToTop(agent);
+              
+              if (kDebugMode) {
+                print('✅ Added agent ${agent.id} to top of favorites. Likes: ${agent.likes}');
+              }
+              
+              // Delay refresh to allow immediate addition to be visible
+              // The agent already has userId at the end of likes array, so sorting will work correctly
+              Future.delayed(const Duration(milliseconds: 2000), () {
+                try {
+                  favoritesController.refreshFavorites();
+                } catch (e) {
+                  if (kDebugMode) {
+                    print('⚠️ Error refreshing favorites: $e');
+                  }
+                }
+              });
+            } else if (!isLiked) {
+              // If unliked, refresh immediately
+              favoritesController.refreshFavorites();
+            }
           } catch (e) {
             // Favorites controller might not be initialized yet, that's okay
             if (kDebugMode) {
@@ -1535,16 +1578,58 @@ class BuyerController extends GetxController {
             print('✅ Favorite toggled successfully: $isLiked');
           }
           
-          // Notify favorites controller to refresh (if it exists) - only once after API success
+          // Notify favorites controller to add loan officer to top immediately, then refresh
           if (Get.isRegistered<FavoritesController>()) {
-            Future.delayed(const Duration(milliseconds: 300), () {
-              try {
-                final favoritesController = Get.find<FavoritesController>();
-                favoritesController.refreshFavorites();
-              } catch (e) {
-                // Silently fail if refresh fails
+            try {
+              final favoritesController = Get.find<FavoritesController>();
+              if (isLiked) {
+                // Find the loan officer in the list
+                final loanOfficerIndex = _loanOfficers.indexWhere((lo) => lo.id == loanOfficerId);
+                if (loanOfficerIndex != -1) {
+                  var loanOfficer = _loanOfficers[loanOfficerIndex];
+                  
+                  // Ensure the loan officer's likes array includes userId at the end
+                  final currentLikes = List<String>.from(loanOfficer.likes ?? []);
+                  if (!currentLikes.contains(userId)) {
+                    currentLikes.add(userId);
+                    // Update the loan officer in the list
+                    try {
+                      _loanOfficers[loanOfficerIndex] = loanOfficer.copyWith(likes: currentLikes);
+                      _loanOfficers.refresh();
+                      loanOfficer = _loanOfficers[loanOfficerIndex]; // Get updated loan officer
+                    } catch (e) {
+                      // copyWith might not exist, that's okay
+                      if (kDebugMode) {
+                        print('⚠️ Could not update loan officer likes: $e');
+                      }
+                    }
+                  }
+                  
+                  // Immediately add to top of favorites list for instant feedback
+                  favoritesController.addFavoriteLoanOfficerToTop(loanOfficer);
+                  
+                  // Delay refresh significantly to allow immediate addition to be visible
+                  Future.delayed(const Duration(milliseconds: 1500), () {
+                    try {
+                      favoritesController.refreshFavorites();
+                    } catch (e) {
+                      // Silently fail if refresh fails
+                    }
+                  });
+                }
+              } else {
+                // If unliked, refresh immediately
+                Future.delayed(const Duration(milliseconds: 300), () {
+                  try {
+                    favoritesController.refreshFavorites();
+                  } catch (e) {
+                    // Silently fail if refresh fails
+                  }
+                });
               }
-            });
+            } catch (e) {
+              // Silently fail if favorites controller not available
+            }
           }
         } else {
           throw Exception(message);

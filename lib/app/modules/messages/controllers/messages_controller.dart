@@ -145,6 +145,9 @@ class MessagesController extends GetxController {
 
   // Message input
   final messageController = TextEditingController();
+  
+  // Track previous message count for auto-scroll
+  int _previousMessageCount = 0;
 
   // Getters
   List<ConversationModel> get conversations => _conversations;
@@ -180,48 +183,86 @@ class MessagesController extends GetxController {
   
   /// Scrolls to the bottom of the messages list
   void _scrollToBottom({bool immediate = false}) {
-    if (!_messagesScrollController.hasClients) {
-      // If scroll controller not ready, try again after a short delay
-      Future.delayed(const Duration(milliseconds: 100), () => _scrollToBottom(immediate: immediate));
-      return;
-    }
+    // Use multiple attempts to ensure scroll happens after ListView rebuilds
+    void attemptScroll(int attempt) {
+      if (attempt > 5) {
+        if (kDebugMode) {
+          print('⚠️ Failed to scroll after 5 attempts');
+        }
+        return;
+      }
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_messagesScrollController.hasClients) {
-        try {
-          // Wait a bit more to ensure ListView is fully rendered
-          Future.delayed(Duration(milliseconds: immediate ? 0 : 100), () {
-            if (_messagesScrollController.hasClients) {
-              final maxExtent = _messagesScrollController.position.maxScrollExtent;
+      if (!_messagesScrollController.hasClients) {
+        // If scroll controller not ready, try again after a delay
+        Future.delayed(Duration(milliseconds: 50 * (attempt + 1)), () {
+          attemptScroll(attempt + 1);
+        });
+        return;
+      }
+
+      // Use post frame callback to ensure ListView is built
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        // Add another small delay to ensure ListView has updated
+        Future.delayed(Duration(milliseconds: immediate ? 10 : 50), () {
+          if (_messagesScrollController.hasClients) {
+            try {
+              final position = _messagesScrollController.position;
+              final maxExtent = position.maxScrollExtent;
+              
               if (maxExtent > 0) {
                 if (immediate) {
-                  // Jump immediately without animation
+                  // Jump immediately without animation for instant feedback
                   _messagesScrollController.jumpTo(maxExtent);
+                  if (kDebugMode) {
+                    print('✅ Scrolled to bottom immediately (maxExtent: $maxExtent, attempt: $attempt)');
+                  }
                 } else {
                   // Animate smoothly
                   _messagesScrollController.animateTo(
                     maxExtent,
-                    duration: const Duration(milliseconds: 300),
+                    duration: const Duration(milliseconds: 200),
                     curve: Curves.easeOut,
                   );
-                }
-                if (kDebugMode) {
-                  print('✅ Scrolled to bottom (maxExtent: $maxExtent)');
+                  if (kDebugMode) {
+                    print('✅ Scrolled to bottom with animation (maxExtent: $maxExtent, attempt: $attempt)');
+                  }
                 }
               } else {
-                if (kDebugMode) {
-                  print('⚠️ Cannot scroll - maxExtent is 0 (list may be empty or not rendered yet)');
+                // If maxExtent is 0, the list might not be rendered yet, try again
+                if (attempt < 5) {
+                  Future.delayed(Duration(milliseconds: 100 * (attempt + 1)), () {
+                    attemptScroll(attempt + 1);
+                  });
+                } else {
+                  if (kDebugMode) {
+                    print('⚠️ Cannot scroll - maxExtent is 0 after $attempt attempts');
+                  }
                 }
               }
+            } catch (e) {
+              if (kDebugMode) {
+                print('⚠️ Error scrolling to bottom: $e');
+              }
+              // Try again if error occurs
+              if (attempt < 5) {
+                Future.delayed(Duration(milliseconds: 100 * (attempt + 1)), () {
+                  attemptScroll(attempt + 1);
+                });
+              }
             }
-          });
-        } catch (e) {
-          if (kDebugMode) {
-            print('⚠️ Error scrolling to bottom: $e');
+          } else {
+            // Scroll controller lost clients, try again
+            if (attempt < 5) {
+              Future.delayed(Duration(milliseconds: 100 * (attempt + 1)), () {
+                attemptScroll(attempt + 1);
+              });
+            }
           }
-        }
-      }
-    });
+        });
+      });
+    }
+
+    attemptScroll(0);
   }
 
   @override
@@ -234,6 +275,25 @@ class MessagesController extends GetxController {
     
     _loadArguments();
     
+    // Listen to messages list changes and auto-scroll when new messages are added
+    ever(_messages, (_) {
+      // Only auto-scroll if there's a selected conversation and message count increased
+      if (_selectedConversation.value != null && 
+          _messages.isNotEmpty && 
+          _messages.length > _previousMessageCount) {
+        _previousMessageCount = _messages.length;
+        // Delay to ensure ListView has rebuilt
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          Future.delayed(const Duration(milliseconds: 150), () {
+            _scrollToBottom(immediate: true);
+          });
+        });
+      } else if (_messages.length != _previousMessageCount) {
+        // Update count even if not scrolling (e.g., when loading initial messages)
+        _previousMessageCount = _messages.length;
+      }
+    });
+    
     // Always initialize socket if user is logged in (socket can reconnect)
     if (_authController.isLoggedIn && _authController.currentUser != null) {
       if (!_hasInitialized) {
@@ -241,10 +301,13 @@ class MessagesController extends GetxController {
         if (kDebugMode) {
           print('📱 MessagesController: First initialization - loading threads and socket');
         }
-        // Only load threads on first init if not already loading
+        // Load threads immediately in background - don't wait
+        // This ensures threads are ready when user opens messages screen
         if (!_isLoadingThreads.value) {
-          loadThreads();
+          // Use microtask to load in background without blocking initialization
+          Future.microtask(() => loadThreads());
         }
+        // Initialize socket in parallel
         _initializeSocket();
       } else {
         // Already initialized - ensure socket is still connected
@@ -528,7 +591,14 @@ class MessagesController extends GetxController {
         }
         
         // Auto-scroll to bottom when new message arrives
-        _scrollToBottom();
+        // Use immediate scroll for socket messages to show them instantly
+        _scrollToBottom(immediate: true);
+        Future.delayed(const Duration(milliseconds: 100), () {
+          _scrollToBottom(immediate: true);
+        });
+        Future.delayed(const Duration(milliseconds: 300), () {
+          _scrollToBottom(immediate: false);
+        });
         
         if (kDebugMode) {
           print('✅ Added message to current conversation');
@@ -830,6 +900,7 @@ class MessagesController extends GetxController {
     // Set loading state
     _isLoadingMessages.value = true;
     _messages.clear();
+    _previousMessageCount = 0; // Reset message count when loading new conversation
     
     // Reset scroll position before loading (in case user had scrolled up in previous chat)
     if (_messagesScrollController.hasClients) {
@@ -976,13 +1047,20 @@ class MessagesController extends GetxController {
 
       // Update messages list
       _messages.value = messages;
+      
+      // Update message count after loading
+      _previousMessageCount = _messages.length;
 
       // Auto-scroll to bottom after loading messages
-      // Use immediate jump for initial load to ensure it reaches the bottom
-      _scrollToBottom(immediate: true);
+      // Use post frame callback to ensure ListView is built
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Future.delayed(const Duration(milliseconds: 200), () {
+          _scrollToBottom(immediate: true);
+        });
+      });
       
       // Also try again after a delay to handle cases where list takes time to render
-      Future.delayed(const Duration(milliseconds: 300), () {
+      Future.delayed(const Duration(milliseconds: 400), () {
         _scrollToBottom(immediate: false);
       });
 
@@ -1046,8 +1124,19 @@ class MessagesController extends GetxController {
     _messages.add(message);
     messageController.clear();
     
-    // Auto-scroll to bottom when sending message
-    _scrollToBottom();
+    // Force scroll to bottom immediately and multiple times to ensure it works
+    // This ensures the ListView scrolls down when a new message is added
+    _scrollToBottom(immediate: true);
+    
+    // Also try after a short delay to handle ListView rebuild
+    Future.delayed(const Duration(milliseconds: 100), () {
+      _scrollToBottom(immediate: true);
+    });
+    
+    // And once more after ListView fully renders
+    Future.delayed(const Duration(milliseconds: 300), () {
+      _scrollToBottom(immediate: false);
+    });
     
     if (kDebugMode) {
       print('📝 Added optimistic message: $tempId');
@@ -1174,19 +1263,57 @@ class MessagesController extends GetxController {
     }
   }
 
-  void deleteConversation(String conversationId) {
-    // Remove from both lists
-    _allConversations.removeWhere((conv) => conv.id == conversationId);
-    _conversations.removeWhere((conv) => conv.id == conversationId);
-    
-    if (_selectedConversation.value?.id == conversationId) {
-      _selectedConversation.value = null;
-      _messages.clear();
+  Future<void> deleteConversation(String conversationId) async {
+    try {
+      if (kDebugMode) {
+        print('🗑️ Deleting chat: $conversationId');
+      }
+
+      // Call API to delete the chat
+      await _chatService.deleteChat(chatId: conversationId);
+
+      // Remove from both lists after successful API call
+      _allConversations.removeWhere((conv) => conv.id == conversationId);
+      _conversations.removeWhere((conv) => conv.id == conversationId);
+      
+      if (_selectedConversation.value?.id == conversationId) {
+        _selectedConversation.value = null;
+        _messages.clear();
+        
+        // Show navbar again when conversation is deleted
+        if (Get.isRegistered<MainNavigationController>()) {
+          try {
+            final mainNavController = Get.find<MainNavigationController>();
+            mainNavController.showNavBar();
+          } catch (e) {
+            // Navbar controller might not be available
+          }
+        }
+      }
+      
+      SnackbarHelper.showSuccess('Conversation deleted', title: 'Deleted');
+    } on ChatServiceException catch (e) {
+      if (kDebugMode) {
+        print('❌ Error deleting chat: ${e.message}');
+      }
+      SnackbarHelper.showError(
+        e.message,
+        title: 'Delete Failed',
+      );
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Unexpected error deleting chat: $e');
+      }
+      SnackbarHelper.showError(
+        'Failed to delete conversation. Please try again.',
+        title: 'Error',
+      );
     }
-    SnackbarHelper.showSuccess('Conversation deleted', title: 'Deleted');
   }
 
   void goBack() {
+    // Clear conversation state - this will automatically show conversations list
+    // Don't use Navigator.pop() because MessagesView is part of main navigation
     _selectedConversation.value = null;
     _messages.clear();
     
@@ -1203,7 +1330,7 @@ class MessagesController extends GetxController {
     // Always refresh threads silently when going back to ensure list is up-to-date
     // This ensures threads are sorted correctly with latest messages at top
     if (kDebugMode) {
-      print('🔄 Going back: Silently refreshing threads to update sort order');
+      print('🔄 Going back: Clearing conversation and showing conversations list');
     }
     _refreshThreadsSilently();
   }
@@ -1221,6 +1348,11 @@ class MessagesController extends GetxController {
   Future<void> _refreshThreadsSilently() async {
     final user = _authController.currentUser;
     if (user == null || user.id.isEmpty) {
+      return;
+    }
+
+    // Prevent multiple simultaneous silent refreshes
+    if (_isLoadingThreads.value) {
       return;
     }
 
@@ -1536,7 +1668,7 @@ class MessagesController extends GetxController {
   /// Navigates to messages screen
   void _navigateToMessages() {
     try {
-      // Navigate to main screen and switch to messages tab (index 3)
+      // Navigate to main screen and switch to messages tab (index 2)
       // Use offAllNamed to replace the entire navigation stack (removes contact screen)
       Get.offAllNamed('/main');
       
@@ -1545,7 +1677,7 @@ class MessagesController extends GetxController {
         if (Get.isRegistered<MainNavigationController>()) {
           try {
             final mainNavController = Get.find<MainNavigationController>();
-            mainNavController.changeIndex(3);
+            mainNavController.changeIndex(2); // Messages tab is at index 2 (0=Home, 1=Favorites, 2=Messages, 3=Profile)
           } catch (e) {
             print('⚠️ Error changing tab index: $e');
           }

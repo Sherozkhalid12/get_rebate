@@ -12,6 +12,10 @@ class FavoritesController extends GetxController {
   final _favoriteLoanOfficers = <LoanOfficerModel>[].obs;
   final _selectedTab = 0.obs; // 0: Agents, 1: Loan Officers
   final _isLoading = false.obs;
+  
+  // Track recently liked agents/loan officers to keep them at top
+  final _recentlyLikedAgents = <String, DateTime>{}.obs;
+  final _recentlyLikedLoanOfficers = <String, DateTime>{}.obs;
 
   // Controllers
   final AuthController _authController = Get.find<AuthController>();
@@ -109,13 +113,34 @@ class FavoritesController extends GetxController {
           }
         }
         
-        // Sort agents by most recently liked first (userId at end of likes array = most recent)
+        // Sort agents by most recently liked first
+        // Priority: 1) Recently liked (within 10 seconds), 2) Higher index in likes array
         favoritedAgents.sort((a, b) {
           final aLikes = a.likes ?? [];
           final bLikes = b.likes ?? [];
           final aIndex = aLikes.indexOf(userId);
           final bIndex = bLikes.indexOf(userId);
-          // Items with userId at higher index (end of array) come first
+          
+          // Check if agents were recently liked
+          final aRecentlyLiked = _recentlyLikedAgents.containsKey(a.id);
+          final bRecentlyLiked = _recentlyLikedAgents.containsKey(b.id);
+          
+          // If userId not found in likes, put at end
+          if (aIndex == -1 && bIndex == -1) {
+            // Both not found - check recently liked
+            if (aRecentlyLiked && !bRecentlyLiked) return -1;
+            if (bRecentlyLiked && !aRecentlyLiked) return 1;
+            return 0;
+          }
+          if (aIndex == -1) return 1; // a goes to end
+          if (bIndex == -1) return -1; // b goes to end
+          
+          // Priority 1: Recently liked agents come first
+          if (aRecentlyLiked && !bRecentlyLiked) return -1; // a comes first
+          if (bRecentlyLiked && !aRecentlyLiked) return 1; // b comes first
+          
+          // Priority 2: Items with userId at higher index (end of array = most recent) come first
+          // So we want descending order: bIndex - aIndex
           return bIndex.compareTo(aIndex);
         });
         
@@ -137,15 +162,45 @@ class FavoritesController extends GetxController {
           }
         }
         
-        // Sort loan officers by most recently liked first (userId at end of likes array = most recent)
+        // Sort loan officers by most recently liked first
+        // Priority: 1) Recently liked (within 10 seconds), 2) Higher index in likes array
         favoritedLoanOfficers.sort((a, b) {
           final aLikes = a.likes ?? [];
           final bLikes = b.likes ?? [];
           final aIndex = aLikes.indexOf(userId);
           final bIndex = bLikes.indexOf(userId);
-          // Items with userId at higher index (end of array) come first
+          
+          // Check if loan officers were recently liked
+          final aRecentlyLiked = _recentlyLikedLoanOfficers.containsKey(a.id);
+          final bRecentlyLiked = _recentlyLikedLoanOfficers.containsKey(b.id);
+          
+          // If userId not found in likes, put at end
+          if (aIndex == -1 && bIndex == -1) {
+            // Both not found - check recently liked
+            if (aRecentlyLiked && !bRecentlyLiked) return -1;
+            if (bRecentlyLiked && !aRecentlyLiked) return 1;
+            return 0;
+          }
+          if (aIndex == -1) return 1; // a goes to end
+          if (bIndex == -1) return -1; // b goes to end
+          
+          // Priority 1: Recently liked loan officers come first
+          if (aRecentlyLiked && !bRecentlyLiked) return -1; // a comes first
+          if (bRecentlyLiked && !aRecentlyLiked) return 1; // b comes first
+          
+          // Priority 2: Items with userId at higher index (end of array = most recent) come first
+          // So we want descending order: bIndex - aIndex
           return bIndex.compareTo(aIndex);
         });
+        
+        // Clean up old recently liked entries (older than 10 seconds)
+        final now = DateTime.now();
+        _recentlyLikedAgents.removeWhere((id, timestamp) => 
+          now.difference(timestamp).inSeconds > 10
+        );
+        _recentlyLikedLoanOfficers.removeWhere((id, timestamp) => 
+          now.difference(timestamp).inSeconds > 10
+        );
         
         _favoriteAgents.value = favoritedAgents;
         _favoriteLoanOfficers.value = favoritedLoanOfficers;
@@ -173,6 +228,56 @@ class FavoritesController extends GetxController {
     }
   }
   
+  /// Adds a newly liked agent to the top of favorites list immediately
+  void addFavoriteAgentToTop(AgentModel agent) {
+    try {
+      final currentUser = _authController.currentUser;
+      if (currentUser == null || currentUser.id.isEmpty) return;
+      
+      // Mark this agent as recently liked (within last 5 seconds)
+      _recentlyLikedAgents[agent.id] = DateTime.now();
+      
+      // Remove agent if it already exists in the list
+      _favoriteAgents.removeWhere((a) => a.id == agent.id);
+      
+      // Add to the beginning of the list (top)
+      _favoriteAgents.insert(0, agent);
+      
+      if (kDebugMode) {
+        print('✅ Added agent ${agent.id} to top of favorites list');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('⚠️ Error adding agent to favorites: $e');
+      }
+    }
+  }
+
+  /// Adds a newly liked loan officer to the top of favorites list immediately
+  void addFavoriteLoanOfficerToTop(LoanOfficerModel loanOfficer) {
+    try {
+      final currentUser = _authController.currentUser;
+      if (currentUser == null || currentUser.id.isEmpty) return;
+      
+      // Mark this loan officer as recently liked (within last 5 seconds)
+      _recentlyLikedLoanOfficers[loanOfficer.id] = DateTime.now();
+      
+      // Remove loan officer if it already exists in the list
+      _favoriteLoanOfficers.removeWhere((lo) => lo.id == loanOfficer.id);
+      
+      // Add to the beginning of the list (top)
+      _favoriteLoanOfficers.insert(0, loanOfficer);
+      
+      if (kDebugMode) {
+        print('✅ Added loan officer ${loanOfficer.id} to top of favorites list');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('⚠️ Error adding loan officer to favorites: $e');
+      }
+    }
+  }
+
   /// Refreshes favorites from buyer controller
   /// Also ensures agents/loan officers are loaded if needed
   Future<void> refreshFavorites() async {

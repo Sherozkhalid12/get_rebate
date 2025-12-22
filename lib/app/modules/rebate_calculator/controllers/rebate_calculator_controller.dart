@@ -175,19 +175,52 @@ class RebateCalculatorController extends GetxController {
 
   void _setupListeners() {
     homePriceController.addListener(() {
+      // Clear API results when inputs change (but not while loading)
+      if (!isLoading) {
+        _clearApiResultsForCurrentMode();
+      }
       _calculate();
       _updateFormValidity();
     });
     agentCommissionController.addListener(() {
+      // Clear API results when inputs change (but not while loading)
+      if (!isLoading) {
+        _clearApiResultsForCurrentMode();
+      }
       _calculate();
       _updateFormValidity();
     });
     sellerOriginalFeeController.addListener(() {
+      // Clear API results when inputs change (but not while loading)
+      if (!isLoading) {
+        _clearApiResultsForCurrentMode();
+      }
       _calculate();
       _updateFormValidity();
     });
-    _selectedState.listen((_) => _updateFormValidity());
+    _selectedState.listen((_) {
+      // Clear API results when state changes (but not while loading)
+      if (!isLoading) {
+        _clearApiResultsForCurrentMode();
+      }
+      _updateFormValidity();
+    });
     currentMode.listen((_) => _updateFormValidity());
+  }
+
+  /// Clears API results for the current mode
+  void _clearApiResultsForCurrentMode() {
+    switch (currentMode.value) {
+      case 0:
+        apiResultEstimated.value = null;
+        break;
+      case 1:
+        apiResultActual.value = null;
+        break;
+      case 2:
+        apiResultSeller.value = null;
+        break;
+    }
   }
 
   void _updateFormValidity() {
@@ -209,6 +242,12 @@ class RebateCalculatorController extends GetxController {
 
   // MAIN CALCULATION - Only uses Sales Price and BAC
   void _calculate() {
+    // Don't run local calculations if we have API results for the current mode or if loading
+    // This prevents flickering when API results are displayed or while API call is in progress
+    if (_hasApiResultForCurrentMode() || isLoading) {
+      return;
+    }
+    
     final price = double.tryParse(homePriceController.text.replaceAll(',', '')) ?? 0.0;
     final agentRate = double.tryParse(agentCommissionController.text) ?? 0.0;
     final sellerFeeRate =
@@ -358,6 +397,7 @@ class RebateCalculatorController extends GetxController {
     sellerRebate.value = 0;
     sellerNewFee.value = 0;
     tiers.clear();
+    // Don't clear API results here - they should persist until new calculation
   }
 
   // ACTIONS
@@ -443,6 +483,7 @@ class RebateCalculatorController extends GetxController {
     if (!_validateInputs()) return;
 
     isLoadingEstimated.value = true;
+    // Clear old result when starting new calculation
     apiResultEstimated.value = null;
 
     try {
@@ -456,8 +497,11 @@ class RebateCalculatorController extends GetxController {
       );
 
       if (response.success) {
+        // Set API result - this will trigger UI update
         apiResultEstimated.value = response;
       } else {
+        // Clear on failure
+        apiResultEstimated.value = null;
         Get.snackbar(
           'Calculation Failed',
           'Unable to estimate rebate. Please try again.',
@@ -494,6 +538,7 @@ class RebateCalculatorController extends GetxController {
     if (!_validateInputs()) return;
 
     isLoadingActual.value = true;
+    // Clear old result when starting new calculation
     apiResultActual.value = null;
 
     try {
@@ -507,8 +552,11 @@ class RebateCalculatorController extends GetxController {
       );
 
       if (response.success) {
+        // Set API result - this will trigger UI update
         apiResultActual.value = response;
       } else {
+        // Clear on failure
+        apiResultActual.value = null;
         Get.snackbar(
           'Calculation Failed',
           'Unable to calculate exact rebate. Please try again.',
@@ -545,6 +593,7 @@ class RebateCalculatorController extends GetxController {
     if (!_validateInputs()) return;
 
     isLoadingSeller.value = true;
+    // Clear old result when starting new calculation
     apiResultSeller.value = null;
 
     try {
@@ -558,8 +607,11 @@ class RebateCalculatorController extends GetxController {
       );
 
       if (response.success) {
+        // Set API result - this will trigger UI update
         apiResultSeller.value = response;
       } else {
+        // Clear on failure
+        apiResultSeller.value = null;
         Get.snackbar(
           'Calculation Failed',
           'Unable to calculate seller rate. Please try again.',
@@ -616,6 +668,20 @@ class RebateCalculatorController extends GetxController {
         return apiResultSeller.value;
       default:
         return null;
+    }
+  }
+
+  /// Checks if there's an API result for the current mode
+  bool _hasApiResultForCurrentMode() {
+    switch (currentMode.value) {
+      case 0:
+        return apiResultEstimated.value != null && apiResultEstimated.value!.success;
+      case 1:
+        return apiResultActual.value != null && apiResultActual.value!.success;
+      case 2:
+        return apiResultSeller.value != null && apiResultSeller.value!.success;
+      default:
+        return false;
     }
   }
 

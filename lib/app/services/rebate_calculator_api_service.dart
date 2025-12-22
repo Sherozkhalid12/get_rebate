@@ -45,34 +45,101 @@ class RebateCalculatorResponse {
   });
 
   factory RebateCalculatorResponse.fromJson(Map<String, dynamic> json) {
+    // Handle nested structure: check if data is in 'estimate' object
+    Map<String, dynamic>? estimateData;
+    if (json.containsKey('estimate') && json['estimate'] is Map<String, dynamic>) {
+      estimateData = json['estimate'] as Map<String, dynamic>;
+    } else {
+      // Fallback: use top-level data if no 'estimate' key
+      estimateData = json;
+    }
+
+    // Extract rebate range from nested structure
+    double? minRebate;
+    String? maxRebateStr;
+    if (estimateData.containsKey('estimatedRebateRange')) {
+      final range = estimateData['estimatedRebateRange'];
+      if (range is Map<String, dynamic>) {
+        minRebate = range['min'] != null
+            ? (range['min'] is num
+                ? (range['min'] as num).toDouble()
+                : double.tryParse(range['min'].toString()))
+            : null;
+        maxRebateStr = range['max']?.toString();
+      }
+    } else if (estimateData.containsKey('minRebate')) {
+      minRebate = estimateData['minRebate'] != null
+          ? (estimateData['minRebate'] is num
+              ? (estimateData['minRebate'] as num).toDouble()
+              : double.tryParse(estimateData['minRebate'].toString()))
+          : null;
+    }
+
+    // Handle maxRebate - could be "or more" string or number
+    double? maxRebate;
+    if (maxRebateStr != null) {
+      if (maxRebateStr.toLowerCase().contains('more') || 
+          maxRebateStr.toLowerCase().contains('or')) {
+        maxRebate = null; // Will be handled as "or more" in UI
+      } else {
+        maxRebate = double.tryParse(maxRebateStr);
+      }
+    } else if (estimateData.containsKey('maxRebate')) {
+      final maxVal = estimateData['maxRebate'];
+      if (maxVal is String && (maxVal.toLowerCase().contains('more') || 
+          maxVal.toLowerCase().contains('or'))) {
+        maxRebate = null;
+      } else {
+        maxRebate = maxVal != null
+            ? (maxVal is num
+                ? (maxVal as num).toDouble()
+                : double.tryParse(maxVal.toString()))
+            : null;
+      }
+    }
+
+    // Extract commission range from nested structure
+    double? minCommission;
+    double? maxCommission;
+    if (estimateData.containsKey('commissionRangeForTier')) {
+      final range = estimateData['commissionRangeForTier'];
+      if (range is Map<String, dynamic>) {
+        minCommission = range['min'] != null
+            ? (range['min'] is num
+                ? (range['min'] as num).toDouble()
+                : double.tryParse(range['min'].toString()))
+            : null;
+        maxCommission = range['max'] != null
+            ? (range['max'] is num
+                ? (range['max'] as num).toDouble()
+                : double.tryParse(range['max'].toString()))
+            : null;
+      }
+    } else {
+      minCommission = estimateData['minCommission'] != null
+          ? (estimateData['minCommission'] is num
+              ? (estimateData['minCommission'] as num).toDouble()
+              : double.tryParse(estimateData['minCommission'].toString()))
+          : null;
+      maxCommission = estimateData['maxCommission'] != null
+          ? (estimateData['maxCommission'] is num
+              ? (estimateData['maxCommission'] as num).toDouble()
+              : double.tryParse(estimateData['maxCommission'].toString()))
+          : null;
+    }
+
     return RebateCalculatorResponse(
       success: json['success'] ?? false,
-      tier: json['tier']?.toString(),
-      rebatePercentage: json['rebatePercentage'] != null
-          ? (json['rebatePercentage'] is num
-              ? (json['rebatePercentage'] as num).toDouble()
-              : double.tryParse(json['rebatePercentage'].toString()))
+      tier: estimateData['tier']?.toString(),
+      rebatePercentage: estimateData['rebatePercentage'] != null
+          ? (estimateData['rebatePercentage'] is num
+              ? (estimateData['rebatePercentage'] as num).toDouble()
+              : double.tryParse(estimateData['rebatePercentage'].toString()))
           : null,
-      minRebate: json['minRebate'] != null
-          ? (json['minRebate'] is num
-              ? (json['minRebate'] as num).toDouble()
-              : double.tryParse(json['minRebate'].toString()))
-          : null,
-      maxRebate: json['maxRebate'] != null
-          ? (json['maxRebate'] is num
-              ? (json['maxRebate'] as num).toDouble()
-              : double.tryParse(json['maxRebate'].toString()))
-          : null,
-      minCommission: json['minCommission'] != null
-          ? (json['minCommission'] is num
-              ? (json['minCommission'] as num).toDouble()
-              : double.tryParse(json['minCommission'].toString()))
-          : null,
-      maxCommission: json['maxCommission'] != null
-          ? (json['maxCommission'] is num
-              ? (json['maxCommission'] as num).toDouble()
-              : double.tryParse(json['maxCommission'].toString()))
-          : null,
+      minRebate: minRebate,
+      maxRebate: maxRebate,
+      minCommission: minCommission,
+      maxCommission: maxCommission,
       notes: json['notes'] != null
           ? (json['notes'] is List
               ? List<String>.from(json['notes'].map((e) => e.toString()))
@@ -96,9 +163,9 @@ class RebateCalculatorApiService {
     _dio = Dio(
       BaseOptions(
         baseUrl: ApiConstants.baseUrl,
-        connectTimeout: const Duration(seconds: 30),
-        receiveTimeout: const Duration(seconds: 30),
-        sendTimeout: const Duration(seconds: 30),
+        connectTimeout: const Duration(seconds: 10), // Reduced from 30 to 10
+        receiveTimeout: const Duration(seconds: 10), // Reduced from 30 to 10
+        sendTimeout: const Duration(seconds: 10), // Reduced from 30 to 10
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',

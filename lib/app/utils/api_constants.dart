@@ -28,7 +28,7 @@ class ApiConstants {
   // ============================================================================
 
   // Ngrok URL (update this when ngrok restarts)
-  static const String _ngrokUrl = 'https://91411ae26075.ngrok-free.app';
+  static const String _ngrokUrl = 'https://bfc923bda6fd.ngrok-free.app';
 
   // Local network IP (update with your computer's IP address)
   static const String _localNetworkIp = '192.168.1.100'; // TODO: Update this!
@@ -86,6 +86,7 @@ class ApiConstants {
   }
 
   static String get markThreadAsReadEndpoint => "${chatEndPoint}thread/mark-read";
+  static String get deleteChatEndpoint => "${chatEndPoint}deleteChat";
 
   // Agent specific endpoints
   static String getAgentListingsEndpoint(String agentId) {

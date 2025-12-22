@@ -88,10 +88,9 @@ class AuthController extends GetxController {
         print('⚠️ WARNING: Detected invalid/generated user ID in storage: ${user.id}');
         print('   Valid MongoDB IDs are 24 hex characters. Clearing invalid user data.');
         _clearInvalidUserData();
-        print('   Please log in again to get the correct user ID from the API.');
+        print('  Please log in again to get the correct user ID from the API.');
         return;
       }
-      
       if (user.id.isEmpty) {
         print('⚠️ WARNING: User ID is empty in storage. Clearing invalid user data.');
         _clearInvalidUserData();

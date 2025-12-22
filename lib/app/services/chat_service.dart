@@ -27,9 +27,9 @@ class ChatService {
     _dio = Dio(
       BaseOptions(
         baseUrl: ApiConstants.baseUrl,
-        connectTimeout: const Duration(minutes: 5),
-        receiveTimeout: const Duration(minutes: 5),
-        sendTimeout: const Duration(minutes: 5),
+        connectTimeout: const Duration(seconds: 10), // Reduced from 5 minutes to 10 seconds
+        receiveTimeout: const Duration(seconds: 10), // Reduced from 5 minutes to 10 seconds
+        sendTimeout: const Duration(seconds: 10), // Reduced from 5 minutes to 10 seconds
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
@@ -506,6 +506,105 @@ class ChatService {
             errorMessage = e.response?.data?['message']?.toString() ?? 
                           e.response?.data?['error']?.toString() ?? 
                           'Failed to mark thread as read.';
+          }
+          break;
+        case DioExceptionType.cancel:
+          errorMessage = 'Request was cancelled.';
+          break;
+        case DioExceptionType.unknown:
+          errorMessage = 'Network error. Please try again.';
+          break;
+        default:
+          errorMessage = 'An unexpected error occurred.';
+      }
+
+      throw ChatServiceException(
+        message: errorMessage,
+        statusCode: statusCode,
+        originalError: e,
+      );
+    } catch (e) {
+      if (e is ChatServiceException) {
+        rethrow;
+      }
+
+      throw ChatServiceException(
+        message: 'An unexpected error occurred: ${e.toString()}',
+        originalError: e,
+      );
+    }
+  }
+
+  /// Deletes a chat thread
+  /// 
+  /// Throws [ChatServiceException] if the request fails
+  Future<Map<String, dynamic>> deleteChat({
+    required String chatId,
+  }) async {
+    if (chatId.isEmpty) {
+      throw ChatServiceException(
+        message: 'Chat ID is required',
+        statusCode: 400,
+      );
+    }
+
+    try {
+      if (kDebugMode) {
+        print('📡 Deleting chat');
+        print('   Chat ID: $chatId');
+        print('   URL: ${ApiConstants.deleteChatEndpoint}');
+      }
+
+      final response = await _dio.delete(
+        ApiConstants.deleteChatEndpoint,
+        data: {
+          'id': chatId,
+        },
+        options: Options(
+          headers: ApiConstants.ngrokHeaders,
+        ),
+      );
+
+      if (kDebugMode) {
+        print('✅ Delete chat response received');
+        print('   Status Code: ${response.statusCode}');
+        print('   Response: ${response.data}');
+      }
+
+      // Return the response data
+      if (response.data is Map<String, dynamic>) {
+        return response.data as Map<String, dynamic>;
+      }
+
+      return {'success': true};
+    } on DioException catch (e) {
+      String errorMessage;
+      int? statusCode;
+
+      switch (e.type) {
+        case DioExceptionType.connectionTimeout:
+        case DioExceptionType.sendTimeout:
+        case DioExceptionType.receiveTimeout:
+          errorMessage = 'Connection timeout. Please check your internet connection.';
+          statusCode = 408;
+          break;
+        case DioExceptionType.connectionError:
+          errorMessage = 'Cannot connect to server. Please ensure the server is running.';
+          break;
+        case DioExceptionType.badResponse:
+          statusCode = e.response?.statusCode;
+          if (statusCode == 404) {
+            errorMessage = 'Delete chat endpoint not found.';
+          } else if (statusCode == 401) {
+            errorMessage = 'Unauthorized. Please login again.';
+          } else if (statusCode == 403) {
+            errorMessage = 'Access forbidden.';
+          } else if (statusCode == 500) {
+            errorMessage = 'Server error. Please try again later.';
+          } else {
+            errorMessage = e.response?.data?['message']?.toString() ?? 
+                          e.response?.data?['error']?.toString() ?? 
+                          'Failed to delete chat.';
           }
           break;
         case DioExceptionType.cancel:

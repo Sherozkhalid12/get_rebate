@@ -63,13 +63,15 @@ class FindAgentsView extends GetView<FindAgentsController> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Agents in ${controller.selectedZipCode.value}',
+          Obx(() => Text(
+            controller.selectedZipCode.value.isNotEmpty
+                ? 'Agents in ${controller.selectedZipCode.value}'
+                : 'All Agents',
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
               color: AppTheme.black,
               fontWeight: FontWeight.w600,
             ),
-          ),
+          )),
           const SizedBox(height: 12),
           CustomTextField(
             controller: controller.searchController,
@@ -374,9 +376,9 @@ class FindAgentsView extends GetView<FindAgentsController> {
             ),
             const SizedBox(height: 12),
             Obx(() => Text(
-              controller.selectedZipCode.value.isNotEmpty
-                  ? 'No agents are currently available in ZIP code ${controller.selectedZipCode.value}. Try searching in a different ZIP code.'
-                  : 'No agents are currently available in this area. Try searching in a different ZIP code.',
+              controller.searchQuery.value.isNotEmpty
+                  ? 'No agents found matching "${controller.searchQuery.value}". Try a different search term.'
+                  : 'No agents are currently available. Please try again later.',
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                 color: AppTheme.mediumGray,
                 height: 1.5,

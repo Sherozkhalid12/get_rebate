@@ -42,20 +42,6 @@ class BuyerView extends GetView<BuyerController> {
                 fontWeight: FontWeight.w600,
               ),
             ),
-            Obx(() {
-              final user = Get.find<AuthController>().currentUser;
-              if (user != null) {
-                return Text(
-                  'User ID: ${user.id}',
-                  style: TextStyle(
-                    color: AppTheme.white.withOpacity(0.8),
-                    fontSize: 10.sp,
-                    fontWeight: FontWeight.normal,
-                  ),
-                );
-              }
-              return const SizedBox.shrink();
-            }),
           ],
         ),
         centerTitle: true,
@@ -65,10 +51,8 @@ class BuyerView extends GetView<BuyerController> {
           children: [
             // Search Section
             _buildSearchSection(context),
-
             // Tabs
             _buildTabs(context),
-
             // Content
             Expanded(child: _buildContent(context)),
           ],
@@ -93,7 +77,6 @@ class BuyerView extends GetView<BuyerController> {
                 controller.clearZipCodeFilter();
                 return;
               }
-              
               // Only process if it's a valid 5-digit ZIP code
               if (value.length == 5 && RegExp(r'^\d+$').hasMatch(value)) {
                 controller.searchByZipCode(value);
