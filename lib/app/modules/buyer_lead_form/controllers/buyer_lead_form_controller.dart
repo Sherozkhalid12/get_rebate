@@ -318,6 +318,11 @@ class BuyerLeadFormController extends GetxController {
         return;
       }
 
+      // Get listing ID from property if available
+      final listingId = _property?['id']?.toString() ?? 
+                       _property?['_id']?.toString() ??
+                       _property?['listingId']?.toString();
+
       // Map form data to API format - only fields that exist in the frontend form
       final leadData = <String, dynamic>{
         'agentId': agentId,
@@ -328,6 +333,11 @@ class BuyerLeadFormController extends GetxController {
         'phone': phoneController.text.trim(),
         'preferredContact': _preferredContactMethod.value.toLowerCase(),
       };
+
+      // Add listingId if available
+      if (listingId != null && listingId.isNotEmpty) {
+        leadData['listingId'] = listingId;
+      }
 
       // Optional fields - only add if they have values
       if (_bestTimeToReach.value.isNotEmpty) {

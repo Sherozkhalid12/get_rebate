@@ -7,6 +7,7 @@ import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/modules/property_listings/controllers/property_listings_controller.dart';
 import 'package:getrebate/app/widgets/custom_button.dart';
 import 'package:getrebate/app/widgets/custom_search_field.dart';
+import 'package:getrebate/app/widgets/notification_badge_icon.dart';
 
 class PropertyListingsView extends GetView<PropertyListingsController> {
   const PropertyListingsView({super.key});
@@ -36,6 +37,12 @@ class PropertyListingsView extends GetView<PropertyListingsController> {
           ),
         ),
         centerTitle: true,
+        actions: [
+          Padding(
+            padding: EdgeInsets.only(right: 16.w),
+            child: const NotificationBadgeIcon(),
+          ),
+        ],
       ),
       body: SafeArea(
         child: Column(

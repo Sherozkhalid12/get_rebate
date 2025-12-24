@@ -61,6 +61,8 @@ import 'package:getrebate/app/modules/help_support/views/help_support_view.dart'
 import 'package:getrebate/app/modules/help_support/bindings/help_support_binding.dart';
 import 'package:getrebate/app/modules/terms_of_service/views/terms_of_service_view.dart';
 import 'package:getrebate/app/modules/terms_of_service/bindings/terms_of_service_binding.dart';
+import 'package:getrebate/app/modules/notifications/views/notifications_view.dart';
+import 'package:getrebate/app/modules/notifications/bindings/notifications_binding.dart';
 import 'package:flutter/material.dart';
 
 class AppPages {
@@ -94,6 +96,7 @@ class AppPages {
   static const PRIVACY_POLICY = '/privacy-policy';
   static const HELP_SUPPORT = '/help-support';
   static const TERMS_OF_SERVICE = '/terms-of-service';
+  static const NOTIFICATIONS = '/notifications';
 
   static final routes = [
     GetPage(
@@ -242,6 +245,11 @@ class AppPages {
       name: TERMS_OF_SERVICE,
       page: () => const TermsOfServiceView(),
       binding: TermsOfServiceBinding(),
+    ),
+    GetPage(
+      name: NOTIFICATIONS,
+      page: () => const NotificationsView(),
+      binding: NotificationsBinding(),
     ),
   ];
 }

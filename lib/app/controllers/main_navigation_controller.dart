@@ -14,6 +14,7 @@ import 'package:getrebate/app/modules/messages/views/messages_view.dart';
 import 'package:getrebate/app/modules/messages/bindings/messages_binding.dart';
 import 'package:getrebate/app/modules/profile/views/profile_view.dart';
 import 'package:getrebate/app/modules/profile/bindings/profile_binding.dart';
+import 'package:getrebate/app/modules/notifications/bindings/notifications_binding.dart';
 // import 'package:getrebate/app/modules/property_listings/bindings/property_listings_binding.dart';
 import 'package:circle_nav_bar/circle_nav_bar.dart';
 
@@ -90,6 +91,8 @@ class MainNavigationController extends GetxController {
     FavoritesBinding().dependencies();
     MessagesBinding().dependencies();
     ProfileBinding().dependencies();
+    // Initialize notifications controller globally
+    NotificationsBinding().dependencies();
   }
 
   Widget buildBottomNavigationBar() {

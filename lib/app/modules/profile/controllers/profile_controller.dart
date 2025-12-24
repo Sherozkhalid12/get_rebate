@@ -1,12 +1,17 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart';
 import 'package:getrebate/app/models/user_model.dart';
-import 'package:getrebate/app/routes/app_pages.dart';
+import 'package:getrebate/app/services/user_service.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
 
 class ProfileController extends GetxController {
   final AuthController _authController = Get.find<AuthController>();
+  final UserService _userService = UserService();
+  final ImagePicker _imagePicker = ImagePicker();
 
   // Form controllers
   final nameController = TextEditingController();
@@ -17,12 +22,16 @@ class ProfileController extends GetxController {
   // Observable variables
   final _isEditing = false.obs;
   final _isLoading = false.obs;
-  final _selectedImage = Rxn<String>();
+  final _isUploadingImage = false.obs;
+  final _selectedImageFile = Rxn<File>();
+  final _profileImageUrl = Rxn<String>();
 
   // Getters
   bool get isEditing => _isEditing.value;
   bool get isLoading => _isLoading.value;
-  String? get selectedImage => _selectedImage.value;
+  bool get isUploadingImage => _isUploadingImage.value;
+  File? get selectedImageFile => _selectedImageFile.value;
+  String? get profileImageUrl => _profileImageUrl.value;
   UserModel? get currentUser => _authController.currentUser;
 
   @override
@@ -38,8 +47,12 @@ class ProfileController extends GetxController {
       emailController.text = user.email;
       phoneController.text = user.phone ?? '';
       bioController.text = user.additionalData?['bio'] ?? '';
-      _selectedImage.value = user.profileImage;
+      _profileImageUrl.value = user.profileImage;
     }
+  }
+
+  void refreshUserData() {
+    _loadUserData();
   }
 
   void toggleEditing() {
@@ -47,87 +60,129 @@ class ProfileController extends GetxController {
     if (!_isEditing.value) {
       // Reset form if canceling edit
       _loadUserData();
+      _selectedImageFile.value = null;
+    }
+  }
+
+  Future<void> pickProfileImage() async {
+    try {
+      final XFile? image = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 85,
+      );
+
+      if (image != null) {
+        _selectedImageFile.value = File(image.path);
+        // Show instant preview
+        if (kDebugMode) {
+          print('✅ Image selected: ${image.path}');
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Error picking image: $e');
+      }
+      SnackbarHelper.showError('Failed to pick image: ${e.toString()}');
     }
   }
 
   Future<void> saveProfile() async {
     if (!_validateForm()) return;
 
+    final userId = currentUser?.id;
+    if (userId == null || userId.isEmpty) {
+      SnackbarHelper.showError('User not logged in');
+      return;
+    }
+
     try {
       _isLoading.value = true;
 
-      // Simulate API call
-      await Future.delayed(const Duration(seconds: 2));
+      // Get profilePic value - use selected file path or existing URL
+      String? profilePicValue;
+      if (_selectedImageFile.value != null) {
+        // If new image selected, use the file path
+        // In a real app, you'd upload this to a server first
+        // For now, we'll use the existing URL or keep it null
+        profilePicValue = _profileImageUrl.value;
+      } else {
+        profilePicValue = _profileImageUrl.value;
+      }
 
-      // Update user data
-      final updatedUser = currentUser?.copyWith(
-        name: nameController.text.trim(),
+      // Update via API
+      final updatedUserData = await _userService.updateUser(
+        userId: userId,
+        fullname: nameController.text.trim(),
+        email: emailController.text.trim(),
         phone: phoneController.text.trim().isNotEmpty
             ? phoneController.text.trim()
             : null,
-        profileImage: _selectedImage.value,
+        bio: bioController.text.trim().isNotEmpty
+            ? bioController.text.trim()
+            : null,
+        profilePic: profilePicValue,
+      );
+
+      // Update local user model
+      final updatedUser = currentUser?.copyWith(
+        name: updatedUserData.fullname ?? nameController.text.trim(),
+        phone: updatedUserData.phone,
+        profileImage: updatedUserData.getProfilePicUrl() ?? updatedUserData.profilePic,
         additionalData: {
           ...?currentUser?.additionalData,
-          'bio': bioController.text.trim(),
+          'bio': updatedUserData.bio ?? bioController.text.trim(),
         },
       );
 
       if (updatedUser != null) {
         _authController.updateUser(updatedUser);
+        _profileImageUrl.value = updatedUser.profileImage;
+        _selectedImageFile.value = null;
         _isEditing.value = false;
+        
         SnackbarHelper.showSuccess('Profile updated successfully!');
         
-        // Wait a moment for snackbar to be visible, then navigate to home page
-        await Future.delayed(const Duration(milliseconds: 500));
-        
-        // Navigate to home page based on user role
-        final user = _authController.currentUser;
-        if (user != null) {
-          switch (user.role) {
-            case UserRole.agent:
-              Get.offAllNamed(AppPages.AGENT);
-              break;
-            case UserRole.buyerSeller:
-              Get.offAllNamed(AppPages.MAIN);
-              break;
-            case UserRole.loanOfficer:
-              Get.offAllNamed(AppPages.LOAN_OFFICER);
-              break;
-          }
+        if (kDebugMode) {
+          print('✅ Profile updated successfully');
         }
       }
     } catch (e) {
+      if (kDebugMode) {
+        print('❌ Error updating profile: $e');
+      }
       SnackbarHelper.showError('Failed to update profile: ${e.toString()}');
     } finally {
       _isLoading.value = false;
     }
   }
 
-  Future<void> changeProfileImage() async {
-    try {
-      // Simulate image picker
-      await Future.delayed(const Duration(seconds: 1));
-
-      // Mock image selection
-      _selectedImage.value = 'https://i.pravatar.cc/150?img=3';
-    } catch (e) {
-      SnackbarHelper.showError('Failed to select image: ${e.toString()}');
-    }
-  }
-
   void logout() {
     Get.dialog(
       AlertDialog(
-        title: Text('Logout'),
-        content: Text('Are you sure you want to logout?'),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: const Text(
+          'Logout',
+          style: TextStyle(fontWeight: FontWeight.w600),
+        ),
+        content: const Text('Are you sure you want to logout?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(Get.context!), child: Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(Get.context!),
+            child: const Text('Cancel'),
+          ),
           TextButton(
             onPressed: () {
               Navigator.pop(Get.context!);
               _authController.logout();
             },
-            child: Text('Logout'),
+            child: const Text(
+              'Logout',
+              style: TextStyle(color: Colors.red),
+            ),
           ),
         ],
       ),
@@ -159,6 +214,7 @@ class ProfileController extends GetxController {
     emailController.dispose();
     phoneController.dispose();
     bioController.dispose();
+    _userService.dispose();
     super.onClose();
   }
 }

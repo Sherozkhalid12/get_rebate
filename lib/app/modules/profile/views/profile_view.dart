@@ -1,6 +1,9 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/modules/profile/controllers/profile_controller.dart';
 import 'package:getrebate/app/widgets/custom_button.dart';
@@ -34,13 +37,220 @@ class ProfileView extends GetView<ProfileController> {
           ),
         ),
         centerTitle: true,
+        actions: [
+          Obx(() {
+            if (controller.isEditing) {
+              return IconButton(
+                icon: const Icon(Icons.close, color: AppTheme.white),
+                onPressed: controller.toggleEditing,
+              );
+            }
+            return IconButton(
+              icon: const Icon(Icons.edit, color: AppTheme.white),
+              onPressed: controller.toggleEditing,
+            );
+          }),
+        ],
       ),
-      body: SafeArea(
-        child: SingleChildScrollView(
+      body: Obx(() {
+        return RefreshIndicator(
+          onRefresh: () async {
+            controller.refreshUserData();
+          },
+          color: AppTheme.primaryBlue,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            child: Column(
+              children: [
+                // Profile Header with Image
+                _buildProfileHeader(context)
+                    .animate()
+                    .fadeIn(duration: 400.ms)
+                    .slideY(begin: -0.2, duration: 400.ms),
+                
+                // Profile Form
+                _buildProfileForm(context)
+                    .animate()
+                    .fadeIn(duration: 400.ms, delay: 100.ms)
+                    .slideY(begin: 0.2, duration: 400.ms, delay: 100.ms),
+                
+                SizedBox(height: 20.h),
+                
+                // Settings
+                _buildSettings(context)
+                    .animate()
+                    .fadeIn(duration: 400.ms, delay: 200.ms)
+                    .slideY(begin: 0.2, duration: 400.ms, delay: 200.ms),
+                
+                SizedBox(height: 20.h),
+                
+                // Logout Button
+                _buildLogoutButton(context)
+                    .animate()
+                    .fadeIn(duration: 400.ms, delay: 300.ms)
+                    .slideY(begin: 0.2, duration: 400.ms, delay: 300.ms),
+                
+                SizedBox(height: 40.h),
+              ],
+            ),
+          ),
+        );
+      }),
+    );
+  }
+
+  Widget _buildProfileHeader(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: AppTheme.primaryGradient,
+        ),
+      ),
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: 40.h, horizontal: 20.w),
           child: Column(
             children: [
-              // Profile Content
-              _buildProfileContent(context),
+              // Profile Image
+              Obx(() {
+                final hasSelectedFile = controller.selectedImageFile != null;
+                final hasImageUrl = controller.profileImageUrl != null &&
+                    controller.profileImageUrl!.isNotEmpty;
+
+                return GestureDetector(
+                  onTap: controller.isEditing
+                      ? controller.pickProfileImage
+                      : null,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Container(
+                        width: 120.w,
+                        height: 120.w,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: AppTheme.white,
+                            width: 4,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.2),
+                              blurRadius: 20,
+                              spreadRadius: 2,
+                            ),
+                          ],
+                        ),
+                        child: ClipOval(
+                          child: hasSelectedFile
+                              ? Image.file(
+                                  controller.selectedImageFile!,
+                                  fit: BoxFit.cover,
+                                )
+                              : hasImageUrl
+                                  ? Image.network(
+                                      controller.profileImageUrl!,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (context, error, stackTrace) {
+                                        return Container(
+                                          color: AppTheme.white.withOpacity(0.2),
+                                          child: Icon(
+                                            Icons.person,
+                                            size: 60.sp,
+                                            color: AppTheme.white,
+                                          ),
+                                        );
+                                      },
+                                    )
+                                  : Container(
+                                      decoration: BoxDecoration(
+                                        gradient: LinearGradient(
+                                          begin: Alignment.topLeft,
+                                          end: Alignment.bottomRight,
+                                          colors: [
+                                            AppTheme.white.withOpacity(0.3),
+                                            AppTheme.white.withOpacity(0.1),
+                                          ],
+                                        ),
+                                      ),
+                                      child: Icon(
+                                        Icons.person,
+                                        size: 60.sp,
+                                        color: AppTheme.white,
+                                      ),
+                                    ),
+                        ),
+                      )
+                          .animate()
+                          .scale(
+                            duration: 300.ms,
+                            curve: Curves.elasticOut,
+                          ),
+                      if (controller.isEditing)
+                        Positioned(
+                          bottom: 0,
+                          right: 0,
+                          child: Container(
+                            width: 40.w,
+                            height: 40.w,
+                            decoration: BoxDecoration(
+                              color: AppTheme.white,
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.2),
+                                  blurRadius: 8,
+                                ),
+                              ],
+                            ),
+                            child: Icon(
+                              Icons.camera_alt,
+                              color: AppTheme.primaryBlue,
+                              size: 20.sp,
+                            ),
+                          )
+                              .animate()
+                              .scale(duration: 200.ms, curve: Curves.elasticOut),
+                        ),
+                    ],
+                  ),
+                );
+              }),
+              
+              SizedBox(height: 20.h),
+              
+              // User Name
+              Obx(() {
+                final user = controller.currentUser;
+                return Text(
+                  user?.name ?? 'User',
+                  style: TextStyle(
+                    color: AppTheme.white,
+                    fontSize: 24.sp,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -0.5,
+                  ),
+                );
+              }),
+              
+              SizedBox(height: 8.h),
+              
+              // User Email
+              Obx(() {
+                final user = controller.currentUser;
+                return Text(
+                  user?.email ?? '',
+                  style: TextStyle(
+                    color: AppTheme.white.withOpacity(0.9),
+                    fontSize: 14.sp,
+                    fontWeight: FontWeight.w400,
+                  ),
+                );
+              }),
             ],
           ),
         ),
@@ -48,99 +258,54 @@ class ProfileView extends GetView<ProfileController> {
     );
   }
 
-  Widget _buildProfileContent(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        children: [
-          // Profile Image
-          _buildProfileImage(context),
-
-          const SizedBox(height: 24),
-
-          // Profile Form
-          _buildProfileForm(context),
-
-          const SizedBox(height: 24),
-
-          // // Rebate Checklist
-          // _buildRebateChecklistSection(context),
-          //
-          // const SizedBox(height: 24),
-
-          // Settings
-          _buildSettings(context),
-
-          const SizedBox(height: 24),
-
-          // Logout Button
-          _buildLogoutButton(context),
+  Widget _buildProfileForm(BuildContext context) {
+    return Container(
+      margin: EdgeInsets.symmetric(horizontal: 20.w),
+      decoration: BoxDecoration(
+        color: AppTheme.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          ),
         ],
       ),
-    );
-  }
-
-  Widget _buildProfileImage(BuildContext context) {
-    return Obx(
-      () => GestureDetector(
-        onTap: controller.isEditing ? controller.changeProfileImage : null,
-        child: Stack(
-          children: [
-            CircleAvatar(
-              radius: 60,
-              backgroundColor: AppTheme.primaryBlue.withOpacity(0.1),
-              backgroundImage: controller.selectedImage != null
-                  ? NetworkImage(controller.selectedImage!)
-                  : null,
-              child: controller.selectedImage == null
-                  ? const Icon(
-                      Icons.person,
-                      color: AppTheme.primaryBlue,
-                      size: 60,
-                    )
-                  : null,
-            ),
-            if (controller.isEditing)
-              Positioned(
-                bottom: 0,
-                right: 0,
-                child: Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: AppTheme.primaryBlue,
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(color: AppTheme.white, width: 2),
-                  ),
-                  child: const Icon(
-                    Icons.camera_alt,
-                    color: AppTheme.white,
-                    size: 20,
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildProfileForm(BuildContext context) {
-    return Card(
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: EdgeInsets.all(24.w),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Personal Information',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                color: AppTheme.black,
-                fontWeight: FontWeight.w600,
-              ),
+            Row(
+              children: [
+                Container(
+                  padding: EdgeInsets.all(8.w),
+                  decoration: BoxDecoration(
+                    color: AppTheme.primaryBlue.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    Icons.person_outline,
+                    color: AppTheme.primaryBlue,
+                    size: 24.sp,
+                  ),
+                ),
+                SizedBox(width: 12.w),
+                Text(
+                  'Personal Information',
+                  style: TextStyle(
+                    fontSize: 20.sp,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.darkGray,
+                    letterSpacing: -0.5,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 20),
-
+            
+            SizedBox(height: 24.h),
+            
             // Name
             CustomTextField(
               controller: controller.nameController,
@@ -148,9 +313,9 @@ class ProfileView extends GetView<ProfileController> {
               prefixIcon: Icons.person_outline,
               enabled: controller.isEditing,
             ),
-
-            const SizedBox(height: 16),
-
+            
+            SizedBox(height: 16.h),
+            
             // Email
             CustomTextField(
               controller: controller.emailController,
@@ -159,9 +324,9 @@ class ProfileView extends GetView<ProfileController> {
               prefixIcon: Icons.email_outlined,
               enabled: false, // Email cannot be changed
             ),
-
-            const SizedBox(height: 16),
-
+            
+            SizedBox(height: 16.h),
+            
             // Phone
             CustomTextField(
               controller: controller.phoneController,
@@ -170,53 +335,81 @@ class ProfileView extends GetView<ProfileController> {
               prefixIcon: Icons.phone_outlined,
               enabled: controller.isEditing,
             ),
-
-            const SizedBox(height: 16),
-
+            
+            SizedBox(height: 16.h),
+            
             // Bio
             CustomTextField(
               controller: controller.bioController,
               labelText: 'Bio',
               prefixIcon: Icons.info_outline,
-              maxLines: 3,
+              maxLines: 4,
               enabled: controller.isEditing,
             ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildRebateChecklistSection(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Rebate Checklist',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                color: AppTheme.black,
-                fontWeight: FontWeight.w600,
+            
+            SizedBox(height: 24.h),
+            
+            // Save/Cancel Buttons
+            if (controller.isEditing)
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: controller.toggleEditing,
+                      style: OutlinedButton.styleFrom(
+                        padding: EdgeInsets.symmetric(vertical: 16.h),
+                        side: BorderSide(color: AppTheme.mediumGray),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: Text(
+                        'Cancel',
+                        style: TextStyle(
+                          color: AppTheme.darkGray,
+                          fontSize: 16.sp,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: 12.w),
+                  Expanded(
+                    flex: 2,
+                    child: Obx(() {
+                      return ElevatedButton(
+                        onPressed: controller.isLoading ? null : controller.saveProfile,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.primaryBlue,
+                          foregroundColor: AppTheme.white,
+                          padding: EdgeInsets.symmetric(vertical: 16.h),
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          disabledBackgroundColor: AppTheme.primaryBlue.withOpacity(0.6),
+                        ),
+                        child: controller.isLoading
+                            ? SizedBox(
+                                height: 20.h,
+                                width: 20.w,
+                                child: SpinKitThreeBounce(
+                                  color: AppTheme.white,
+                                  size: 12.sp,
+                                ),
+                              )
+                            : Text(
+                                'Save Changes',
+                                style: TextStyle(
+                                  fontSize: 16.sp,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                      );
+                    }),
+                  ),
+                ],
               ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Follow step-by-step guidance to ensure you receive your rebate',
-              style: Theme.of(
-                context,
-              ).textTheme.bodyMedium?.copyWith(color: AppTheme.mediumGray),
-            ),
-            const SizedBox(height: 20),
-            CustomButton(
-              text: 'View Rebate Checklist',
-              onPressed: () {
-                Get.toNamed('/rebate-checklist');
-              },
-              icon: Icons.checklist,
-              width: double.infinity,
-            ),
           ],
         ),
       ),
@@ -224,94 +417,104 @@ class ProfileView extends GetView<ProfileController> {
   }
 
   Widget _buildSettings(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Settings',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                color: AppTheme.black,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 20),
-
-            // Privacy
-            ListTile(
-              leading: const Icon(
-                Icons.privacy_tip_outlined,
-                color: AppTheme.primaryBlue,
-              ),
-              title: const Text('Privacy Policy'),
-              subtitle: const Text('View our privacy policy'),
-              trailing: const Icon(
-                Icons.arrow_forward_ios,
-                color: AppTheme.mediumGray,
-                size: 16,
-              ),
-              onTap: () {
-                Get.toNamed('/privacy-policy');
-              },
-              contentPadding: EdgeInsets.zero,
-            ),
-
-            const Divider(),
-
-            // Terms
-            ListTile(
-              leading: const Icon(
-                Icons.description_outlined,
-                color: AppTheme.primaryBlue,
-              ),
-              title: const Text('Terms of Service'),
-              subtitle: const Text('View our terms of service'),
-              trailing: const Icon(
-                Icons.arrow_forward_ios,
-                color: AppTheme.mediumGray,
-                size: 16,
-              ),
-              onTap: () {
-                Get.toNamed('/terms-of-service');
-              },
-              contentPadding: EdgeInsets.zero,
-            ),
-
-            const Divider(),
-
-            // Support
-            ListTile(
-              leading: const Icon(
-                Icons.help_outline,
-                color: AppTheme.primaryBlue,
-              ),
-              title: const Text('Help & Support'),
-              subtitle: const Text('Get help or contact support'),
-              trailing: const Icon(
-                Icons.arrow_forward_ios,
-                color: AppTheme.mediumGray,
-                size: 16,
-              ),
-              onTap: () {
-                Get.toNamed('/help-support');
-              },
-              contentPadding: EdgeInsets.zero,
-            ),
-          ],
-        ),
+    return Container(
+      margin: EdgeInsets.symmetric(horizontal: 20.w),
+      decoration: BoxDecoration(
+        color: AppTheme.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          _buildSettingTile(
+            context,
+            icon: Icons.privacy_tip_outlined,
+            title: 'Privacy Policy',
+            subtitle: 'View our privacy policy',
+            onTap: () => Get.toNamed('/privacy-policy'),
+          ),
+          Divider(height: 1, indent: 60.w),
+          _buildSettingTile(
+            context,
+            icon: Icons.description_outlined,
+            title: 'Terms of Service',
+            subtitle: 'View our terms of service',
+            onTap: () => Get.toNamed('/terms-of-service'),
+          ),
+          Divider(height: 1, indent: 60.w),
+          _buildSettingTile(
+            context,
+            icon: Icons.help_outline,
+            title: 'Help & Support',
+            subtitle: 'Get help or contact support',
+            onTap: () => Get.toNamed('/help-support'),
+          ),
+        ],
       ),
     );
   }
 
+  Widget _buildSettingTile(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return ListTile(
+      contentPadding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 12.h),
+      leading: Container(
+        padding: EdgeInsets.all(10.w),
+        decoration: BoxDecoration(
+          color: AppTheme.primaryBlue.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Icon(
+          icon,
+          color: AppTheme.primaryBlue,
+          size: 24.sp,
+        ),
+      ),
+      title: Text(
+        title,
+        style: TextStyle(
+          fontSize: 16.sp,
+          fontWeight: FontWeight.w600,
+          color: AppTheme.darkGray,
+        ),
+      ),
+      subtitle: Text(
+        subtitle,
+        style: TextStyle(
+          fontSize: 13.sp,
+          color: AppTheme.mediumGray,
+        ),
+      ),
+      trailing: Icon(
+        Icons.arrow_forward_ios,
+        color: AppTheme.mediumGray,
+        size: 16.sp,
+      ),
+      onTap: onTap,
+    );
+  }
+
   Widget _buildLogoutButton(BuildContext context) {
-    return CustomButton(
-      text: 'Logout',
-      onPressed: controller.logout,
-      backgroundColor: Colors.red,
-      width: double.infinity,
-      icon: Icons.logout,
+    return Container(
+      margin: EdgeInsets.symmetric(horizontal: 20.w),
+      child: CustomButton(
+        text: 'Logout',
+        onPressed: controller.logout,
+        backgroundColor: Colors.red,
+        width: double.infinity,
+        icon: Icons.logout,
+      ),
     );
   }
 }

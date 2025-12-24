@@ -28,7 +28,7 @@ class ApiConstants {
   // ============================================================================
 
   // Ngrok URL (update this when ngrok restarts)
-  static const String _ngrokUrl = 'https://bfc923bda6fd.ngrok-free.app';
+  static const String _ngrokUrl = 'https://2f9935f8bff6.ngrok-free.app';
 
   // Local network IP (update with your computer's IP address)
   static const String _localNetworkIp = '192.168.1.100'; // TODO: Update this!
@@ -118,6 +118,10 @@ class ApiConstants {
     return "${authEndPoint}users/$userId";
   }
 
+  static String getUpdateUserEndpoint(String userId) {
+    return "${authEndPoint}updateUser/$userId";
+  }
+
   // Auth specific endpoints
   static String get createUserEndpoint => "${authEndPoint}createUser";
   static String get loginEndpoint => "${authEndPoint}login";
@@ -167,6 +171,19 @@ class ApiConstants {
   static String get rebateEstimateEndpoint => "$apiBaseUrl/rebate/estimate";
   static String get rebateCalculateExactEndpoint => "$apiBaseUrl/rebate/calculate-exact";
   static String get rebateCalculateSellerRateEndpoint => "$apiBaseUrl/rebate/calculate-seller-rate";
+
+  // Notification endpoints
+  static String getNotificationsEndpoint(String userId) {
+    return "$apiBaseUrl/notifications/$userId";
+  }
+
+  static String getMarkNotificationReadEndpoint(String notificationId) {
+    return "$apiBaseUrl/notifications/mark-read/$notificationId";
+  }
+
+  static String getMarkAllNotificationsReadEndpoint(String userId) {
+    return "$apiBaseUrl/notifications/mark-all-read/$userId";
+  }
 
   // Helper to get ngrok headers if using ngrok
   static Map<String, String> get ngrokHeaders {

@@ -9,6 +9,7 @@ import 'package:getrebate/app/widgets/custom_search_field.dart';
 import 'package:getrebate/app/widgets/custom_button.dart';
 import 'package:getrebate/app/widgets/agent_card.dart';
 import 'package:getrebate/app/widgets/loan_officer_card.dart';
+import 'package:getrebate/app/widgets/notification_badge_icon.dart';
 import 'package:intl/intl.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart';
 
@@ -45,6 +46,12 @@ class BuyerView extends GetView<BuyerController> {
           ],
         ),
         centerTitle: true,
+        actions: [
+          Padding(
+            padding: EdgeInsets.only(right: 16.w),
+            child: const NotificationBadgeIcon(),
+          ),
+        ],
       ),
       body: SafeArea(
         child: Column(
