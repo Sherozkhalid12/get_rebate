@@ -7,6 +7,7 @@ import 'dart:convert';
 import 'package:getrebate/app/models/user_model.dart';
 import 'package:getrebate/app/routes/app_pages.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
+import 'package:getrebate/app/utils/network_error_handler.dart';
 import 'package:getrebate/app/controllers/current_loan_officer_controller.dart';
 
 class AuthController extends GetxController {
@@ -319,7 +320,10 @@ class AuthController extends GetxController {
 
       // Safely show snackbar - wrap in try-catch to prevent overlay errors
       try {
-        Get.snackbar('Error', errorMessage);
+        NetworkErrorHandler.handleError(
+          e,
+          defaultMessage: 'Unable to sign in. Please check your internet connection and try again.',
+        );
       } catch (overlayError) {
         print('⚠️ Could not show snackbar: $overlayError');
       }
@@ -328,7 +332,10 @@ class AuthController extends GetxController {
       print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       // Safely show snackbar - wrap in try-catch to prevent overlay errors
       try {
-        Get.snackbar('Error', 'Login failed: ${e.toString()}');
+        NetworkErrorHandler.handleError(
+          e,
+          defaultMessage: 'Unable to sign in. Please check your internet connection and try again.',
+        );
       } catch (overlayError) {
         print('⚠️ Could not show snackbar: $overlayError');
       }
@@ -861,9 +868,15 @@ class AuthController extends GetxController {
         errorMessage = 'No internet connection. Please check your network.';
       }
 
-      Get.snackbar('Error', errorMessage);
+      NetworkErrorHandler.handleError(
+        e,
+        defaultMessage: 'Unable to create account. Please check your internet connection and try again.',
+      );
     } catch (e) {
-      Get.snackbar('Error', 'Sign up failed: ${e.toString()}');
+      NetworkErrorHandler.handleError(
+        e,
+        defaultMessage: 'Unable to create account. Please check your internet connection and try again.',
+      );
     } finally {
       _isLoading.value = false;
     }
@@ -1113,28 +1126,17 @@ class AuthController extends GetxController {
       print(e.response?.data ?? e.message);
       print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
-      String errorMessage = 'Failed to update profile. Please try again.';
-
-      if (e.response != null) {
-        final responseData = e.response?.data;
-        if (responseData is Map && responseData.containsKey('message')) {
-          errorMessage = responseData['message'].toString();
-        } else {
-          errorMessage = e.response?.statusMessage ?? errorMessage;
-        }
-      } else if (e.type == DioExceptionType.connectionTimeout ||
-          e.type == DioExceptionType.receiveTimeout) {
-        errorMessage =
-            'Connection timeout. Please check your internet connection.';
-      } else if (e.type == DioExceptionType.connectionError) {
-        errorMessage = 'No internet connection. Please check your network.';
-      }
-
-      Get.snackbar('Error', errorMessage);
+      NetworkErrorHandler.handleError(
+        e,
+        defaultMessage: 'Unable to update profile. Please check your internet connection and try again.',
+      );
       rethrow;
     } catch (e) {
       print('❌ Unexpected Error: ${e.toString()}');
-      Get.snackbar('Error', 'Failed to update profile: ${e.toString()}');
+      NetworkErrorHandler.handleError(
+        e,
+        defaultMessage: 'Unable to update profile. Please check your internet connection and try again.',
+      );
       rethrow;
     } finally {
       _isLoading.value = false;
@@ -1167,7 +1169,10 @@ class AuthController extends GetxController {
       // final user = UserModel(id: userId, ...);
     } catch (e) {
       print('❌ Social login error: $e');
-      Get.snackbar('Error', 'Social login failed: ${e.toString()}');
+      NetworkErrorHandler.handleError(
+        e,
+        defaultMessage: 'Unable to sign in with social account. Please check your internet connection and try again.',
+      );
     } finally {
       _isLoading.value = false;
     }

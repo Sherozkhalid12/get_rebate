@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart' as global;
 import 'package:getrebate/app/utils/api_constants.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
+import 'package:getrebate/app/utils/network_error_handler.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:get_storage/get_storage.dart';
 
@@ -320,34 +321,9 @@ class CreateListingController extends GetxController {
         print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       }
 
-      String errorMessage = 'Failed to create listing. Please try again.';
-
-      if (e.response != null) {
-        final responseData = e.response?.data;
-        if (responseData is Map && responseData.containsKey('message')) {
-          errorMessage = responseData['message'].toString();
-        } else if (responseData is Map && responseData.containsKey('error')) {
-          errorMessage = responseData['error'].toString();
-        } else if (e.response?.statusCode == 401) {
-          errorMessage = 'Unauthorized. Please login again.';
-        } else if (e.response?.statusCode == 400) {
-          errorMessage = 'Invalid request. Please check your input.';
-        } else if (e.response?.statusCode == 500) {
-          errorMessage = 'Server error. Please try again later.';
-        } else {
-          errorMessage = e.response?.statusMessage ?? errorMessage;
-        }
-      } else if (e.type == DioExceptionType.connectionTimeout ||
-          e.type == DioExceptionType.receiveTimeout) {
-        errorMessage =
-            'Connection timeout. Please check your internet connection.';
-      } else if (e.type == DioExceptionType.connectionError) {
-        errorMessage = 'No internet connection. Please check your network.';
-      }
-
-      SnackbarHelper.showError(
-        errorMessage,
-        duration: const Duration(seconds: 3),
+      NetworkErrorHandler.handleError(
+        e,
+        defaultMessage: 'Unable to create listing. Please check your internet connection and try again.',
       );
     } catch (e) {
       _isLoading.value = false;
@@ -357,9 +333,9 @@ class CreateListingController extends GetxController {
         print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       }
 
-      SnackbarHelper.showError(
-        'Failed to create listing: ${e.toString()}',
-        duration: const Duration(seconds: 3),
+      NetworkErrorHandler.handleError(
+        e,
+        defaultMessage: 'Unable to create listing. Please check your internet connection and try again.',
       );
     }
   }

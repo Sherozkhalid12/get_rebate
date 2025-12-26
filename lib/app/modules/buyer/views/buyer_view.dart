@@ -74,25 +74,52 @@ class BuyerView extends GetView<BuyerController> {
       color: AppTheme.white,
       child: Column(
         children: [
-          // Search Field - ZIP Code Only
+          // Search Field - City, State, or ZIP Code
           CustomSearchField(
             controller: controller.searchController,
-            hintText: 'Enter ZIP code (5 digits)',
+            hintText: 'Enter city, state, or ZIP code',
             onChanged: (value) {
               // Handle empty or cleared input - always clear filter immediately
               if (value.isEmpty || value.trim().isEmpty) {
                 controller.clearZipCodeFilter();
                 return;
               }
-              // Only process if it's a valid 5-digit ZIP code
-              if (value.length == 5 && RegExp(r'^\d+$').hasMatch(value)) {
-                controller.searchByZipCode(value);
+              
+              final trimmedValue = value.trim();
+              
+              // Check if it's a ZIP code (5 digits)
+              if (trimmedValue.length == 5 && RegExp(r'^\d+$').hasMatch(trimmedValue)) {
+                controller.searchByLocation(zipCode: trimmedValue);
               }
-              // If user is typing but hasn't reached 5 digits yet, clear the filter
-              // This ensures partial input doesn't keep the old filter active
-              else if (value.length < 5) {
-                // Clear filter when user is deleting/typing partial ZIP
-                // This ensures that when user deletes characters, filter is cleared
+              // Check if it's a state (2 letters, case-insensitive)
+              else if (trimmedValue.length == 2 && RegExp(r'^[A-Za-z]{2}$').hasMatch(trimmedValue)) {
+                controller.searchByLocation(state: trimmedValue.toUpperCase());
+              }
+              // Otherwise treat as city name
+              else if (trimmedValue.length >= 2) {
+                // Check if it contains a comma (city, state format)
+                if (trimmedValue.contains(',')) {
+                  final parts = trimmedValue.split(',').map((p) => p.trim()).toList();
+                  if (parts.length == 2) {
+                    final cityPart = parts[0];
+                    final statePart = parts[1];
+                    // If second part is 2 letters, treat as state
+                    if (statePart.length == 2 && RegExp(r'^[A-Z]{2}$').hasMatch(statePart.toUpperCase())) {
+                      controller.searchByLocation(city: cityPart, state: statePart.toUpperCase());
+                    } else {
+                      // Otherwise treat both as city
+                      controller.searchByLocation(city: cityPart);
+                    }
+                  } else {
+                    // If more than 2 parts, use first part as city
+                    controller.searchByLocation(city: parts[0]);
+                  }
+                } else {
+                  controller.searchByLocation(city: trimmedValue);
+                }
+              }
+              // If input is too short, clear filter
+              else {
                 controller.clearZipCodeFilter();
               }
             },

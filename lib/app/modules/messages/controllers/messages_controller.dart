@@ -11,6 +11,7 @@ import 'package:getrebate/app/services/socket_service.dart';
 import 'package:getrebate/app/services/agent_service.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
+import 'package:getrebate/app/utils/network_error_handler.dart';
 
 class MessageModel {
   final String id;
@@ -685,7 +686,7 @@ class MessagesController extends GetxController {
 
     final user = _authController.currentUser;
     if (user == null || user.id.isEmpty) {
-      _error.value = 'User not logged in';
+      _error.value = 'Please log in to view messages';
       _isLoadingThreads.value = false; // Reset loading state
       return;
     }
@@ -852,12 +853,18 @@ class MessagesController extends GetxController {
         print('✅ Loaded ${conversations.length} conversations');
       }
     } on ChatServiceException catch (e) {
-      _error.value = e.message;
+      _error.value = NetworkErrorHandler.getUserFriendlyMessage(
+        e,
+        defaultMessage: 'Unable to load conversations. Please check your internet connection and try again.',
+      );
       if (kDebugMode) {
         print('❌ Error loading threads: ${e.message}');
       }
     } catch (e) {
-      _error.value = e.toString();
+      _error.value = NetworkErrorHandler.getUserFriendlyMessage(
+        e,
+        defaultMessage: 'Unable to load conversations. Please check your internet connection and try again.',
+      );
       if (kDebugMode) {
         print('❌ Unexpected error loading threads: $e');
       }
@@ -1078,8 +1085,11 @@ class MessagesController extends GetxController {
       }
       // Clear messages on error
       _messages.clear();
-      // Show error to user
-      SnackbarHelper.showError('Failed to load messages. Please try again.');
+      // Show error to user with professional message
+      NetworkErrorHandler.handleError(
+        e,
+        defaultMessage: 'Unable to load messages. Please check your internet connection and try again.',
+      );
     } finally {
       _isLoadingMessages.value = false;
       if (kDebugMode) {
@@ -1297,17 +1307,17 @@ class MessagesController extends GetxController {
       if (kDebugMode) {
         print('❌ Error deleting chat: ${e.message}');
       }
-      SnackbarHelper.showError(
-        e.message,
-        title: 'Delete Failed',
+      NetworkErrorHandler.handleError(
+        e,
+        defaultMessage: 'Unable to delete conversation. Please check your internet connection and try again.',
       );
     } catch (e) {
       if (kDebugMode) {
         print('❌ Unexpected error deleting chat: $e');
       }
-      SnackbarHelper.showError(
-        'Failed to delete conversation. Please try again.',
-        title: 'Error',
+      NetworkErrorHandler.handleError(
+        e,
+        defaultMessage: 'Unable to delete conversation. Please check your internet connection and try again.',
       );
     }
   }
@@ -1683,7 +1693,10 @@ class MessagesController extends GetxController {
       if (_selectedConversation.value?.id == tempConversation.id) {
         _selectedConversation.value = null;
       }
-      SnackbarHelper.showError('Failed to create chat thread. Please try again.');
+      NetworkErrorHandler.handleError(
+        e,
+        defaultMessage: 'Unable to start conversation. Please check your internet connection and try again.',
+      );
     }
   }
 

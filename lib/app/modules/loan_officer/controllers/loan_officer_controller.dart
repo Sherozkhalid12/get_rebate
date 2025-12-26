@@ -8,6 +8,7 @@ import 'package:getrebate/app/models/promo_code_model.dart';
 import 'package:getrebate/app/services/zip_code_pricing_service.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart' as global;
 import 'package:getrebate/app/modules/messages/controllers/messages_controller.dart';
+import 'package:getrebate/app/utils/network_error_handler.dart';
 
 class LoanOfficerController extends GetxController {
   // Data
@@ -252,7 +253,10 @@ class LoanOfficerController extends GetxController {
         'ZIP code ${zipCode.zipCode} claimed successfully!',
       );
     } catch (e) {
-      Get.snackbar('Error', 'Failed to claim ZIP code: ${e.toString()}');
+      NetworkErrorHandler.handleError(
+        e,
+        defaultMessage: 'Unable to claim ZIP code. Please check your internet connection and try again.',
+      );
     } finally {
       _isLoading.value = false;
     }
@@ -285,7 +289,10 @@ class LoanOfficerController extends GetxController {
         'ZIP code ${zipCode.zipCode} released successfully!',
       );
     } catch (e) {
-      Get.snackbar('Error', 'Failed to release ZIP code: ${e.toString()}');
+      NetworkErrorHandler.handleError(
+        e,
+        defaultMessage: 'Unable to release ZIP code. Please check your internet connection and try again.',
+      );
     } finally {
       _isLoading.value = false;
     }
@@ -309,7 +316,10 @@ class LoanOfficerController extends GetxController {
 
       _availableZipCodes.value = filteredZips;
     } catch (e) {
-      Get.snackbar('Error', 'Search failed: ${e.toString()}');
+      NetworkErrorHandler.handleError(
+        e,
+        defaultMessage: 'Unable to search ZIP codes. Please check your internet connection and try again.',
+      );
     } finally {
       _isLoading.value = false;
     }
@@ -423,7 +433,10 @@ class LoanOfficerController extends GetxController {
         colorText: Colors.white,
       );
     } catch (e) {
-      Get.snackbar('Error', 'Failed to apply promo code: ${e.toString()}');
+      NetworkErrorHandler.handleError(
+        e,
+        defaultMessage: 'Unable to apply promo code. Please check your internet connection and try again.',
+      );
     } finally {
       _isLoading.value = false;
     }

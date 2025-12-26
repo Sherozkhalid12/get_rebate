@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
+import 'package:getrebate/app/utils/network_error_handler.dart';
 
 class LeadService {
   final Dio _dio;
@@ -60,34 +61,11 @@ class LeadService {
         print('   Response: ${e.response?.data}');
       }
 
-      // Extract error message from response
-      String errorMessage = 'Failed to submit lead form. Please try again.';
-      
-      if (e.response?.statusCode == 400) {
-        errorMessage = 'Invalid form data. Please check all fields and try again.';
-      } else if (e.response?.statusCode == 401) {
-        errorMessage = 'Please log in to submit a lead.';
-      } else if (e.response?.statusCode == 404) {
-        errorMessage = 'Agent not found. Please try again.';
-      } else if (e.response?.statusCode == 500) {
-        errorMessage = 'Server error. Please try again later.';
-      } else if (e.response?.data != null) {
-        final errorData = e.response!.data;
-        if (errorData is Map<String, dynamic>) {
-          errorMessage = errorData['message']?.toString() ?? 
-                        errorData['error']?.toString() ?? 
-                        errorMessage;
-        } else if (errorData is String) {
-          errorMessage = errorData;
-        }
-      } else if (e.type == DioExceptionType.connectionTimeout || 
-                 e.type == DioExceptionType.receiveTimeout) {
-        errorMessage = 'Connection timeout. Please check your internet and try again.';
-      } else if (e.type == DioExceptionType.connectionError) {
-        errorMessage = 'No internet connection. Please check your network and try again.';
-      } else if (e.message != null) {
-        errorMessage = e.message!;
-      }
+      // Use NetworkErrorHandler to get professional error message
+      final errorMessage = NetworkErrorHandler.getUserFriendlyMessage(
+        e,
+        defaultMessage: 'Unable to submit your request. Please check your internet connection and try again.',
+      );
 
       throw Exception(errorMessage);
     } catch (e) {
@@ -95,7 +73,11 @@ class LeadService {
         print('❌ Unexpected error creating $leadType lead: $e');
         print('   Error type: ${e.runtimeType}');
       }
-      throw Exception('An unexpected error occurred. Please try again.');
+      final errorMessage = NetworkErrorHandler.getUserFriendlyMessage(
+        e,
+        defaultMessage: 'Unable to submit your request. Please check your internet connection and try again.',
+      );
+      throw Exception(errorMessage);
     }
   }
 

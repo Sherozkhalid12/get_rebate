@@ -9,6 +9,9 @@ class LoanOfficerModel {
   final String licenseNumber;
   final List<String> licensedStates;
   final List<String> claimedZipCodes;
+  final String? city; // City from backend
+  final String? state; // State from backend
+  final String? zipCode; // ZIP code from backend
   final List<String>
   specialtyProducts; // Areas of expertise and specialty products
   final String? bio;
@@ -41,6 +44,9 @@ class LoanOfficerModel {
     required this.licenseNumber,
     this.licensedStates = const [],
     this.claimedZipCodes = const [],
+    this.city,
+    this.state,
+    this.zipCode,
     this.specialtyProducts = const [],
     this.bio,
     this.rating = 0.0,
@@ -111,6 +117,11 @@ class LoanOfficerModel {
     final serviceAreasList = json['serviceAreas'] ?? json['claimedZipCodes'] ?? [];
     final claimedZipCodes = List<String>.from(serviceAreasList);
     
+    // City, state, and zipCode from backend
+    final city = json['city']?.toString();
+    final state = json['state']?.toString();
+    final zipCode = json['zipCode']?.toString();
+    
     // Specialty products
     final specialtyList = json['specialtyProducts'] ?? [];
     final specialtyProducts = List<String>.from(specialtyList);
@@ -176,6 +187,9 @@ class LoanOfficerModel {
       licenseNumber: licenseNumber,
       licensedStates: licensedStates,
       claimedZipCodes: claimedZipCodes,
+      city: city,
+      state: state,
+      zipCode: zipCode,
       specialtyProducts: specialtyProducts,
       bio: json['bio']?.toString() ?? json['description']?.toString(),
       rating: rating,
@@ -211,6 +225,9 @@ class LoanOfficerModel {
       'licenseNumber': licenseNumber,
       'licensedStates': licensedStates,
       'claimedZipCodes': claimedZipCodes,
+      'city': city,
+      'state': state,
+      'zipCode': zipCode,
       'specialtyProducts': specialtyProducts,
       'bio': bio,
       'rating': rating,
@@ -243,6 +260,9 @@ class LoanOfficerModel {
     String? licenseNumber,
     List<String>? licensedStates,
     List<String>? claimedZipCodes,
+    String? city,
+    String? state,
+    String? zipCode,
     List<String>? specialtyProducts,
     String? bio,
     double? rating,
@@ -272,6 +292,9 @@ class LoanOfficerModel {
       licenseNumber: licenseNumber ?? this.licenseNumber,
       licensedStates: licensedStates ?? this.licensedStates,
       claimedZipCodes: claimedZipCodes ?? this.claimedZipCodes,
+      city: city ?? this.city,
+      state: state ?? this.state,
+      zipCode: zipCode ?? this.zipCode,
       specialtyProducts: specialtyProducts ?? this.specialtyProducts,
       bio: bio ?? this.bio,
       rating: rating ?? this.rating,

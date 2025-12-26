@@ -4,6 +4,7 @@ import 'package:getrebate/app/models/notification_model.dart';
 import 'package:getrebate/app/services/notification_service.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
+import 'package:getrebate/app/utils/network_error_handler.dart';
 
 class NotificationsController extends GetxController {
   final NotificationService _notificationService = NotificationService();
@@ -41,7 +42,7 @@ class NotificationsController extends GetxController {
   Future<void> fetchNotifications() async {
     final userId = _authController.currentUser?.id;
     if (userId == null || userId.isEmpty) {
-      _error.value = 'User not logged in';
+      _error.value = 'Please log in to view notifications';
       return;
     }
 
@@ -60,11 +61,15 @@ class NotificationsController extends GetxController {
         print('   Unread: ${response.unreadCount}');
       }
     } catch (e) {
-      _error.value = e.toString();
+      // Store user-friendly error message instead of raw error
+      _error.value = NetworkErrorHandler.getUserFriendlyMessage(
+        e,
+        defaultMessage: 'Unable to load notifications. Please check your internet connection and try again.',
+      );
       if (kDebugMode) {
         print('❌ Error fetching notifications: $e');
       }
-      SnackbarHelper.showError('Failed to load notifications');
+      // Don't show snackbar here - the error state in UI will handle it
     } finally {
       _isLoading.value = false;
     }
@@ -91,7 +96,10 @@ class NotificationsController extends GetxController {
       if (kDebugMode) {
         print('❌ Error marking notification as read: $e');
       }
-      SnackbarHelper.showError('Failed to mark notification as read');
+      NetworkErrorHandler.handleError(
+        e,
+        defaultMessage: 'Unable to update notification. Please check your internet connection and try again.',
+      );
     }
   }
 
@@ -121,7 +129,10 @@ class NotificationsController extends GetxController {
       if (kDebugMode) {
         print('❌ Error marking all notifications as read: $e');
       }
-      SnackbarHelper.showError('Failed to mark all notifications as read');
+      NetworkErrorHandler.handleError(
+        e,
+        defaultMessage: 'Unable to update notifications. Please check your internet connection and try again.',
+      );
     }
   }
 

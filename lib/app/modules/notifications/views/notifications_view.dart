@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:intl/intl.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/modules/notifications/controllers/notifications_controller.dart';
@@ -75,8 +76,9 @@ class NotificationsView extends GetView<NotificationsController> {
       body: Obx(() {
         if (controller.isLoading && controller.notifications.isEmpty) {
           return Center(
-            child: CircularProgressIndicator(
+            child: SpinKitFadingCircle(
               color: AppTheme.primaryBlue,
+              size: 40,
             ),
           );
         }
@@ -341,39 +343,71 @@ class NotificationsView extends GetView<NotificationsController> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.error_outline,
-              size: 64.sp,
-              color: Colors.red,
-            ),
-            SizedBox(height: 16.h),
+            Container(
+              width: 100.w,
+              height: 100.h,
+              decoration: BoxDecoration(
+                color: Colors.red.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.wifi_off,
+                size: 50.sp,
+                color: Colors.red.shade400,
+              ),
+            )
+                .animate()
+                .scale(duration: 600.ms, curve: Curves.elasticOut)
+                .fadeIn(duration: 400.ms),
+            SizedBox(height: 24.h),
             Text(
-              'Error loading notifications',
+              'Unable to Load Notifications',
               style: TextStyle(
-                fontSize: 18.sp,
+                fontSize: 20.sp,
                 fontWeight: FontWeight.w600,
                 color: AppTheme.darkGray,
               ),
-            ),
-            SizedBox(height: 8.h),
+            )
+                .animate()
+                .fadeIn(duration: 400.ms, delay: 200.ms)
+                .slideY(begin: 0.2, duration: 400.ms, delay: 200.ms),
+            SizedBox(height: 12.h),
             Text(
-              controller.error ?? 'Unknown error',
+              controller.error ?? 'Please check your internet connection and try again.',
               style: TextStyle(
                 fontSize: 14.sp,
                 color: AppTheme.mediumGray,
+                height: 1.5,
               ),
               textAlign: TextAlign.center,
-            ),
-            SizedBox(height: 24.h),
-            ElevatedButton(
+            )
+                .animate()
+                .fadeIn(duration: 400.ms, delay: 300.ms)
+                .slideY(begin: 0.2, duration: 400.ms, delay: 300.ms),
+            SizedBox(height: 32.h),
+            ElevatedButton.icon(
               onPressed: controller.refresh,
+              icon: Icon(Icons.refresh, size: 20.sp),
+              label: Text(
+                'Retry',
+                style: TextStyle(
+                  fontSize: 16.sp,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppTheme.primaryBlue,
                 foregroundColor: AppTheme.white,
-                padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 12.h),
+                padding: EdgeInsets.symmetric(horizontal: 32.w, vertical: 14.h),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 2,
               ),
-              child: Text('Retry'),
-            ),
+            )
+                .animate()
+                .fadeIn(duration: 400.ms, delay: 400.ms)
+                .scale(duration: 300.ms, delay: 400.ms),
           ],
         ),
       ),

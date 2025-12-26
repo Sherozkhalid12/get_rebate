@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/modules/messages/controllers/messages_controller.dart';
 import 'package:getrebate/app/widgets/custom_text_field.dart';
@@ -87,50 +88,140 @@ class MessagesView extends GetView<MessagesController> {
 
   Widget _buildHeader(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: const BoxDecoration(
-        color: AppTheme.white,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: AppTheme.primaryGradient,
+        ),
         boxShadow: [
-          BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2)),
+          BoxShadow(
+            color: AppTheme.primaryBlue.withOpacity(0.3),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
         ],
       ),
-      child: Row(
-        children: [
-          IconButton(
-            onPressed: () => Navigator.pop(context),
-            icon: const Icon(Icons.arrow_back, color: AppTheme.darkGray),
-          ),
-          Expanded(
-            child: Text(
-              'Messages',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                color: AppTheme.black,
-                fontWeight: FontWeight.w600,
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
+          child: Row(
+            children: [
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () => Navigator.pop(context),
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    padding: EdgeInsets.all(8.w),
+                    decoration: BoxDecoration(
+                      color: AppTheme.white.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      Icons.arrow_back_ios_new,
+                      color: AppTheme.white,
+                      size: 20.sp,
+                    ),
+                  ),
+                ),
               ),
-            ),
+              SizedBox(width: 16.w),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Messages',
+                      style: TextStyle(
+                        color: AppTheme.white,
+                        fontSize: 24.sp,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                    Obx(() {
+                      final count = controller.conversations.length;
+                      return Text(
+                        count == 0 
+                          ? 'No conversations'
+                          : '$count ${count == 1 ? 'conversation' : 'conversations'}',
+                        style: TextStyle(
+                          color: AppTheme.white.withOpacity(0.9),
+                          fontSize: 12.sp,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      );
+                    }),
+                  ],
+                ),
+              ),
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () {
+                    Get.snackbar('Info', 'New message feature coming soon!');
+                  },
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    padding: EdgeInsets.all(10.w),
+                    decoration: BoxDecoration(
+                      color: AppTheme.white.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      Icons.edit_outlined,
+                      color: AppTheme.white,
+                      size: 22.sp,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
-          IconButton(
-            onPressed: () {
-              Get.snackbar('Info', 'New message feature coming soon!');
-            },
-            icon: const Icon(Icons.edit, color: AppTheme.primaryBlue),
-          ),
-        ],
+        ),
       ),
-    );
+    ).animate().fadeIn(duration: 300.ms).slideY(begin: -0.2, end: 0);
   }
 
   Widget _buildSearch(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(20),
-      color: AppTheme.white,
-      child: CustomTextField(
-        controller: TextEditingController(),
-        labelText: 'Search conversations',
-        prefixIcon: Icons.search,
-        onChanged: controller.searchConversations,
+      padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
+      decoration: BoxDecoration(
+        color: AppTheme.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
-    );
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppTheme.lightGray,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: TextField(
+          onChanged: controller.searchConversations,
+          decoration: InputDecoration(
+            hintText: 'Search conversations...',
+            hintStyle: TextStyle(
+              color: AppTheme.mediumGray,
+              fontSize: 14.sp,
+            ),
+            prefixIcon: Icon(
+              Icons.search_rounded,
+              color: AppTheme.mediumGray,
+              size: 22.sp,
+            ),
+            border: InputBorder.none,
+            contentPadding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 14.h),
+          ),
+        ),
+      ),
+    ).animate().fadeIn(duration: 300.ms, delay: 100.ms).slideY(begin: -0.1, end: 0);
   }
 
   Widget _buildConversationsListView(BuildContext context) {
@@ -166,30 +257,53 @@ class MessagesView extends GetView<MessagesController> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(
-                  Icons.error_outline,
-                  size: 64,
-                  color: Colors.red.shade400,
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Error loading conversations',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: AppTheme.darkGray,
+                Container(
+                  width: 100,
+                  height: 100,
+                  decoration: BoxDecoration(
+                    color: Colors.red.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.wifi_off,
+                    size: 50,
+                    color: Colors.red.shade400,
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 24),
+                Text(
+                  'Unable to Load Conversations',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    color: AppTheme.darkGray,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 12),
                 Text(
                   controller.error!,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: AppTheme.mediumGray,
+                    height: 1.5,
                   ),
                   textAlign: TextAlign.center,
                 ),
-                const SizedBox(height: 24),
-                ElevatedButton(
+                const SizedBox(height: 32),
+                ElevatedButton.icon(
                   onPressed: controller.refreshThreads,
-                  child: const Text('Retry'),
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Retry'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primaryBlue,
+                    foregroundColor: AppTheme.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 32,
+                      vertical: 14,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -203,14 +317,15 @@ class MessagesView extends GetView<MessagesController> {
 
       return RefreshIndicator(
         onRefresh: controller.refreshThreads,
+        color: AppTheme.primaryBlue,
         child: ListView.builder(
-          padding: const EdgeInsets.all(20),
+          padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
           itemCount: controller.conversations.length,
           itemBuilder: (context, index) {
             final conversation = controller.conversations[index];
             return Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: _buildConversationCard(context, conversation),
+              padding: EdgeInsets.only(bottom: 12.h),
+              child: _buildConversationCard(context, conversation, index),
             );
           },
         ),
@@ -221,24 +336,67 @@ class MessagesView extends GetView<MessagesController> {
   Widget _buildConversationCard(
     BuildContext context,
     ConversationModel conversation,
+    int index,
   ) {
-    return Card(
+    final hasUnread = conversation.unreadCount > 0;
+    
+    return Material(
+      color: Colors.transparent,
       child: InkWell(
         onTap: () => controller.selectConversation(conversation),
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: EdgeInsets.all(16.w),
+          decoration: BoxDecoration(
+            color: AppTheme.white,
+            borderRadius: BorderRadius.circular(20),
+            border: hasUnread
+                ? Border.all(
+                    color: AppTheme.primaryBlue.withOpacity(0.3),
+                    width: 1.5,
+                  )
+                : null,
+            boxShadow: [
+              BoxShadow(
+                color: hasUnread
+                    ? AppTheme.primaryBlue.withOpacity(0.1)
+                    : Colors.black.withOpacity(0.05),
+                blurRadius: hasUnread ? 12 : 8,
+                offset: const Offset(0, 2),
+                spreadRadius: hasUnread ? 1 : 0,
+              ),
+            ],
+          ),
           child: Row(
             children: [
-              // Avatar
-              _buildAvatar(
-                imageUrl: conversation.senderImage,
-                senderType: conversation.senderType,
-                radius: 25,
+              // Avatar with status indicator
+              Stack(
+                children: [
+                  _buildAvatar(
+                    imageUrl: conversation.senderImage,
+                    senderType: conversation.senderType,
+                    radius: 28,
+                  ),
+                  if (hasUnread)
+                    Positioned(
+                      right: 0,
+                      bottom: 0,
+                      child: Container(
+                        width: 16.w,
+                        height: 16.h,
+                        decoration: BoxDecoration(
+                          color: AppTheme.primaryBlue,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: AppTheme.white,
+                            width: 2,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
-
-              const SizedBox(width: 12),
-
+              SizedBox(width: 16.w),
               // Content
               Expanded(
                 child: Column(
@@ -249,61 +407,94 @@ class MessagesView extends GetView<MessagesController> {
                         Expanded(
                           child: Text(
                             conversation.senderName,
-                            style: Theme.of(context).textTheme.titleMedium
-                                ?.copyWith(
-                                  color: AppTheme.black,
-                                  fontWeight: FontWeight.w600,
-                                ),
+                            style: TextStyle(
+                              color: hasUnread ? AppTheme.black : AppTheme.darkGray,
+                              fontSize: 16.sp,
+                              fontWeight: hasUnread ? FontWeight.w700 : FontWeight.w600,
+                              letterSpacing: -0.3,
+                            ),
                           ),
                         ),
                         Text(
                           _formatTime(conversation.lastMessageTime),
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(color: AppTheme.mediumGray),
+                          style: TextStyle(
+                            color: hasUnread
+                                ? AppTheme.primaryBlue
+                                : AppTheme.mediumGray,
+                            fontSize: 12.sp,
+                            fontWeight: hasUnread ? FontWeight.w600 : FontWeight.normal,
+                          ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 4),
+                    SizedBox(height: 6.h),
                     Text(
                       conversation.lastMessage,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppTheme.darkGray,
+                      style: TextStyle(
+                        color: hasUnread
+                            ? AppTheme.darkGray
+                            : AppTheme.mediumGray,
+                        fontSize: 14.sp,
+                        fontWeight: hasUnread ? FontWeight.w500 : FontWeight.normal,
+                        height: 1.4,
                       ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
                     if (conversation.propertyAddress != null) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        conversation.propertyAddress!,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppTheme.mediumGray,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                      SizedBox(height: 6.h),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.location_on_rounded,
+                            size: 14.sp,
+                            color: AppTheme.mediumGray,
+                          ),
+                          SizedBox(width: 4.w),
+                          Expanded(
+                            child: Text(
+                              conversation.propertyAddress!,
+                              style: TextStyle(
+                                color: AppTheme.mediumGray,
+                                fontSize: 12.sp,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ],
                 ),
               ),
-
               // Unread indicator
-              if (conversation.unreadCount > 0) ...[
-                const SizedBox(width: 8),
+              if (hasUnread) ...[
+                SizedBox(width: 12.w),
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: conversation.unreadCount > 9 ? 8.w : 10.w,
+                    vertical: 6.h,
                   ),
                   decoration: BoxDecoration(
-                    color: AppTheme.primaryBlue,
-                    borderRadius: BorderRadius.circular(12),
+                    gradient: LinearGradient(
+                      colors: AppTheme.primaryGradient,
+                    ),
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppTheme.primaryBlue.withOpacity(0.4),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
                   child: Text(
-                    conversation.unreadCount.toString(),
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    conversation.unreadCount > 99 ? '99+' : conversation.unreadCount.toString(),
+                    style: TextStyle(
                       color: AppTheme.white,
-                      fontWeight: FontWeight.w600,
+                      fontSize: 12.sp,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
@@ -312,7 +503,26 @@ class MessagesView extends GetView<MessagesController> {
           ),
         ),
       ),
-    );
+    )
+        .animate()
+        .fadeIn(
+          duration: 300.ms,
+          delay: (index * 50).ms,
+        )
+        .slideX(
+          begin: 0.2,
+          end: 0,
+          duration: 400.ms,
+          delay: (index * 50).ms,
+          curve: Curves.easeOutCubic,
+        )
+        .scale(
+          begin: const Offset(0.95, 0.95),
+          end: const Offset(1, 1),
+          duration: 300.ms,
+          delay: (index * 50).ms,
+          curve: Curves.easeOut,
+        );
   }
 
   Widget _buildChatView(BuildContext context) {
@@ -334,80 +544,126 @@ class MessagesView extends GetView<MessagesController> {
 
   Widget _buildChatHeader(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-      decoration: const BoxDecoration(
-        color: AppTheme.white,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: AppTheme.primaryGradient,
+        ),
         boxShadow: [
-          BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2)),
+          BoxShadow(
+            color: AppTheme.primaryBlue.withOpacity(0.3),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
         ],
       ),
-      child: Row(
-        children: [
-          IconButton(
-            onPressed: () {
-              // Just clear the conversation - don't use Navigator.pop
-              // MessagesView is part of the main navigation, not a separate route
-              // Clearing the conversation will automatically show the conversations list
-              controller.goBack();
-            },
-            icon: const Icon(Icons.arrow_back, color: AppTheme.darkGray),
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(),
-          ),
-          const SizedBox(width: 8),
-          _buildAvatar(
-            imageUrl: controller.selectedConversation!.senderImage,
-            senderType: controller.selectedConversation!.senderType,
-            radius: 20,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  controller.selectedConversation!.senderName,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: AppTheme.black,
-                    fontWeight: FontWeight.w600,
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 10.h),
+          child: Row(
+            children: [
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () => controller.goBack(),
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    padding: EdgeInsets.all(8.w),
+                    decoration: BoxDecoration(
+                      color: AppTheme.white.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      Icons.arrow_back_ios_new,
+                      color: AppTheme.white,
+                      size: 18.sp,
+                    ),
                   ),
                 ),
-                Text(
-                  _getSenderTypeLabel(
-                    controller.selectedConversation!.senderType,
-                  ),
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodySmall?.copyWith(color: AppTheme.mediumGray),
-                ),
-              ],
-            ),
-          ),
-          PopupMenuButton<String>(
-            onSelected: (value) {
-              if (value == 'delete') {
-                controller.deleteConversation(
-                  controller.selectedConversation!.id,
-                );
-              }
-            },
-            itemBuilder: (context) => [
-              const PopupMenuItem(
-                value: 'delete',
-                child: Row(
+              ),
+              SizedBox(width: 12.w),
+              _buildAvatar(
+                imageUrl: controller.selectedConversation!.senderImage,
+                senderType: controller.selectedConversation!.senderType,
+                radius: 22,
+              ),
+              SizedBox(width: 12.w),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.delete, color: Colors.red),
-                    SizedBox(width: 8),
-                    Text('Delete Conversation'),
+                    Text(
+                      controller.selectedConversation!.senderName,
+                      style: TextStyle(
+                        color: AppTheme.white,
+                        fontSize: 16.sp,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.3,
+                      ),
+                    ),
+                    SizedBox(height: 2.h),
+                    Text(
+                      _getSenderTypeLabel(
+                        controller.selectedConversation!.senderType,
+                      ),
+                      style: TextStyle(
+                        color: AppTheme.white.withOpacity(0.9),
+                        fontSize: 12.sp,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Material(
+                color: Colors.transparent,
+                child: PopupMenuButton<String>(
+                  onSelected: (value) {
+                    if (value == 'delete') {
+                      controller.deleteConversation(
+                        controller.selectedConversation!.id,
+                      );
+                    }
+                  },
+                  icon: Container(
+                    padding: EdgeInsets.all(8.w),
+                    decoration: BoxDecoration(
+                      color: AppTheme.white.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      Icons.more_vert,
+                      color: AppTheme.white,
+                      size: 20.sp,
+                    ),
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  itemBuilder: (context) => [
+                    PopupMenuItem(
+                      value: 'delete',
+                      child: Row(
+                        children: [
+                          Icon(Icons.delete_outline, color: Colors.red, size: 20.sp),
+                          SizedBox(width: 12.w),
+                          Text(
+                            'Delete Conversation',
+                            style: TextStyle(fontSize: 14.sp),
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ),
             ],
-            child: const Icon(Icons.more_vert, color: AppTheme.darkGray),
           ),
-        ],
+        ),
       ),
-    );
+    ).animate().fadeIn(duration: 300.ms).slideY(begin: -0.2, end: 0);
   }
 
   Widget _buildMessagesList(BuildContext context) {
@@ -473,21 +729,21 @@ class MessagesView extends GetView<MessagesController> {
       // Show messages list - use reverse to show newest at bottom
       return ListView.builder(
         controller: controller.messagesScrollController,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
         reverse: false, // Show oldest first
         itemCount: controller.messages.length,
         itemBuilder: (context, index) {
           final message = controller.messages[index];
           return Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: _buildMessageBubble(context, message),
+            padding: EdgeInsets.only(bottom: 12.h),
+            child: _buildMessageBubble(context, message, index),
           );
         },
       );
     });
   }
 
-  Widget _buildMessageBubble(BuildContext context, MessageModel message) {
+  Widget _buildMessageBubble(BuildContext context, MessageModel message, int index) {
     // Determine if message is from current user based on their role
     // For agents, messages from agent type are "from me"
     // For loan officers, messages from loan_officer type are "from me"
@@ -502,26 +758,42 @@ class MessagesView extends GetView<MessagesController> {
       mainAxisAlignment: isUser
           ? MainAxisAlignment.end
           : MainAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.end,
       children: [
         if (!isUser) ...[
           _buildAvatar(
             imageUrl: message.senderImage,
             senderType: message.senderType,
-            radius: 16,
+            radius: 18,
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: 8.w),
         ],
         Flexible(
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
             decoration: BoxDecoration(
-              color: isUser ? AppTheme.primaryBlue : AppTheme.white,
-              borderRadius: BorderRadius.circular(18),
+              gradient: isUser
+                  ? LinearGradient(
+                      colors: AppTheme.primaryGradient,
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    )
+                  : null,
+              color: isUser ? null : AppTheme.white,
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(20),
+                topRight: Radius.circular(20),
+                bottomLeft: Radius.circular(isUser ? 20 : 4),
+                bottomRight: Radius.circular(isUser ? 4 : 20),
+              ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 4,
+                  color: isUser
+                      ? AppTheme.primaryBlue.withOpacity(0.3)
+                      : Colors.black.withOpacity(0.08),
+                  blurRadius: isUser ? 12 : 8,
                   offset: const Offset(0, 2),
+                  spreadRadius: isUser ? 1 : 0,
                 ),
               ],
             ),
@@ -530,175 +802,295 @@ class MessagesView extends GetView<MessagesController> {
               children: [
                 Text(
                   message.message,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  style: TextStyle(
                     color: isUser ? AppTheme.white : AppTheme.darkGray,
+                    fontSize: 15.sp,
+                    fontWeight: FontWeight.w500,
+                    height: 1.4,
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  _formatTime(message.timestamp),
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: isUser
-                        ? AppTheme.white.withOpacity(0.7)
-                        : AppTheme.mediumGray,
-                  ),
+                SizedBox(height: 6.h),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _formatTime(message.timestamp),
+                      style: TextStyle(
+                        color: isUser
+                            ? AppTheme.white.withOpacity(0.8)
+                            : AppTheme.mediumGray,
+                        fontSize: 11.sp,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
         ),
         if (isUser) ...[
-          const SizedBox(width: 8),
-          CircleAvatar(
-            radius: 16,
-            backgroundColor: AppTheme.primaryBlue.withOpacity(0.1),
-            child: const Icon(
+          SizedBox(width: 8.w),
+          Container(
+            width: 36.w,
+            height: 36.h,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: AppTheme.primaryGradient,
+              ),
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: AppTheme.primaryBlue.withOpacity(0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Icon(
               Icons.person,
-              color: AppTheme.primaryBlue,
-              size: 16,
+              color: AppTheme.white,
+              size: 18.sp,
             ),
           ),
         ],
       ],
-    );
+    )
+        .animate()
+        .fadeIn(
+          duration: 300.ms,
+          delay: (index * 30).ms,
+        )
+        .slideX(
+          begin: isUser ? 0.2 : -0.2,
+          end: 0,
+          duration: 400.ms,
+          delay: (index * 30).ms,
+          curve: Curves.easeOutCubic,
+        )
+        .scale(
+          begin: const Offset(0.9, 0.9),
+          end: const Offset(1, 1),
+          duration: 300.ms,
+          delay: (index * 30).ms,
+          curve: Curves.easeOut,
+        );
   }
 
   Widget _buildMessageInput(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: AppTheme.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black12,
-            blurRadius: 4,
-            offset: Offset(0, -2),
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 12,
+            offset: const Offset(0, -4),
           ),
         ],
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: controller.messageController,
-              decoration: InputDecoration(
-                hintText: 'Type a message...',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(24),
-                  borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(24),
-                  borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(24),
-                  borderSide: const BorderSide(
-                    color: AppTheme.primaryBlue,
-                    width: 2,
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
+          child: Row(
+            children: [
+              Expanded(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: AppTheme.lightGray,
+                    borderRadius: BorderRadius.circular(28),
+                  ),
+                  child: TextField(
+                    controller: controller.messageController,
+                    decoration: InputDecoration(
+                      hintText: 'Type a message...',
+                      hintStyle: TextStyle(
+                        color: AppTheme.mediumGray,
+                        fontSize: 15.sp,
+                      ),
+                      border: InputBorder.none,
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 20.w,
+                        vertical: 14.h,
+                      ),
+                    ),
+                    style: TextStyle(
+                      fontSize: 15.sp,
+                      color: AppTheme.darkGray,
+                    ),
+                    maxLines: null,
+                    textInputAction: TextInputAction.send,
+                    onSubmitted: (_) => controller.sendMessage(),
+                    onChanged: (_) {
+                      // Auto-scroll when typing
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (controller.messagesScrollController.hasClients) {
+                          final position = controller.messagesScrollController.position;
+                          final maxScroll = position.maxScrollExtent;
+                          final currentScroll = position.pixels;
+                          
+                          if (maxScroll - currentScroll < 200) {
+                            controller.messagesScrollController.animateTo(
+                              maxScroll,
+                              duration: const Duration(milliseconds: 200),
+                              curve: Curves.easeOut,
+                            );
+                          }
+                        }
+                      });
+                    },
                   ),
                 ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
+              ),
+              SizedBox(width: 12.w),
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: controller.sendMessage,
+                  borderRadius: BorderRadius.circular(28),
+                  child: Container(
+                    width: 56.w,
+                    height: 56.h,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: AppTheme.primaryGradient,
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(28),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppTheme.primaryBlue.withOpacity(0.4),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Icon(
+                      Icons.send_rounded,
+                      color: AppTheme.white,
+                      size: 24.sp,
+                    ),
+                  ),
                 ),
               ),
-              maxLines: null,
-              textInputAction: TextInputAction.send,
-              onSubmitted: (_) => controller.sendMessage(),
-              onChanged: (_) {
-                // Auto-scroll when typing (optional, but provides better UX)
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (controller.messagesScrollController.hasClients) {
-                    // Only scroll if user is near the bottom (within 200px)
-                    final position = controller.messagesScrollController.position;
-                    final maxScroll = position.maxScrollExtent;
-                    final currentScroll = position.pixels;
-                    
-                    // If user is near bottom (within 200px), auto-scroll
-                    if (maxScroll - currentScroll < 200) {
-                      controller.messagesScrollController.animateTo(
-                        maxScroll,
-                        duration: const Duration(milliseconds: 200),
-                        curve: Curves.easeOut,
-                      );
-                    }
-                  }
-                });
-              },
-            ),
+            ],
           ),
-          const SizedBox(width: 8),
-          IconButton(
-            onPressed: controller.sendMessage,
-            icon: const Icon(Icons.send, color: AppTheme.primaryBlue),
-            style: IconButton.styleFrom(
-              backgroundColor: AppTheme.primaryBlue.withOpacity(0.1),
-              shape: const CircleBorder(),
-            ),
-          ),
-        ],
+        ),
       ),
-    );
+    ).animate().fadeIn(duration: 300.ms).slideY(begin: 0.2, end: 0);
   }
 
   Widget _buildEmptyState(BuildContext context) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(40),
+        padding: EdgeInsets.all(40.w),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
-              width: 90,
-              height: 80,
+              width: 120.w,
+              height: 120.h,
               decoration: BoxDecoration(
-                color: AppTheme.primaryBlue.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(40),
+                gradient: LinearGradient(
+                  colors: [
+                    AppTheme.primaryBlue.withOpacity(0.1),
+                    AppTheme.primaryBlue.withOpacity(0.05),
+                  ],
+                ),
+                shape: BoxShape.circle,
               ),
-              child: const Icon(
-                Icons.message,
-                size: 40,
+              child: Icon(
+                Icons.chat_bubble_outline_rounded,
+                size: 60.sp,
                 color: AppTheme.primaryBlue,
               ),
-            ),
-            const SizedBox(height: 24),
+            )
+                .animate()
+                .scale(duration: 600.ms, curve: Curves.elasticOut)
+                .fadeIn(duration: 400.ms),
+            SizedBox(height: 32.h),
             Text(
-              'No messages yet',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+              'No conversations yet',
+              style: TextStyle(
                 color: AppTheme.darkGray,
-                fontWeight: FontWeight.w600,
+                fontSize: 22.sp,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.5,
               ),
               textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 12),
+            )
+                .animate()
+                .fadeIn(duration: 400.ms, delay: 200.ms)
+                .slideY(begin: 0.2, end: 0, duration: 400.ms, delay: 200.ms),
+            SizedBox(height: 12.h),
             Text(
               controller.isLoanOfficer
                   ? 'You\'ll see messages from buyers and sellers here'
                   : 'Start a conversation with agents or loan officers',
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+              style: TextStyle(
                 color: AppTheme.mediumGray,
-                height: 1.5,
+                fontSize: 14.sp,
+                height: 1.6,
               ),
               textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 32),
-            ElevatedButton.icon(
-              onPressed: () => Get.toNamed('/buyer'),
-              icon: const Icon(Icons.search),
-              label: const Text('Find Professionals'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.primaryBlue,
-                foregroundColor: AppTheme.white,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 12,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+            )
+                .animate()
+                .fadeIn(duration: 400.ms, delay: 300.ms)
+                .slideY(begin: 0.2, end: 0, duration: 400.ms, delay: 300.ms),
+            SizedBox(height: 40.h),
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () => Get.toNamed('/buyer'),
+                borderRadius: BorderRadius.circular(16),
+                child: Container(
+                  padding: EdgeInsets.symmetric(horizontal: 32.w, vertical: 16.h),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: AppTheme.primaryGradient,
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppTheme.primaryBlue.withOpacity(0.4),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.search_rounded,
+                        color: AppTheme.white,
+                        size: 20.sp,
+                      ),
+                      SizedBox(width: 8.w),
+                      Text(
+                        'Find Professionals',
+                        style: TextStyle(
+                          color: AppTheme.white,
+                          fontSize: 16.sp,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
+            )
+                .animate()
+                .fadeIn(duration: 400.ms, delay: 400.ms)
+                .scale(
+                  begin: const Offset(0.9, 0.9),
+                  end: const Offset(1, 1),
+                  duration: 300.ms,
+                  delay: 400.ms,
+                  curve: Curves.easeOut,
+                ),
           ],
         ),
       ),
