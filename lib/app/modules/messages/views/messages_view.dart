@@ -4,7 +4,6 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/modules/messages/controllers/messages_controller.dart';
-import 'package:getrebate/app/widgets/custom_text_field.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:getrebate/app/controllers/main_navigation_controller.dart';
 
@@ -65,25 +64,23 @@ class MessagesView extends GetView<MessagesController> {
   }
 
   Widget _buildConversationsList(BuildContext context) {
-    return Obx(() {
-      // Check if navbar is visible - use Obx to reactively update
-      final isNavBarVisible = Get.isRegistered<MainNavigationController>()
-          ? Get.find<MainNavigationController>().isNavBarVisible
-          : true;
-      
-      return Column(
-        children: [
-          // Header with back button - only show when navbar is NOT visible (hidden)
-          if (!isNavBarVisible) _buildHeader(context),
-          
-          // Search
-          _buildSearch(context),
+    // Check if navbar is visible - check once, navbar visibility is managed elsewhere
+    final isNavBarVisible = Get.isRegistered<MainNavigationController>()
+        ? Get.find<MainNavigationController>().isNavBarVisible
+        : true;
+    
+    return Column(
+      children: [
+        // Header with back button - only show when navbar is NOT visible (hidden)
+        if (!isNavBarVisible) _buildHeader(context),
+        
+        // Search
+        _buildSearch(context),
 
-          // Conversations List
-          Expanded(child: _buildConversationsListView(context)),
-        ],
-      );
-    });
+        // Conversations List - already reactive inside
+        Expanded(child: _buildConversationsListView(context)),
+      ],
+    );
   }
 
   Widget _buildHeader(BuildContext context) {

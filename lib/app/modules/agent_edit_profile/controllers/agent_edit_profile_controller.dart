@@ -5,6 +5,8 @@ import 'dart:io';
 import 'package:getrebate/app/controllers/auth_controller.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
+import 'package:getrebate/app/routes/app_pages.dart';
+import 'package:getrebate/app/models/user_model.dart';
 
 class AgentEditProfileController extends GetxController {
   final AuthController _authController = Get.find<AuthController>();
@@ -87,6 +89,68 @@ class AgentEditProfileController extends GetxController {
     _loadUserData();
   }
 
+  /// Converts full state name (e.g., "California") to state code (e.g., "CA")
+  String _getStateCodeFromName(String name) {
+    final stateMap = {
+      'Alabama': 'AL',
+      'Alaska': 'AK',
+      'Arizona': 'AZ',
+      'Arkansas': 'AR',
+      'California': 'CA',
+      'Colorado': 'CO',
+      'Connecticut': 'CT',
+      'Delaware': 'DE',
+      'Florida': 'FL',
+      'Georgia': 'GA',
+      'Hawaii': 'HI',
+      'Idaho': 'ID',
+      'Illinois': 'IL',
+      'Indiana': 'IN',
+      'Iowa': 'IA',
+      'Kansas': 'KS',
+      'Kentucky': 'KY',
+      'Louisiana': 'LA',
+      'Maine': 'ME',
+      'Maryland': 'MD',
+      'Massachusetts': 'MA',
+      'Michigan': 'MI',
+      'Minnesota': 'MN',
+      'Mississippi': 'MS',
+      'Missouri': 'MO',
+      'Montana': 'MT',
+      'Nebraska': 'NE',
+      'Nevada': 'NV',
+      'New Hampshire': 'NH',
+      'New Jersey': 'NJ',
+      'New Mexico': 'NM',
+      'New York': 'NY',
+      'North Carolina': 'NC',
+      'North Dakota': 'ND',
+      'Ohio': 'OH',
+      'Oklahoma': 'OK',
+      'Oregon': 'OR',
+      'Pennsylvania': 'PA',
+      'Rhode Island': 'RI',
+      'South Carolina': 'SC',
+      'South Dakota': 'SD',
+      'Tennessee': 'TN',
+      'Texas': 'TX',
+      'Utah': 'UT',
+      'Vermont': 'VT',
+      'Virginia': 'VA',
+      'Washington': 'WA',
+      'West Virginia': 'WV',
+      'Wisconsin': 'WI',
+      'Wyoming': 'WY',
+    };
+    // If already a code (2 letters), return as is
+    if (name.length == 2 && name == name.toUpperCase()) {
+      return name;
+    }
+    // Otherwise, try to find the code from the name
+    return stateMap[name] ?? name; // Return code if found, otherwise return original
+  }
+
   void _loadUserData() {
     final user = _authController.currentUser;
     if (user != null) {
@@ -122,7 +186,13 @@ class AgentEditProfileController extends GetxController {
 
       _dualAgencyState.value = user.additionalData?['dualAgencyState'];
       _dualAgencyBrokerage.value = user.additionalData?['dualAgencySBrokerage'];
-      _licensedStates.value = List<String>.from(user.licensedStates);
+      
+      // Convert full state names to state codes for UI display
+      final stateCodes = user.licensedStates
+          .map((state) => _getStateCodeFromName(state))
+          .where((code) => code.length == 2) // Only keep valid 2-letter codes
+          .toList();
+      _licensedStates.value = stateCodes;
     }
   }
 
@@ -291,7 +361,60 @@ class AgentEditProfileController extends GetxController {
       // Success snackbar is shown in updateUserProfile method
       // Wait a moment for snackbar to be visible, then navigate back
       await Future.delayed(const Duration(milliseconds: 500));
-      Navigator.pop(Get.context!);
+      
+      // Navigate back to previous screen instead of clearing stack
+      // This preserves the navigation history and allows back button to work
+      // Use Navigator directly to avoid Get.back() snackbar controller issues
+      try {
+        final navigator = Navigator.of(Get.context!);
+        if (navigator.canPop()) {
+          navigator.pop();
+        } else {
+          // If can't pop, navigate to home page based on user role
+          final user = _authController.currentUser;
+          if (user != null) {
+            switch (user.role) {
+              case UserRole.agent:
+                Get.offAllNamed(AppPages.AGENT);
+                break;
+              case UserRole.buyerSeller:
+                Get.offAllNamed(AppPages.MAIN);
+                break;
+              case UserRole.loanOfficer:
+                Get.offAllNamed(AppPages.LOAN_OFFICER);
+                break;
+            }
+          }
+        }
+      } catch (e) {
+        // If Navigator fails, try Get.back() with error handling
+        try {
+          // Close any open snackbars first to avoid controller errors
+          Get.closeCurrentSnackbar();
+        } catch (_) {
+          // Ignore snackbar close errors
+        }
+        
+        try {
+          Get.back();
+        } catch (e2) {
+          // Last resort: navigate to home page
+          final user = _authController.currentUser;
+          if (user != null) {
+            switch (user.role) {
+              case UserRole.agent:
+                Get.offAllNamed(AppPages.AGENT);
+                break;
+              case UserRole.buyerSeller:
+                Get.offAllNamed(AppPages.MAIN);
+                break;
+              case UserRole.loanOfficer:
+                Get.offAllNamed(AppPages.LOAN_OFFICER);
+                break;
+            }
+          }
+        }
+      }
     } catch (e) {
       // Error is already handled in updateUserProfile method
       // Just log it here

@@ -645,6 +645,114 @@ class ChatService {
     }
   }
 
+  /// Sends a message via API (fallback when socket is not available)
+  /// 
+  /// Throws [ChatServiceException] if the request fails
+  Future<Map<String, dynamic>> sendMessage({
+    required String threadId,
+    required String senderId,
+    required String text,
+  }) async {
+    if (threadId.isEmpty || senderId.isEmpty || text.trim().isEmpty) {
+      throw ChatServiceException(
+        message: 'Thread ID, Sender ID, and message text are required',
+        statusCode: 400,
+      );
+    }
+
+    try {
+      if (kDebugMode) {
+        print('📤 Sending message via API');
+        print('   ThreadId: $threadId');
+        print('   SenderId: $senderId');
+        print('   Text: $text');
+        print('   URL: ${ApiConstants.chatEndPoint}message/send');
+      }
+
+      final response = await _dio.post(
+        '${ApiConstants.chatEndPoint}message/send',
+        data: {
+          'threadId': threadId,
+          'senderId': senderId,
+          'text': text.trim(),
+        },
+        options: Options(
+          headers: ApiConstants.ngrokHeaders,
+        ),
+      );
+
+      if (kDebugMode) {
+        print('✅ Message sent via API');
+        print('   Status Code: ${response.statusCode}');
+        print('   Response: ${response.data}');
+      }
+
+      if (response.data is Map) {
+        return response.data as Map<String, dynamic>;
+      } else {
+        throw ChatServiceException(
+          message: 'Invalid response format from server',
+          statusCode: response.statusCode,
+        );
+      }
+    } on DioException catch (e) {
+      String errorMessage;
+      int? statusCode;
+
+      switch (e.type) {
+        case DioExceptionType.connectionTimeout:
+        case DioExceptionType.sendTimeout:
+        case DioExceptionType.receiveTimeout:
+          errorMessage = 'Connection timeout. Please check your internet connection.';
+          statusCode = 408;
+          break;
+        case DioExceptionType.connectionError:
+          errorMessage = 'Cannot connect to server. Please ensure the server is running.';
+          break;
+        case DioExceptionType.badResponse:
+          statusCode = e.response?.statusCode;
+          if (statusCode == 404) {
+            errorMessage = 'Message sending endpoint not found.';
+          } else if (statusCode == 400) {
+            errorMessage = e.response?.data?['message']?.toString() ?? 
+                          'Invalid request. Please check the message data.';
+          } else if (statusCode == 401) {
+            errorMessage = 'Unauthorized. Please login again.';
+          } else if (statusCode == 500) {
+            errorMessage = 'Server error. Please try again later.';
+          } else {
+            errorMessage = e.response?.data?['message']?.toString() ?? 
+                          e.response?.data?['error']?.toString() ?? 
+                          'Failed to send message.';
+          }
+          break;
+        case DioExceptionType.cancel:
+          errorMessage = 'Request was cancelled.';
+          break;
+        case DioExceptionType.unknown:
+          errorMessage = 'Network error. Please try again.';
+          break;
+        default:
+          errorMessage = 'An unexpected error occurred.';
+      }
+
+      throw ChatServiceException(
+        message: errorMessage,
+        statusCode: statusCode,
+        originalError: e,
+      );
+    } catch (e) {
+      if (e is ChatServiceException) {
+        rethrow;
+      }
+
+      throw ChatServiceException(
+        message: 'An unexpected error occurred: ${e.toString()}',
+        originalError: e,
+      );
+    }
+  }
+
   /// Disposes the Dio instance
   void dispose() {
     _dio.close();

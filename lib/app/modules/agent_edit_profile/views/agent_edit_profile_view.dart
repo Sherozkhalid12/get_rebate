@@ -13,37 +13,92 @@ import 'package:getrebate/app/models/agent_expertise.dart';
 class AgentEditProfileView extends GetView<AgentEditProfileController> {
   const AgentEditProfileView({super.key});
 
+  void _handleBackButton() {
+    // Don't allow back navigation while saving
+    if (controller.isLoading) {
+      return;
+    }
+
+    try {
+      // Use Navigator directly to avoid Get.back() snackbar issues
+      final navigator = Navigator.of(Get.context!);
+      if (navigator.canPop()) {
+        navigator.pop();
+      } else {
+        // If can't pop, navigate to agent screen
+        Get.offAllNamed('/agent');
+      }
+    } catch (e) {
+      // If Navigator fails, try Get.back() with error handling
+      try {
+        // Close any open snackbars first to avoid controller errors
+        Get.closeCurrentSnackbar();
+      } catch (_) {
+        // Ignore snackbar close errors
+      }
+      
+      try {
+        Get.back();
+      } catch (e2) {
+        // Last resort: navigate to agent screen
+        Get.offAllNamed('/agent');
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppTheme.lightGray,
-      appBar: AppBar(
-        backgroundColor: AppTheme.primaryBlue,
-        elevation: 0,
-        flexibleSpace: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: AppTheme.primaryGradient,
+    return Obx(
+      () => PopScope(
+        canPop: !controller.isLoading, // Prevent back during save
+        onPopInvoked: (bool didPop) {
+          if (!didPop && !controller.isLoading) {
+            _handleBackButton();
+          } else if (!didPop && controller.isLoading) {
+            Get.snackbar(
+              'Please wait',
+              'Profile is being saved. Please wait...',
+              duration: const Duration(seconds: 1),
+            );
+          }
+        },
+      child: Scaffold(
+        backgroundColor: AppTheme.lightGray,
+        appBar: AppBar(
+          backgroundColor: AppTheme.primaryBlue,
+          elevation: 0,
+          automaticallyImplyLeading: false,
+          flexibleSpace: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: AppTheme.primaryGradient,
+              ),
+            ),
+          ),
+          title: Text(
+            'Edit Profile',
+            style: TextStyle(
+              color: AppTheme.white,
+              fontSize: 18.sp,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          centerTitle: true,
+          leading: Obx(
+            () => IconButton(
+              onPressed: controller.isLoading ? null : _handleBackButton,
+              icon: Icon(
+                Icons.arrow_back,
+                color: controller.isLoading
+                    ? AppTheme.white.withOpacity(0.5)
+                    : AppTheme.white,
+              ),
             ),
           ),
         ),
-        title: Text(
-          'Edit Profile',
-          style: TextStyle(
-            color: AppTheme.white,
-            fontSize: 18.sp,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        centerTitle: true,
-        leading: IconButton(
-          onPressed: () => Navigator.pop(context),
-          icon: const Icon(Icons.arrow_back, color: AppTheme.white),
-        ),
-      ),
-      body: SafeArea(
+        body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(20),
           child: Column(
@@ -215,6 +270,8 @@ class AgentEditProfileView extends GetView<AgentEditProfileController> {
             ],
           ),
         ),
+      ),
+      ),
       ),
     );
   }

@@ -36,9 +36,9 @@ import 'package:getrebate/app/modules/listing_detail/bindings/listing_detail_bin
 import 'package:getrebate/app/modules/listing_detail/views/listing_detail_view.dart';
 import 'package:getrebate/app/modules/find_agents/bindings/find_agents_binding.dart';
 import 'package:getrebate/app/modules/find_agents/views/find_agents_view.dart';
-// DISABLED: Add listing imports - buyers cannot create listings anymore
-// import 'package:getrebate/app/modules/add_listing/bindings/add_listing_binding.dart';
-// import 'package:getrebate/app/modules/add_listing/views/add_listing_view.dart';
+// Add listing imports - enabled for agents
+import 'package:getrebate/app/modules/add_listing/bindings/add_listing_binding.dart';
+import 'package:getrebate/app/modules/add_listing/views/add_listing_view.dart';
 import 'package:getrebate/app/modules/add_loan/bindings/add_loan_binding.dart';
 import 'package:getrebate/app/modules/add_loan/views/add_loan_view.dart';
 import 'package:getrebate/app/modules/post_closing_survey/bindings/post_closing_survey_binding.dart';
@@ -198,12 +198,12 @@ class AppPages {
       page: () => const EditListingView(),
       binding: EditListingBinding(),
     ),
-    // DISABLED: Add listing route - buyers cannot create listings anymore
-    // GetPage(
-    //   name: ADD_LISTING,
-    //   page: () => const AddListingView(),
-    //   binding: AddListingBinding(),
-    // ),
+    // Add listing route - enabled for agents
+    GetPage(
+      name: ADD_LISTING,
+      page: () => const AddListingView(),
+      binding: AddListingBinding(),
+    ),
     GetPage(
       name: ADD_LOAN,
       page: () => const AddLoanView(),

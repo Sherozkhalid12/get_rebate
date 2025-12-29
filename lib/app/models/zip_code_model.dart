@@ -2,6 +2,7 @@
 import 'package:getrebate/app/services/zip_code_pricing_service.dart';
 
 class ZipCodeModel {
+  final String? id; // MongoDB ID from API
   final String zipCode;
   final String state;
   final int population;
@@ -15,6 +16,7 @@ class ZipCodeModel {
   final int searchCount;
 
   ZipCodeModel({
+    this.id,
     required this.zipCode,
     required this.state,
     required this.population,
@@ -30,9 +32,14 @@ class ZipCodeModel {
 
   factory ZipCodeModel.fromJson(Map<String, dynamic> json) {
     return ZipCodeModel(
-      zipCode: json['zipCode'] ?? '',
+      id: json['_id']?.toString() ?? json['id']?.toString(),
+      zipCode: json['zipCode'] ?? json['zipcode'] ?? '',
       state: json['state'] ?? '',
-      population: json['population'] ?? 0,
+      population: json['population'] is int 
+          ? json['population'] as int
+          : (json['population'] is String 
+              ? int.tryParse(json['population'] as String) ?? 0
+              : 0),
       claimedByAgent: json['claimedByAgent'],
       claimedByLoanOfficer: json['claimedByLoanOfficer'],
       claimedAt: json['claimedAt'] != null
@@ -40,9 +47,9 @@ class ZipCodeModel {
           : null,
       price: json['price']?.toDouble(),
       isAvailable: json['isAvailable'] ?? true,
-      createdAt: DateTime.parse(
-        json['createdAt'] ?? DateTime.now().toIso8601String(),
-      ),
+      createdAt: json['createdAt'] != null
+          ? DateTime.parse(json['createdAt'])
+          : DateTime.now(),
       lastSearchedAt: json['lastSearchedAt'] != null
           ? DateTime.parse(json['lastSearchedAt'])
           : null,
@@ -52,6 +59,7 @@ class ZipCodeModel {
 
   Map<String, dynamic> toJson() {
     return {
+      if (id != null) 'id': id,
       'zipCode': zipCode,
       'state': state,
       'population': population,
@@ -67,6 +75,7 @@ class ZipCodeModel {
   }
 
   ZipCodeModel copyWith({
+    String? id,
     String? zipCode,
     String? state,
     int? population,
@@ -80,6 +89,7 @@ class ZipCodeModel {
     int? searchCount,
   }) {
     return ZipCodeModel(
+      id: id ?? this.id,
       zipCode: zipCode ?? this.zipCode,
       state: state ?? this.state,
       population: population ?? this.population,

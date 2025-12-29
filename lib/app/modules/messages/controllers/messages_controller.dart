@@ -327,6 +327,19 @@ class MessagesController extends GetxController {
         
         // Use silent refresh to update data without showing loading spinner
         _refreshThreadsSilently();
+        
+        // If a conversation is already selected, refresh messages to catch any missed ones
+        if (_selectedConversation.value != null) {
+          final conversationId = _selectedConversation.value!.id;
+          // Only refresh if it's not a temporary conversation
+          if (!conversationId.startsWith('temp_') && !conversationId.startsWith('conv_')) {
+            if (kDebugMode) {
+              print('🔄 Refreshing messages for selected conversation: $conversationId');
+            }
+            // Refresh messages silently (don't show loading spinner)
+            Future.microtask(() => _loadMessagesForConversation(conversationId));
+          }
+        }
       }
     } else {
       if (kDebugMode) {
@@ -371,6 +384,7 @@ class MessagesController extends GetxController {
       _socketService!.onNewMessage((data) {
         if (kDebugMode) {
           print('📨 onNewMessage callback triggered');
+          print('   Current selected conversation: ${_selectedConversation.value?.id}');
         }
         _handleNewMessage(data);
       });
@@ -400,7 +414,7 @@ class MessagesController extends GetxController {
       await _socketService!.connect(user.id);
 
       // Wait a bit to ensure connection is established
-      await Future.delayed(const Duration(milliseconds: 500));
+      await Future.delayed(const Duration(milliseconds: 1000));
 
       if (kDebugMode) {
         print('✅ Socket initialization complete');
@@ -411,6 +425,33 @@ class MessagesController extends GetxController {
         if (_socketService!.socket != null) {
           print('   Socket exists: true');
           print('   Socket connected: ${_socketService!.socket!.connected}');
+          
+          // Verify socket is actually connected
+          final isSocketConnected = _socketService!.socket?.connected ?? false;
+          if (!isSocketConnected) {
+            print('⚠️ WARNING: Socket not connected!');
+            print('   Will retry connection...');
+            // Retry connection after a delay
+            Future.delayed(const Duration(seconds: 2), () {
+              final currentUser = _authController.currentUser;
+              if (currentUser != null && !(_socketService!.socket?.connected ?? false)) {
+                if (kDebugMode) {
+                  print('🔄 Retrying socket connection...');
+                }
+                _socketService!.connect(currentUser.id);
+              }
+            });
+          } else {
+            // Join all existing conversation rooms after connection
+            if (_allConversations.isNotEmpty) {
+              for (final conversation in _allConversations) {
+                _socketService!.joinRoom(conversation.id);
+              }
+              if (kDebugMode) {
+                print('🚪 Joined ${_allConversations.length} existing conversation rooms');
+              }
+            }
+          }
         } else {
           print('   Socket exists: false');
         }
@@ -427,8 +468,11 @@ class MessagesController extends GetxController {
   void _handleNewMessage(Map<String, dynamic> data) {
     try {
       if (kDebugMode) {
+        print('📨 ========================================');
         print('📨 Handling new message from socket');
         print('   Raw data: $data');
+        print('   Socket connected: ${_socketService?.isConnected ?? false}');
+        print('   Current conversations count: ${_allConversations.length}');
       }
 
       // Parse chatId/threadId - can be from different fields
@@ -504,15 +548,104 @@ class MessagesController extends GetxController {
           print('   Last message: $text');
         }
       } else {
-        // New conversation - refresh threads to get it
+        // New conversation - create it immediately from socket data so it appears instantly
         if (kDebugMode) {
-          print('📬 New conversation detected, refreshing threads...');
+          print('📬 New conversation detected, creating from socket data...');
+          print('   ChatId: $chatId');
+          print('   SenderId: $senderId');
         }
+        
+        // Get sender information from socket data
+        String senderName = sender?['fullname']?.toString() ?? 
+                           sender?['name']?.toString() ?? 
+                           'User';
+        
+        String senderType = 'user';
+        final role = sender?['role']?.toString()?.toLowerCase() ?? '';
+        if (role == 'agent') {
+          senderType = 'agent';
+        } else if (role == 'loanofficer' || role == 'loan_officer') {
+          senderType = 'loan_officer';
+        }
+        
+        // Build profile pic URL
+        String? senderImage = sender?['profilePic']?.toString()?.trim();
+        if (senderImage != null && senderImage.isNotEmpty && !senderImage.contains('file://')) {
+          senderImage = senderImage.replaceAll('\\', '/');
+          if (!senderImage.startsWith('http://') && !senderImage.startsWith('https://')) {
+            if (senderImage.startsWith('/')) {
+              senderImage = senderImage.substring(1);
+            }
+            final baseUrl = ApiConstants.baseUrl.endsWith('/') 
+                ? ApiConstants.baseUrl.substring(0, ApiConstants.baseUrl.length - 1)
+                : ApiConstants.baseUrl;
+            senderImage = '$baseUrl/$senderImage';
+          }
+          // Validate URI
+          try {
+            final uri = Uri.parse(senderImage);
+            if (!uri.hasScheme || (!uri.scheme.startsWith('http'))) {
+              senderImage = null;
+            }
+          } catch (e) {
+            senderImage = null;
+          }
+        } else {
+          senderImage = null;
+        }
+        
+        // Create new conversation immediately
+        final newConversation = ConversationModel(
+          id: chatId,
+          senderId: senderId,
+          senderName: senderName,
+          senderType: senderType,
+          senderImage: senderImage,
+          lastMessage: text,
+          lastMessageTime: createdAt,
+          unreadCount: isFromMe ? 0 : 1,
+        );
+        
+        // Add to both lists
+        _allConversations.insert(0, newConversation);
+        _allConversations.sort((a, b) => b.lastMessageTime.compareTo(a.lastMessageTime));
+        
+        _conversations.insert(0, newConversation);
+        _conversations.sort((a, b) => b.lastMessageTime.compareTo(a.lastMessageTime));
+        
+        // Join the room for this new conversation so we receive future messages
+        if (_socketService != null && _socketService!.isConnected) {
+          _socketService!.joinRoom(chatId);
+          if (kDebugMode) {
+            print('🚪 Joined room for new conversation: $chatId');
+          }
+        }
+        
+        if (kDebugMode) {
+          print('✅ Created new conversation from socket message');
+          print('   Conversation: $senderName');
+          print('   ChatId: $chatId');
+        }
+        
+        // Also refresh threads in background to get full conversation data
         _refreshThreadsSilently();
       }
 
       // If this message is for the currently selected conversation, also add it to messages list
-      if (_selectedConversation.value?.id == chatId) {
+      // Check both exact match and if chatId is contained in conversation id (for flexibility)
+      final currentConversationId = _selectedConversation.value?.id ?? '';
+      final isCurrentConversation = currentConversationId == chatId || 
+                                     currentConversationId.contains(chatId) ||
+                                     chatId.contains(currentConversationId);
+      
+      if (kDebugMode) {
+        print('   Checking if message belongs to current conversation:');
+        print('   Current conversation ID: $currentConversationId');
+        print('   Message chatId: $chatId');
+        print('   Match: $isCurrentConversation');
+      }
+      
+      if (isCurrentConversation) {
         // user and isFromMe are already declared above
         
         // Get message ID from socket data
@@ -579,27 +712,34 @@ class MessagesController extends GetxController {
           isRead: isRead,
         );
 
-        _messages.add(message);
+        // Use assign to trigger reactive update
+        final updatedMessages = List<MessageModel>.from(_messages);
+        updatedMessages.add(message);
+        _messages.value = updatedMessages;
         
         // Remove any temporary optimistic messages with the same text and sender
         // This handles the case where we added an optimistic message before getting the real one
         if (isFromMe) {
-          _messages.removeWhere((m) => 
+          final cleanedMessages = List<MessageModel>.from(_messages);
+          cleanedMessages.removeWhere((m) => 
             m.id.startsWith('temp_') && 
             m.message == text && 
             m.senderId == senderId &&
             m.id != messageId
           );
+          _messages.value = cleanedMessages;
         }
         
         // Auto-scroll to bottom when new message arrives
         // Use immediate scroll for socket messages to show them instantly
-        _scrollToBottom(immediate: true);
-        Future.delayed(const Duration(milliseconds: 100), () {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
           _scrollToBottom(immediate: true);
-        });
-        Future.delayed(const Duration(milliseconds: 300), () {
-          _scrollToBottom(immediate: false);
+          Future.delayed(const Duration(milliseconds: 100), () {
+            _scrollToBottom(immediate: true);
+          });
+          Future.delayed(const Duration(milliseconds: 300), () {
+            _scrollToBottom(immediate: false);
+          });
         });
         
         if (kDebugMode) {
@@ -616,10 +756,17 @@ class MessagesController extends GetxController {
 
       // Note: Conversation list is already updated above (before the if statement)
       // This ensures messages are visible even when agent is on dashboard
+      
+      if (kDebugMode) {
+        print('✅ Message handling complete');
+        print('   Updated conversations count: ${_allConversations.length}');
+        print('📨 ========================================');
+      }
     } catch (e) {
       if (kDebugMode) {
         print('❌ Error handling new message: $e');
         print('   Stack trace: ${StackTrace.current}');
+        print('📨 ========================================');
       }
     }
   }
@@ -670,8 +817,52 @@ class MessagesController extends GetxController {
     // Just load arguments but don't auto-open conversations
     // This allows navigation to messages screen to show threads list
     final args = Get.arguments as Map<String, dynamic>?;
-    if (args != null && kDebugMode) {
-      print('📱 Messages screen loaded with arguments: ${args.keys}');
+    if (args != null && args['agent'] != null) {
+      // Create a new conversation with the agent using temp ID
+      // This will be replaced with real thread ID once thread is created
+      final agent = args['agent'] as Map<String, dynamic>;
+      final listing = args['listing'] as Map<String, dynamic>?;
+      final propertyAddress = args['propertyAddress'] as String?;
+
+      // Use temp_ prefix so we know it's temporary and won't try to load messages
+      final tempId = 'temp_${DateTime.now().millisecondsSinceEpoch}';
+      final newConversation = ConversationModel(
+        id: tempId,
+        senderId: agent['id'] as String,
+        senderName: agent['name'] as String,
+        senderType: 'agent',
+        senderImage: agent['profileImage'] as String?,
+        lastMessage:
+            'Hi! I\'m interested in learning more about this property.',
+        lastMessageTime: DateTime.now(),
+        unreadCount: 0,
+        propertyAddress: propertyAddress,
+        propertyPrice: listing?['priceCents'] != null
+            ? '\$${((listing!['priceCents'] as int) / 100).toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}'
+            : null,
+      );
+
+      // Add to both lists if not already exists
+      if (!_allConversations.any((conv) => conv.senderId == agent['id'])) {
+        _allConversations.insert(0, newConversation);
+        _conversations.insert(0, newConversation);
+      }
+
+      // Select this conversation (will skip message loading since it's temp)
+      selectConversation(newConversation);
+      
+      // Create thread in background
+      final user = _authController.currentUser;
+      if (user != null) {
+        _createThreadInBackground(
+          userId1: user.id,
+          userId2: agent['id'] as String,
+          tempConversation: newConversation,
+          otherUserName: agent['name'] as String,
+          profilePicUrl: agent['profileImage'] as String?,
+          otherUserRole: 'agent',
+        );
+      }
     }
     // Don't auto-select conversations - let user choose from threads list
   }
@@ -809,6 +1000,17 @@ class MessagesController extends GetxController {
       // Sort by last message time (most recent first)
       conversations.sort((a, b) => b.lastMessageTime.compareTo(a.lastMessageTime));
 
+      // Join all conversation rooms so we receive messages for all conversations
+      // This ensures we get real-time messages even when not viewing a specific conversation
+      if (_socketService != null && _socketService!.isConnected) {
+        for (final conversation in conversations) {
+          _socketService!.joinRoom(conversation.id);
+        }
+        if (kDebugMode) {
+          print('🚪 Joined ${conversations.length} conversation rooms for real-time messages');
+        }
+      }
+
       // Merge with existing conversations to preserve any newly created threads
       // that haven't appeared in the API response yet
       final existingConversations = _conversations.toList();
@@ -881,14 +1083,54 @@ class MessagesController extends GetxController {
     
     if (kDebugMode) {
       print('📱 Selected conversation: ${conversation.senderName}');
+      print('   Conversation ID: ${conversation.id}');
     }
     
+    // Check if this is a temporary conversation (not yet created on server)
+    // If it's temporary, don't try to load messages - just show empty state
+    // Messages will be loaded once the thread is created and conversation is updated with real ID
+    // Also check for old format 'conv_' IDs which are also temporary
+    if (conversation.id.startsWith('temp_') || conversation.id.startsWith('conv_')) {
+      if (kDebugMode) {
+        print('⚠️ Temporary conversation detected - skipping message load');
+        print('   Will load messages once thread is created');
+      }
+      // Clear messages and set loading to false for empty state
+      _messages.clear();
+      _isLoadingMessages.value = false;
+      // Don't join room or mark as read for temp conversations
+      return;
+    }
+    
+    // Join socket room FIRST for real-time updates (before loading messages)
+    // This ensures we receive messages via socket even while loading
+    if (_socketService != null) {
+      if (_socketService!.isConnected) {
+        _socketService!.joinRoom(conversation.id);
+        if (kDebugMode) {
+          print('🚪 Joined socket room: ${conversation.id}');
+        }
+      } else {
+        if (kDebugMode) {
+          print('⚠️ Socket not connected, attempting to reconnect...');
+        }
+        // Try to reconnect socket
+        final currentUser = _authController.currentUser;
+        if (currentUser != null) {
+          _socketService!.connect(currentUser.id).then((_) {
+            if (_socketService!.isConnected) {
+              _socketService!.joinRoom(conversation.id);
+              if (kDebugMode) {
+                print('🚪 Joined socket room after reconnect: ${conversation.id}');
+              }
+            }
+          });
+        }
+      }
+    }
+    
+    // Load messages for this conversation
     _loadMessagesForConversation(conversation.id);
-    
-    // Join socket room for this conversation
-    if (_socketService != null && _socketService!.isConnected) {
-      _socketService!.joinRoom(conversation.id);
-    }
     
     // Mark as read
     markAsRead(conversation.id);
@@ -1085,11 +1327,32 @@ class MessagesController extends GetxController {
       }
       // Clear messages on error
       _messages.clear();
-      // Show error to user with professional message
-      NetworkErrorHandler.handleError(
-        e,
-        defaultMessage: 'Unable to load messages. Please check your internet connection and try again.',
-      );
+      
+      // Check if this is a temporary conversation or a conversation that doesn't exist yet
+      // If so, don't show error - just show empty state (user hasn't sent any messages yet)
+      final isTempConversation = conversationId.startsWith('temp_') || conversationId.startsWith('conv_');
+      if (!isTempConversation) {
+        // Only show error for real conversations that fail to load
+        // This could be a network error or the conversation was deleted
+        final errorMessage = e.toString().toLowerCase();
+        if (errorMessage.contains('not found') || 
+            errorMessage.contains('404') ||
+            errorMessage.contains('thread not found')) {
+          // Conversation doesn't exist - this is normal for new chats, don't show error
+          if (kDebugMode) {
+            print('ℹ️ Conversation not found - likely a new chat with no messages yet');
+          }
+        } else {
+          // Real error - show to user
+          Get.snackbar(
+            'Error',
+            'Unable to load chat. Please try again.',
+            snackPosition: SnackPosition.BOTTOM,
+            backgroundColor: Colors.red.shade400,
+            colorText: Colors.white,
+          );
+        }
+      }
     } finally {
       _isLoadingMessages.value = false;
       if (kDebugMode) {
@@ -1098,7 +1361,7 @@ class MessagesController extends GetxController {
     }
   }
 
-  void sendMessage() {
+  Future<void> sendMessage() async {
     if (messageController.text.trim().isEmpty) return;
     if (_selectedConversation.value == null) return;
 
@@ -1178,17 +1441,103 @@ class MessagesController extends GetxController {
       print('✅ Moved conversation to top of list instantly');
     }
 
-    // Send via socket if connected, otherwise via API
+    // Try to send via socket first, fallback to API if socket not connected
+    bool messageSent = false;
+    
+    // Check and attempt to reconnect socket if disconnected
+    if (_socketService != null && !_socketService!.isConnected) {
+      if (kDebugMode) {
+        print('🔄 Socket not connected, attempting to reconnect...');
+      }
+      // Try to reconnect in background (don't wait)
+      _socketService!.connect(user.id).catchError((e) {
+        if (kDebugMode) {
+          print('⚠️ Socket reconnection failed: $e');
+        }
+      });
+    }
+    
+    // Try socket first if connected
     if (_socketService != null && _socketService!.isConnected) {
+      try {
       _socketService!.sendMessage(
         threadId: conversation.id,
         senderId: user.id,
         text: text,
       );
-    } else {
-      // TODO: Send via API if socket not available
+        messageSent = true;
       if (kDebugMode) {
-        print('⚠️ Socket not connected, message not sent');
+          print('✅ Message sent via socket');
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          print('⚠️ Failed to send via socket: $e');
+        }
+      }
+    }
+    
+    // Use API as fallback to ensure message is sent
+    // This ensures messages are sent even if socket fails
+    if (!messageSent) {
+      if (kDebugMode) {
+        print('📤 Socket not available, sending message via API');
+      }
+      
+      try {
+        // Send via API
+        final response = await _chatService.sendMessage(
+          threadId: conversation.id,
+          senderId: user.id,
+          text: text,
+        );
+        
+        if (kDebugMode) {
+          print('✅ Message sent via API successfully');
+          print('   Response: $response');
+        }
+        
+        // If API response includes the message, handle it like a socket message
+        // This ensures the message appears in the UI even if socket didn't receive it
+        if (response.containsKey('message') || response.containsKey('_id')) {
+          // Replace optimistic message with real message from API
+          final messageId = response['_id']?.toString() ?? 
+                           response['id']?.toString() ?? 
+                           tempId;
+          
+          // Update the optimistic message with real ID
+          final messageIndex = _messages.indexWhere((m) => m.id == tempId);
+          if (messageIndex != -1) {
+            final realMessage = MessageModel(
+              id: messageId,
+              senderId: user.id,
+              senderName: 'You',
+              senderType: senderType,
+              message: text,
+              timestamp: response['createdAt'] != null
+                  ? DateTime.parse(response['createdAt'])
+                  : now,
+              isRead: true,
+            );
+            _messages[messageIndex] = realMessage;
+          }
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          print('❌ Failed to send message via API: $e');
+        }
+        
+        // Only show error if socket also failed
+        if (!messageSent) {
+          Get.snackbar(
+            'Error',
+            'Failed to send message. Please check your connection and try again.',
+            snackPosition: SnackPosition.BOTTOM,
+            duration: const Duration(seconds: 3),
+          );
+          
+          // Remove optimistic message on failure
+          _messages.removeWhere((m) => m.id == tempId);
+        }
       }
     }
   }
@@ -1461,6 +1810,17 @@ class MessagesController extends GetxController {
       // Sort by last message time (most recent first)
       conversations.sort((a, b) => b.lastMessageTime.compareTo(a.lastMessageTime));
 
+      // Join all conversation rooms so we receive messages for all conversations
+      // This ensures we get real-time messages even when not viewing a specific conversation
+      if (_socketService != null && _socketService!.isConnected) {
+        for (final conversation in conversations) {
+          _socketService!.joinRoom(conversation.id);
+        }
+        if (kDebugMode) {
+          print('🚪 Joined ${conversations.length} conversation rooms (silent refresh)');
+        }
+      }
+
       // Update both lists
       _allConversations.value = conversations;
       
@@ -1489,6 +1849,7 @@ class MessagesController extends GetxController {
     required String otherUserName,
     String? otherUserProfilePic,
     String otherUserRole = 'user',
+    bool navigateToMessages = true, // Control whether to navigate
   }) async {
     final user = _authController.currentUser;
     if (user == null || user.id.isEmpty) {
@@ -1558,9 +1919,14 @@ class MessagesController extends GetxController {
     );
 
     if (existingThread != null) {
-      // Thread exists, select it and navigate instantly
+      // Thread exists, select it and navigate if requested
       selectConversation(existingThread);
-      _navigateToMessages();
+      if (navigateToMessages) {
+        _navigateToMessages();
+      } else {
+        // Just navigate to messages screen without replacing stack
+        Get.toNamed('/messages');
+      }
       return existingThread;
     }
 
@@ -1582,8 +1948,13 @@ class MessagesController extends GetxController {
     _conversations.insert(0, tempConversation);
     selectConversation(tempConversation);
     
-    // Navigate instantly
-    _navigateToMessages();
+    // Navigate based on parameter
+    if (navigateToMessages) {
+      _navigateToMessages();
+    } else {
+      // Just navigate to messages screen without replacing stack
+      Get.toNamed('/messages');
+    }
 
     // Create thread in background
     _createThreadInBackground(
@@ -1668,6 +2039,12 @@ class MessagesController extends GetxController {
         if (kDebugMode) {
           print('✅ Updated selected conversation with real thread ID');
         }
+        // Now that we have the real thread ID, load messages and join room
+        _loadMessagesForConversation(updatedConversation.id);
+        if (_socketService != null && _socketService!.isConnected) {
+          _socketService!.joinRoom(updatedConversation.id);
+        }
+        markAsRead(updatedConversation.id);
       }
 
       // Don't refresh threads immediately - the new thread is already in the list

@@ -933,11 +933,15 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
   }
 
   Widget _buildZipManagement(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+    final authController = Get.find<global.AuthController>();
+    final licensedStates = authController.currentUser?.licensedStates ?? [];
+
+    return CustomScrollView(
+      slivers: [
+        SliverPadding(
+          padding: const EdgeInsets.all(20),
+          sliver: SliverList(
+            delegate: SliverChildListDelegate([
           // Search
           CustomTextField(
             controller: TextEditingController(),
@@ -948,67 +952,277 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
 
           const SizedBox(height: 20),
 
-          // Claimed ZIP Codes
-          Obx(
-            () => Text(
-              'Your Claimed ZIP Codes (${controller.claimedZipCodes.length}/6)',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                color: AppTheme.black,
-                fontWeight: FontWeight.w600,
+          // Licensed States Section
+          if (licensedStates.isNotEmpty) ...[
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.location_on,
+                          color: AppTheme.lightGreen,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Your Licensed States',
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            color: AppTheme.black,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'States you selected during sign up:',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppTheme.mediumGray,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: licensedStates.map((state) {
+                        return Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppTheme.lightGreen.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: AppTheme.lightGreen.withOpacity(0.3),
+                            ),
+                          ),
+                          child: Text(
+                            state,
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: AppTheme.lightGreen,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 12),
+            const SizedBox(height: 20),
+          ],
 
-          Obx(
-            () => controller.claimedZipCodes.isEmpty
-                ? _buildEmptyState(
-                    context,
-                    'No claimed ZIP codes',
-                    'Start by claiming a ZIP code below',
-                  )
-                : ListView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: controller.claimedZipCodes.length,
-                    itemBuilder: (context, index) {
-                      final zip = controller.claimedZipCodes[index];
-                      return _buildZipCodeCard(context, zip, true);
-                    },
-                  ),
-          ),
-
-          const SizedBox(height: 24),
-
-          // Available ZIP Codes
-          Text(
-            'Available ZIP Codes',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              color: AppTheme.black,
-              fontWeight: FontWeight.w600,
+          // State Selector for ZIP Codes
+          if (licensedStates.isNotEmpty) ...[
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Select State to View ZIP Codes',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: AppTheme.black,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Builder(
+                      builder: (context) {
+                        // Remove duplicates and sort states
+                        final uniqueStates = licensedStates.toSet().toList()..sort((a, b) => a.compareTo(b));
+                        
+                        return Obx(
+                          () => DropdownButtonFormField<String>(
+                            value: controller.selectedState,
+                            decoration: InputDecoration(
+                              labelText: 'Select State',
+                              prefixIcon: Icon(Icons.map, color: AppTheme.lightGreen),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              filled: true,
+                              fillColor: AppTheme.lightGray,
+                            ),
+                            items: [
+                              DropdownMenuItem<String>(
+                                value: null,
+                                child: Text(
+                                  'Select a state',
+                                  style: TextStyle(color: AppTheme.mediumGray),
+                                ),
+                              ),
+                              ...uniqueStates.map((stateName) {
+                                return DropdownMenuItem<String>(
+                                  value: stateName,
+                                  child: Text(stateName),
+                                );
+                              }),
+                            ],
+                            onChanged: (value) {
+                              if (value != null) {
+                                controller.selectStateAndFetchZipCodes(value);
+                              } else {
+                                controller.selectStateAndFetchZipCodes('');
+                              }
+                            },
+                          ),
+                        );
+                      },
+                    ),
+                    if (controller.isLoadingZipCodes) ...[
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppTheme.lightGreen,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Loading ZIP codes...',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: AppTheme.mediumGray,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
+            const SizedBox(height: 20),
+          ],
 
-          Obx(
-            () => controller.availableZipCodes.isEmpty
-                ? _buildEmptyState(
+              // Claimed ZIP Codes
+              Obx(
+                () {
+                  if (controller.claimedZipCodes.isEmpty) {
+                    return _buildEmptyState(
+                      context,
+                      'No claimed ZIP codes',
+                      'Start by claiming a ZIP code below',
+                    );
+                  }
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Your Claimed ZIP Codes (${controller.claimedZipCodes.length}/6)',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          color: AppTheme.black,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      ...controller.claimedZipCodes.map((zip) => RepaintBoundary(
+                        child: _buildZipCodeCard(context, zip, true),
+                      )),
+                    ],
+                  );
+                },
+              ),
+
+              const SizedBox(height: 24),
+
+              // Available ZIP Codes Header
+              Text(
+                'Available ZIP Codes',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  color: AppTheme.black,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ]),
+          ),
+        ),
+        
+        // Available ZIP Codes List (optimized with SliverList)
+        Obx(
+          () {
+            if (controller.selectedState == null) {
+              return SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: _buildEmptyState(
+                    context,
+                    'Select a State',
+                    'Please select a state above to view available ZIP codes',
+                  ),
+                ),
+              );
+            }
+            
+            if (controller.isLoadingZipCodes) {
+              return SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(40),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          CircularProgressIndicator(color: AppTheme.lightGreen),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Loading ZIP codes...',
+                            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                              color: AppTheme.mediumGray,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }
+            
+            if (controller.availableZipCodes.isEmpty) {
+              return SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: _buildEmptyState(
                     context,
                     'No available ZIP codes',
-                    'All ZIP codes in your area are claimed',
-                  )
-                : ListView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: controller.availableZipCodes.length,
-                    itemBuilder: (context, index) {
-                      final zip = controller.availableZipCodes[index];
-                      return _buildZipCodeCard(context, zip, false);
-                    },
+                    'All ZIP codes in ${controller.selectedState} are claimed',
                   ),
-          ),
-        ],
-      ),
+                ),
+              );
+            }
+            
+            return SliverPadding(
+              padding: const EdgeInsets.only(top: 8, left: 20, right: 20),
+              sliver: SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) {
+                    final zip = controller.availableZipCodes[index];
+                    return RepaintBoundary(
+                      child: _buildZipCodeCard(context, zip, false),
+                    );
+                  },
+                  childCount: controller.availableZipCodes.length,
+                  addAutomaticKeepAlives: false,
+                  addRepaintBoundaries: true,
+                ),
+              ),
+            );
+          },
+        ),
+      ],
     );
   }
 
@@ -1017,6 +1231,13 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
     ZipCodeModel zip,
     bool isClaimed,
   ) {
+    // Pre-compute expensive string formatting
+    final formattedPopulation = zip.population.toString().replaceAllMapped(
+      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+      (Match m) => '${m[1]},',
+    );
+    final formattedPrice = '\$${zip.calculatedPrice.toStringAsFixed(2)}/month';
+    
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: Padding(
@@ -1026,6 +1247,7 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
                     zip.zipCode,
@@ -1034,14 +1256,16 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                       fontWeight: FontWeight.w600,
                     ),
                   ),
+                  const SizedBox(height: 4),
                   Text(
-                    '${zip.state} • Population: ${zip.population.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}',
+                    '${zip.state} • Population: $formattedPopulation',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: AppTheme.mediumGray,
                     ),
                   ),
+                  const SizedBox(height: 4),
                   Text(
-                    '\$${zip.calculatedPrice.toStringAsFixed(2)}/month',
+                    formattedPrice,
                     style: Theme.of(context).textTheme.titleSmall?.copyWith(
                       color: AppTheme.lightGreen,
                       fontWeight: FontWeight.w600,
