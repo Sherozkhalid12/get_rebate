@@ -1,130 +1,104 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
-import 'package:getrebate/app/utils/snackbar_helper.dart';
+import 'package:get/get.dart';
 
-/// Centralized network error handler
-/// Provides user-friendly error messages with retry functionality
+/// Utility class for handling network errors consistently across the app
 class NetworkErrorHandler {
-  /// Checks if error is a network connectivity issue
-  static bool isNetworkError(dynamic error) {
+  const NetworkErrorHandler._();
+
+  /// Handles network errors and displays appropriate error messages
+  /// 
+  /// [error] - The error object (can be DioException, Exception, or any other error)
+  /// [defaultMessage] - Default message to show if error cannot be parsed
+  static void handleError(
+    dynamic error, {
+    String? defaultMessage,
+  }) {
+    String errorMessage = defaultMessage ?? 'An unexpected error occurred. Please try again.';
+
     if (error is DioException) {
-      return error.type == DioExceptionType.connectionTimeout ||
-          error.type == DioExceptionType.sendTimeout ||
-          error.type == DioExceptionType.receiveTimeout ||
-          error.type == DioExceptionType.connectionError ||
-          error.type == DioExceptionType.unknown;
+      errorMessage = _handleDioError(error, defaultMessage);
+    } else if (error is Exception) {
+      errorMessage = error.toString().replaceFirst('Exception: ', '');
+    } else if (error != null) {
+      errorMessage = error.toString();
     }
-    return false;
+
+    if (kDebugMode) {
+      print('❌ Network Error: $errorMessage');
+      print('   Original error: $error');
+    }
+
+    Get.snackbar(
+      'Error',
+      errorMessage,
+      snackPosition: SnackPosition.BOTTOM,
+      duration: const Duration(seconds: 4),
+      backgroundColor: Get.theme.colorScheme.error,
+      colorText: Get.theme.colorScheme.onError,
+    );
   }
 
-  /// Gets user-friendly error message based on error type
-  static String getUserFriendlyMessage(dynamic error, {String? defaultMessage}) {
-    if (error is DioException) {
-      switch (error.type) {
-        case DioExceptionType.connectionTimeout:
-        case DioExceptionType.sendTimeout:
-        case DioExceptionType.receiveTimeout:
-          return 'Connection timeout. Please check your internet connection and try again.';
-        
-        case DioExceptionType.connectionError:
-          return 'Unable to connect to the server. Please check your internet connection.';
-        
-        case DioExceptionType.unknown:
-          // Check if it's a network error
-          if (error.message?.contains('SocketException') == true ||
-              error.message?.contains('Network is unreachable') == true ||
-              error.message?.contains('Failed host lookup') == true) {
-            return 'No internet connection. Please check your network settings and try again.';
-          }
-          return defaultMessage ?? 'An unexpected error occurred. Please try again.';
-        
-        case DioExceptionType.badResponse:
-          final statusCode = error.response?.statusCode;
-          if (statusCode == 404) {
-            return 'The requested resource was not found.';
-          } else if (statusCode == 401) {
-            return 'Your session has expired. Please log in again.';
-          } else if (statusCode == 403) {
-            return 'You do not have permission to perform this action.';
-          } else if (statusCode == 500) {
-            return 'Server error. Please try again later.';
-          } else if (statusCode != null && statusCode >= 500) {
-            return 'Server error. Please try again later.';
-          }
-          return defaultMessage ?? 'Failed to load data. Please try again.';
-        
+  /// Handles DioException and extracts appropriate error message
+  static String _handleDioError(DioException error, String? defaultMessage) {
+    if (error.response != null) {
+      final statusCode = error.response!.statusCode;
+      final responseData = error.response!.data;
+
+      // Try to extract message from response
+      if (responseData is Map<String, dynamic>) {
+        final message = responseData['message']?.toString() ?? 
+                       responseData['error']?.toString();
+        if (message != null && message.isNotEmpty) {
+          return message;
+        }
+      } else if (responseData is String && responseData.isNotEmpty) {
+        return responseData;
+      }
+
+      // Fallback to status code messages
+      switch (statusCode) {
+        case 400:
+          return 'Invalid request. Please check your input and try again.';
+        case 401:
+          return 'Unauthorized. Please login again.';
+        case 403:
+          return 'Access forbidden. You do not have permission to perform this action.';
+        case 404:
+          return 'Resource not found. Please try again.';
+        case 500:
+          return 'Server error. Please try again later.';
+        case 502:
+        case 503:
+        case 504:
+          return 'Service temporarily unavailable. Please try again later.';
         default:
-          return defaultMessage ?? 'An error occurred. Please try again.';
+          return defaultMessage ?? 'Request failed with status code $statusCode.';
       }
     }
-    
-    // Handle other error types
-    final errorString = error.toString().toLowerCase();
-    if (errorString.contains('socket') ||
-        errorString.contains('network') ||
-        errorString.contains('connection') ||
-        errorString.contains('internet')) {
-      return 'No internet connection. Please check your network settings and try again.';
-    }
-    
-    return defaultMessage ?? 'An error occurred. Please try again.';
-  }
 
-  /// Shows user-friendly error message with retry option
-  static void showNetworkError(
-    dynamic error, {
-    String? defaultMessage,
-    VoidCallback? onRetry,
-    BuildContext? context,
-  }) {
-    final message = getUserFriendlyMessage(error, defaultMessage: defaultMessage);
-    final isNetworkIssue = isNetworkError(error);
-    
-    if (isNetworkIssue) {
-      // Show network error with retry option
-      SnackbarHelper.showError(
-        message,
-        title: 'No Internet Connection',
-        context: context,
-        duration: const Duration(seconds: 5),
-      );
-    } else {
-      // Show regular error
-      SnackbarHelper.showError(
-        message,
-        context: context,
-        duration: const Duration(seconds: 4),
-      );
+    // Handle connection errors
+    switch (error.type) {
+      case DioExceptionType.connectionTimeout:
+      case DioExceptionType.sendTimeout:
+      case DioExceptionType.receiveTimeout:
+        return 'Connection timeout. Please check your internet connection and try again.';
+      case DioExceptionType.connectionError:
+        return 'No internet connection. Please check your network and try again.';
+      case DioExceptionType.badCertificate:
+        return 'SSL certificate error. Please try again later.';
+      case DioExceptionType.cancel:
+        return 'Request was cancelled.';
+      case DioExceptionType.badResponse:
+        return defaultMessage ?? 'Invalid response from server. Please try again.';
+      case DioExceptionType.unknown:
+        if (error.message != null && error.message!.isNotEmpty) {
+          return error.message!;
+        }
+        return defaultMessage ?? 'Network error. Please try again.';
     }
-    
-    if (kDebugMode) {
-      print('❌ Network Error Handler:');
-      print('   Error: $error');
-      print('   Type: ${error is DioException ? error.type : error.runtimeType}');
-      print('   Message: $message');
-      print('   Is Network Error: $isNetworkIssue');
-    }
-  }
-
-  /// Handles error and shows appropriate message
-  /// Returns true if error was handled, false otherwise
-  static bool handleError(
-    dynamic error, {
-    String? defaultMessage,
-    VoidCallback? onRetry,
-    BuildContext? context,
-    bool showMessage = true,
-  }) {
-    if (showMessage) {
-      showNetworkError(
-        error,
-        defaultMessage: defaultMessage,
-        onRetry: onRetry,
-        context: context,
-      );
-    }
-    return true;
   }
 }
+
+
 

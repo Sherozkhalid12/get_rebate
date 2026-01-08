@@ -279,17 +279,58 @@ class LoanOfficerProfileView extends GetView<LoanOfficerProfileController> {
             const SizedBox(height: 20),
 
             // Action Buttons
-            if (loanOfficer.mortgageApplicationUrl != null) ...[
+            // Primary Action: Create Proposal
+            CustomButton(
+              text: 'Create Proposal',
+              onPressed: () => controller.createProposal(context),
+              icon: Icons.description_outlined,
+              width: double.infinity,
+              backgroundColor: AppTheme.lightGreen,
+            ),
+            const SizedBox(height: 12),
+            if (loanOfficer.mortgageApplicationUrl != null && 
+                loanOfficer.mortgageApplicationUrl!.isNotEmpty) ...[
               CustomButton(
                 text: 'Apply for a Mortgage',
                 onPressed: () async {
-                  final url = Uri.parse(loanOfficer.mortgageApplicationUrl!);
-                  if (await canLaunchUrl(url)) {
-                    await launchUrl(url, mode: LaunchMode.externalApplication);
-                  } else {
+                  final mortgageLink = loanOfficer.mortgageApplicationUrl!;
+                  
+                  // Validate URL format
+                  if (mortgageLink.isEmpty) {
                     Get.snackbar(
                       'Error',
-                      'Unable to open mortgage application',
+                      'Mortgage application link is not available',
+                      snackPosition: SnackPosition.BOTTOM,
+                      backgroundColor: Colors.red,
+                      colorText: AppTheme.white,
+                    );
+                    return;
+                  }
+                  
+                  try {
+                    // Ensure URL has protocol
+                    String urlString = mortgageLink;
+                    if (!urlString.startsWith('http://') && 
+                        !urlString.startsWith('https://')) {
+                      urlString = 'https://$urlString';
+                    }
+                    
+                    final url = Uri.parse(urlString);
+                    if (await canLaunchUrl(url)) {
+                      await launchUrl(url, mode: LaunchMode.externalApplication);
+                    } else {
+                      Get.snackbar(
+                        'Error',
+                        'Unable to open mortgage application',
+                        snackPosition: SnackPosition.BOTTOM,
+                        backgroundColor: Colors.red,
+                        colorText: AppTheme.white,
+                      );
+                    }
+                  } catch (e) {
+                    Get.snackbar(
+                      'Error',
+                      'Invalid mortgage application link',
                       snackPosition: SnackPosition.BOTTOM,
                       backgroundColor: Colors.red,
                       colorText: AppTheme.white,
@@ -297,7 +338,7 @@ class LoanOfficerProfileView extends GetView<LoanOfficerProfileController> {
                   }
                 },
                 icon: Icons.description,
-                backgroundColor: AppTheme.lightGreen,
+                backgroundColor: AppTheme.lightGreen.withOpacity(0.8),
                 width: double.infinity,
               ),
               const SizedBox(height: 12),

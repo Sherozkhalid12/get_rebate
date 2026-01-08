@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
-import 'package:dio/dio.dart';
-import 'package:get_storage/get_storage.dart';
 import 'package:getrebate/app/models/zip_code_model.dart';
 import 'package:getrebate/app/models/loan_model.dart';
 import 'package:getrebate/app/models/subscription_model.dart';
@@ -11,16 +9,9 @@ import 'package:getrebate/app/services/zip_code_pricing_service.dart';
 import 'package:getrebate/app/services/zip_codes_service.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart' as global;
 import 'package:getrebate/app/modules/messages/controllers/messages_controller.dart';
-import 'package:getrebate/app/utils/api_constants.dart';
 import 'package:getrebate/app/utils/network_error_handler.dart';
 
 class LoanOfficerController extends GetxController {
-  // API
-  final Dio _dio = Dio();
-  final _storage = GetStorage();
-  // Using ApiConstants for centralized URL management
-  static String get _baseUrl => ApiConstants.apiBaseUrl;
-
   // Data
   final _claimedZipCodes = <ZipCodeModel>[].obs;
   final _availableZipCodes = <ZipCodeModel>[].obs;
@@ -28,6 +19,13 @@ class LoanOfficerController extends GetxController {
   final _isLoading = false.obs;
   final _selectedTab = 0
       .obs; // 0: Dashboard, 1: Messages, 2: ZIP Management, 3: Billing, 4: Checklists, 5: Stats
+  
+  // State and ZIP code management
+  final _selectedState = Rxn<String>();
+  final _isLoadingZipCodes = false.obs;
+  
+  // Services
+  final _zipCodesService = ZipCodesService();
 
   // Stats
   final _searchesAppearedIn = 0.obs;
@@ -38,14 +36,6 @@ class LoanOfficerController extends GetxController {
   // Subscription & Promo Code
   final _subscription = Rxn<SubscriptionModel>();
   final _promoCodeInput = ''.obs;
-
-  // State selection for ZIP codes
-  final _selectedState = Rxn<String>();
-  final _isLoadingZipCodes = false.obs;
-  static const String _selectedStateStorageKey = 'loan_officer_selected_state';
-  static const String _zipCodesCachePrefix = 'loan_officer_zip_codes_cache_';
-  static const String _zipCodesCacheTimestampPrefix = 'loan_officer_zip_codes_timestamp_';
-  static const Duration _cacheExpirationDuration = Duration(hours: 24);
   
   // Standard pricing (deprecated - now using zip code population-based pricing)
   // Kept for backward compatibility, but pricing is now calculated from zip codes
@@ -57,13 +47,15 @@ class LoanOfficerController extends GetxController {
   List<ZipCodeModel> get availableZipCodes => _availableZipCodes;
   List<LoanModel> get loans => _loans;
   bool get isLoading => _isLoading.value;
-  bool get isLoadingZipCodes => _isLoadingZipCodes.value;
-  String? get selectedState => _selectedState.value;
   int get selectedTab => _selectedTab.value;
   int get searchesAppearedIn => _searchesAppearedIn.value;
   int get profileViews => _profileViews.value;
   int get contacts => _contacts.value;
   double get totalRevenue => _totalRevenue.value;
+  
+  // State and ZIP code getters
+  String? get selectedState => _selectedState.value;
+  bool get isLoadingZipCodes => _isLoadingZipCodes.value;
 
   // Subscription & Promo Code Getters
   SubscriptionModel? get subscription => _subscription.value;
@@ -79,111 +71,12 @@ class LoanOfficerController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    _setupDio();
     _loadMockData();
     _initializeSubscription();
     checkPromoExpiration(); // Check if free period has ended
     
-    // Restore selected state from storage and fetch ZIP codes if state exists
-    _restoreSelectedState();
-    
-    // Fetch user stats from API
-    Future.microtask(() => fetchUserStats());
-    
     // Preload chat threads for instant access when loan officer opens messages
     _preloadThreads();
-  }
-
-  /// Restores the selected state from storage and loads ZIP codes from cache if available
-  Future<void> _restoreSelectedState() async {
-    final savedState = _storage.read(_selectedStateStorageKey) as String?;
-    if (savedState != null && savedState.isNotEmpty) {
-      _selectedState.value = savedState;
-      // Load ZIP codes from cache first (instant), then refresh in background if needed
-      final stateCode = _getStateCodeFromName(savedState);
-      await _loadZipCodesFromCache(stateCode);
-      // Refresh in background if cache is expired or empty
-      Future.microtask(() => fetchZipCodesForState(stateCode, forceRefresh: false));
-    }
-  }
-
-  /// Loads ZIP codes from cache for the given state
-  Future<void> _loadZipCodesFromCache(String stateCode) async {
-    try {
-      final cacheKey = '$_zipCodesCachePrefix$stateCode';
-      final timestampKey = '$_zipCodesCacheTimestampPrefix$stateCode';
-      
-      final cachedData = _storage.read(cacheKey) as List<dynamic>?;
-      final cachedTimestamp = _storage.read(timestampKey) as String?;
-      
-      if (cachedData != null && cachedTimestamp != null) {
-        final cacheTime = DateTime.parse(cachedTimestamp);
-        final now = DateTime.now();
-        
-        // Check if cache is still valid (not expired)
-        if (now.difference(cacheTime) < _cacheExpirationDuration) {
-          // Load from cache
-          final zipCodes = cachedData
-              .map((json) => ZipCodeModel.fromJson(json as Map<String, dynamic>))
-              .toList();
-          
-          // Filter out already claimed ZIP codes
-          final claimedZipCodesSet = _claimedZipCodes.map((z) => z.zipCode).toSet();
-          final availableZips = zipCodes
-              .where((zip) => !claimedZipCodesSet.contains(zip.zipCode))
-              .toList();
-          
-          _availableZipCodes.value = availableZips;
-          
-          if (kDebugMode) {
-            print('✅ Loaded ${availableZips.length} ZIP codes from cache for $stateCode');
-          }
-          return;
-        } else {
-          if (kDebugMode) {
-            print('⏰ Cache expired for $stateCode, will fetch from API');
-          }
-        }
-      }
-    } catch (e) {
-      if (kDebugMode) {
-        print('⚠️ Error loading ZIP codes from cache: $e');
-      }
-    }
-  }
-
-  /// Saves ZIP codes to cache for the given state
-  void _saveZipCodesToCache(String stateCode, List<ZipCodeModel> zipCodes) {
-    try {
-      final cacheKey = '$_zipCodesCachePrefix$stateCode';
-      final timestampKey = '$_zipCodesCacheTimestampPrefix$stateCode';
-      
-      final jsonData = zipCodes.map((zip) => zip.toJson()).toList();
-      _storage.write(cacheKey, jsonData);
-      _storage.write(timestampKey, DateTime.now().toIso8601String());
-      
-      if (kDebugMode) {
-        print('💾 Cached ${zipCodes.length} ZIP codes for $stateCode');
-      }
-    } catch (e) {
-      if (kDebugMode) {
-        print('⚠️ Error saving ZIP codes to cache: $e');
-      }
-    }
-  }
-
-  void _setupDio() {
-    _dio.options.baseUrl = _baseUrl;
-    _dio.options.connectTimeout = const Duration(seconds: 30);
-    _dio.options.receiveTimeout = const Duration(seconds: 30);
-
-    // Get auth token from storage
-    final authToken = _storage.read('auth_token');
-    _dio.options.headers = {
-      'ngrok-skip-browser-warning': 'true',
-      'Content-Type': 'application/json',
-      if (authToken != null) 'Authorization': 'Bearer $authToken',
-    };
   }
 
   /// Preloads chat threads for instant access when loan officer opens messages
@@ -242,6 +135,39 @@ class LoanOfficerController extends GetxController {
 
   void setSelectedTab(int index) {
     _selectedTab.value = index;
+  }
+  
+  // State and ZIP code methods
+  Future<void> selectStateAndFetchZipCodes(String state) async {
+    if (state.isEmpty) {
+      _selectedState.value = null;
+      _availableZipCodes.value = [];
+      return;
+    }
+    
+    _selectedState.value = state;
+    await _fetchZipCodesByState(state);
+  }
+  
+  Future<void> _fetchZipCodesByState(String state) async {
+    try {
+      _isLoadingZipCodes.value = true;
+      
+      final zipCodes = await _zipCodesService.getZipCodesByState(state: state);
+      
+      // Update available ZIP codes, filtering out already claimed ones
+      final claimedZipCodesSet = _claimedZipCodes.map((z) => z.zipCode).toSet();
+      _availableZipCodes.value = zipCodes
+          .where((zip) => !claimedZipCodesSet.contains(zip.zipCode))
+          .toList();
+    } catch (e) {
+      NetworkErrorHandler.handleError(
+        e,
+        defaultMessage: 'Unable to fetch ZIP codes. Please check your internet connection and try again.',
+      );
+    } finally {
+      _isLoadingZipCodes.value = false;
+    }
   }
 
   void _loadMockData() {
@@ -334,61 +260,11 @@ class LoanOfficerController extends GetxController {
       ),
     ];
 
-    // Mock stats - will be replaced by API data
-    _searchesAppearedIn.value = 0;
-    _profileViews.value = 0;
-    _contacts.value = 0;
-    _totalRevenue.value = 0.0;
-  }
-
-  /// Fetches user stats from the API
-  Future<void> fetchUserStats() async {
-    try {
-      final authController = Get.find<global.AuthController>();
-      final userId = authController.currentUser?.id;
-
-      if (userId == null || userId.isEmpty) {
-        if (kDebugMode) {
-          print('⚠️ Cannot fetch stats: User ID is null or empty');
-        }
-        return;
-      }
-
-      if (kDebugMode) {
-        print('📡 Fetching user stats for userId: $userId');
-      }
-
-      final response = await _dio.get(
-        '/auth/users/$userId',
-        options: Options(
-          headers: {'ngrok-skip-browser-warning': 'true'},
-        ),
-      );
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        final responseData = response.data;
-        final userData = responseData['user'] ?? responseData;
-
-        // Extract stats from API response
-        _searchesAppearedIn.value = (userData['searches'] as num?)?.toInt() ?? 0;
-        _profileViews.value = (userData['views'] as num?)?.toInt() ?? 0;
-        _contacts.value = (userData['contacts'] as num?)?.toInt() ?? 0;
-        _totalRevenue.value = (userData['revenue'] as num?)?.toDouble() ?? 0.0;
-
-        if (kDebugMode) {
-          print('✅ User stats fetched successfully:');
-          print('   Searches: ${_searchesAppearedIn.value}');
-          print('   Views: ${_profileViews.value}');
-          print('   Contacts: ${_contacts.value}');
-          print('   Revenue: ${_totalRevenue.value}');
-        }
-      }
-    } catch (e) {
-      if (kDebugMode) {
-        print('❌ Error fetching user stats: $e');
-      }
-      // Don't show error to user, just use default values
-    }
+    // Mock stats
+    _searchesAppearedIn.value = 67;
+    _profileViews.value = 289;
+    _contacts.value = 134;
+    _totalRevenue.value = 599.99;
   }
 
   Future<void> claimZipCode(ZipCodeModel zipCode) async {
@@ -398,104 +274,29 @@ class LoanOfficerController extends GetxController {
       // Check if loan officer can claim more ZIP codes (max 6)
       if (_claimedZipCodes.length >= 6) {
         Get.snackbar('Error', 'You can only claim up to 6 ZIP codes');
-        _isLoading.value = false;
         return;
       }
 
-      // Get auth token from storage
-      final authToken = _storage.read('auth_token');
-      final authController = Get.find<global.AuthController>();
-      final userId = authController.currentUser?.id;
+      // Simulate API call
+      await Future.delayed(const Duration(seconds: 2));
 
-      if (userId == null || userId.isEmpty) {
-        Get.snackbar('Error', 'User not authenticated. Please login again.');
-        _isLoading.value = false;
-        return;
-      }
-
-      // Prepare request body according to API specification
-      // IMPORTANT: Backend expects the current loan officer's user ID in `id`
-      final requestBody = {
-        'id': userId, // loan officer's Mongo user _id
-        'zipcode': zipCode.zipCode,
-        'price': (zipCode.price ?? zipCode.calculatedPrice).toStringAsFixed(0), // Convert to string as per API
-        'state': zipCode.state,
-        'population': zipCode.population.toString(),
-      };
-
-      if (kDebugMode) {
-        print('📡 Claiming ZIP code: ${zipCode.zipCode}');
-        print('   Endpoint: $_baseUrl/zip-codes/claim');
-        print('   Request body: $requestBody');
-      }
-
-      // Make API call to claim ZIP code
-      final response = await _dio.post(
-        '/zip-codes/claim',
-        data: requestBody,
-        options: Options(
-          headers: {
-            'ngrok-skip-browser-warning': 'true',
-            'Content-Type': 'application/json',
-            if (authToken != null) 'Authorization': 'Bearer $authToken',
-          },
-        ),
+      // Add to claimed ZIP codes
+      final claimedZip = zipCode.copyWith(
+        claimedByLoanOfficer: 'loan_1',
+        claimedAt: DateTime.now(),
+        isAvailable: false,
       );
 
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        if (kDebugMode) {
-          print('✅ ZIP code claimed successfully');
-          print('   Response: ${response.data}');
-        }
+      _claimedZipCodes.add(claimedZip);
+      _availableZipCodes.removeWhere((zip) => zip.zipCode == zipCode.zipCode);
 
-        // Add to claimed ZIP codes
-        final claimedZip = zipCode.copyWith(
-          claimedByLoanOfficer: userId,
-          claimedAt: DateTime.now(),
-          isAvailable: false,
-        );
+      // Update subscription price based on new zip code
+      _updateSubscriptionPrice();
 
-        _claimedZipCodes.add(claimedZip);
-        _availableZipCodes.removeWhere((zip) => zip.zipCode == zipCode.zipCode);
-
-        // Update subscription price based on new zip code
-        _updateSubscriptionPrice();
-
-        // Invalidate cache for this state to ensure fresh data
-        final stateCode = zipCode.state;
-        _storage.remove('$_zipCodesCachePrefix$stateCode');
-        _storage.remove('$_zipCodesCacheTimestampPrefix$stateCode');
-
-        Get.snackbar(
-          'Success',
-          'ZIP code ${zipCode.zipCode} claimed successfully!',
-          backgroundColor: Colors.green,
-          colorText: Colors.white,
-        );
-      } else {
-        throw Exception('Failed to claim ZIP code: ${response.statusCode}');
-      }
-    } on DioException catch (e) {
-      if (kDebugMode) {
-        print('❌ Error claiming ZIP code: ${e.message}');
-        print('   Response: ${e.response?.data}');
-      }
-
-      String errorMessage = 'Failed to claim ZIP code. Please try again.';
-      if (e.response != null) {
-        final responseData = e.response?.data;
-        if (responseData is Map && responseData.containsKey('message')) {
-          errorMessage = responseData['message'].toString();
-        } else if (e.response?.statusCode == 401) {
-          errorMessage = 'Unauthorized. Please login again.';
-        } else if (e.response?.statusCode == 400) {
-          errorMessage = 'Invalid request. Please check your input.';
-        } else if (e.response?.statusCode == 409) {
-          errorMessage = 'This ZIP code is already claimed.';
-        }
-      }
-
-      Get.snackbar('Error', errorMessage);
+      Get.snackbar(
+        'Success',
+        'ZIP code ${zipCode.zipCode} claimed successfully!',
+      );
     } catch (e) {
       NetworkErrorHandler.handleError(
         e,
@@ -510,44 +311,8 @@ class LoanOfficerController extends GetxController {
     try {
       _isLoading.value = true;
 
-      // Get auth token from storage
-      final authToken = _storage.read('auth_token');
-      final authController = Get.find<global.AuthController>();
-      final userId = authController.currentUser?.id;
-
-      if (userId == null || userId.isEmpty) {
-        Get.snackbar('Error', 'User not authenticated. Please login again.');
-        _isLoading.value = false;
-        return;
-      }
-
-      // Prepare request body according to API specification
-      final requestBody = {
-        'id': userId,
-        'zipcode': zipCode.zipCode,
-      };
-
-      if (kDebugMode) {
-        print('📡 Releasing ZIP code: ${zipCode.zipCode}');
-        print('   Endpoint: $_baseUrl/zip-codes/release');
-        print('   Request body: $requestBody');
-      }
-
-      final response = await _dio.patch(
-        '/zip-codes/release',
-        data: requestBody,
-        options: Options(
-          headers: {
-            'ngrok-skip-browser-warning': 'true',
-            'Content-Type': 'application/json',
-            if (authToken != null) 'Authorization': 'Bearer $authToken',
-          },
-        ),
-      );
-
-      if (response.statusCode != 200 && response.statusCode != 201) {
-        throw Exception('Failed to release ZIP code: ${response.statusCode}');
-      }
+      // Simulate API call
+      await Future.delayed(const Duration(seconds: 1));
 
       // Remove from claimed ZIP codes
       _claimedZipCodes.removeWhere((zip) => zip.zipCode == zipCode.zipCode);
@@ -578,197 +343,14 @@ class LoanOfficerController extends GetxController {
     }
   }
 
-  /// Converts full state name (e.g., "California") to state code (e.g., "CA")
-  String _getStateCodeFromName(String name) {
-    final stateMap = {
-      'Alabama': 'AL',
-      'Alaska': 'AK',
-      'Arizona': 'AZ',
-      'Arkansas': 'AR',
-      'California': 'CA',
-      'Colorado': 'CO',
-      'Connecticut': 'CT',
-      'Delaware': 'DE',
-      'Florida': 'FL',
-      'Georgia': 'GA',
-      'Hawaii': 'HI',
-      'Idaho': 'ID',
-      'Illinois': 'IL',
-      'Indiana': 'IN',
-      'Iowa': 'IA',
-      'Kansas': 'KS',
-      'Kentucky': 'KY',
-      'Louisiana': 'LA',
-      'Maine': 'ME',
-      'Maryland': 'MD',
-      'Massachusetts': 'MA',
-      'Michigan': 'MI',
-      'Minnesota': 'MN',
-      'Mississippi': 'MS',
-      'Missouri': 'MO',
-      'Montana': 'MT',
-      'Nebraska': 'NE',
-      'Nevada': 'NV',
-      'New Hampshire': 'NH',
-      'New Jersey': 'NJ',
-      'New Mexico': 'NM',
-      'New York': 'NY',
-      'North Carolina': 'NC',
-      'North Dakota': 'ND',
-      'Ohio': 'OH',
-      'Oklahoma': 'OK',
-      'Oregon': 'OR',
-      'Pennsylvania': 'PA',
-      'Rhode Island': 'RI',
-      'South Carolina': 'SC',
-      'South Dakota': 'SD',
-      'Tennessee': 'TN',
-      'Texas': 'TX',
-      'Utah': 'UT',
-      'Vermont': 'VT',
-      'Virginia': 'VA',
-      'Washington': 'WA',
-      'West Virginia': 'WV',
-      'Wisconsin': 'WI',
-      'Wyoming': 'WY',
-    };
-    // If already a code (2 letters), return as is
-    if (name.length == 2 && name == name.toUpperCase()) {
-      return name;
-    }
-    // Otherwise, try to find the code from the name
-    return stateMap[name] ?? name;
-  }
-
-  /// Sets the selected state and fetches ZIP codes for that state
-  /// [stateName] can be either full state name (e.g., "Alabama") or state code (e.g., "AL")
-  Future<void> selectStateAndFetchZipCodes(String stateName) async {
-    if (stateName.isEmpty) {
-      _selectedState.value = null;
-      _availableZipCodes.clear();
-      // Clear saved state from storage
-      _storage.remove(_selectedStateStorageKey);
-      return;
-    }
-
-    // Only fetch if state actually changed
-    if (_selectedState.value == stateName) {
-      // State hasn't changed, don't refetch (will use cache if available)
-      return;
-    }
-
-    _selectedState.value = stateName;
-    // Save selected state to storage for persistence
-    _storage.write(_selectedStateStorageKey, stateName);
-    
-    // Convert state name to code for API call
-    // Load from cache first (instant), then refresh in background if needed
-    final stateCode = _getStateCodeFromName(stateName);
-    await _loadZipCodesFromCache(stateCode);
-    // Fetch from API in background (will use cache if valid, otherwise fetch)
-    await fetchZipCodesForState(stateCode, forceRefresh: false);
-  }
-
-  /// Fetches ZIP codes from API for the selected state
-  /// [forceRefresh] if true, will skip cache and fetch from API
-  Future<void> fetchZipCodesForState(String stateCode, {bool forceRefresh = false}) async {
-    if (stateCode.isEmpty) return;
-
-    // Check cache first unless force refresh is requested
-    if (!forceRefresh) {
-      final cacheKey = '$_zipCodesCachePrefix$stateCode';
-      final timestampKey = '$_zipCodesCacheTimestampPrefix$stateCode';
-      
-      final cachedData = _storage.read(cacheKey) as List<dynamic>?;
-      final cachedTimestamp = _storage.read(timestampKey) as String?;
-      
-      if (cachedData != null && cachedTimestamp != null && cachedData.isNotEmpty) {
-        final cacheTime = DateTime.parse(cachedTimestamp);
-        final now = DateTime.now();
-        
-        // Check if cache is still valid (not expired)
-        if (now.difference(cacheTime) < _cacheExpirationDuration) {
-          // Load from cache - instant, no API call
-          await _loadZipCodesFromCache(stateCode);
-          if (kDebugMode) {
-            print('✅ Using cached ZIP codes for $stateCode (instant load)');
-          }
-          return;
-        }
-      } else {
-        if (kDebugMode) {
-          print('ℹ️ ZIP code cache empty for $stateCode – fetching from API');
-        }
-      }
-    }
-
-    // Cache miss or expired, fetch from API
-    try {
-      _isLoadingZipCodes.value = true;
-
-      if (kDebugMode) {
-        print('📡 Fetching ZIP codes from API for state: $stateCode');
-      }
-
-      final zipCodesService = ZipCodesService();
-      final zipCodes = await zipCodesService.getZipCodesByState(state: stateCode);
-
-      // Save to cache
-      _saveZipCodesToCache(stateCode, zipCodes);
-
-      // Filter out already claimed ZIP codes
-      final claimedZipCodesSet = _claimedZipCodes.map((z) => z.zipCode).toSet();
-      final availableZips = zipCodes
-          .where((zip) => !claimedZipCodesSet.contains(zip.zipCode))
-          .toList();
-
-      _availableZipCodes.value = availableZips;
-
-      if (kDebugMode) {
-        print('✅ Loaded ${availableZips.length} available ZIP codes for $stateCode');
-      }
-    } on ZipCodesServiceException catch (e) {
-      if (kDebugMode) {
-        print('❌ Error fetching ZIP codes: ${e.message}');
-      }
-      // Try to load from cache even if expired as fallback
-      await _loadZipCodesFromCache(stateCode);
-      if (_availableZipCodes.isEmpty) {
-        Get.snackbar('Error', 'Failed to fetch ZIP codes: ${e.message}');
-        _availableZipCodes.clear();
-      }
-    } catch (e) {
-      if (kDebugMode) {
-        print('❌ Unexpected error fetching ZIP codes: $e');
-      }
-      // Try to load from cache even if expired as fallback
-      await _loadZipCodesFromCache(stateCode);
-      if (_availableZipCodes.isEmpty) {
-        Get.snackbar('Error', 'Failed to fetch ZIP codes: ${e.toString()}');
-        _availableZipCodes.clear();
-      }
-    } finally {
-      _isLoadingZipCodes.value = false;
-    }
-  }
-
   Future<void> searchZipCodes(String query) async {
-    // If no state is selected, show message
-    if (_selectedState.value == null) {
-      return;
-    }
-
     try {
-      // Filter available ZIP codes by query
-      if (query.isEmpty) {
-        // If query is empty, reload ZIP codes for selected state (from cache)
-        if (_selectedState.value != null) {
-          final stateCode = _getStateCodeFromName(_selectedState.value!);
-          await fetchZipCodesForState(stateCode, forceRefresh: false);
-        }
-        return;
-      }
+      _isLoading.value = true;
 
+      // Simulate API call
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      // Filter available ZIP codes by query
       final filteredZips = _availableZipCodes
           .where(
             (zip) =>

@@ -5,7 +5,6 @@ import 'dart:io';
 import 'package:getrebate/app/controllers/auth_controller.dart' as global;
 import 'package:getrebate/app/models/user_model.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
-import 'package:getrebate/app/utils/network_error_handler.dart';
 
 class AuthViewController extends GetxController {
   final global.AuthController _globalAuthController =
@@ -184,10 +183,7 @@ class AuthViewController extends GetxController {
         _selectedProfilePic.value = File(image.path);
       }
     } catch (e) {
-      NetworkErrorHandler.handleError(
-        e,
-        defaultMessage: 'Unable to access your photos. Please check app permissions and try again.',
-      );
+      Get.snackbar('Error', 'Failed to pick image: ${e.toString()}');
     }
   }
 
@@ -208,10 +204,7 @@ class AuthViewController extends GetxController {
         _selectedCompanyLogo.value = File(image.path);
       }
     } catch (e) {
-      NetworkErrorHandler.handleError(
-        e,
-        defaultMessage: 'Unable to access your photos. Please check app permissions and try again.',
-      );
+      SnackbarHelper.showError('Failed to pick company logo: ${e.toString()}');
     }
   }
 
@@ -229,10 +222,7 @@ class AuthViewController extends GetxController {
         _selectedVideo.value = File(video.path);
       }
     } catch (e) {
-      NetworkErrorHandler.handleError(
-        e,
-        defaultMessage: 'Unable to access your videos. Please check app permissions and try again.',
-      );
+      SnackbarHelper.showError('Failed to pick video: ${e.toString()}');
     }
   }
 

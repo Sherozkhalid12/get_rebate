@@ -5,6 +5,7 @@ class NotificationModel {
   final String message;
   final String type;
   final LeadInfo? leadId;
+  final String? proposalId; // For proposal-related notifications
   final bool isRead;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -16,6 +17,7 @@ class NotificationModel {
     required this.message,
     required this.type,
     this.leadId,
+    this.proposalId,
     required this.isRead,
     required this.createdAt,
     required this.updatedAt,
@@ -35,6 +37,7 @@ class NotificationModel {
                   : {},
             )
           : null,
+      proposalId: json['proposalId']?.toString(),
       isRead: json['isRead'] ?? false,
       createdAt: json['createdAt'] != null
           ? DateTime.parse(json['createdAt'])
@@ -53,6 +56,7 @@ class NotificationModel {
       'message': message,
       'type': type,
       'leadId': leadId?.toJson(),
+      if (proposalId != null) 'proposalId': proposalId,
       'isRead': isRead,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
@@ -66,6 +70,7 @@ class NotificationModel {
     String? message,
     String? type,
     LeadInfo? leadId,
+    String? proposalId,
     bool? isRead,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -77,6 +82,7 @@ class NotificationModel {
       message: message ?? this.message,
       type: type ?? this.type,
       leadId: leadId ?? this.leadId,
+      proposalId: proposalId ?? this.proposalId,
       isRead: isRead ?? this.isRead,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,

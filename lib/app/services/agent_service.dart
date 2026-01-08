@@ -20,6 +20,26 @@ class AgentServiceException implements Exception {
   String toString() => message;
 }
 
+/// Paginated agents response model
+class PaginatedAgentsResponse {
+  final List<AgentModel> agents;
+  final int page;
+  final int limit;
+  final int totalAgents;
+  final int totalPages;
+  final int count;
+  final bool hasMore;
+
+  PaginatedAgentsResponse({
+    required this.agents,
+    required this.page,
+    required this.limit,
+    required this.totalAgents,
+    required this.totalPages,
+    required this.count,
+  }) : hasMore = page < totalPages;
+}
+
 /// Service for handling agent-related API calls
 class AgentService {
   late final Dio _dio;
@@ -83,18 +103,26 @@ class AgentService {
     }
   }
 
-  /// Fetches all agents from the API
+  /// Fetches all agents from the API (backward compatibility - uses page 1)
   /// 
   /// Throws [AgentServiceException] if the request fails
   Future<List<AgentModel>> getAllAgents() async {
+    final result = await getAllAgentsPaginated(page: 1);
+    return result.agents;
+  }
+
+  /// Fetches agents from the API with pagination
+  /// 
+  /// Throws [AgentServiceException] if the request fails
+  Future<PaginatedAgentsResponse> getAllAgentsPaginated({required int page}) async {
     try {
       if (kDebugMode) {
-        print('📡 Fetching all agents from API...');
-        print('   URL: ${ApiConstants.apiBaseUrl}/agent/getAllAgents');
+        print('📡 Fetching agents from API (page $page)...');
+        print('   URL: ${ApiConstants.getAllAgentsEndpoint(page)}');
       }
 
       final response = await _dio.get(
-        '${ApiConstants.apiBaseUrl}/agent/getAllAgents',
+        ApiConstants.getAllAgentsEndpoint(page),
         options: Options(
           headers: ApiConstants.ngrokHeaders,
         ),
@@ -105,21 +133,33 @@ class AgentService {
         print('   Status Code: ${response.statusCode}');
       }
 
-      // Handle different response formats
-      List<dynamic> agentsData;
+      // Handle paginated response format
+      if (response.data is! Map<String, dynamic>) {
+        throw AgentServiceException(
+          message: 'Invalid response format from server',
+        );
+      }
+
+      final responseMap = response.data as Map<String, dynamic>;
       
-      if (response.data is Map) {
-        final responseMap = response.data as Map<String, dynamic>;
-        // Check for the format with 'success' and 'agents'
-        if (responseMap['success'] == true && responseMap['agents'] != null) {
-          agentsData = responseMap['agents'] as List<dynamic>;
-        } else if (responseMap['data'] != null) {
-          agentsData = responseMap['data'] as List<dynamic>;
-        } else {
-          agentsData = [];
-        }
-      } else if (response.data is List) {
-        agentsData = response.data as List<dynamic>;
+      // Check for success flag
+      if (responseMap['success'] != true) {
+        throw AgentServiceException(
+          message: responseMap['message']?.toString() ?? 'Failed to fetch agents',
+        );
+      }
+
+      // Extract pagination metadata
+      final pageNum = responseMap['page'] as int? ?? page;
+      final limit = responseMap['limit'] as int? ?? 10;
+      final totalAgents = responseMap['totalAgents'] as int? ?? 0;
+      final totalPages = responseMap['totalPages'] as int? ?? 1;
+      final count = responseMap['count'] as int? ?? 0;
+
+      // Extract agents array
+      List<dynamic> agentsData;
+      if (responseMap['agents'] != null && responseMap['agents'] is List) {
+        agentsData = responseMap['agents'] as List<dynamic>;
       } else {
         agentsData = [];
       }
@@ -151,9 +191,19 @@ class AgentService {
 
       if (kDebugMode) {
         print('✅ Successfully parsed ${agents.length} agents');
+        print('   Page: $pageNum/$totalPages');
+        print('   Total: $totalAgents');
+        print('   Has more: ${pageNum < totalPages}');
       }
 
-      return agents;
+      return PaginatedAgentsResponse(
+        agents: agents,
+        page: pageNum,
+        limit: limit,
+        totalAgents: totalAgents,
+        totalPages: totalPages,
+        count: count,
+      );
     } on DioException catch (e) {
       String errorMessage;
       int? statusCode;

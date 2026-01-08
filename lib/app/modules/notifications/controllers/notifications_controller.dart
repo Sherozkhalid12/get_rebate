@@ -4,7 +4,6 @@ import 'package:getrebate/app/models/notification_model.dart';
 import 'package:getrebate/app/services/notification_service.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
-import 'package:getrebate/app/utils/network_error_handler.dart';
 
 class NotificationsController extends GetxController {
   final NotificationService _notificationService = NotificationService();
@@ -42,7 +41,7 @@ class NotificationsController extends GetxController {
   Future<void> fetchNotifications() async {
     final userId = _authController.currentUser?.id;
     if (userId == null || userId.isEmpty) {
-      _error.value = 'Please log in to view notifications';
+      _error.value = 'User not logged in';
       return;
     }
 
@@ -61,15 +60,11 @@ class NotificationsController extends GetxController {
         print('   Unread: ${response.unreadCount}');
       }
     } catch (e) {
-      // Store user-friendly error message instead of raw error
-      _error.value = NetworkErrorHandler.getUserFriendlyMessage(
-        e,
-        defaultMessage: 'Unable to load notifications. Please check your internet connection and try again.',
-      );
+      _error.value = e.toString();
       if (kDebugMode) {
         print('❌ Error fetching notifications: $e');
       }
-      // Don't show snackbar here - the error state in UI will handle it
+      SnackbarHelper.showError('Failed to load notifications');
     } finally {
       _isLoading.value = false;
     }
@@ -96,10 +91,7 @@ class NotificationsController extends GetxController {
       if (kDebugMode) {
         print('❌ Error marking notification as read: $e');
       }
-      NetworkErrorHandler.handleError(
-        e,
-        defaultMessage: 'Unable to update notification. Please check your internet connection and try again.',
-      );
+      SnackbarHelper.showError('Failed to mark notification as read');
     }
   }
 
@@ -129,10 +121,7 @@ class NotificationsController extends GetxController {
       if (kDebugMode) {
         print('❌ Error marking all notifications as read: $e');
       }
-      NetworkErrorHandler.handleError(
-        e,
-        defaultMessage: 'Unable to update notifications. Please check your internet connection and try again.',
-      );
+      SnackbarHelper.showError('Failed to mark all notifications as read');
     }
   }
 
@@ -141,34 +130,49 @@ class NotificationsController extends GetxController {
     await fetchNotifications();
   }
 
-  /// Handles notification tap and navigates to appropriate screen
+  /// Handles notification tap - marks as read and navigates if needed
   Future<void> handleNotificationTap(NotificationModel notification) async {
-    // Mark as read if unread
-    if (!notification.isRead) {
-      await markAsRead(notification.id);
+    // Check current state in the list (may have been marked as read already)
+    final matchingNotifications = _notifications.where(
+      (n) => n.id == notification.id,
+    );
+    
+    // Mark as read if still unread
+    if (matchingNotifications.isNotEmpty) {
+      final currentNotification = matchingNotifications.first;
+      if (!currentNotification.isRead) {
+        await markAsRead(notification.id);
+      }
     }
 
-    // Navigate based on notification type
-    switch (notification.type) {
-      case 'lead':
-      case 'lead_response':
-      case 'lead_completed':
-        // Navigate to messages screen
-        // The leadId contains the lead information
-        if (notification.leadId != null) {
-          Get.toNamed('/messages');
-          // Optionally, you could filter messages by leadId if your messages screen supports it
-          // Get.toNamed('/messages', arguments: {'leadId': notification.leadId!.id});
-        } else {
-          // Fallback to messages if no leadId
-          Get.toNamed('/messages');
+    // Handle navigation based on notification type
+    final type = notification.type.toLowerCase();
+    
+    // Check if it's a proposal acceptance notification
+    if (type.contains('proposal') && (type.contains('accept') || type.contains('accepted'))) {
+      // Extract proposal ID from notification
+      String? proposalId = notification.proposalId;
+      
+      // If proposalId is not directly in the notification, try to extract from message
+      if (proposalId == null || proposalId.isEmpty) {
+        // Try to extract proposal ID from message (e.g., "Your proposal to [Name] has been accepted. Proposal ID: xxx")
+        final message = notification.message;
+        final proposalIdMatch = RegExp(r'proposal[_\s]?id[:\s]+([a-zA-Z0-9]+)', caseSensitive: false)
+            .firstMatch(message);
+        if (proposalIdMatch != null) {
+          proposalId = proposalIdMatch.group(1);
         }
-        break;
-      default:
-        // Default: just go to messages
-        Get.toNamed('/messages');
-        break;
+      }
+      
+      if (proposalId != null && proposalId.isNotEmpty) {
+        // Navigate to proposals screen with the proposal ID
+        Get.toNamed('/proposals', arguments: {'proposalId': proposalId});
+      } else {
+        // If we can't find proposal ID, just navigate to proposals screen
+        Get.toNamed('/proposals');
+      }
     }
+    // Add other notification type handlers here if needed
   }
 
   @override

@@ -252,14 +252,14 @@ class AgentProfileView extends GetView<AgentProfileController> {
             // Action Buttons
             Column(
               children: [
-                // Primary Action: Select as My Agent
-                // CustomButton(
-                //   text: 'Select as My Agent',
-                //   onPressed: controller.selectAsMyAgent,
-                //   icon: Icons.check_circle,
-                //   width: double.infinity,
-                //   backgroundColor: AppTheme.lightGreen,
-                // ),
+                // Primary Action: Create Proposal
+                CustomButton(
+                  text: 'Create Proposal',
+                  onPressed: () => controller.createProposal(context),
+                  icon: Icons.description_outlined,
+                  width: double.infinity,
+                  backgroundColor: AppTheme.primaryBlue,
+                ),
                 const SizedBox(height: 12),
                 // Secondary Actions
                 Row(

@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:getrebate/app/models/agent_model.dart';
 import 'package:getrebate/app/models/loan_officer_model.dart';
+import 'package:getrebate/app/services/loan_officer_service.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart';
 import 'package:getrebate/app/modules/buyer/controllers/buyer_controller.dart';
 
@@ -459,10 +460,31 @@ class FavoritesController extends GetxController {
   }
 
   void contactLoanOfficer(LoanOfficerModel loanOfficer) {
+    // Record contact
+    _recordLoanOfficerContact(loanOfficer.id);
+    
     Get.toNamed(
       '/contact-loan-officer',
       arguments: {'loanOfficer': loanOfficer},
     );
+  }
+  
+  /// Records a contact action for a loan officer
+  Future<void> _recordLoanOfficerContact(String loanOfficerId) async {
+    try {
+      final loanOfficerService = LoanOfficerService();
+      final response = await loanOfficerService.recordContact(loanOfficerId);
+      if (response != null && kDebugMode) {
+        print('📞 Contact Response for loan officer $loanOfficerId:');
+        print('   Message: ${response['message'] ?? 'N/A'}');
+        print('   Contacts: ${response['contacts'] ?? 'N/A'}');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('⚠️ Error recording loan officer contact: $e');
+      }
+      // Don't show error to user - tracking is silent
+    }
   }
 
   void viewAgentProfile(AgentModel agent) {

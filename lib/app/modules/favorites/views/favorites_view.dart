@@ -1,15 +1,55 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/modules/favorites/controllers/favorites_controller.dart';
+import 'package:getrebate/app/modules/buyer/controllers/buyer_controller.dart';
+import 'package:getrebate/app/controllers/main_navigation_controller.dart';
 import 'package:getrebate/app/widgets/agent_card.dart';
 import 'package:getrebate/app/widgets/loan_officer_card.dart';
 
 class FavoritesView extends GetView<FavoritesController> {
   const FavoritesView({super.key});
+  
+  /// Helper method to set buyer tab with retries
+  void _setBuyerTabWithRetry(int tabIndex, {int retries = 5, int delayMs = 200}) {
+    if (retries <= 0) return;
+    
+    Future.delayed(Duration(milliseconds: delayMs), () {
+      try {
+        // First, ensure we're on the home tab (index 0) in main navigation
+        if (Get.isRegistered<MainNavigationController>()) {
+          final mainNavController = Get.find<MainNavigationController>();
+          mainNavController.changeIndex(0); // Switch to home tab
+        }
+        
+        // Then set the buyer tab
+        if (Get.isRegistered<BuyerController>()) {
+          final buyerController = Get.find<BuyerController>();
+          buyerController.setSelectedTab(tabIndex);
+          if (kDebugMode) {
+            print('✅ Successfully set buyer tab to $tabIndex');
+          }
+        } else {
+          // Retry if controller not registered yet
+          if (kDebugMode) {
+            print('⚠️ BuyerController not registered yet, retrying... (${retries - 1} retries left)');
+          }
+          _setBuyerTabWithRetry(tabIndex, retries: retries - 1, delayMs: delayMs);
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          print('⚠️ Error setting buyer tab: $e (${retries - 1} retries left)');
+        }
+        if (retries > 1) {
+          _setBuyerTabWithRetry(tabIndex, retries: retries - 1, delayMs: delayMs);
+        }
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -216,7 +256,7 @@ class FavoritesView extends GetView<FavoritesController> {
           'Agents you favorite will appear here',
           Icons.person_search,
           'Find Agents',
-          () => Get.toNamed('/buyer'),
+          () => Get.toNamed('/find-agents'),
         );
       }
 
@@ -268,7 +308,16 @@ class FavoritesView extends GetView<FavoritesController> {
           'Loan officers you favorite will appear here',
           Icons.account_balance,
           'Find Loan Officers',
-          () => Get.toNamed('/buyer'),
+          () {
+            // Switch to home tab in main navigation and set buyer tab to loan officers (tab 3)
+            // We're already in main navigation, just switch to home tab
+            if (Get.isRegistered<MainNavigationController>()) {
+              final mainNavController = Get.find<MainNavigationController>();
+              mainNavController.changeIndex(0); // Switch to home tab (BuyerView)
+            }
+            // Set the buyer tab after navigation with multiple retries
+            _setBuyerTabWithRetry(3, retries: 5);
+          },
         );
       }
 

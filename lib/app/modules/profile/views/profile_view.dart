@@ -434,6 +434,14 @@ class ProfileView extends GetView<ProfileController> {
         children: [
           _buildSettingTile(
             context,
+            icon: Icons.description_outlined,
+            title: 'My Proposals',
+            subtitle: 'View and manage your service proposals',
+            onTap: () => Get.toNamed('/proposals'),
+          ),
+          Divider(height: 1, indent: 60.w),
+          _buildSettingTile(
+            context,
             icon: Icons.privacy_tip_outlined,
             title: 'Privacy Policy',
             subtitle: 'View our privacy policy',

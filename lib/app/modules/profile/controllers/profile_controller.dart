@@ -7,7 +7,6 @@ import 'package:getrebate/app/controllers/auth_controller.dart';
 import 'package:getrebate/app/models/user_model.dart';
 import 'package:getrebate/app/services/user_service.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
-import 'package:getrebate/app/utils/network_error_handler.dart';
 
 class ProfileController extends GetxController {
   final AuthController _authController = Get.find<AuthController>();
@@ -85,10 +84,7 @@ class ProfileController extends GetxController {
       if (kDebugMode) {
         print('❌ Error picking image: $e');
       }
-      NetworkErrorHandler.handleError(
-        e,
-        defaultMessage: 'Unable to access your photos. Please check app permissions and try again.',
-      );
+      SnackbarHelper.showError('Failed to pick image: ${e.toString()}');
     }
   }
 
@@ -156,10 +152,7 @@ class ProfileController extends GetxController {
       if (kDebugMode) {
         print('❌ Error updating profile: $e');
       }
-      NetworkErrorHandler.handleError(
-        e,
-        defaultMessage: 'Unable to update profile. Please check your internet connection and try again.',
-      );
+      SnackbarHelper.showError('Failed to update profile: ${e.toString()}');
     } finally {
       _isLoading.value = false;
     }

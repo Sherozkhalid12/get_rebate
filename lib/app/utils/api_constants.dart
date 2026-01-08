@@ -27,19 +27,27 @@ class ApiConstants {
   // 
   // ============================================================================
 
+  // Server URL
+  static const String _serverUrl = 'http://98.93.16.113:3001';
+  
   // Ngrok URL (update this when ngrok restarts)
-  static const String _ngrokUrl = 'https://d965a84fd288.ngrok-free.app';
+  static const String _ngrokUrl = 'https://004db1f400ae.ngrok-free.app';
   // Local network IP (update with your computer's IP address)
   static const String _localNetworkIp = '192.168.1.100'; // TODO: Update this!
 
   // Choose which base URL to use
-  static const bool _useNgrok = true; // Set to true to use ngrok, false for local IP
+  static const bool _useServerUrl = true; // Set to true to use server URL, false for ngrok/local
+  static const bool _useNgrok = false; // Set to true to use ngrok, false for server URL
 
   // API version prefix
   static const String _apiVersion = '/api/v1';
 
   // Base URL getter
   static String get baseUrl {
+    if (_useServerUrl) {
+      return _serverUrl;
+    }
+    
     if (_useNgrok) {
       return _ngrokUrl;
     }
@@ -97,6 +105,11 @@ class ApiConstants {
     return "$apiBaseUrl/agent/getAgentsByZipCode/$zipCode";
   }
 
+  // Get all agents with pagination endpoint
+  static String getAllAgentsEndpoint(int page) {
+    return "$apiBaseUrl/agent/getAllAgents/$page";
+  }
+
   // Get all listings endpoint (for buyer home screen)
   static String getAllListingsEndpoint({String? agentId}) {
     if (agentId != null && agentId.isNotEmpty) {
@@ -105,10 +118,6 @@ class ApiConstants {
     return "$apiBaseUrl/agent/getListings";
   }
 
-  // Get leads by agent ID endpoint
-  static String getLeadsByAgentIdEndpoint(String agentId) {
-    return "$apiBaseUrl/buyer/getLeadsByAgentId/$agentId";
-  }
   // Loan Officer specific endpoints
   static String get allLoanOfficersEndpoint => "$apiBaseUrl/loan-officers/all";
 
@@ -131,6 +140,11 @@ class ApiConstants {
 
   // Lead specific endpoints - Using same endpoint for both buyer and seller leads
   static String get createLeadEndpoint => "$apiBaseUrl/buyer/createLead";
+  
+  // Get leads by agent ID endpoint
+  static String getLeadsByAgentIdEndpoint(String agentId) {
+    return "$apiBaseUrl/agent/getLeadsByAgentId/$agentId";
+  }
 
   // Like/Unlike agent endpoint
   static String getLikeAgentEndpoint(String agentId) {
@@ -144,18 +158,18 @@ class ApiConstants {
     return "$apiBaseUrl/loan-officers/$loanOfficerId/like";
   }
 
-  // Agent tracking endpoints
-  // Note: addSearch endpoint expects agent name, not ID
-  static String getAddSearchEndpoint(String agentIdentifier) {
-    return "$apiBaseUrl/agent/addSearch/$agentIdentifier";
+  // Agent and Loan Officer tracking endpoints (shared)
+  // Note: addSearch endpoint expects name, not ID
+  static String getAddSearchEndpoint(String identifier) {
+    return "$apiBaseUrl/agent/addSearch/$identifier";
   }
 
-  static String getAddContactEndpoint(String agentId) {
-    return "$apiBaseUrl/agent/addContact/$agentId";
+  static String getAddContactEndpoint(String id) {
+    return "$apiBaseUrl/agent/addContact/$id";
   }
 
-  static String getAddProfileViewEndpoint(String agentId) {
-    return "$apiBaseUrl/agent/addProfileView/$agentId";
+  static String getAddProfileViewEndpoint(String id) {
+    return "$apiBaseUrl/agent/addProfileView/$id";
   }
 
   // Listing specific endpoints
@@ -167,6 +181,10 @@ class ApiConstants {
 
   static String getDeleteListingEndpoint(String listingId) {
     return "$apiBaseUrl/agent/deleteListing/$listingId";
+  }
+
+  static String getListingsByUserIdEndpoint(String userId) {
+    return "$apiBaseUrl/agent/getListingsByUserId/$userId";
   }
 
 
@@ -198,6 +216,10 @@ class ApiConstants {
 
   // Socket.IO Server URL
   static String get socketUrl {
+    if (_useServerUrl) {
+      return _serverUrl;
+    }
+    
     if (_useNgrok) {
       return _ngrokUrl;
     }
@@ -216,5 +238,21 @@ class ApiConstants {
 
     return "http://localhost:3001";
   }
+
+  // Proposal endpoints
+  static String get createProposalEndpoint => "$apiBaseUrl/proposals/create";
+  static String getProposalEndpoint(String proposalId) => "$apiBaseUrl/proposals/$proposalId";
+  static String acceptProposalEndpoint(String proposalId) => "$apiBaseUrl/proposals/$proposalId/accept";
+  static String rejectProposalEndpoint(String proposalId) => "$apiBaseUrl/proposals/$proposalId/reject";
+  static String completeServiceEndpoint(String proposalId) => "$apiBaseUrl/proposals/$proposalId/complete";
+  static String getUserProposalsEndpoint(String userId) => "$apiBaseUrl/proposals/user/$userId";
+  static String getProfessionalProposalsEndpoint(String professionalId) => "$apiBaseUrl/proposals/professional/$professionalId";
+
+  // Report endpoints
+  static String get submitReportEndpoint => "$apiBaseUrl/reports";
+
+  // Review endpoints
+  static String get submitReviewEndpoint => "$apiBaseUrl/buyer/addReview";
+  static String submitLoanOfficerReviewEndpoint(String loanOfficerId) => "$apiBaseUrl/loan-officers/$loanOfficerId/reviews";
 }
 
