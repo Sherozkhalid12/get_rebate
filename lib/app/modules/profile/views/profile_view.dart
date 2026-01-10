@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -121,6 +122,10 @@ class ProfileView extends GetView<ProfileController> {
                 final hasImageUrl = controller.profileImageUrl != null &&
                     controller.profileImageUrl!.isNotEmpty;
 
+                if (hasImageUrl && kDebugMode) {
+                  print('🖼️ ProfileView: Displaying image from URL: ${controller.profileImageUrl}');
+                }
+
                 return GestureDetector(
                   onTap: controller.isEditing
                       ? controller.pickProfileImage
@@ -156,6 +161,10 @@ class ProfileView extends GetView<ProfileController> {
                                       controller.profileImageUrl!,
                                       fit: BoxFit.cover,
                                       errorBuilder: (context, error, stackTrace) {
+                                        if (kDebugMode) {
+                                          print('❌ ProfileView: Failed to load image: ${controller.profileImageUrl}');
+                                          print('   Error: $error');
+                                        }
                                         return Container(
                                           color: AppTheme.white.withOpacity(0.2),
                                           child: Icon(

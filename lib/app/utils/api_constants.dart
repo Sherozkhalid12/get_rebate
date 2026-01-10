@@ -42,37 +42,28 @@ class ApiConstants {
   // API version prefix
   static const String _apiVersion = '/api/v1';
 
-  // Base URL getter
+  // Base URL getter - ALWAYS use server URL: http://98.93.16.113:3001
   static String get baseUrl {
-    if (_useServerUrl) {
-      return _serverUrl;
+    // Always return the server URL
+    if (kDebugMode) {
+      print('🌐 ApiConstants.baseUrl = "$_serverUrl"');
     }
+    return _serverUrl;
     
-    if (_useNgrok) {
-      return _ngrokUrl;
-    }
-
-    if (kIsWeb) {
-      return "http://localhost:3001";
-    }
-
-    if (Platform.isAndroid) {
-      // For Android emulator
-      // return "http://10.0.2.2:3001";
-
-      // For real Android device on same network
-      return "http://$_localNetworkIp:3001";
-    }
-
-    if (Platform.isIOS) {
-      // For iOS simulator
-      // return "http://localhost:3001";
-
-      // For real iOS device on same network
-      return "http://$_localNetworkIp:3001";
-    }
-
-    return "http://localhost:3001";
+    // Commented out fallback logic - always use server URL
+    // if (_useNgrok) {
+    //   return _ngrokUrl;
+    // }
+    // if (kIsWeb) {
+    //   return "http://localhost:3001";
+    // }
+    // if (Platform.isAndroid) {
+    //   return "http://$_localNetworkIp:3001";
+    // }
+    // if (Platform.isIOS) {
+    //   return "http://$_localNetworkIp:3001";
+    // }
+    // return "http://localhost:3001";
   }
 
   // Full API base URL with version
@@ -141,9 +132,14 @@ class ApiConstants {
   // Lead specific endpoints - Using same endpoint for both buyer and seller leads
   static String get createLeadEndpoint => "$apiBaseUrl/buyer/createLead";
   
-  // Get leads by agent ID endpoint
+  // Get leads by agent ID endpoint (for agents to see their leads)
   static String getLeadsByAgentIdEndpoint(String agentId) {
     return "$apiBaseUrl/agent/getLeadsByAgentId/$agentId";
+  }
+
+  // Get leads by buyer/user ID endpoint (for buyers to see their own leads)
+  static String getLeadsByBuyerIdEndpoint(String buyerId) {
+    return "$apiBaseUrl/buyer/getLeadsByAgentId/$buyerId";
   }
 
   // Like/Unlike agent endpoint
@@ -254,5 +250,28 @@ class ApiConstants {
   // Review endpoints
   static String get submitReviewEndpoint => "$apiBaseUrl/buyer/addReview";
   static String submitLoanOfficerReviewEndpoint(String loanOfficerId) => "$apiBaseUrl/loan-officers/$loanOfficerId/reviews";
+
+  /// Normalizes an image URL by prepending the base URL if needed
+  /// Returns null if the input is null or empty
+  /// Returns the original URL if it's already a full HTTP/HTTPS URL
+  /// Otherwise prepends the base URL
+  /// Get image URL - images are already coming with correct URLs, so just return as-is
+  static String? getImageUrl(String? imagePath) {
+    if (imagePath == null || imagePath.trim().isEmpty) {
+      if (kDebugMode) {
+        print('🖼️ getImageUrl: Input is null or empty');
+      }
+      return null;
+    }
+
+    final trimmedPath = imagePath.trim();
+    
+    if (kDebugMode) {
+      print('🖼️ getImageUrl: Input path = "$trimmedPath"');
+    }
+    
+    // Images are already coming with correct URLs, so just return as-is
+    return trimmedPath;
+  }
 }
 

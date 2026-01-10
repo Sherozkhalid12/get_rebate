@@ -26,15 +26,16 @@ class ReportService {
   /// {
   ///   "reporterId": "64f0a2b1c2d3e4f567890456",
   ///   "reportedUserId": "69146a3eb4a7200ab915b7be",
-  ///   "reason": "Very rude behavior",
-  ///   "description": "The agent repeatedly delivered the order late on multiple occasions."
+  ///   "reason": "very rude behaviour",
+  ///   "description": "The agent repeatedly delivered the order late on multiple occasions.",
+  ///   "leadId": "6953f316db4d6199c4eada38"
   /// }
   Future<Map<String, dynamic>> submitReport({
     required String reporterId,
     required String reportedUserId,
     required String reason,
     required String description,
-    String? proposalId, // Optional: link report to a specific proposal
+    String? leadId, // Optional: link report to a specific lead
   }) async {
     try {
       if (kDebugMode) {
@@ -42,6 +43,7 @@ class ReportService {
         print('   Reporter: $reporterId');
         print('   Reported User: $reportedUserId');
         print('   Reason: $reason');
+        print('   Lead ID: $leadId');
       }
 
       final response = await _dio.post(
@@ -51,7 +53,7 @@ class ReportService {
           'reportedUserId': reportedUserId,
           'reason': reason,
           'description': description,
-          if (proposalId != null) 'proposalId': proposalId,
+          if (leadId != null && leadId.isNotEmpty) 'leadId': leadId,
         },
         options: Options(
           headers: ApiConstants.ngrokHeaders,

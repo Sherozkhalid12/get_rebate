@@ -285,20 +285,10 @@ class FindAgentsView extends GetView<FindAgentsController> {
   }
 
   Widget _buildAgentCard(BuildContext context, AgentModel agent) {
-    // Build full profile image URL if needed
-    String? profileImageUrl = agent.profileImage;
-    if (profileImageUrl != null && 
-        profileImageUrl.isNotEmpty && 
-        !profileImageUrl.startsWith('http://') && 
-        !profileImageUrl.startsWith('https://')) {
-      final baseUrl = ApiConstants.baseUrl.endsWith('/') 
-          ? ApiConstants.baseUrl.substring(0, ApiConstants.baseUrl.length - 1)
-          : ApiConstants.baseUrl;
-      profileImageUrl = profileImageUrl.replaceAll('\\', '/');
-      final cleanUrl = profileImageUrl.startsWith('/') 
-          ? profileImageUrl.substring(1) 
-          : profileImageUrl;
-      profileImageUrl = '$baseUrl/$cleanUrl';
+    // Use helper function to normalize URL (AgentModel already normalizes, but ensure consistency)
+    final profileImageUrl = ApiConstants.getImageUrl(agent.profileImage);
+    if (kDebugMode && profileImageUrl != null) {
+      print('🖼️ FindAgentsView: Agent profile image URL: $profileImageUrl');
     }
     
     return Card(

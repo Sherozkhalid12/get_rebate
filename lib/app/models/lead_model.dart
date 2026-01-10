@@ -10,7 +10,7 @@ class LeadModel {
   final String? propertyType;
   final String? priceRange;
   final int? bedrooms;
-  final int? bathrooms;
+  final double? bathrooms; // Can be fractional (e.g., 4.5)
   final bool? workingWithAgent;
   final String? rebateAwareness;
   final String? howHeard;
@@ -33,6 +33,12 @@ class LeadModel {
   final DateTime? updatedAt;
   final LeadUserInfo? currentUserId;
   final LeadUserInfo? agentId;
+  final String? leadStatus; // pending, accepted, completed
+  final AgentResponse? agentResponse; // Agent's response with status and note
+  final String? leadType; // buyer or seller
+  final String? listingId;
+  final String? searchForLoanOfficers;
+  final List<String>? markedCompleteBy; // List of user IDs who marked it complete
 
   LeadModel({
     required this.id,
@@ -69,6 +75,12 @@ class LeadModel {
     this.updatedAt,
     this.currentUserId,
     this.agentId,
+    this.leadStatus,
+    this.agentResponse,
+    this.leadType,
+    this.listingId,
+    this.searchForLoanOfficers,
+    this.markedCompleteBy,
   });
 
   factory LeadModel.fromJson(Map<String, dynamic> json) {
@@ -88,9 +100,9 @@ class LeadModel {
       bedrooms: json['bedrooms'] is int
           ? json['bedrooms'] as int
           : (json['bedrooms'] != null ? int.tryParse(json['bedrooms'].toString()) : null),
-      bathrooms: json['bathrooms'] is int
-          ? json['bathrooms'] as int
-          : (json['bathrooms'] != null ? int.tryParse(json['bathrooms'].toString()) : null),
+      bathrooms: json['bathrooms'] is num
+          ? (json['bathrooms'] as num).toDouble()
+          : (json['bathrooms'] != null ? double.tryParse(json['bathrooms'].toString()) : null),
       workingWithAgent: json['workingWithAgent'] as bool?,
       rebateAwareness: json['rebateAwareness']?.toString(),
       howHeard: json['howHeard']?.toString(),
@@ -121,6 +133,20 @@ class LeadModel {
       agentId: json['agentId'] != null
           ? LeadUserInfo.fromJson(json['agentId'])
           : null,
+      leadStatus: json['leadStatus']?.toString(),
+      agentResponse: json['agentResponse'] != null
+          ? AgentResponse.fromJson(json['agentResponse'] is Map<String, dynamic>
+              ? json['agentResponse'] as Map<String, dynamic>
+              : {})
+          : null,
+      leadType: json['leadType']?.toString(),
+      listingId: json['listingId']?.toString(),
+      searchForLoanOfficers: json['searchForLoanOfficers']?.toString(),
+      markedCompleteBy: json['markedCompleteBy'] != null
+          ? (json['markedCompleteBy'] as List<dynamic>?)
+              ?.map((item) => item.toString())
+              .toList()
+          : null,
     );
   }
 
@@ -148,6 +174,60 @@ class LeadModel {
     } else {
       return '${createdAt!.month}/${createdAt!.day}/${createdAt!.year}';
     }
+  }
+
+  // Check if lead is completed
+  bool get isCompleted {
+    return leadStatus == 'completed' || 
+           (markedCompleteBy != null && markedCompleteBy!.isNotEmpty);
+  }
+
+  // Check if lead is accepted
+  bool get isAccepted {
+    return leadStatus == 'accepted' || 
+           (agentResponse != null && agentResponse!.status == 'accepted');
+  }
+
+  // Check if lead is pending
+  bool get isPending {
+    return (leadStatus == 'pending' || leadStatus == null || leadStatus?.isEmpty == true) && 
+           (agentResponse == null || agentResponse!.status == 'pending');
+  }
+
+  // Check if lead is reported
+  bool get isReported {
+    return leadStatus == 'reported' || leadStatus == 'Reported';
+  }
+}
+
+// Agent response model
+class AgentResponse {
+  final String status; // pending, accepted, rejected
+  final DateTime? respondedAt;
+  final String? note;
+
+  AgentResponse({
+    required this.status,
+    this.respondedAt,
+    this.note,
+  });
+
+  factory AgentResponse.fromJson(Map<String, dynamic> json) {
+    return AgentResponse(
+      status: json['status']?.toString() ?? 'pending',
+      respondedAt: json['respondedAt'] != null
+          ? DateTime.tryParse(json['respondedAt'].toString())
+          : null,
+      note: json['note']?.toString(),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'status': status,
+      if (respondedAt != null) 'respondedAt': respondedAt!.toIso8601String(),
+      if (note != null) 'note': note,
+    };
   }
 }
 

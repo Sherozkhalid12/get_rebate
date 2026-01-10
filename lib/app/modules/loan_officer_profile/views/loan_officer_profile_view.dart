@@ -337,7 +337,7 @@ class LoanOfficerProfileView extends GetView<LoanOfficerProfileController> {
                     );
                   }
                 },
-                icon: Icons.description,
+                icon: Icons.link,
                 backgroundColor: AppTheme.lightGreen.withOpacity(0.8),
                 width: double.infinity,
               ),

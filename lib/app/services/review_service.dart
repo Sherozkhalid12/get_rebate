@@ -34,7 +34,6 @@ class ReviewService {
     required String agentId,
     required int rating, // 1-5
     required String review,
-    String? proposalId, // Optional: link review to a specific proposal
   }) async {
     try {
       if (kDebugMode) {
@@ -51,7 +50,6 @@ class ReviewService {
           'agentId': agentId,
           'rating': rating,
           'review': review,
-          if (proposalId != null) 'proposalId': proposalId,
         },
         options: Options(
           headers: ApiConstants.ngrokHeaders,
@@ -83,7 +81,6 @@ class ReviewService {
     required String loanOfficerId,
     required int rating, // 1-5
     required String review,
-    String? proposalId, // Optional: link review to a specific proposal
   }) async {
     try {
       if (kDebugMode) {
@@ -99,7 +96,6 @@ class ReviewService {
           'currentUserId': currentUserId,
           'rating': rating,
           'review': review,
-          if (proposalId != null) 'proposalId': proposalId,
         },
         options: Options(
           headers: ApiConstants.ngrokHeaders,

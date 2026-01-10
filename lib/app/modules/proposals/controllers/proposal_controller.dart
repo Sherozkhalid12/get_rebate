@@ -2,35 +2,137 @@ import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart';
 import 'package:getrebate/app/models/proposal_model.dart';
+import 'package:getrebate/app/models/lead_model.dart';
 import 'package:getrebate/app/services/proposal_service.dart';
 import 'package:getrebate/app/services/report_service.dart';
 import 'package:getrebate/app/services/review_service.dart';
+import 'package:getrebate/app/services/leads_service.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
+import 'package:getrebate/app/utils/api_constants.dart';
 
 class ProposalController extends GetxController {
   final AuthController _authController = Get.find<AuthController>();
   final ProposalService _proposalService = ProposalService();
   final ReportService _reportService = ReportService();
   final ReviewService _reviewService = ReviewService();
+  final LeadsService _leadsService = LeadsService();
 
-  // Observable proposals
+  // Observable proposals and leads
   final _proposals = <ProposalModel>[].obs;
+  final _leads = <LeadModel>[].obs;
   final _isLoading = false.obs;
   final _error = Rxn<String>();
   final _highlightedProposalId = Rxn<String>();
+  final _highlightedLeadId = Rxn<String>();
+  
+  // Filter state
+  final _selectedFilter = 'all'.obs; // all, pending, accepted, completed, reported
 
   List<ProposalModel> get proposals => _proposals;
+  List<LeadModel> get leads => _leads;
   bool get isLoading => _isLoading.value;
   String? get error => _error.value;
   String? get highlightedProposalId => _highlightedProposalId.value;
+  String? get highlightedLeadId => _highlightedLeadId.value;
+  String get selectedFilter => _selectedFilter.value;
+  
+  // Combined list for display (leads converted to proposal-like format)
+  List<ProposalModel> get displayItems {
+    if (_selectedFilter.value == 'all') {
+      return _proposals;
+    }
+    return _proposals.where((p) {
+      switch (_selectedFilter.value) {
+        case 'pending':
+          return p.status == ProposalStatus.pending;
+        case 'accepted':
+          return p.status == ProposalStatus.accepted || p.status == ProposalStatus.inProgress;
+        case 'completed':
+          return p.status == ProposalStatus.completed;
+        case 'reported':
+          return p.status == ProposalStatus.reported;
+        default:
+          return true;
+      }
+    }).toList();
+  }
+
+  // Get filtered counts
+  int get allCount => _proposals.length;
+  int get pendingCount => _proposals.where((p) => p.status == ProposalStatus.pending).length;
+  int get acceptedCount => _proposals.where((p) => p.status == ProposalStatus.accepted || p.status == ProposalStatus.inProgress).length;
+  int get completedCount => _proposals.where((p) => p.status == ProposalStatus.completed).length;
+  int get reportedCount => _proposals.where((p) => p.status == ProposalStatus.reported).length;
+
+  // Navigation arguments handlers - using simple variables, not reactive
+  String? _pendingReviewProposalId;
+  String? _pendingReportProposalId;
+
+  String? get pendingReviewProposalId => _pendingReviewProposalId;
+  String? get pendingReportProposalId => _pendingReportProposalId;
+
+  void clearDialogFlags() {
+    _pendingReviewProposalId = null;
+    _pendingReportProposalId = null;
+  }
+
+  void handlePendingDialogs() {
+    if (_pendingReviewProposalId != null) {
+      final proposalId = _pendingReviewProposalId!;
+      _pendingReviewProposalId = null;
+      // Trigger dialog showing via a callback mechanism
+      // This will be handled in the view after data loads
+      if (kDebugMode) {
+        print('📝 ProposalController: Review dialog requested for: $proposalId');
+      }
+    }
+    if (_pendingReportProposalId != null) {
+      final proposalId = _pendingReportProposalId!;
+      _pendingReportProposalId = null;
+      if (kDebugMode) {
+        print('🚩 ProposalController: Report dialog requested for: $proposalId');
+      }
+    }
+  }
 
   @override
   void onInit() {
     super.onInit();
-    // Check if proposalId was passed as argument
+    // Check if proposalId or leadId was passed as argument
     final args = Get.arguments;
-    if (args != null && args is Map && args['proposalId'] != null) {
-      _highlightedProposalId.value = args['proposalId'] as String;
+    if (args != null && args is Map) {
+      if (args['proposalId'] != null) {
+        final proposalId = args['proposalId']?.toString();
+        if (proposalId != null && proposalId.isNotEmpty) {
+          _highlightedProposalId.value = proposalId;
+          if (kDebugMode) {
+            print('🎯 ProposalController: Highlighting proposalId: $proposalId');
+          }
+        }
+      }
+      if (args['leadId'] != null) {
+        final leadId = args['leadId']?.toString();
+        if (leadId != null && leadId.isNotEmpty) {
+          _highlightedLeadId.value = leadId;
+          if (kDebugMode) {
+            print('🎯 ProposalController: Highlighting leadId: $leadId');
+          }
+          
+          // Store pending dialog requests (not reactive)
+          if (args['showReview'] == true) {
+            _pendingReviewProposalId = leadId;
+            if (kDebugMode) {
+              print('📝 ProposalController: Will show review dialog for leadId: $leadId');
+            }
+          }
+          if (args['showReport'] == true) {
+            _pendingReportProposalId = leadId;
+            if (kDebugMode) {
+              print('🚩 ProposalController: Will show report dialog for leadId: $leadId');
+            }
+          }
+        }
+      }
     }
     loadProposals();
   }
@@ -46,29 +148,313 @@ class ProposalController extends GetxController {
     });
   }
 
-  /// Load proposals for current user - using dummy data for preview
+  /// Scroll to and highlight a specific lead
+  void highlightLead(String leadId) {
+    _highlightedLeadId.value = leadId;
+    // Clear highlight after 3 seconds
+    Future.delayed(const Duration(seconds: 3), () {
+      if (_highlightedLeadId.value == leadId) {
+        _highlightedLeadId.value = null;
+      }
+    });
+  }
+
+  /// Load proposals and leads for current user
   Future<void> loadProposals() async {
     _isLoading.value = true;
     _error.value = null;
 
     try {
-      // Simulate API delay
-      await Future.delayed(const Duration(milliseconds: 500));
-      
-      // Load dummy data to show UI preview
-      _proposals.value = _getDummyProposals();
-      
-      if (kDebugMode) {
-        print('✅ Loaded ${_proposals.length} dummy proposals for preview');
+      final user = _authController.currentUser;
+      if (user == null) {
+        _error.value = 'User not logged in';
+        _isLoading.value = false;
+        return;
       }
+
+      if (kDebugMode) {
+        print('📋 Loading proposals and leads for user: ${user.id}');
+      }
+
+      // Load leads for buyer (user's own leads)
+      try {
+        if (kDebugMode) {
+          print('📡 Fetching leads for buyer ID: ${user.id}');
+          print('   Using endpoint: ${ApiConstants.getLeadsByBuyerIdEndpoint(user.id)}');
+        }
+        
+        final leadsResponse = await _leadsService.getLeadsByBuyerId(user.id);
+        _leads.value = leadsResponse.leads;
+        
+        if (kDebugMode) {
+          print('✅ Loaded ${_leads.length} leads');
+          print('   Response: success=${leadsResponse.success}, count=${leadsResponse.count}, total=${leadsResponse.total}');
+        }
+
+        // Convert leads to proposal-like format for display
+        _proposals.value = _convertLeadsToProposals(_leads);
+        
+        if (kDebugMode && _proposals.isNotEmpty) {
+          print('✅ Converted ${_leads.length} leads to ${_proposals.length} proposals for display');
+        }
+      } on LeadsServiceException catch (e) {
+        if (kDebugMode) {
+          print('⚠️ LeadsServiceException loading leads: ${e.message}');
+          print('   Status Code: ${e.statusCode}');
+        }
+        // If leads fail with 404 or similar, it's okay (user might not have leads yet)
+        if (e.statusCode != 404 && e.statusCode != null) {
+          _error.value = e.message;
+        }
+        _leads.value = [];
+      } catch (e) {
+        if (kDebugMode) {
+          print('⚠️ Unexpected error loading leads: $e');
+        }
+        // If leads fail, still try to load proposals
+        _leads.value = [];
+        if (_error.value == null) {
+          _error.value = 'Failed to load leads: ${e.toString()}';
+        }
+      }
+
+      // Also load actual proposals if available
+      try {
+        final proposalsResponse = await _proposalService.getUserProposals(user.id);
+        if (proposalsResponse.isNotEmpty) {
+          // Merge with leads-converted proposals (avoid duplicates)
+          final existingIds = _proposals.map((p) => p.id).toSet();
+          final newProposals = proposalsResponse.where((p) => !existingIds.contains(p.id)).toList();
+          _proposals.addAll(newProposals);
+          
+          if (kDebugMode) {
+            print('✅ Loaded ${newProposals.length} actual proposals');
+          }
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          print('⚠️ Error loading proposals (may not exist): $e');
+          // If proposals endpoint doesn't exist or fails, continue with leads only
+        }
+      }
+
+      // Sort by created date (newest first)
+      _proposals.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+      if (kDebugMode) {
+        final proposalsCount = _proposals.length - _leads.length;
+        print('✅ Total items loaded: ${_proposals.length} (${_leads.length} leads + ${proposalsCount > 0 ? proposalsCount : 0} proposals)');
+      }
+
+      // Handle highlighting - convert leadId to proposal highlighting
+      if (_highlightedLeadId.value != null && _highlightedLeadId.value!.isNotEmpty) {
+        // Since we use lead ID as proposal ID, we can highlight directly
+        final leadId = _highlightedLeadId.value!;
+        final proposalIndex = _proposals.indexWhere((p) => p.id == leadId);
+        if (proposalIndex != -1) {
+          if (kDebugMode) {
+            print('🎯 Found proposal for leadId: $leadId at index: $proposalIndex');
+          }
+          highlightProposal(_proposals[proposalIndex].id);
+        } else {
+          if (kDebugMode) {
+            print('⚠️ Proposal not found for leadId: $leadId');
+          }
+        }
+      }
+      
+      // Handle proposal highlighting
+      if (_highlightedProposalId.value != null && _highlightedProposalId.value!.isNotEmpty) {
+        final proposalId = _highlightedProposalId.value!;
+        final proposalIndex = _proposals.indexWhere((p) => p.id == proposalId);
+        if (proposalIndex != -1) {
+          if (kDebugMode) {
+            print('🎯 Found proposal for proposalId: $proposalId at index: $proposalIndex');
+          }
+          highlightProposal(_proposals[proposalIndex].id);
+        }
+      }
+
+      if (_proposals.isEmpty) {
+        if (kDebugMode) {
+          print('ℹ️ No proposals or leads found for user');
+        }
+      }
+
+      // Handle pending dialogs after data is loaded
+      handlePendingDialogs();
+
     } catch (e) {
       _error.value = e.toString();
       if (kDebugMode) {
         print('❌ Error loading proposals: $e');
+        print('   Error type: ${e.runtimeType}');
+      }
+      
+      // Only show error if leads loading failed (proposals might not exist)
+      if (_leads.isEmpty) {
+        SnackbarHelper.showError('Failed to load leads: ${e.toString()}');
       }
     } finally {
       _isLoading.value = false;
     }
+  }
+
+  /// Set filter
+  void setFilter(String filter) {
+    _selectedFilter.value = filter;
+    if (kDebugMode) {
+      print('🔍 Filter changed to: $filter');
+      print('   Displaying ${displayItems.length} items');
+    }
+  }
+
+  /// Convert leads to proposal-like format for unified display
+  List<ProposalModel> _convertLeadsToProposals(List<LeadModel> leads) {
+    return leads.map((lead) {
+      if (kDebugMode) {
+        print('🔄 Converting lead to proposal: ${lead.id}');
+        print('   Lead status: ${lead.leadStatus}');
+        print('   Agent response: ${lead.agentResponse?.status}');
+        print('   Is completed: ${lead.isCompleted}');
+      }
+      
+      // Determine status based on leadStatus and agentResponse
+      ProposalStatus status = ProposalStatus.pending;
+      
+      // Check leadStatus first (highest priority)
+      if (lead.leadStatus != null && lead.leadStatus!.isNotEmpty) {
+        final leadStatusLower = lead.leadStatus!.toLowerCase();
+        switch (leadStatusLower) {
+          case 'completed':
+            status = ProposalStatus.completed;
+            break;
+          case 'reported':
+            status = ProposalStatus.reported;
+            break;
+          case 'accepted':
+            status = ProposalStatus.inProgress; // Accepted leads are in progress
+            break;
+          case 'pending':
+            status = ProposalStatus.pending;
+            break;
+          default:
+            // Fall through to other checks
+            break;
+        }
+      }
+      
+      // If status wasn't determined by leadStatus, check other conditions
+      if (status == ProposalStatus.pending) {
+        if (lead.isCompleted) {
+          // Lead is completed
+          status = ProposalStatus.completed;
+        } else if (lead.isReported) {
+          // Lead is reported
+          status = ProposalStatus.reported;
+        } else if (lead.isAccepted) {
+          // Lead is accepted (agent responded and accepted)
+          status = ProposalStatus.inProgress; // Accepted leads are in progress
+        } else if (lead.agentResponse != null && lead.agentResponse!.status == 'rejected') {
+          // Lead was rejected
+          status = ProposalStatus.rejected;
+        } else if (lead.agentId != null && lead.agentId!.id.isNotEmpty) {
+          // Agent is assigned but not explicitly accepted - treat as accepted/in progress
+          status = ProposalStatus.accepted;
+        } else {
+          // Default to pending
+          status = ProposalStatus.pending;
+        }
+      }
+      
+      if (kDebugMode) {
+        print('   Final mapped status: ${status.label}');
+      }
+
+      // Get agent name if available
+      final agentName = lead.agentId?.fullname ?? 
+                       (lead.agentId != null ? 'Assigned Agent' : 'No Agent Assigned');
+      
+      // Get property address - prioritize propertyInformation, then planningArea
+      String? propertyAddress;
+      if (lead.propertyInformation != null && 
+          lead.propertyInformation!.fullAddress.isNotEmpty &&
+          lead.propertyInformation!.fullAddress != 'Address not provided') {
+        propertyAddress = lead.propertyInformation!.fullAddress;
+      } else if (lead.planningArea != null && lead.planningArea!.isNotEmpty) {
+        propertyAddress = lead.planningArea!;
+      }
+
+      // Build message from lead details
+      String? message;
+      if (lead.comments != null && lead.comments!.isNotEmpty) {
+        message = lead.comments!;
+      } else if (lead.mustHaveFeatures != null && lead.mustHaveFeatures!.isNotEmpty) {
+        message = 'Must have: ${lead.mustHaveFeatures!}';
+      } else if (lead.buyingOrBuilding != null && lead.buyingOrBuilding!.isNotEmpty) {
+        message = 'Looking for: ${lead.buyingOrBuilding!}';
+      } else {
+        message = 'Real estate service inquiry';
+      }
+
+      // Get price
+      String? propertyPrice;
+      if (lead.priceRange != null && lead.priceRange!.isNotEmpty) {
+        propertyPrice = lead.priceRange!;
+      } else if (lead.idealSellingPrice != null && lead.idealSellingPrice!.isNotEmpty) {
+        propertyPrice = lead.idealSellingPrice!;
+      }
+
+      if (kDebugMode) {
+        print('   Lead ID: ${lead.id}');
+        print('   Agent: $agentName');
+        print('   Status: ${status.label}');
+        print('   Property: ${propertyAddress ?? "Not specified"}');
+      }
+
+      // Get accepted date from agentResponse or updatedAt
+      DateTime? acceptedAt;
+      if (lead.agentResponse != null && 
+          lead.agentResponse!.respondedAt != null && 
+          lead.agentResponse!.status == 'accepted') {
+        acceptedAt = lead.agentResponse!.respondedAt;
+      } else if (lead.agentId != null && lead.agentId!.id.isNotEmpty && lead.updatedAt != null) {
+        acceptedAt = lead.updatedAt;
+      }
+
+      // Get completed date if marked as complete
+      DateTime? completedAt;
+      if (lead.isCompleted && lead.updatedAt != null) {
+        completedAt = lead.updatedAt;
+      }
+
+      if (kDebugMode) {
+        print('   Lead ID: ${lead.id}');
+        print('   Agent: $agentName');
+        print('   Lead Status: ${lead.leadStatus}');
+        print('   Agent Response Status: ${lead.agentResponse?.status}');
+        print('   Proposal Status: ${status.label}');
+        print('   Property: ${propertyAddress ?? "Not specified"}');
+      }
+
+      return ProposalModel(
+        id: lead.id, // Use lead ID as proposal ID for reference
+        userId: lead.currentUserId?.id ?? '',
+        userName: lead.fullName ?? lead.currentUserId?.fullname ?? 'User',
+        userProfilePic: ApiConstants.getImageUrl(lead.currentUserId?.profilePic),
+        professionalId: lead.agentId?.id ?? '',
+        professionalName: agentName,
+        professionalType: 'agent',
+        status: status,
+        message: message,
+        propertyAddress: propertyAddress,
+        propertyPrice: propertyPrice,
+        createdAt: lead.createdAt ?? DateTime.now(),
+        updatedAt: lead.updatedAt,
+        acceptedAt: acceptedAt,
+        completedAt: completedAt,
+      );
+    }).toList();
   }
 
   /// Get dummy proposals for UI preview
@@ -342,7 +728,6 @@ class ProposalController extends GetxController {
           agentId: professionalId,
           rating: rating,
           review: review,
-          proposalId: proposalId,
         );
       } else {
         await _reviewService.submitLoanOfficerReview(
@@ -350,7 +735,6 @@ class ProposalController extends GetxController {
           loanOfficerId: professionalId,
           rating: rating,
           review: review,
-          proposalId: proposalId,
         );
       }
 
@@ -391,12 +775,15 @@ class ProposalController extends GetxController {
     _isLoading.value = true;
 
     try {
+      // Check if this is a lead (proposal ID equals lead ID)
+      final leadId = _leads.any((l) => l.id == proposalId) ? proposalId : null;
+      
       await _reportService.submitReport(
         reporterId: user.id,
         reportedUserId: reportedUserId,
         reason: reason,
         description: description,
-        proposalId: proposalId,
+        leadId: leadId ?? proposalId, // Use leadId if it's a lead, otherwise use proposalId as leadId for API
       );
 
       // Update proposal status to reported
@@ -435,6 +822,20 @@ class ProposalController extends GetxController {
     } catch (e) {
       return null;
     }
+  }
+
+  /// Get lead by ID
+  LeadModel? getLead(String leadId) {
+    try {
+      return _leads.firstWhere((l) => l.id == leadId);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// Get lead for a proposal (if proposal was converted from lead)
+  LeadModel? getLeadForProposal(String proposalId) {
+    return getLead(proposalId); // Since we use lead ID as proposal ID
   }
 
   /// Get proposals by status

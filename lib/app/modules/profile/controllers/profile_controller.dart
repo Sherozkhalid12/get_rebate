@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart';
 import 'package:getrebate/app/models/user_model.dart';
 import 'package:getrebate/app/services/user_service.dart';
+import 'package:getrebate/app/utils/api_constants.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
 
 class ProfileController extends GetxController {
@@ -48,6 +49,12 @@ class ProfileController extends GetxController {
       phoneController.text = user.phone ?? '';
       bioController.text = user.additionalData?['bio'] ?? '';
       _profileImageUrl.value = user.profileImage;
+      
+      if (kDebugMode) {
+        print('📸 ProfileController._loadUserData:');
+        print('   User profileImage from model: ${user.profileImage}');
+        print('   Setting _profileImageUrl to: ${_profileImageUrl.value}');
+      }
     }
   }
 
@@ -125,11 +132,26 @@ class ProfileController extends GetxController {
         profilePic: profilePicValue,
       );
 
+      // Normalize profile image URL using helper
+      final profileImageRaw = updatedUserData.profilePic;
+      
+      if (kDebugMode) {
+        print('📸 ProfileController.saveProfile:');
+        print('   Raw profilePic from API: "$profileImageRaw"');
+        print('   Base URL: ${ApiConstants.baseUrl}');
+      }
+      
+      final profileImage = ApiConstants.getImageUrl(profileImageRaw);
+      
+      if (kDebugMode) {
+        print('   Normalized profileImage: "$profileImage"');
+      }
+      
       // Update local user model
       final updatedUser = currentUser?.copyWith(
         name: updatedUserData.fullname ?? nameController.text.trim(),
         phone: updatedUserData.phone,
-        profileImage: updatedUserData.getProfilePicUrl() ?? updatedUserData.profilePic,
+        profileImage: profileImage,
         additionalData: {
           ...?currentUser?.additionalData,
           'bio': updatedUserData.bio ?? bioController.text.trim(),
@@ -146,6 +168,7 @@ class ProfileController extends GetxController {
         
         if (kDebugMode) {
           print('✅ Profile updated successfully');
+          print('   Final profileImageUrl: ${updatedUser.profileImage}');
         }
       }
     } catch (e) {

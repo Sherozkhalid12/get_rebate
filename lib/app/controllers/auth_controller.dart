@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart' hide FormData, MultipartFile;
 import 'package:get_storage/get_storage.dart';
@@ -186,6 +187,11 @@ class AuthController extends GetxController {
           }
 
           print('✅ Extracted User ID from login: $userId');
+          // Normalize profile image URL
+          final profileImageRaw = userData['profilePic']?.toString() ??
+                userData['profileImage']?.toString();
+          final profileImage = ApiConstants.getImageUrl(profileImageRaw);
+          
           // Map API response to UserModel
           final user = UserModel(
             id: userId,
@@ -194,9 +200,7 @@ class AuthController extends GetxController {
                 userData['fullname'] ?? userData['name'] ?? email.split('@')[0],
             phone: userData['phone']?.toString(),
             role: _mapApiRoleToUserRole(userData['role']?.toString()),
-            profileImage:
-                userData['profilePic']?.toString() ??
-                userData['profileImage']?.toString(),
+            profileImage: profileImage,
             licensedStates: List<String>.from(
               userData['LisencedStates'] ?? userData['licensedStates'] ?? [],
             ),
@@ -1047,15 +1051,30 @@ class AuthController extends GetxController {
               userData['id']?.toString() ??
               _currentUser.value!.id;
 
+          // Normalize profile image URL
+          final profileImageRaw = userData['profilePic']?.toString() ??
+                userData['profileImage']?.toString();
+          
+          if (kDebugMode) {
+            print('🔐 AuthController.updateUserProfile:');
+            print('   Raw profilePic from API response: "$profileImageRaw"');
+            print('   Base URL: ${ApiConstants.baseUrl}');
+          }
+          
+          final profileImage = profileImageRaw != null
+              ? ApiConstants.getImageUrl(profileImageRaw)
+              : _currentUser.value!.profileImage;
+          
+          if (kDebugMode) {
+            print('   Normalized profileImage: "$profileImage"');
+          }
+          
           final updatedUser = _currentUser.value!.copyWith(
             id: updatedUserId, // Ensure we use the correct ID from API
             name: userData['fullname'] ?? _currentUser.value!.name,
             email: userData['email'] ?? _currentUser.value!.email,
             phone: userData['phone']?.toString() ?? _currentUser.value!.phone,
-            profileImage:
-                userData['profilePic'] ??
-                userData['profileImage'] ??
-                _currentUser.value!.profileImage,
+            profileImage: profileImage,
             licensedStates: userData['licensedStates'] != null
                 ? List<String>.from(userData['licensedStates'])
                 : _currentUser.value!.licensedStates,

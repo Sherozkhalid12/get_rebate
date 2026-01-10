@@ -23,7 +23,7 @@ class NotificationsView extends GetView<NotificationsController> {
             color: AppTheme.darkGray,
             size: 20.sp,
           ),
-          onPressed: () => Get.back(),
+          onPressed: () => Navigator.pop(context),
         ),
         title: Text(
           'Notifications',
@@ -313,8 +313,47 @@ class NotificationsView extends GetView<NotificationsController> {
                         overflow: TextOverflow.ellipsis,
                       ),
                       
-                      // Lead info if available
-                      if (notification.leadId != null) ...[
+                      // Agent info for completed leads, Lead info for others
+                      if (notification.type == 'lead_completed' && notification.agentData != null) ...[
+                        SizedBox(height: 10.h),
+                        Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 10.w,
+                            vertical: 6.h,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: Colors.orange.withOpacity(0.2),
+                              width: 1,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.badge_outlined,
+                                size: 14.sp,
+                                color: Colors.orange.shade700,
+                              ),
+                              SizedBox(width: 6.w),
+                              Flexible(
+                                child: Text(
+                                  'Agent: ${notification.agentData!.fullname ?? 'N/A'}',
+                                  style: TextStyle(
+                                    fontSize: 12.sp,
+                                    color: Colors.orange.shade700,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ] else if (notification.leadId != null) ...[
                         SizedBox(height: 10.h),
                         Container(
                           padding: EdgeInsets.symmetric(

@@ -713,39 +713,8 @@ class MessagesController extends GetxController {
               final otherParticipant = thread.getOtherParticipant(user.id);
               if (otherParticipant == null) return null;
 
-              // Build profile pic URL from API data (no extra fetch needed)
-              // Normalize: trim whitespace and convert empty strings to null
-              String? profilePicUrl = otherParticipant.profilePic?.trim();
-              if (profilePicUrl != null && profilePicUrl.isNotEmpty && !profilePicUrl.contains('file://')) {
-                // Normalize path separators (handle Windows backslashes)
-                profilePicUrl = profilePicUrl.replaceAll('\\', '/');
-                // Build full URL if it's a relative path
-                if (!profilePicUrl.startsWith('http://') && 
-                    !profilePicUrl.startsWith('https://')) {
-                  // Remove leading slash if present to avoid double slashes
-                  if (profilePicUrl.startsWith('/')) {
-                    profilePicUrl = profilePicUrl.substring(1);
-                  }
-                  // Ensure baseUrl doesn't end with / and profilePicUrl doesn't start with /
-                  final baseUrl = ApiConstants.baseUrl.endsWith('/') 
-                      ? ApiConstants.baseUrl.substring(0, ApiConstants.baseUrl.length - 1)
-                      : ApiConstants.baseUrl;
-                  profilePicUrl = '$baseUrl/$profilePicUrl';
-                }
-                // Final validation - ensure it's a valid URI
-                try {
-                  final uri = Uri.parse(profilePicUrl);
-                  if (!uri.hasScheme || (!uri.scheme.startsWith('http'))) {
-                    profilePicUrl = null;
-                  }
-                } catch (e) {
-                  // Invalid URI, set to null
-                  profilePicUrl = null;
-                }
-              } else {
-                // Set to null if empty or invalid to avoid 404 errors
-                profilePicUrl = null;
-              }
+              // Build profile pic URL using helper function
+              final profilePicUrl = ApiConstants.getImageUrl(otherParticipant.profilePic?.trim());
 
               // Map role from API to sender type - use role directly from API response
               String senderType = 'user';
@@ -996,31 +965,9 @@ class MessagesController extends GetxController {
             senderType = 'loan_officer';
           }
 
-          // Build profile pic URL
-          String? senderImage = sender?['profilePic']?.toString()?.trim();
-          if (senderImage != null && senderImage.isNotEmpty && !senderImage.contains('file://')) {
-            senderImage = senderImage.replaceAll('\\', '/');
-            if (!senderImage.startsWith('http://') && !senderImage.startsWith('https://')) {
-              if (senderImage.startsWith('/')) {
-                senderImage = senderImage.substring(1);
-              }
-              final baseUrl = ApiConstants.baseUrl.endsWith('/') 
-                  ? ApiConstants.baseUrl.substring(0, ApiConstants.baseUrl.length - 1)
-                  : ApiConstants.baseUrl;
-              senderImage = '$baseUrl/$senderImage';
-            }
-            // Validate URI
-            try {
-              final uri = Uri.parse(senderImage);
-              if (!uri.hasScheme || (!uri.scheme.startsWith('http'))) {
-                senderImage = null;
-              }
-            } catch (e) {
-              senderImage = null;
-            }
-          } else {
-            senderImage = null;
-          }
+          // Build profile pic URL using helper function
+          final senderImageRaw = sender?['profilePic']?.toString()?.trim();
+          final senderImage = ApiConstants.getImageUrl(senderImageRaw);
 
           // Parse timestamp
           DateTime timestamp;
@@ -1428,31 +1375,8 @@ class MessagesController extends GetxController {
               final otherParticipant = thread.getOtherParticipant(user.id);
               if (otherParticipant == null) return null;
 
-              // Build profile pic URL from API data (no extra fetch needed)
-              String? profilePicUrl = otherParticipant.profilePic?.trim();
-              if (profilePicUrl != null && profilePicUrl.isNotEmpty && !profilePicUrl.contains('file://')) {
-                profilePicUrl = profilePicUrl.replaceAll('\\', '/');
-                if (!profilePicUrl.startsWith('http://') && 
-                    !profilePicUrl.startsWith('https://')) {
-                  if (profilePicUrl.startsWith('/')) {
-                    profilePicUrl = profilePicUrl.substring(1);
-                  }
-                  final baseUrl = ApiConstants.baseUrl.endsWith('/') 
-                      ? ApiConstants.baseUrl.substring(0, ApiConstants.baseUrl.length - 1)
-                      : ApiConstants.baseUrl;
-                  profilePicUrl = '$baseUrl/$profilePicUrl';
-                }
-                try {
-                  final uri = Uri.parse(profilePicUrl);
-                  if (!uri.hasScheme || (!uri.scheme.startsWith('http'))) {
-                    profilePicUrl = null;
-                  }
-                } catch (e) {
-                  profilePicUrl = null;
-                }
-              } else {
-                profilePicUrl = null;
-              }
+              // Build profile pic URL using helper function
+              final profilePicUrl = ApiConstants.getImageUrl(otherParticipant.profilePic?.trim());
 
               // Map role from API to sender type
               String senderType = 'user';
@@ -1648,35 +1572,8 @@ class MessagesController extends GetxController {
       }
     }
 
-    // Build profile pic URL - set to null if empty or invalid to avoid 404 errors
-    // Normalize: trim whitespace and convert empty strings to null
-    String? profilePicUrl = otherUserProfilePic?.trim();
-    if (profilePicUrl != null && profilePicUrl.isNotEmpty && !profilePicUrl.contains('file://')) {
-      profilePicUrl = profilePicUrl.replaceAll('\\', '/');
-      if (!profilePicUrl.startsWith('http://') && !profilePicUrl.startsWith('https://')) {
-        if (profilePicUrl.startsWith('/')) {
-          profilePicUrl = profilePicUrl.substring(1);
-        }
-        // Ensure baseUrl doesn't end with / and profilePicUrl doesn't start with /
-        final baseUrl = ApiConstants.baseUrl.endsWith('/') 
-            ? ApiConstants.baseUrl.substring(0, ApiConstants.baseUrl.length - 1)
-            : ApiConstants.baseUrl;
-        profilePicUrl = '$baseUrl/$profilePicUrl';
-      }
-      // Final validation - ensure it's a valid URI
-      try {
-        final uri = Uri.parse(profilePicUrl);
-        if (!uri.hasScheme || (!uri.scheme.startsWith('http'))) {
-          profilePicUrl = null;
-        }
-      } catch (e) {
-        // Invalid URI, set to null
-        profilePicUrl = null;
-      }
-    } else {
-      // Set to null if empty or invalid to avoid 404 errors
-      profilePicUrl = null;
-    }
+    // Build profile pic URL using helper function
+    final profilePicUrl = ApiConstants.getImageUrl(otherUserProfilePic?.trim());
 
     // Check if thread already exists - check both by senderId and by ID
     // This prevents duplicates when:

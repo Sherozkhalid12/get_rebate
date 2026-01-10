@@ -64,7 +64,9 @@ import 'package:getrebate/app/modules/terms_of_service/bindings/terms_of_service
 import 'package:getrebate/app/modules/notifications/views/notifications_view.dart';
 import 'package:getrebate/app/modules/notifications/bindings/notifications_binding.dart';
 import 'package:getrebate/app/modules/proposals/views/proposals_view.dart';
+import 'package:getrebate/app/modules/proposals/views/lead_detail_view.dart';
 import 'package:getrebate/app/modules/proposals/bindings/proposals_binding.dart';
+import 'package:getrebate/app/modules/proposals/bindings/lead_detail_binding.dart';
 import 'package:flutter/material.dart';
 
 class AppPages {
@@ -100,6 +102,7 @@ class AppPages {
   static const TERMS_OF_SERVICE = '/terms-of-service';
   static const NOTIFICATIONS = '/notifications';
   static const PROPOSALS = '/proposals';
+  static const LEAD_DETAIL = '/lead-detail';
 
   static final routes = [
     GetPage(
@@ -258,6 +261,11 @@ class AppPages {
       name: PROPOSALS,
       page: () => const ProposalsView(),
       binding: ProposalsBinding(),
+    ),
+    GetPage(
+      name: LEAD_DETAIL,
+      page: () => const LeadDetailView(),
+      binding: LeadDetailBinding(),
     ),
   ];
 }

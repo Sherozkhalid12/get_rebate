@@ -198,21 +198,11 @@ class BuyerController extends GetxController {
       totalPages.value = response.totalPages;
       totalAgents.value = response.totalAgents;
       
-      // Build full URLs for profile pictures
+      // Profile images are already normalized in AgentModel.fromJson, but use helper for consistency
       final agentsWithUrls = response.agents.map((agent) {
-        String? profileImage = agent.profileImage;
-        if (profileImage != null && profileImage.isNotEmpty) {
-          if (!profileImage.startsWith('http://') && !profileImage.startsWith('https://')) {
-            profileImage = '${ApiConstants.baseUrl}/$profileImage';
-          }
-        }
-        
-        String? companyLogo = agent.companyLogoUrl;
-        if (companyLogo != null && companyLogo.isNotEmpty) {
-          if (!companyLogo.startsWith('http://') && !companyLogo.startsWith('https://')) {
-            companyLogo = '${ApiConstants.baseUrl}/$companyLogo';
-          }
-        }
+        // Use helper to ensure normalization (models already do this, but ensure consistency)
+        final profileImage = ApiConstants.getImageUrl(agent.profileImage);
+        final companyLogo = ApiConstants.getImageUrl(agent.companyLogoUrl);
         
         return agent.copyWith(
           profileImage: profileImage,
@@ -278,21 +268,11 @@ class BuyerController extends GetxController {
       totalPages.value = response.totalPages;
       totalAgents.value = response.totalAgents;
 
-      // Build full URLs for profile pictures
+      // Profile images are already normalized in AgentModel.fromJson, but use helper for consistency
       final agentsWithUrls = response.agents.map((agent) {
-        String? profileImage = agent.profileImage;
-        if (profileImage != null && profileImage.isNotEmpty) {
-          if (!profileImage.startsWith('http://') && !profileImage.startsWith('https://')) {
-            profileImage = '${ApiConstants.baseUrl}/$profileImage';
-          }
-        }
-        
-        String? companyLogo = agent.companyLogoUrl;
-        if (companyLogo != null && companyLogo.isNotEmpty) {
-          if (!companyLogo.startsWith('http://') && !companyLogo.startsWith('https://')) {
-            companyLogo = '${ApiConstants.baseUrl}/$companyLogo';
-          }
-        }
+        // Use helper to ensure normalization (models already do this, but ensure consistency)
+        final profileImage = ApiConstants.getImageUrl(agent.profileImage);
+        final companyLogo = ApiConstants.getImageUrl(agent.companyLogoUrl);
         
         return agent.copyWith(
           profileImage: profileImage,
@@ -344,21 +324,11 @@ class BuyerController extends GetxController {
       
       final loanOfficers = await _loanOfficerService.getAllLoanOfficers();
       
-      // Build full URLs for profile pictures and company logos
+      // Profile images are already normalized in LoanOfficerModel.fromJson, but use helper for consistency
       final loanOfficersWithUrls = loanOfficers.map((loanOfficer) {
-        String? profileImage = loanOfficer.profileImage;
-        if (profileImage != null && profileImage.isNotEmpty) {
-          if (!profileImage.startsWith('http://') && !profileImage.startsWith('https://')) {
-            profileImage = '${ApiConstants.baseUrl}/$profileImage';
-          }
-        }
-        
-        String? companyLogo = loanOfficer.companyLogoUrl;
-        if (companyLogo != null && companyLogo.isNotEmpty) {
-          if (!companyLogo.startsWith('http://') && !companyLogo.startsWith('https://')) {
-            companyLogo = '${ApiConstants.baseUrl}/$companyLogo';
-          }
-        }
+        // Use helper to ensure normalization (models already do this, but ensure consistency)
+        final profileImage = ApiConstants.getImageUrl(loanOfficer.profileImage);
+        final companyLogo = ApiConstants.getImageUrl(loanOfficer.companyLogoUrl);
         
         return loanOfficer.copyWith(
           profileImage: profileImage,
