@@ -21,6 +21,9 @@ class LoanOfficerEditProfileController extends GetxController {
   final mortgageApplicationUrlController = TextEditingController();
   final externalReviewsUrlController = TextEditingController();
   final serviceAreasController = TextEditingController();
+  final yearsOfExperienceController = TextEditingController();
+  final languagesSpokenController = TextEditingController();
+  final discountsOfferedController = TextEditingController();
 
   // Observable variables
   final _isLoading = false.obs;
@@ -138,6 +141,9 @@ class LoanOfficerEditProfileController extends GetxController {
       mortgageApplicationUrlController.text = loanOfficer.mortgageApplicationUrl ?? '';
       externalReviewsUrlController.text = loanOfficer.externalReviewsUrl ?? '';
       serviceAreasController.text = loanOfficer.claimedZipCodes.join(', ');
+      yearsOfExperienceController.text = loanOfficer.yearsOfExperience?.toString() ?? '';
+      languagesSpokenController.text = loanOfficer.languagesSpoken.join(', ');
+      discountsOfferedController.text = loanOfficer.discountsOffered ?? '';
       _licensedStates.value = List<String>.from(loanOfficer.licensedStates);
       _specialtyProducts.value = List<String>.from(loanOfficer.specialtyProducts);
     } else {
@@ -152,6 +158,9 @@ class LoanOfficerEditProfileController extends GetxController {
         companyNameController.text = user.additionalData?['CompanyName'] ?? '';
         mortgageApplicationUrlController.text = user.additionalData?['website_link'] ?? '';
         externalReviewsUrlController.text = user.additionalData?['thirdPartReviewLink'] ?? '';
+        yearsOfExperienceController.text = user.additionalData?['yearsOfExperience']?.toString() ?? '';
+        languagesSpokenController.text = (user.additionalData?['languagesSpoken'] as List?)?.join(', ') ?? '';
+        discountsOfferedController.text = user.additionalData?['discountsOffered']?.toString() ?? '';
         
         // Load licensed states and specialty products from user data
         if (user.additionalData?['licensedStates'] != null) {
@@ -292,6 +301,15 @@ class LoanOfficerEditProfileController extends GetxController {
             : null,
         profilePic: _selectedProfilePic.value,
         companyLogo: _selectedCompanyLogo.value,
+        yearsOfExperience: yearsOfExperienceController.text.trim().isNotEmpty
+            ? int.tryParse(yearsOfExperienceController.text.trim())
+            : null,
+        languagesSpoken: languagesSpokenController.text.trim().isNotEmpty
+            ? languagesSpokenController.text.trim().split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList()
+            : null,
+        discountsOffered: discountsOfferedController.text.trim().isNotEmpty
+            ? discountsOfferedController.text.trim()
+            : null,
       );
 
       // Refresh the current loan officer data
@@ -355,6 +373,9 @@ class LoanOfficerEditProfileController extends GetxController {
     mortgageApplicationUrlController.dispose();
     externalReviewsUrlController.dispose();
     serviceAreasController.dispose();
+    yearsOfExperienceController.dispose();
+    languagesSpokenController.dispose();
+    discountsOfferedController.dispose();
     super.onClose();
   }
 }

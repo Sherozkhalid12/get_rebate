@@ -1,7 +1,9 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import 'package:get/get.dart';
 import 'package:getrebate/app/models/loan_officer_model.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
+import 'package:getrebate/app/controllers/auth_controller.dart';
 
 /// Custom exception for loan officer service errors
 class LoanOfficerServiceException implements Exception {
@@ -37,9 +39,33 @@ class LoanOfficerService {
       ),
     );
 
-    // Add interceptors for error handling
+    // Add interceptors for error handling and auth token
     _dio.interceptors.add(
       InterceptorsWrapper(
+        onRequest: (options, handler) {
+          // Automatically add auth token to all requests
+          try {
+            if (Get.isRegistered<AuthController>()) {
+              final authController = Get.find<AuthController>();
+              final token = authController.token;
+              if (token != null && token.isNotEmpty) {
+                options.headers['Authorization'] = 'Bearer $token';
+                if (kDebugMode) {
+                  print('🔑 LoanOfficerService: Added auth token to request');
+                }
+              }
+            }
+          } catch (e) {
+            if (kDebugMode) {
+              print('⚠️ LoanOfficerService: Could not add auth token: $e');
+            }
+          }
+          
+          // Add ngrok headers if needed
+          options.headers.addAll(ApiConstants.ngrokHeaders);
+          
+          handler.next(options);
+        },
         onError: (error, handler) {
           _handleError(error);
           handler.next(error);
@@ -54,8 +80,12 @@ class LoanOfficerService {
       print('❌ Loan Officer Service Error:');
       print('   Type: ${error.type}');
       print('   Message: ${error.message}');
+      print('   Request URL: ${error.requestOptions.uri}');
+      print('   Request Headers: ${error.requestOptions.headers}');
       print('   Response: ${error.response?.data}');
       print('   Status Code: ${error.response?.statusCode}');
+      print('   Error: ${error.error}');
+      print('   Stack Trace: ${error.stackTrace}');
     }
   }
 
@@ -66,9 +96,6 @@ class LoanOfficerService {
     try {
       final response = await _dio.get(
         ApiConstants.allLoanOfficersEndpoint,
-        options: Options(
-          headers: ApiConstants.ngrokHeaders,
-        ),
       );
 
       if (kDebugMode) {
@@ -190,18 +217,33 @@ class LoanOfficerService {
   /// Throws [LoanOfficerServiceException] if the request fails.
   Future<LoanOfficerModel> getCurrentLoanOfficer(String loanOfficerId) async {
     try {
+      final endpoint = ApiConstants.getLoanOfficerByIdEndpoint(loanOfficerId);
+      
       if (kDebugMode) {
         print('📡 Fetching current loan officer from API...');
         print('   ID: $loanOfficerId');
-        print('   URL: ${ApiConstants.getLoanOfficerByIdEndpoint(loanOfficerId)}');
+        print('   Endpoint: $endpoint');
+        print('   Base URL: ${_dio.options.baseUrl}');
+        
+        // Check if auth token is available
+        try {
+          if (Get.isRegistered<AuthController>()) {
+            final authController = Get.find<AuthController>();
+            final token = authController.token;
+            if (token != null && token.isNotEmpty) {
+              print('   Auth Token: Present (${token.substring(0, 10)}...)');
+            } else {
+              print('   ⚠️ Auth Token: Missing or empty');
+            }
+          } else {
+            print('   ⚠️ AuthController: Not registered');
+          }
+        } catch (e) {
+          print('   ⚠️ Could not check auth token: $e');
+        }
       }
 
-      final response = await _dio.get(
-        ApiConstants.getLoanOfficerByIdEndpoint(loanOfficerId),
-        options: Options(
-          headers: ApiConstants.ngrokHeaders,
-        ),
-      );
+      final response = await _dio.get(endpoint);
 
       if (kDebugMode) {
         print('✅ Current loan officer response received');
@@ -235,11 +277,16 @@ class LoanOfficerService {
         final loanOfficer =
             LoanOfficerModel.fromJson(loanOfficerJson as Map<String, dynamic>);
 
+        // Build full URLs for profile picture and company logo
+        final loanOfficerWithUrls = _buildImageUrls(loanOfficer);
+
         if (kDebugMode) {
-          print('✅ Successfully parsed current loan officer: ${loanOfficer.id}');
+          print('✅ Successfully parsed current loan officer: ${loanOfficerWithUrls.id}');
+          print('   Profile Image URL: ${loanOfficerWithUrls.profileImage ?? "Not set"}');
+          print('   Company Logo URL: ${loanOfficerWithUrls.companyLogoUrl ?? "Not set"}');
         }
 
-        return loanOfficer;
+        return loanOfficerWithUrls;
       } catch (e) {
         if (kDebugMode) {
           print('⚠️ Error parsing current loan officer: $e');
@@ -312,6 +359,36 @@ class LoanOfficerService {
         originalError: e,
       );
     }
+  }
+
+  /// Builds full URLs for profile images
+  LoanOfficerModel _buildImageUrls(LoanOfficerModel loanOfficer) {
+    String? profileImage = loanOfficer.profileImage;
+    if (profileImage != null && profileImage.isNotEmpty) {
+      if (!profileImage.startsWith('http://') && !profileImage.startsWith('https://')) {
+        // Build full URL with base URL
+        final baseUrl = ApiConstants.baseUrl;
+        profileImage = profileImage.startsWith('/') 
+            ? '$baseUrl$profileImage'
+            : '$baseUrl/$profileImage';
+      }
+    }
+
+    String? companyLogoUrl = loanOfficer.companyLogoUrl;
+    if (companyLogoUrl != null && companyLogoUrl.isNotEmpty) {
+      if (!companyLogoUrl.startsWith('http://') && !companyLogoUrl.startsWith('https://')) {
+        // Build full URL with base URL
+        final baseUrl = ApiConstants.baseUrl;
+        companyLogoUrl = companyLogoUrl.startsWith('/')
+            ? '$baseUrl$companyLogoUrl'
+            : '$baseUrl/$companyLogoUrl';
+      }
+    }
+
+    return loanOfficer.copyWith(
+      profileImage: profileImage,
+      companyLogoUrl: companyLogoUrl,
+    );
   }
 
   /// Disposes the Dio instance

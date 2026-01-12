@@ -126,9 +126,13 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
             Expanded(
               child: _buildTab(context, 'ZIP Codes', 2, Icons.location_on),
             ),
-            Expanded(child: _buildTab(context, 'Billing', 3, Icons.payment)),
-            Expanded(child: _buildTab(context, 'Checklists', 4, Icons.checklist_rtl)),
-            Expanded(child: _buildTab(context, 'Stats', 5, Icons.analytics)),
+            Expanded(
+              child: _buildTab(context, 'Billing', 3, Icons.payment),
+            ),
+            // COMMENTED OUT: Checklists tab
+            // Expanded(child: _buildTab(context, 'Checklists', 4, Icons.checklist_rtl)),
+            // COMMENTED OUT: Stats tab
+            // Expanded(child: _buildTab(context, 'Stats', 5, Icons.analytics)),
           ],
         ),
       ),
@@ -191,10 +195,12 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
           return _buildZipManagement(context);
         case 3:
           return _buildBilling(context);
-        case 4:
-          return _buildChecklists(context);
-        case 5:
-          return _buildStats(context);
+        // COMMENTED OUT: Checklists tab content
+        // case 4:
+        //   return _buildChecklists(context);
+        // COMMENTED OUT: Stats tab content
+        // case 5:
+        //   return _buildStats(context);
         default:
           return _buildDashboard(context);
       }
@@ -433,33 +439,9 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
               children: [
                 Expanded(
                   child: CustomButton(
-                    text: 'Manage ZIP Codes',
-                    onPressed: () => controller.setSelectedTab(1),
-                    icon: Icons.location_on,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: CustomButton(
-                    text: 'View Billing',
+                    text: 'ZIP Codes',
                     onPressed: () => controller.setSelectedTab(2),
-                    icon: Icons.payment,
-                    isOutlined: true,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: CustomButton(
-                    text: 'Compliance Tutorial',
-                    onPressed: () {
-                      Get.snackbar('Info', 'Compliance tutorial coming soon!');
-                    },
-                    icon: Icons.school,
-                    isOutlined: true,
+                    icon: Icons.location_on,
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -476,8 +458,54 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                     isOutlined: true,
                   ),
                 ),
+                
               ],
             ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: CustomButton(
+                    text: 'Buyer Connections',
+                    onPressed: () {
+                      Get.toNamed('/loan-officer-buyer-connections');
+                    },
+                    icon: Icons.people,
+                    isOutlined: true,
+                  ),
+                ),
+              ],
+            ),
+            // COMMENTED OUT: Compliance Tutorial button row
+            // const SizedBox(height: 12),
+            // Row(
+            //   children: [
+            //     Expanded(
+            //       child: CustomButton(
+            //         text: 'Compliance Tutorial',
+            //         onPressed: () {
+            //           Get.snackbar('Info', 'Compliance tutorial coming soon!');
+            //         },
+            //         icon: Icons.school,
+            //         isOutlined: true,
+            //       ),
+            //     ),
+            //     const SizedBox(width: 12),
+            //     Expanded(
+            //       child: CustomButton(
+            //         text: 'Edit Profile',
+            //         onPressed: () {
+            //           Get.to(
+            //             () => const LoanOfficerEditProfileView(),
+            //             binding: LoanOfficerEditProfileBinding(),
+            //           );
+            //         },
+            //         icon: Icons.edit,
+            //         isOutlined: true,
+            //       ),
+            //     ),
+            //   ],
+            // ),
           ],
         ),
       ),
@@ -933,84 +961,206 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
   }
 
   Widget _buildZipManagement(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Search
-          CustomTextField(
-            controller: TextEditingController(),
-            labelText: 'Search ZIP codes',
-            prefixIcon: Icons.search,
-            onChanged: (value) => controller.searchZipCodes(value),
-          ),
-
-          const SizedBox(height: 20),
-
-          // Claimed ZIP Codes
-          Obx(
-            () => Text(
-              'Your Claimed ZIP Codes (${controller.claimedZipCodes.length}/6)',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                color: AppTheme.black,
-                fontWeight: FontWeight.w600,
+    // Persistent search controller for better performance
+    final searchController = TextEditingController();
+    
+    return Obx(
+      () {
+        final isLoading = controller.isLoadingZipCodes;
+        final hasData = controller.hasLoadedZipCodes;
+        
+        // Show loading only on initial load (page opens instantly, then shows loader)
+        if (isLoading && !hasData) {
+          return Column(
+            children: [
+              // Show search bar even during loading for better UX
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: CustomTextField(
+                  controller: searchController,
+                  labelText: 'Search ZIP codes',
+                  prefixIcon: Icons.search,
+                  onChanged: (value) => controller.searchZipCodes(value),
+                ),
               ),
-            ),
-          ),
-          const SizedBox(height: 12),
+              const Expanded(
+                child: Center(
+                  child: CircularProgressIndicator(),
+                ),
+              ),
+            ],
+          );
+        }
 
-          Obx(
-            () => controller.claimedZipCodes.isEmpty
-                ? _buildEmptyState(
-                    context,
-                    'No claimed ZIP codes',
-                    'Start by claiming a ZIP code below',
-                  )
-                : ListView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: controller.claimedZipCodes.length,
-                    itemBuilder: (context, index) {
-                      final zip = controller.claimedZipCodes[index];
-                      return _buildZipCodeCard(context, zip, true);
+        return RefreshIndicator(
+          onRefresh: () async {
+            await controller.refreshZipCodes();
+          },
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
+              SliverPadding(
+                padding: const EdgeInsets.all(20),
+                sliver: SliverToBoxAdapter(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Search - persistent controller
+                      CustomTextField(
+                        controller: searchController,
+                        labelText: 'Search ZIP codes',
+                        prefixIcon: Icons.search,
+                        onChanged: (value) => controller.searchZipCodes(value),
+                      ),
+
+                      const SizedBox(height: 20),
+                    ],
+                  ),
+                ),
+              ),
+
+              // Claimed ZIP Codes Section Header
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Obx(
+                    () {
+                      final searchQuery = controller.searchQuery;
+                      final claimedList = searchQuery.isEmpty 
+                          ? controller.claimedZipCodes 
+                          : controller.filteredClaimedZipCodes;
+                      final claimedCount = claimedList.length;
+                      
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Your Claimed ZIP Codes ($claimedCount/6)',
+                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              color: AppTheme.black,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                        ],
+                      );
                     },
                   ),
-          ),
+                ),
+              ),
 
-          const SizedBox(height: 24),
+              // Claimed ZIP Codes List (Virtualized for performance)
+              Obx(
+                () {
+                  final searchQuery = controller.searchQuery;
+                  final claimedList = searchQuery.isEmpty 
+                      ? controller.claimedZipCodes 
+                      : controller.filteredClaimedZipCodes;
+                  
+                  if (claimedList.isEmpty) {
+                    return SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: _buildEmptyState(
+                          context,
+                          'No claimed ZIP codes',
+                          'Start by claiming a ZIP code below',
+                        ),
+                      ),
+                    );
+                  }
+                  
+                  return SliverPadding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    sliver: SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) {
+                          if (index >= claimedList.length) return null;
+                          final zip = claimedList[index];
+                          return RepaintBoundary(
+                            key: ValueKey('claimed_${zip.zipCode}'),
+                            child: _buildZipCodeCard(context, zip, true),
+                          );
+                        },
+                        childCount: claimedList.length,
+                        addAutomaticKeepAlives: false,
+                        addRepaintBoundaries: true,
+                      ),
+                    ),
+                  );
+                },
+              ),
 
-          // Available ZIP Codes
-          Text(
-            'Available ZIP Codes',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              color: AppTheme.black,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 12),
+              const SliverToBoxAdapter(child: SizedBox(height: 24)),
 
-          Obx(
-            () => controller.availableZipCodes.isEmpty
-                ? _buildEmptyState(
-                    context,
-                    'No available ZIP codes',
-                    'All ZIP codes in your area are claimed',
-                  )
-                : ListView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: controller.availableZipCodes.length,
-                    itemBuilder: (context, index) {
-                      final zip = controller.availableZipCodes[index];
-                      return _buildZipCodeCard(context, zip, false);
-                    },
+              // Available ZIP Codes Section Header
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Text(
+                    'Available ZIP Codes',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      color: AppTheme.black,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
+                ),
+              ),
+
+              const SliverToBoxAdapter(child: SizedBox(height: 12)),
+
+              // Available ZIP Codes List (Virtualized for performance)
+              Obx(
+                () {
+                  final searchQuery = controller.searchQuery;
+                  final availableList = searchQuery.isEmpty 
+                      ? controller.availableZipCodes 
+                      : controller.filteredAvailableZipCodes;
+                  
+                  if (availableList.isEmpty) {
+                    return SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: _buildEmptyState(
+                          context,
+                          'No available ZIP codes',
+                          'All ZIP codes in your area are claimed',
+                        ),
+                      ),
+                    );
+                  }
+                  
+                  return SliverPadding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    sliver: SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) {
+                          if (index >= availableList.length) return null;
+                          final zip = availableList[index];
+                          return RepaintBoundary(
+                            key: ValueKey('available_${zip.zipCode}'),
+                            child: _buildZipCodeCard(context, zip, false),
+                          );
+                        },
+                        childCount: availableList.length,
+                        addAutomaticKeepAlives: false,
+                        addRepaintBoundaries: true,
+                      ),
+                    ),
+                  );
+                },
+              ),
+
+              // Bottom padding
+              const SliverToBoxAdapter(child: SizedBox(height: 20)),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
+
+  // Removed _buildZipCodeList - now using SliverList directly for better performance
 
   Widget _buildZipCodeCard(
     BuildContext context,
@@ -1050,19 +1200,37 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                 ],
               ),
             ),
-            if (isClaimed)
-              CustomButton(
-                text: 'Release',
-                onPressed: () => controller.releaseZipCode(zip),
-                isOutlined: true,
-                width: 90,
-              )
-            else
-              CustomButton(
-                text: 'Claim',
-                onPressed: () => controller.claimZipCode(zip),
-                width: 90,
-              ),
+            Obx(
+              () {
+                // Check if THIS specific zip code is loading
+                final isLoading = controller.isZipCodeLoading(zip.zipCode);
+                
+                return isLoading
+                    ? const SizedBox(
+                        width: 90,
+                        height: 36,
+                        child: Center(
+                          child: SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        ),
+                      )
+                    : isClaimed
+                        ? CustomButton(
+                            text: 'Release',
+                            onPressed: () => controller.releaseZipCode(zip),
+                            isOutlined: true,
+                            width: 90,
+                          )
+                        : CustomButton(
+                            text: 'Claim',
+                            onPressed: () => controller.claimZipCode(zip),
+                            width: 90,
+                          );
+              },
+            ),
           ],
         ),
       ),
@@ -1075,21 +1243,53 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Current Subscription
-          Obx(() => Card(
+          // Subscription Plan Details
+          _buildSubscriptionPlanCard(context),
+
+          const SizedBox(height: 20),
+
+          // Payment Method
+          _buildPaymentMethodCard(context),
+
+          const SizedBox(height: 20),
+
+          // Payment History
+          _buildPaymentHistorySection(context),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSubscriptionPlanCard(BuildContext context) {
+    return Obx(() => Card(
             child: Padding(
               padding: const EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Current Subscription',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      color: AppTheme.black,
-                      fontWeight: FontWeight.w600,
-                    ),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.account_balance_wallet,
+                        color: AppTheme.lightGreen,
+                        size: 24,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Subscription Plan',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          color: AppTheme.black,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 20),
+                  
+                  // Plan Status Badge
+                  _buildPlanStatusBadge(context),
+                  
+                  const SizedBox(height: 20),
                   
                   // Standard Pricing Display
                   Row(
@@ -1112,42 +1312,70 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 16),
                   
                   // Current Monthly Cost (with free period if applicable)
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Current Monthly Cost',
-                        style: Theme.of(context).textTheme.bodyLarge
-                            ?.copyWith(color: AppTheme.darkGray),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: controller.isInFreePeriod
+                            ? [Colors.green.withOpacity(0.1), Colors.green.withOpacity(0.05)]
+                            : [AppTheme.lightGreen.withOpacity(0.1), AppTheme.lightGreen.withOpacity(0.05)],
                       ),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text(
-                            controller.isInFreePeriod 
-                                ? 'FREE' 
-                                : '\$${controller.calculateMonthlyCost().toStringAsFixed(2)}',
-                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              color: controller.isInFreePeriod 
-                                  ? Colors.green 
-                                  : AppTheme.lightGreen,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          if (controller.isInFreePeriod)
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: controller.isInFreePeriod
+                            ? Colors.green.withOpacity(0.3)
+                            : AppTheme.lightGreen.withOpacity(0.3),
+                        width: 1.5,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
                             Text(
-                              '6 Months Free',
-                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: Colors.green,
-                                fontWeight: FontWeight.w600,
+                              'Current Monthly Cost',
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(color: AppTheme.mediumGray),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              controller.isInFreePeriod 
+                                  ? 'FREE' 
+                                  : '\$${controller.calculateMonthlyCost().toStringAsFixed(2)}/month',
+                              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                                color: controller.isInFreePeriod 
+                                    ? Colors.green 
+                                    : AppTheme.lightGreen,
+                                fontWeight: FontWeight.bold,
                               ),
                             ),
-                        ],
-                      ),
-                    ],
+                            if (controller.isInFreePeriod) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                '6 Months Free Trial',
+                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  color: Colors.green,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                        if (controller.isInFreePeriod)
+                          Icon(
+                            Icons.celebration,
+                            color: Colors.green,
+                            size: 32,
+                          ),
+                      ],
+                    ),
                   ),
                   
                   // Free Period Info
@@ -1177,27 +1405,15 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                       ),
                     ),
                   
-                  const SizedBox(height: 8),
-                  Obx(
-                    () => Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'ZIP Codes Claimed',
-                          style: Theme.of(context).textTheme.bodyLarge
-                              ?.copyWith(color: AppTheme.darkGray),
-                        ),
-                        Text(
-                          '${controller.claimedZipCodes.length}/6',
-                          style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(
-                                color: AppTheme.darkGray,
-                                fontWeight: FontWeight.w600,
-                              ),
-                        ),
-                      ],
-                    ),
-                  ),
+                  const SizedBox(height: 20),
+                  
+                  // Plan Details Section
+                  _buildPlanDetails(context),
+                  
+                  const SizedBox(height: 20),
+                  
+                  // Renewal Date
+                  _buildRenewalDate(context),
                   
                   // Cancellation Status
                   if (controller.isCancelled)
@@ -1294,26 +1510,328 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                 ],
               ),
             ),
-          )),
+          ));
+  }
 
-          const SizedBox(height: 20),
+  Widget _buildPlanStatusBadge(BuildContext context) {
+    return Obx(() {
+      if (controller.isCancelled) {
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.orange.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.orange, width: 1),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.info_outline, color: Colors.orange, size: 16),
+              const SizedBox(width: 6),
+              Text(
+                'Cancellation Scheduled',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Colors.orange,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        );
+      } else if (controller.isInFreePeriod) {
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.green.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.green, width: 1),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.celebration, color: Colors.green, size: 16),
+              const SizedBox(width: 6),
+              Text(
+                'Free Trial Active',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Colors.green,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        );
+      } else {
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: AppTheme.lightGreen.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppTheme.lightGreen, width: 1),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.check_circle, color: AppTheme.lightGreen, size: 16),
+              const SizedBox(width: 6),
+              Text(
+                'Active',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: AppTheme.lightGreen,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+    });
+  }
 
-          // Payment History
+  Widget _buildPlanDetails(BuildContext context) {
+    return Obx(() {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
           Text(
-            'Payment History',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+            'Plan Details',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
               color: AppTheme.black,
               fontWeight: FontWeight.w600,
             ),
           ),
           const SizedBox(height: 12),
-
-          _buildPaymentItem(context, 'December 2024', '\$199.99', 'Paid'),
-          _buildPaymentItem(context, 'November 2024', '\$199.99', 'Paid'),
-          _buildPaymentItem(context, 'October 2024', '\$199.99', 'Paid'),
+          
+          // ZIP Codes Claimed
+          _buildDetailRow(
+            context,
+            Icons.location_on,
+            'ZIP Codes Claimed',
+            '${controller.claimedZipCodes.length}/6',
+          ),
+          const SizedBox(height: 12),
+          
+          // Base Price
+          _buildDetailRow(
+            context,
+            Icons.attach_money,
+            'Base Monthly Price',
+            '\$${controller.getStandardMonthlyPrice().toStringAsFixed(2)}/month',
+            showStrikethrough: controller.isInFreePeriod,
+          ),
         ],
+      );
+    });
+  }
+
+  Widget _buildDetailRow(
+    BuildContext context,
+    IconData icon,
+    String label,
+    String value, {
+    bool showStrikethrough = false,
+  }) {
+    return Row(
+      children: [
+        Icon(icon, color: AppTheme.lightGreen, size: 20),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            label,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: AppTheme.darkGray,
+            ),
+          ),
+        ),
+        Text(
+          value,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: AppTheme.darkGray,
+            fontWeight: FontWeight.w600,
+            decoration: showStrikethrough ? TextDecoration.lineThrough : null,
+            decorationColor: AppTheme.mediumGray,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRenewalDate(BuildContext context) {
+    return Obx(() {
+      final subscription = controller.subscription;
+      if (subscription == null) return const SizedBox.shrink();
+
+      // Calculate next billing date
+      DateTime nextBillingDate;
+      if (controller.isInFreePeriod && subscription.freePeriodEndsAt != null) {
+        nextBillingDate = subscription.freePeriodEndsAt!;
+      } else {
+        // Next billing is typically 30 days from start date or last billing
+        final lastBilling = subscription.updatedAt;
+        nextBillingDate = lastBilling.add(const Duration(days: 30));
+      }
+
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppTheme.lightGray,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.calendar_today, color: AppTheme.lightGreen, size: 20),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    controller.isInFreePeriod
+                        ? 'Free Period Ends'
+                        : 'Next Billing Date',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppTheme.mediumGray,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _formatDate(nextBillingDate),
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      color: AppTheme.black,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    });
+  }
+
+  Widget _buildPaymentMethodCard(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.payment,
+                  color: AppTheme.lightGreen,
+                  size: 24,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Payment Method',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    color: AppTheme.black,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            
+            // Payment method info
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppTheme.lightGray,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: AppTheme.mediumGray.withOpacity(0.3),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.credit_card,
+                    color: AppTheme.mediumGray,
+                    size: 24,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'No payment method on file',
+                          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                            color: AppTheme.darkGray,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Add a payment method to continue your subscription',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: AppTheme.mediumGray,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      Get.snackbar(
+                        'Info',
+                        'Payment method management coming soon',
+                        snackPosition: SnackPosition.BOTTOM,
+                      );
+                    },
+                    child: Text(
+                      'Add',
+                      style: TextStyle(color: AppTheme.lightGreen),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
+  }
+
+  Widget _buildPaymentHistorySection(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Payment History',
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+            color: AppTheme.black,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 12),
+        
+        // Show message if no payment history
+        Obx(() {
+          // For now, show placeholder - in production, fetch from API
+          return Column(
+            children: [
+              _buildPaymentItem(context, 'December 2024', '\$${controller.calculateMonthlyCost().toStringAsFixed(2)}', 'Paid'),
+              _buildPaymentItem(context, 'November 2024', '\$${controller.calculateMonthlyCost().toStringAsFixed(2)}', 'Paid'),
+              _buildPaymentItem(context, 'October 2024', '\$${controller.calculateMonthlyCost().toStringAsFixed(2)}', 'Paid'),
+            ],
+          );
+        }),
+      ],
+    );
+  }
+
+  String _formatDate(DateTime date) {
+    final months = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+    return '${months[date.month - 1]} ${date.day}, ${date.year}';
   }
 
   void _showCancelConfirmation(BuildContext context) {

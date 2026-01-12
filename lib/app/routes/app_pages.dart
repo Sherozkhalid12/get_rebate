@@ -61,6 +61,10 @@ import 'package:getrebate/app/modules/help_support/views/help_support_view.dart'
 import 'package:getrebate/app/modules/help_support/bindings/help_support_binding.dart';
 import 'package:getrebate/app/modules/terms_of_service/views/terms_of_service_view.dart';
 import 'package:getrebate/app/modules/terms_of_service/bindings/terms_of_service_binding.dart';
+import 'package:getrebate/app/modules/loan_officer_buyer_connections/views/loan_officer_buyer_connections_view.dart';
+import 'package:getrebate/app/modules/loan_officer_buyer_connections/bindings/loan_officer_buyer_connections_binding.dart';
+import 'package:getrebate/app/modules/loan_officer_buyer_detail/views/loan_officer_buyer_detail_view.dart';
+import 'package:getrebate/app/modules/loan_officer_buyer_detail/bindings/loan_officer_buyer_detail_binding.dart';
 import 'package:flutter/material.dart';
 
 class AppPages {
@@ -94,6 +98,8 @@ class AppPages {
   static const PRIVACY_POLICY = '/privacy-policy';
   static const HELP_SUPPORT = '/help-support';
   static const TERMS_OF_SERVICE = '/terms-of-service';
+  static const LOAN_OFFICER_BUYER_CONNECTIONS = '/loan-officer-buyer-connections';
+  static const LOAN_OFFICER_BUYER_DETAIL = '/loan-officer-buyer-detail';
 
   static final routes = [
     GetPage(
@@ -242,6 +248,16 @@ class AppPages {
       name: TERMS_OF_SERVICE,
       page: () => const TermsOfServiceView(),
       binding: TermsOfServiceBinding(),
+    ),
+    GetPage(
+      name: LOAN_OFFICER_BUYER_CONNECTIONS,
+      page: () => const LoanOfficerBuyerConnectionsView(),
+      binding: LoanOfficerBuyerConnectionsBinding(),
+    ),
+    GetPage(
+      name: LOAN_OFFICER_BUYER_DETAIL,
+      page: () => const LoanOfficerBuyerDetailView(),
+      binding: LoanOfficerBuyerDetailBinding(),
     ),
   ];
 }

@@ -28,7 +28,7 @@ class ApiConstants {
   // ============================================================================
 
   // Ngrok URL (update this when ngrok restarts)
-  static const String _ngrokUrl = 'https://91411ae26075.ngrok-free.app';
+  static const String _ngrokUrl = 'https://deshawn-astucious-martin.ngrok-free.dev';
 
   // Local network IP (update with your computer's IP address)
   static const String _localNetworkIp = '192.168.1.100'; // TODO: Update this!
@@ -165,6 +165,13 @@ class ApiConstants {
   static String get rebateEstimateEndpoint => "$apiBaseUrl/rebate/estimate";
   static String get rebateCalculateExactEndpoint => "$apiBaseUrl/rebate/calculate-exact";
   static String get rebateCalculateSellerRateEndpoint => "$apiBaseUrl/rebate/calculate-seller-rate";
+
+  // Zip Code endpoints
+  static String getZipCodesEndpoint(String country, String state) {
+    return "$apiBaseUrl/zip-codes/$country/$state";
+  }
+  static String get zipCodeClaimEndpoint => "$apiBaseUrl/zip-codes/claim";
+  static String get zipCodeReleaseEndpoint => "$apiBaseUrl/zip-codes/release";
 
   // Helper to get ngrok headers if using ngrok
   static Map<String, String> get ngrokHeaders {
