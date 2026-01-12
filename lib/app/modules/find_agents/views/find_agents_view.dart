@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/modules/find_agents/controllers/find_agents_controller.dart';
 import 'package:getrebate/app/models/agent_model.dart';
@@ -63,13 +65,34 @@ class FindAgentsView extends GetView<FindAgentsController> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Agents in ${controller.selectedZipCode.value}',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              color: AppTheme.black,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
+          Obx(() {
+            final zipCode = controller.selectedZipCode.value;
+            final hasZipCode = zipCode.isNotEmpty;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  hasZipCode
+                      ? 'Agents in ${zipCode}'
+                      : 'All Agents',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    color: AppTheme.black,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                if (hasZipCode) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    'Local agents shown first, then nearby agents',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppTheme.mediumGray,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ],
+            );
+          }),
           const SizedBox(height: 12),
           CustomTextField(
             controller: controller.searchController,
@@ -98,10 +121,37 @@ class FindAgentsView extends GetView<FindAgentsController> {
         return _buildEmptyState(context);
       }
 
+      // Access reactive RxInt values DIRECTLY inside Obx - this is critical for GetX to track them
+      // Force GetX to track by accessing .value property
+      final currentPage = controller.currentPage.value;
+      final totalPages = controller.totalPages.value;
+      final canLoadMore = currentPage < totalPages;
+      
+      if (kDebugMode) {
+        print('📋 Building agents list:');
+        print('   Agents count: ${controller.agents.length}');
+        print('   Current page: $currentPage');
+        print('   Total pages: $totalPages');
+        print('   Can load more: $canLoadMore');
+        print('   ItemCount will be: ${controller.agents.length + (canLoadMore ? 1 : 0)}');
+      }
+      
+      // Show button if we have agents AND (can load more OR totalPages > 1)
+      // This ensures button shows even if there's a timing issue
+      final shouldShowButton = controller.agents.isNotEmpty && (canLoadMore || totalPages > 1);
+      
       return ListView.builder(
         padding: const EdgeInsets.all(20),
-        itemCount: controller.agents.length,
+        itemCount: controller.agents.length + (shouldShowButton ? 1 : 0),
         itemBuilder: (context, index) {
+          // Show Load More button at the end
+          if (index == controller.agents.length && shouldShowButton) {
+            if (kDebugMode) {
+              print('✅ Rendering Load More button at index $index');
+            }
+            return _buildLoadMoreButton(context);
+          }
+          
           final agent = controller.agents[index];
           return Padding(
             padding: const EdgeInsets.only(bottom: 16),
@@ -111,22 +161,134 @@ class FindAgentsView extends GetView<FindAgentsController> {
       );
     });
   }
+  
+  Widget _buildLoadMoreButton(BuildContext context) {
+    return Obx(() {
+      // Access reactive values to track loading state
+      final isLoadingMore = controller.isLoadingMore;
+      final currentPage = controller.currentPage.value;
+      final totalPages = controller.totalPages.value;
+      
+      if (kDebugMode) {
+        print('🔘 Building Load More button:');
+        print('   Current page: $currentPage');
+        print('   Total pages: $totalPages');
+        print('   Is loading: $isLoadingMore');
+      }
+      
+      return Padding(
+        padding: const EdgeInsets.only(top: 16, bottom: 24),
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                AppTheme.primaryBlue.withOpacity(0.05),
+                AppTheme.primaryBlue.withOpacity(0.02),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: AppTheme.primaryBlue.withOpacity(0.1),
+              width: 1,
+            ),
+          ),
+          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+          child: Column(
+            children: [
+              // Count text with icon
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.people_outline,
+                    size: 18,
+                    color: AppTheme.mediumGray,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Showing ${controller.agents.length} of ${controller.totalAgents} agents',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppTheme.mediumGray,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              // Load More Button
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeInOut,
+                child: isLoadingMore
+                    ? Container(
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: AppTheme.primaryBlue.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Center(
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    AppTheme.primaryBlue,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Text(
+                                'Loading more agents...',
+                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                  color: AppTheme.primaryBlue,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    : CustomButton(
+                        text: 'Load More Agents',
+                        onPressed: () => controller.loadMoreAgents(),
+                        icon: Icons.expand_more,
+                        height: 48,
+                        isOutlined: false,
+                      ),
+              ),
+            ],
+          ),
+        ),
+      )
+          .animate()
+          .fadeIn(
+            duration: 500.ms,
+            curve: Curves.easeOut,
+          )
+          .slideY(
+            begin: 0.3,
+            duration: 500.ms,
+            curve: Curves.easeOut,
+          )
+          .scale(
+            duration: 500.ms,
+            curve: Curves.easeOut,
+          );
+    });
+  }
 
   Widget _buildAgentCard(BuildContext context, AgentModel agent) {
-    // Build full profile image URL if needed
-    String? profileImageUrl = agent.profileImage;
-    if (profileImageUrl != null && 
-        profileImageUrl.isNotEmpty && 
-        !profileImageUrl.startsWith('http://') && 
-        !profileImageUrl.startsWith('https://')) {
-      final baseUrl = ApiConstants.baseUrl.endsWith('/') 
-          ? ApiConstants.baseUrl.substring(0, ApiConstants.baseUrl.length - 1)
-          : ApiConstants.baseUrl;
-      profileImageUrl = profileImageUrl.replaceAll('\\', '/');
-      final cleanUrl = profileImageUrl.startsWith('/') 
-          ? profileImageUrl.substring(1) 
-          : profileImageUrl;
-      profileImageUrl = '$baseUrl/$cleanUrl';
+    // Use helper function to normalize URL (AgentModel already normalizes, but ensure consistency)
+    final profileImageUrl = ApiConstants.getImageUrl(agent.profileImage);
+    if (kDebugMode && profileImageUrl != null) {
+      print('🖼️ FindAgentsView: Agent profile image URL: $profileImageUrl');
     }
     
     return Card(
@@ -374,9 +536,9 @@ class FindAgentsView extends GetView<FindAgentsController> {
             ),
             const SizedBox(height: 12),
             Obx(() => Text(
-              controller.selectedZipCode.value.isNotEmpty
-                  ? 'No agents are currently available in ZIP code ${controller.selectedZipCode.value}. Try searching in a different ZIP code.'
-                  : 'No agents are currently available in this area. Try searching in a different ZIP code.',
+              controller.searchQuery.value.isNotEmpty
+                  ? 'No agents found matching "${controller.searchQuery.value}". Try a different search term.'
+                  : 'No agents are currently available. Please try again later.',
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                 color: AppTheme.mediumGray,
                 height: 1.5,

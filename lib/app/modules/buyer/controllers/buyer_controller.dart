@@ -49,6 +49,15 @@ class BuyerController extends GetxController {
   final _isLoading = false.obs;
   final _selectedBuyerAgent = Rxn<AgentModel>(); // Track the buyer's selected agent
   final _togglingFavorites = <String>{}.obs; // Track which IDs are currently being toggled
+  
+  // Pagination for agents
+  final RxInt currentPage = 1.obs;
+  final RxInt totalPages = 1.obs;
+  final RxInt totalAgents = 0.obs;
+  final RxBool _isLoadingMoreAgents = false.obs;
+  
+  bool get canLoadMoreAgents => currentPage.value < totalPages.value;
+  bool get isLoadingMoreAgents => _isLoadingMoreAgents.value;
 
   // Services
   final ListingService _listingService = InMemoryListingService();
@@ -84,8 +93,8 @@ class BuyerController extends GetxController {
   
   void _setupDio() {
     _dio.options.baseUrl = ApiConstants.baseUrl;
-    _dio.options.connectTimeout = const Duration(seconds: 30);
-    _dio.options.receiveTimeout = const Duration(seconds: 30);
+    _dio.options.connectTimeout = const Duration(seconds: 10); // Reduced from 30 to 10
+    _dio.options.receiveTimeout = const Duration(seconds: 10); // Reduced from 30 to 10
     _dio.options.headers = {
       ...ApiConstants.ngrokHeaders,
       'Content-Type': 'application/json',
@@ -146,38 +155,54 @@ class BuyerController extends GetxController {
   }
 
   void _loadMockData() async {
-    // Load real data from API
-    await _loadAgentsFromAPI();
-    await _loadLoanOfficersFromAPI();
+    // Load all data in parallel for faster loading
+    _isLoading.value = true;
     
-    // Load listings and open houses from API
-    await _loadListingsFromAPI();
-    _extractOpenHousesFromListings();
+    try {
+      // Start all API calls in parallel
+      final results = await Future.wait([
+        _loadAgentsFromAPI(),
+        _loadLoanOfficersFromAPI(),
+        _loadListingsFromAPI(),
+      ], eagerError: false); // Don't fail all if one fails
+      
+      // Extract open houses after listings are loaded
+      _extractOpenHousesFromListings();
+      
+      if (kDebugMode) {
+        print('✅ All data loaded in parallel');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('⚠️ Some data failed to load: $e');
+      }
+      // Continue with whatever data loaded successfully
+    } finally {
+      _isLoading.value = false;
+    }
   }
 
-  /// Loads agents from the API
+  /// Loads agents from the API with pagination
   Future<void> _loadAgentsFromAPI() async {
     try {
-      _isLoading.value = true;
+      currentPage.value = 1; // Reset to first page
       
-      print('📡 Fetching agents from API...');
-      final agents = await _agentService.getAllAgents();
+      if (kDebugMode) {
+        print('📡 Fetching agents from API (page ${currentPage.value})...');
+      }
       
-      // Build full URLs for profile pictures
-      final agentsWithUrls = agents.map((agent) {
-        String? profileImage = agent.profileImage;
-        if (profileImage != null && profileImage.isNotEmpty) {
-          if (!profileImage.startsWith('http://') && !profileImage.startsWith('https://')) {
-            profileImage = '${ApiConstants.baseUrl}/$profileImage';
-          }
-        }
-        
-        String? companyLogo = agent.companyLogoUrl;
-        if (companyLogo != null && companyLogo.isNotEmpty) {
-          if (!companyLogo.startsWith('http://') && !companyLogo.startsWith('https://')) {
-            companyLogo = '${ApiConstants.baseUrl}/$companyLogo';
-          }
-        }
+      final response = await _agentService.getAllAgentsPaginated(page: currentPage.value);
+      
+      // Store pagination metadata
+      currentPage.value = response.page;
+      totalPages.value = response.totalPages;
+      totalAgents.value = response.totalAgents;
+      
+      // Profile images are already normalized in AgentModel.fromJson, but use helper for consistency
+      final agentsWithUrls = response.agents.map((agent) {
+        // Use helper to ensure normalization (models already do this, but ensure consistency)
+        final profileImage = ApiConstants.getImageUrl(agent.profileImage);
+        final companyLogo = ApiConstants.getImageUrl(agent.companyLogoUrl);
         
         return agent.copyWith(
           profileImage: profileImage,
@@ -204,7 +229,12 @@ class BuyerController extends GetxController {
         }
       }
       
-      print('✅ Loaded ${agentsWithUrls.length} agents from API');
+      if (kDebugMode) {
+        print('✅ Loaded ${agentsWithUrls.length} agents from API');
+        print('   Page: ${currentPage.value}/${totalPages.value}');
+        print('   Total agents: ${totalAgents.value}');
+        print('   Can load more: $canLoadMoreAgents');
+      }
     } catch (e) {
       print('❌ Error loading agents: $e');
       // Don't show snackbar - it causes overlay errors on initial load
@@ -213,6 +243,75 @@ class BuyerController extends GetxController {
       _applyZipCodeFilter(); // Apply filter after setting empty list
     } finally {
       _isLoading.value = false;
+    }
+  }
+  
+  /// Load more agents from next page
+  Future<void> loadMoreAgents() async {
+    if (!canLoadMoreAgents || _isLoadingMoreAgents.value) {
+      return;
+    }
+
+    _isLoadingMoreAgents.value = true;
+    final nextPage = currentPage.value + 1;
+
+    try {
+      if (kDebugMode) {
+        print('📡 Loading more agents (page $nextPage)...');
+      }
+
+      // Fetch next page
+      final response = await _agentService.getAllAgentsPaginated(page: nextPage);
+
+      // Update pagination metadata
+      currentPage.value = response.page;
+      totalPages.value = response.totalPages;
+      totalAgents.value = response.totalAgents;
+
+      // Profile images are already normalized in AgentModel.fromJson, but use helper for consistency
+      final agentsWithUrls = response.agents.map((agent) {
+        // Use helper to ensure normalization (models already do this, but ensure consistency)
+        final profileImage = ApiConstants.getImageUrl(agent.profileImage);
+        final companyLogo = ApiConstants.getImageUrl(agent.companyLogoUrl);
+        
+        return agent.copyWith(
+          profileImage: profileImage,
+          companyLogoUrl: companyLogo,
+        );
+      }).toList();
+
+      // Add new agents to the existing list
+      final updatedAgents = List<AgentModel>.from(_allAgents.value);
+      updatedAgents.addAll(agentsWithUrls);
+      _allAgents.value = updatedAgents;
+      
+      // Apply ZIP code filter to updated list
+      _applyZipCodeFilter();
+      
+      // Initialize favorites for new agents
+      final currentUser = _authController.currentUser;
+      if (currentUser != null && currentUser.id.isNotEmpty) {
+        for (final agent in agentsWithUrls) {
+          if (agent.likes != null && agent.likes!.contains(currentUser.id)) {
+            if (!_favoriteAgents.contains(agent.id)) {
+              _favoriteAgents.add(agent.id);
+            }
+          }
+        }
+      }
+
+      if (kDebugMode) {
+        print('✅ Successfully loaded ${agentsWithUrls.length} more agents');
+        print('   Page: ${currentPage.value}/${totalPages.value}');
+        print('   Total agents loaded: ${_allAgents.length}');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Error loading more agents: $e');
+      }
+      SnackbarHelper.showError('Failed to load more agents. Please try again.');
+    } finally {
+      _isLoadingMoreAgents.value = false;
     }
   }
 
@@ -225,21 +324,11 @@ class BuyerController extends GetxController {
       
       final loanOfficers = await _loanOfficerService.getAllLoanOfficers();
       
-      // Build full URLs for profile pictures and company logos
+      // Profile images are already normalized in LoanOfficerModel.fromJson, but use helper for consistency
       final loanOfficersWithUrls = loanOfficers.map((loanOfficer) {
-        String? profileImage = loanOfficer.profileImage;
-        if (profileImage != null && profileImage.isNotEmpty) {
-          if (!profileImage.startsWith('http://') && !profileImage.startsWith('https://')) {
-            profileImage = '${ApiConstants.baseUrl}/$profileImage';
-          }
-        }
-        
-        String? companyLogo = loanOfficer.companyLogoUrl;
-        if (companyLogo != null && companyLogo.isNotEmpty) {
-          if (!companyLogo.startsWith('http://') && !companyLogo.startsWith('https://')) {
-            companyLogo = '${ApiConstants.baseUrl}/$companyLogo';
-          }
-        }
+        // Use helper to ensure normalization (models already do this, but ensure consistency)
+        final profileImage = ApiConstants.getImageUrl(loanOfficer.profileImage);
+        final companyLogo = ApiConstants.getImageUrl(loanOfficer.companyLogoUrl);
         
         return loanOfficer.copyWith(
           profileImage: profileImage,
@@ -1058,8 +1147,9 @@ class BuyerController extends GetxController {
       print('   Filtered Open Houses: ${_openHouses.length} / ${_allOpenHouses.length}');
     }
     
-    // Record search for all displayed agents
+    // Record search for all displayed agents and loan officers
     _recordSearchesForDisplayedAgents();
+    _recordSearchesForDisplayedLoanOfficers();
   }
   
   /// Records search tracking for all currently displayed agents
@@ -1069,15 +1159,29 @@ class BuyerController extends GetxController {
     }
     
     // Record search for each displayed agent (fire and forget)
+    // Pass agent name to the API as it expects name, not ID
     for (final agent in _agents) {
-      _recordSearch(agent.id);
+      _recordSearch(agent.id, agentName: agent.name);
+    }
+  }
+  
+  /// Records search tracking for all currently displayed loan officers
+  Future<void> _recordSearchesForDisplayedLoanOfficers() async {
+    if (_currentZipCode.value == null || _currentZipCode.value!.isEmpty) {
+      return; // Only track when there's an active search/filter
+    }
+    
+    // Record search for each displayed loan officer (fire and forget)
+    // Pass loan officer name to the API as it expects name, not ID
+    for (final loanOfficer in _loanOfficers) {
+      _recordLoanOfficerSearch(loanOfficer.id, loanOfficerName: loanOfficer.name);
     }
   }
   
   /// Records a search for an agent
-  Future<void> _recordSearch(String agentId) async {
+  Future<void> _recordSearch(String agentId, {String? agentName}) async {
     try {
-      final response = await _agentService.recordSearch(agentId);
+      final response = await _agentService.recordSearch(agentId, agentName: agentName);
       if (response != null && kDebugMode) {
         print('📊 Search Response for agent $agentId:');
         print('   Message: ${response['message'] ?? 'N/A'}');
@@ -1103,6 +1207,40 @@ class BuyerController extends GetxController {
     } catch (e) {
       if (kDebugMode) {
         print('⚠️ Error recording contact: $e');
+      }
+      // Don't show error to user - tracking is silent
+    }
+  }
+  
+  /// Records a search for a loan officer
+  Future<void> _recordLoanOfficerSearch(String loanOfficerId, {String? loanOfficerName}) async {
+    try {
+      final response = await _loanOfficerService.recordSearch(loanOfficerId, loanOfficerName: loanOfficerName);
+      if (response != null && kDebugMode) {
+        print('📊 Search Response for loan officer $loanOfficerId:');
+        print('   Message: ${response['message'] ?? 'N/A'}');
+        print('   Searches: ${response['searches'] ?? 'N/A'}');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('⚠️ Error recording loan officer search: $e');
+      }
+      // Don't show error to user - tracking is silent
+    }
+  }
+  
+  /// Records a contact action for a loan officer
+  Future<void> _recordLoanOfficerContact(String loanOfficerId) async {
+    try {
+      final response = await _loanOfficerService.recordContact(loanOfficerId);
+      if (response != null && kDebugMode) {
+        print('📞 Contact Response for loan officer $loanOfficerId:');
+        print('   Message: ${response['message'] ?? 'N/A'}');
+        print('   Contacts: ${response['contacts'] ?? 'N/A'}');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('⚠️ Error recording loan officer contact: $e');
       }
       // Don't show error to user - tracking is silent
     }
@@ -1265,22 +1403,22 @@ class BuyerController extends GetxController {
             final currentLikes = List<String>.from(agent.likes ?? []);
             final apiMatchesOptimistic = isLiked == currentLikes.contains(userId);
             
-            // Only update if API response differs from optimistic update
-            if (!apiMatchesOptimistic) {
-              if (isLiked) {
-                if (!currentLikes.contains(userId)) {
-                  currentLikes.add(userId);
-                }
-                if (!_favoriteAgents.contains(agentId)) {
-                  _favoriteAgents.add(agentId);
-                }
-              } else {
-                currentLikes.remove(userId);
-                _favoriteAgents.remove(agentId);
+            // Always update the agent's likes array to match API response
+            // This ensures the likes array is in sync with the server
+            if (isLiked) {
+              // Ensure userId is at the END of the array (most recent = highest index)
+              currentLikes.remove(userId); // Remove if exists anywhere
+              currentLikes.add(userId); // Add at the end (most recent)
+              if (!_favoriteAgents.contains(agentId)) {
+                _favoriteAgents.add(agentId);
               }
-              _agents[agentIndex] = agent.copyWith(likes: currentLikes);
-              _agents.refresh();
+            } else {
+              currentLikes.remove(userId);
+              _favoriteAgents.remove(agentId);
             }
+            // Always update the agent to ensure likes array is correct
+            _agents[agentIndex] = agent.copyWith(likes: currentLikes);
+            _agents.refresh();
           }
           
           // Show snackbar with appropriate message (safely with delay to avoid overlay issues)
@@ -1307,10 +1445,35 @@ class BuyerController extends GetxController {
             print('✅ Favorite toggled successfully: $isLiked');
           }
           
-          // Notify favorites controller to refresh (if it exists)
+          // Notify favorites controller to add agent to top immediately, then refresh
           try {
             final favoritesController = Get.find<FavoritesController>();
-            favoritesController.refreshFavorites();
+            if (isLiked && agentIndex != -1) {
+              // Get the agent - it should already have updated likes array from above
+              final agent = _agents[agentIndex];
+              
+              // Immediately add to top of favorites list for instant feedback
+              favoritesController.addFavoriteAgentToTop(agent);
+              
+              if (kDebugMode) {
+                print('✅ Added agent ${agent.id} to top of favorites. Likes: ${agent.likes}');
+              }
+              
+              // Delay refresh to allow immediate addition to be visible
+              // The agent already has userId at the end of likes array, so sorting will work correctly
+              Future.delayed(const Duration(milliseconds: 2000), () {
+                try {
+                  favoritesController.refreshFavorites();
+                } catch (e) {
+                  if (kDebugMode) {
+                    print('⚠️ Error refreshing favorites: $e');
+                  }
+                }
+              });
+            } else if (!isLiked) {
+              // If unliked, refresh immediately
+              favoritesController.refreshFavorites();
+            }
           } catch (e) {
             // Favorites controller might not be initialized yet, that's okay
             if (kDebugMode) {
@@ -1535,16 +1698,58 @@ class BuyerController extends GetxController {
             print('✅ Favorite toggled successfully: $isLiked');
           }
           
-          // Notify favorites controller to refresh (if it exists) - only once after API success
+          // Notify favorites controller to add loan officer to top immediately, then refresh
           if (Get.isRegistered<FavoritesController>()) {
-            Future.delayed(const Duration(milliseconds: 300), () {
-              try {
-                final favoritesController = Get.find<FavoritesController>();
-                favoritesController.refreshFavorites();
-              } catch (e) {
-                // Silently fail if refresh fails
+            try {
+              final favoritesController = Get.find<FavoritesController>();
+              if (isLiked) {
+                // Find the loan officer in the list
+                final loanOfficerIndex = _loanOfficers.indexWhere((lo) => lo.id == loanOfficerId);
+                if (loanOfficerIndex != -1) {
+                  var loanOfficer = _loanOfficers[loanOfficerIndex];
+                  
+                  // Ensure the loan officer's likes array includes userId at the end
+                  final currentLikes = List<String>.from(loanOfficer.likes ?? []);
+                  if (!currentLikes.contains(userId)) {
+                    currentLikes.add(userId);
+                    // Update the loan officer in the list
+                    try {
+                      _loanOfficers[loanOfficerIndex] = loanOfficer.copyWith(likes: currentLikes);
+                      _loanOfficers.refresh();
+                      loanOfficer = _loanOfficers[loanOfficerIndex]; // Get updated loan officer
+                    } catch (e) {
+                      // copyWith might not exist, that's okay
+                      if (kDebugMode) {
+                        print('⚠️ Could not update loan officer likes: $e');
+                      }
+                    }
+                  }
+                  
+                  // Immediately add to top of favorites list for instant feedback
+                  favoritesController.addFavoriteLoanOfficerToTop(loanOfficer);
+                  
+                  // Delay refresh significantly to allow immediate addition to be visible
+                  Future.delayed(const Duration(milliseconds: 1500), () {
+                    try {
+                      favoritesController.refreshFavorites();
+                    } catch (e) {
+                      // Silently fail if refresh fails
+                    }
+                  });
+                }
+              } else {
+                // If unliked, refresh immediately
+                Future.delayed(const Duration(milliseconds: 300), () {
+                  try {
+                    favoritesController.refreshFavorites();
+                  } catch (e) {
+                    // Silently fail if refresh fails
+                  }
+                });
               }
-            });
+            } catch (e) {
+              // Silently fail if favorites controller not available
+            }
           }
         } else {
           throw Exception(message);
@@ -1726,6 +1931,9 @@ class BuyerController extends GetxController {
   }
 
   Future<void> contactLoanOfficer(LoanOfficerModel loanOfficer) async {
+    // Record contact
+    _recordLoanOfficerContact(loanOfficer.id);
+    
     // Check if conversation exists with this loan officer
     final messagesController = Get.find<MessagesController>();
     

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart' hide FormData, MultipartFile;
@@ -91,10 +92,9 @@ class AuthController extends GetxController {
         print('⚠️ WARNING: Detected invalid/generated user ID in storage: ${user.id}');
         print('   Valid MongoDB IDs are 24 hex characters. Clearing invalid user data.');
         _clearInvalidUserData();
-        print('   Please log in again to get the correct user ID from the API.');
+        print('  Please log in again to get the correct user ID from the API.');
         return;
       }
-      
       if (user.id.isEmpty) {
         print('⚠️ WARNING: User ID is empty in storage. Clearing invalid user data.');
         _clearInvalidUserData();
@@ -235,6 +235,11 @@ class AuthController extends GetxController {
           }
 
           print('✅ Extracted User ID from login: $userId');
+          // Normalize profile image URL
+          final profileImageRaw = userData['profilePic']?.toString() ??
+                userData['profileImage']?.toString();
+          final profileImage = ApiConstants.getImageUrl(profileImageRaw);
+          
           // Map API response to UserModel
           final user = UserModel(
             id: userId,
@@ -243,9 +248,7 @@ class AuthController extends GetxController {
                 userData['fullname'] ?? userData['name'] ?? email.split('@')[0],
             phone: userData['phone']?.toString(),
             role: _mapApiRoleToUserRole(userData['role']?.toString()),
-            profileImage:
-                userData['profilePic']?.toString() ??
-                userData['profileImage']?.toString(),
+            profileImage: profileImage,
             licensedStates: List<String>.from(
               userData['LisencedStates'] ?? userData['licensedStates'] ?? [],
             ),
@@ -414,10 +417,12 @@ class AuthController extends GetxController {
       ]);
 
       // Add licensed states if provided (as JSON array string)
+      // Convert state codes to full state names for API
       if (licensedStates != null && licensedStates.isNotEmpty) {
-        formData.fields.add(
-          MapEntry('licensedStates', jsonEncode(licensedStates)),
-        );
+        final stateNames = licensedStates
+            .map((code) => _getStateNameFromCode(code))
+            .toList();
+        formData.fields.add(MapEntry('licensedStates', jsonEncode(stateNames)));
       }
 
       // Add agent-specific fields
@@ -651,7 +656,10 @@ class AuthController extends GetxController {
       print('  - phone: ${phone ?? "not provided"}');
       print('  - role: ${_mapRoleToApiFormat(role)}');
       if (licensedStates != null && licensedStates.isNotEmpty) {
-        print('  - licensedStates: ${licensedStates.join(", ")}');
+        final stateNames = licensedStates
+            .map((code) => _getStateNameFromCode(code))
+            .toList();
+        print('  - licensedStates: ${jsonEncode(stateNames)}');
       }
       if (companyLogo != null) {
         print('  - companyLogo: ${companyLogo.path.split("/").last}');
@@ -1002,10 +1010,12 @@ class AuthController extends GetxController {
           MapEntry('areasOfExpertise', jsonEncode(areasOfExpertise)),
         );
       }
+      // Convert state codes to full state names for API
       if (licensedStates != null && licensedStates.isNotEmpty) {
-        formData.fields.add(
-          MapEntry('licensedStates', jsonEncode(licensedStates)),
-        );
+        final stateNames = licensedStates
+            .map((code) => _getStateNameFromCode(code))
+            .toList();
+        formData.fields.add(MapEntry('licensedStates', jsonEncode(stateNames)));
       }
       if (yearsOfExperience != null) {
         formData.fields.add(
@@ -1107,15 +1117,30 @@ class AuthController extends GetxController {
               userData['id']?.toString() ??
               _currentUser.value!.id;
 
+          // Normalize profile image URL
+          final profileImageRaw = userData['profilePic']?.toString() ??
+                userData['profileImage']?.toString();
+          
+          if (kDebugMode) {
+            print('🔐 AuthController.updateUserProfile:');
+            print('   Raw profilePic from API response: "$profileImageRaw"');
+            print('   Base URL: ${ApiConstants.baseUrl}');
+          }
+          
+          final profileImage = profileImageRaw != null
+              ? ApiConstants.getImageUrl(profileImageRaw)
+              : _currentUser.value!.profileImage;
+          
+          if (kDebugMode) {
+            print('   Normalized profileImage: "$profileImage"');
+          }
+          
           final updatedUser = _currentUser.value!.copyWith(
             id: updatedUserId, // Ensure we use the correct ID from API
             name: userData['fullname'] ?? _currentUser.value!.name,
             email: userData['email'] ?? _currentUser.value!.email,
             phone: userData['phone']?.toString() ?? _currentUser.value!.phone,
-            profileImage:
-                userData['profilePic'] ??
-                userData['profileImage'] ??
-                _currentUser.value!.profileImage,
+            profileImage: profileImage,
             licensedStates: userData['licensedStates'] != null
                 ? List<String>.from(userData['licensedStates'])
                 : _currentUser.value!.licensedStates,
@@ -1155,26 +1180,41 @@ class AuthController extends GetxController {
         }
 
         // Show success message after updating user data
-        Get.snackbar(
-          'Success',
-          'Profile updated successfully!',
-          backgroundColor: Colors.white.withOpacity(0.0),
-          colorText: Colors.black,
-          snackPosition: SnackPosition.TOP,
-          duration: const Duration(seconds: 2),
-          isDismissible: true,
-        );
+        // Use safe snackbar showing to avoid overlay errors
+        try {
+          if (Get.isSnackbarOpen == false) {
+            Get.snackbar(
+              'Success',
+              'Profile updated successfully!',
+              backgroundColor: Colors.white.withOpacity(0.0),
+              colorText: Colors.black,
+              snackPosition: SnackPosition.TOP,
+              duration: const Duration(seconds: 2),
+              isDismissible: true,
+            );
+          }
+        } catch (e) {
+          // Ignore snackbar errors - navigation will handle user feedback
+          print('Could not show snackbar: $e');
+        }
       } else {
         // If status code is not 200/201, still show success if we got a response
-        Get.snackbar(
-          'Success',
-          'Profile updated successfully!',
-          backgroundColor: Colors.white.withOpacity(0.0),
-          colorText: Colors.black,
-          snackPosition: SnackPosition.TOP,
-          duration: const Duration(seconds: 2),
-          isDismissible: true,
-        );
+        try {
+          if (Get.isSnackbarOpen == false) {
+            Get.snackbar(
+              'Success',
+              'Profile updated successfully!',
+              backgroundColor: Colors.white.withOpacity(0.0),
+              colorText: Colors.black,
+              snackPosition: SnackPosition.TOP,
+              duration: const Duration(seconds: 2),
+              isDismissible: true,
+            );
+          }
+        } catch (e) {
+          // Ignore snackbar errors - navigation will handle user feedback
+          print('Could not show snackbar: $e');
+        }
       }
     } on DioException catch (e) {
       // Handle Dio errors
@@ -1283,6 +1323,63 @@ class AuthController extends GetxController {
       default:
         Get.offAllNamed(AppPages.ONBOARDING);
     }
+  }
+
+  /// Converts state code (e.g., "CA") to full state name (e.g., "California")
+  String _getStateNameFromCode(String code) {
+    const stateMap = {
+      'AL': 'Alabama',
+      'AK': 'Alaska',
+      'AZ': 'Arizona',
+      'AR': 'Arkansas',
+      'CA': 'California',
+      'CO': 'Colorado',
+      'CT': 'Connecticut',
+      'DE': 'Delaware',
+      'FL': 'Florida',
+      'GA': 'Georgia',
+      'HI': 'Hawaii',
+      'ID': 'Idaho',
+      'IL': 'Illinois',
+      'IN': 'Indiana',
+      'IA': 'Iowa',
+      'KS': 'Kansas',
+      'KY': 'Kentucky',
+      'LA': 'Louisiana',
+      'ME': 'Maine',
+      'MD': 'Maryland',
+      'MA': 'Massachusetts',
+      'MI': 'Michigan',
+      'MN': 'Minnesota',
+      'MS': 'Mississippi',
+      'MO': 'Missouri',
+      'MT': 'Montana',
+      'NE': 'Nebraska',
+      'NV': 'Nevada',
+      'NH': 'New Hampshire',
+      'NJ': 'New Jersey',
+      'NM': 'New Mexico',
+      'NY': 'New York',
+      'NC': 'North Carolina',
+      'ND': 'North Dakota',
+      'OH': 'Ohio',
+      'OK': 'Oklahoma',
+      'OR': 'Oregon',
+      'PA': 'Pennsylvania',
+      'RI': 'Rhode Island',
+      'SC': 'South Carolina',
+      'SD': 'South Dakota',
+      'TN': 'Tennessee',
+      'TX': 'Texas',
+      'UT': 'Utah',
+      'VT': 'Vermont',
+      'VA': 'Virginia',
+      'WA': 'Washington',
+      'WV': 'West Virginia',
+      'WI': 'Wisconsin',
+      'WY': 'Wyoming',
+    };
+    return stateMap[code.toUpperCase()] ?? code;
   }
 
   UserRole _mapApiRoleToUserRole(String? apiRole) {

@@ -27,6 +27,9 @@ class ApiConstants {
   // 
   // ============================================================================
 
+  // Server URL
+  static const String _serverUrl = 'https://deshawn-astucious-martin.ngrok-free.dev';
+
   // Ngrok URL (update this when ngrok restarts)
   static const String _ngrokUrl = 'https://deshawn-astucious-martin.ngrok-free.dev';
 
@@ -34,38 +37,34 @@ class ApiConstants {
   static const String _localNetworkIp = '192.168.1.100'; // TODO: Update this!
 
   // Choose which base URL to use
-  static const bool _useNgrok = true; // Set to true to use ngrok, false for local IP
+  static const bool _useServerUrl = true; // Set to true to use server URL, false for ngrok/local
+  static const bool _useNgrok = false; // Set to true to use ngrok, false for server URL
 
   // API version prefix
   static const String _apiVersion = '/api/v1';
 
-  // Base URL getter
+  // Base URL getter - ALWAYS use server URL: http://98.93.16.113:3001
   static String get baseUrl {
-    if (_useNgrok) {
-      return _ngrokUrl;
+    // Always return the server URL
+    if (kDebugMode) {
+      print('🌐 ApiConstants.baseUrl = "$_serverUrl"');
     }
+    return _serverUrl;
 
-    if (kIsWeb) {
-      return "http://localhost:3001";
-    }
-
-    if (Platform.isAndroid) {
-      // For Android emulator
-      // return "http://10.0.2.2:3001";
-
-      // For real Android device on same network
-      return "http://$_localNetworkIp:3001";
-    }
-
-    if (Platform.isIOS) {
-      // For iOS simulator
-      // return "http://localhost:3001";
-
-      // For real iOS device on same network
-      return "http://$_localNetworkIp:3001";
-    }
-
-    return "http://localhost:3001";
+    // Commented out fallback logic - always use server URL
+    // if (_useNgrok) {
+    //   return _ngrokUrl;
+    // }
+    // if (kIsWeb) {
+    //   return "http://localhost:3001";
+    // }
+    // if (Platform.isAndroid) {
+    //   return "http://$_localNetworkIp:3001";
+    // }
+    // if (Platform.isIOS) {
+    //   return "http://$_localNetworkIp:3001";
+    // }
+    // return "http://localhost:3001";
   }
 
   // Full API base URL with version
@@ -86,6 +85,7 @@ class ApiConstants {
   }
 
   static String get markThreadAsReadEndpoint => "${chatEndPoint}thread/mark-read";
+  static String get deleteChatEndpoint => "${chatEndPoint}deleteChat";
 
   // Agent specific endpoints
   static String getAgentListingsEndpoint(String agentId) {
@@ -95,6 +95,11 @@ class ApiConstants {
   // Get agents by ZIP code endpoint
   static String getAgentsByZipCodeEndpoint(String zipCode) {
     return "$apiBaseUrl/agent/getAgentsByZipCode/$zipCode";
+  }
+
+  // Get all agents with pagination endpoint
+  static String getAllAgentsEndpoint(int page) {
+    return "$apiBaseUrl/agent/getAllAgents/$page";
   }
 
   // Get all listings endpoint (for buyer home screen)
@@ -117,12 +122,26 @@ class ApiConstants {
     return "${authEndPoint}users/$userId";
   }
 
+  static String getUpdateUserEndpoint(String userId) {
+    return "${authEndPoint}updateUser/$userId";
+  }
+
   // Auth specific endpoints
   static String get createUserEndpoint => "${authEndPoint}createUser";
   static String get loginEndpoint => "${authEndPoint}login";
 
   // Lead specific endpoints - Using same endpoint for both buyer and seller leads
   static String get createLeadEndpoint => "$apiBaseUrl/buyer/createLead";
+
+  // Get leads by agent ID endpoint (for agents to see their leads)
+  static String getLeadsByAgentIdEndpoint(String agentId) {
+    return "$apiBaseUrl/agent/getLeadsByAgentId/$agentId";
+  }
+
+  // Get leads by buyer/user ID endpoint (for buyers to see their own leads)
+  static String getLeadsByBuyerIdEndpoint(String buyerId) {
+    return "$apiBaseUrl/buyer/getLeadsByAgentId/$buyerId";
+  }
 
   // Like/Unlike agent endpoint
   static String getLikeAgentEndpoint(String agentId) {
@@ -136,17 +155,18 @@ class ApiConstants {
     return "$apiBaseUrl/loan-officers/$loanOfficerId/like";
   }
 
-  // Agent tracking endpoints
-  static String getAddSearchEndpoint(String agentId) {
-    return "$apiBaseUrl/agent/addSearch/$agentId";
+  // Agent and Loan Officer tracking endpoints (shared)
+  // Note: addSearch endpoint expects name, not ID
+  static String getAddSearchEndpoint(String identifier) {
+    return "$apiBaseUrl/agent/addSearch/$identifier";
   }
 
-  static String getAddContactEndpoint(String agentId) {
-    return "$apiBaseUrl/agent/addContact/$agentId";
+  static String getAddContactEndpoint(String id) {
+    return "$apiBaseUrl/agent/addContact/$id";
   }
 
-  static String getAddProfileViewEndpoint(String agentId) {
-    return "$apiBaseUrl/agent/addProfileView/$agentId";
+  static String getAddProfileViewEndpoint(String id) {
+    return "$apiBaseUrl/agent/addProfileView/$id";
   }
 
   // Listing specific endpoints
@@ -158,6 +178,10 @@ class ApiConstants {
 
   static String getDeleteListingEndpoint(String listingId) {
     return "$apiBaseUrl/agent/deleteListing/$listingId";
+  }
+
+  static String getListingsByUserIdEndpoint(String userId) {
+    return "$apiBaseUrl/agent/getListingsByUserId/$userId";
   }
 
 
@@ -173,6 +197,19 @@ class ApiConstants {
   static String get zipCodeClaimEndpoint => "$apiBaseUrl/zip-codes/claim";
   static String get zipCodeReleaseEndpoint => "$apiBaseUrl/zip-codes/release";
 
+  // Notification endpoints
+  static String getNotificationsEndpoint(String userId) {
+    return "$apiBaseUrl/notifications/$userId";
+  }
+
+  static String getMarkNotificationReadEndpoint(String notificationId) {
+    return "$apiBaseUrl/notifications/mark-read/$notificationId";
+  }
+
+  static String getMarkAllNotificationsReadEndpoint(String userId) {
+    return "$apiBaseUrl/notifications/mark-all-read/$userId";
+  }
+
   // Helper to get ngrok headers if using ngrok
   static Map<String, String> get ngrokHeaders {
     if (_useNgrok) {
@@ -183,6 +220,10 @@ class ApiConstants {
 
   // Socket.IO Server URL
   static String get socketUrl {
+    if (_useServerUrl) {
+      return _serverUrl;
+    }
+
     if (_useNgrok) {
       return _ngrokUrl;
     }
@@ -200,6 +241,45 @@ class ApiConstants {
     }
 
     return "http://localhost:3001";
+  }
+
+  // Proposal endpoints
+  static String get createProposalEndpoint => "$apiBaseUrl/proposals/create";
+  static String getProposalEndpoint(String proposalId) => "$apiBaseUrl/proposals/$proposalId";
+  static String acceptProposalEndpoint(String proposalId) => "$apiBaseUrl/proposals/$proposalId/accept";
+  static String rejectProposalEndpoint(String proposalId) => "$apiBaseUrl/proposals/$proposalId/reject";
+  static String completeServiceEndpoint(String proposalId) => "$apiBaseUrl/proposals/$proposalId/complete";
+  static String getUserProposalsEndpoint(String userId) => "$apiBaseUrl/proposals/user/$userId";
+  static String getProfessionalProposalsEndpoint(String professionalId) => "$apiBaseUrl/proposals/professional/$professionalId";
+
+  // Report endpoints
+  static String get submitReportEndpoint => "$apiBaseUrl/reports";
+
+  // Review endpoints
+  static String get submitReviewEndpoint => "$apiBaseUrl/buyer/addReview";
+  static String submitLoanOfficerReviewEndpoint(String loanOfficerId) => "$apiBaseUrl/loan-officers/$loanOfficerId/reviews";
+
+  /// Normalizes an image URL by prepending the base URL if needed
+  /// Returns null if the input is null or empty
+  /// Returns the original URL if it's already a full HTTP/HTTPS URL
+  /// Otherwise prepends the base URL
+  /// Get image URL - images are already coming with correct URLs, so just return as-is
+  static String? getImageUrl(String? imagePath) {
+    if (imagePath == null || imagePath.trim().isEmpty) {
+      if (kDebugMode) {
+        print('🖼️ getImageUrl: Input is null or empty');
+      }
+      return null;
+    }
+
+    final trimmedPath = imagePath.trim();
+
+    if (kDebugMode) {
+      print('🖼️ getImageUrl: Input path = "$trimmedPath"');
+    }
+
+    // Images are already coming with correct URLs, so just return as-is
+    return trimmedPath;
   }
 }
 

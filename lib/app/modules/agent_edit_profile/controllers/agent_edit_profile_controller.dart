@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
@@ -57,27 +58,13 @@ class AgentEditProfileController extends GetxController {
     final user = _authController.currentUser;
     final profilePic = user?.profileImage;
 
-    if (profilePic == null || profilePic.isEmpty) {
-      return null;
+    // Use helper function to normalize URL
+    final fullUrl = ApiConstants.getImageUrl(profilePic);
+    if (kDebugMode && fullUrl != null) {
+      print('📸 AgentEditProfile: Profile picture URL: $fullUrl');
+      print('   Base URL: ${ApiConstants.baseUrl}');
+      print('   Raw profilePic: $profilePic');
     }
-
-    // If profilePic already contains http/https, return as is
-    if (profilePic.startsWith('http://') || profilePic.startsWith('https://')) {
-      print('📸 Using full profile picture URL: $profilePic');
-      return profilePic;
-    }
-
-    // Otherwise, prepend base URL
-    // Handle both paths with and without leading slash
-    String path = profilePic;
-    if (!path.startsWith('/')) {
-      path = '/$path';
-    }
-
-    final fullUrl = '$_baseUrl$path';
-    print('📸 Constructed profile picture URL: $fullUrl');
-    print('   Base URL: $_baseUrl');
-    print('   Profile Pic Path: $profilePic');
     return fullUrl;
   }
 

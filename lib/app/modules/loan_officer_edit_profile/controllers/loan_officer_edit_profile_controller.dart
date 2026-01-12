@@ -32,6 +32,9 @@ class LoanOfficerEditProfileController extends GetxController {
   final _licensedStates = <String>[].obs;
   final _specialtyProducts = <String>[].obs;
 
+  // Flag to track if controllers are disposed
+  bool _isDisposed = false;
+
   // API Base URL for static files
   static String get _baseUrl => ApiConstants.baseUrl;
 
@@ -141,9 +144,6 @@ class LoanOfficerEditProfileController extends GetxController {
       mortgageApplicationUrlController.text = loanOfficer.mortgageApplicationUrl ?? '';
       externalReviewsUrlController.text = loanOfficer.externalReviewsUrl ?? '';
       serviceAreasController.text = loanOfficer.claimedZipCodes.join(', ');
-      yearsOfExperienceController.text = loanOfficer.yearsOfExperience?.toString() ?? '';
-      languagesSpokenController.text = loanOfficer.languagesSpoken.join(', ');
-      discountsOfferedController.text = loanOfficer.discountsOffered ?? '';
       _licensedStates.value = List<String>.from(loanOfficer.licensedStates);
       _specialtyProducts.value = List<String>.from(loanOfficer.specialtyProducts);
     } else {
@@ -158,9 +158,6 @@ class LoanOfficerEditProfileController extends GetxController {
         companyNameController.text = user.additionalData?['CompanyName'] ?? '';
         mortgageApplicationUrlController.text = user.additionalData?['website_link'] ?? '';
         externalReviewsUrlController.text = user.additionalData?['thirdPartReviewLink'] ?? '';
-        yearsOfExperienceController.text = user.additionalData?['yearsOfExperience']?.toString() ?? '';
-        languagesSpokenController.text = (user.additionalData?['languagesSpoken'] as List?)?.join(', ') ?? '';
-        discountsOfferedController.text = user.additionalData?['discountsOffered']?.toString() ?? '';
         
         // Load licensed states and specialty products from user data
         if (user.additionalData?['licensedStates'] != null) {
@@ -236,6 +233,14 @@ class LoanOfficerEditProfileController extends GetxController {
   }
 
   Future<void> saveProfile() async {
+    // Check if controllers are disposed
+    if (_isDisposed) {
+      if (kDebugMode) {
+        print('⚠️ Controllers disposed, cannot submit form');
+      }
+      return;
+    }
+
     if (!_validateForm()) return;
 
     try {
@@ -258,40 +263,62 @@ class LoanOfficerEditProfileController extends GetxController {
         return;
       }
 
-      // Prepare service areas list
+      // Wrap controller access in try-catch to handle disposal during async operations
+      String fullname, email, phone, bio, companyName, websiteLink, thirdPartReviewLink;
       List<String>? serviceAreasList;
-      if (serviceAreasController.text.trim().isNotEmpty) {
-        serviceAreasList = serviceAreasController.text
-            .trim()
-            .split(',')
-            .map((s) => s.trim())
-            .where((s) => s.isNotEmpty)
-            .toList();
+
+      try {
+        // Access controllers - will throw if disposed
+        fullname = fullNameController.text.trim();
+        email = emailController.text.trim();
+        phone = phoneController.text.trim().isNotEmpty
+            ? phoneController.text.trim()
+            : '';
+        bio = bioController.text.trim().isNotEmpty
+            ? bioController.text.trim()
+            : '';
+        companyName = companyNameController.text.trim().isNotEmpty
+            ? companyNameController.text.trim()
+            : '';
+        websiteLink = mortgageApplicationUrlController.text.trim().isNotEmpty
+            ? mortgageApplicationUrlController.text.trim()
+            : '';
+        thirdPartReviewLink = externalReviewsUrlController.text.trim().isNotEmpty
+            ? externalReviewsUrlController.text.trim()
+            : '';
+
+        // Prepare service areas list
+        if (serviceAreasController.text.trim().isNotEmpty) {
+          serviceAreasList = serviceAreasController.text
+              .trim()
+              .split(',')
+              .map((s) => s.trim())
+              .where((s) => s.isNotEmpty)
+              .toList();
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          print('⚠️ Controllers disposed during form submission: $e');
+        }
+        _isLoading.value = false;
+        return;
       }
 
       // Debug: Print user ID being used
-      print('🔍 Using User ID for update: ${currentUser.id}');
+      if (kDebugMode) {
+        print('🔍 Using User ID for update: ${currentUser.id}');
+      }
 
       // Call API to update user
       await _authController.updateUserProfile(
         userId: currentUser.id,
-        fullname: fullNameController.text.trim(),
-        email: emailController.text.trim(),
-        phone: phoneController.text.trim().isNotEmpty
-            ? phoneController.text.trim()
-            : null,
-        bio: bioController.text.trim().isNotEmpty
-            ? bioController.text.trim()
-            : null,
-        companyName: companyNameController.text.trim().isNotEmpty
-            ? companyNameController.text.trim()
-            : null,
-        websiteLink: mortgageApplicationUrlController.text.trim().isNotEmpty
-            ? mortgageApplicationUrlController.text.trim()
-            : null,
-        thirdPartReviewLink: externalReviewsUrlController.text.trim().isNotEmpty
-            ? externalReviewsUrlController.text.trim()
-            : null,
+        fullname: fullname,
+        email: email,
+        phone: phone.isNotEmpty ? phone : null,
+        bio: bio.isNotEmpty ? bio : null,
+        companyName: companyName.isNotEmpty ? companyName : null,
+        websiteLink: websiteLink.isNotEmpty ? websiteLink : null,
+        thirdPartReviewLink: thirdPartReviewLink.isNotEmpty ? thirdPartReviewLink : null,
         serviceAreas: serviceAreasList,
         areasOfExpertise: _specialtyProducts.isNotEmpty
             ? _specialtyProducts.toList()
@@ -301,15 +328,6 @@ class LoanOfficerEditProfileController extends GetxController {
             : null,
         profilePic: _selectedProfilePic.value,
         companyLogo: _selectedCompanyLogo.value,
-        yearsOfExperience: yearsOfExperienceController.text.trim().isNotEmpty
-            ? int.tryParse(yearsOfExperienceController.text.trim())
-            : null,
-        languagesSpoken: languagesSpokenController.text.trim().isNotEmpty
-            ? languagesSpokenController.text.trim().split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList()
-            : null,
-        discountsOffered: discountsOfferedController.text.trim().isNotEmpty
-            ? discountsOfferedController.text.trim()
-            : null,
       );
 
       // Refresh the current loan officer data
@@ -323,47 +341,88 @@ class LoanOfficerEditProfileController extends GetxController {
       // Success snackbar is shown in updateUserProfile method
       // Wait a moment for snackbar to be visible, then navigate back
       await Future.delayed(const Duration(milliseconds: 500));
-      Get.back();
+      if (!_isDisposed) {
+        Get.back();
+      }
     } catch (e) {
       // Error is already handled in updateUserProfile method
       // Just log it here
-      print('Error updating profile: $e');
+      if (kDebugMode) {
+        print('Error updating profile: $e');
+      }
     } finally {
-      _isLoading.value = false;
+      if (!_isDisposed) {
+        _isLoading.value = false;
+      }
     }
   }
 
   bool _validateForm() {
-    if (fullNameController.text.trim().isEmpty) {
-      Get.snackbar('Error', 'Please enter your full name');
+    // Check if controllers are disposed
+    if (_isDisposed) {
+      if (kDebugMode) {
+        print('⚠️ Controllers disposed, skipping validation');
+      }
       return false;
     }
 
-    if (emailController.text.trim().isEmpty) {
-      Get.snackbar('Error', 'Please enter your email');
+    try {
+      if (fullNameController.text.trim().isEmpty) {
+        Get.snackbar('Error', 'Please enter your full name');
+        return false;
+      }
+
+      if (emailController.text.trim().isEmpty) {
+        Get.snackbar('Error', 'Please enter your email');
+        return false;
+      }
+
+      if (!GetUtils.isEmail(emailController.text.trim())) {
+        Get.snackbar('Error', 'Please enter a valid email');
+        return false;
+      }
+
+      if (companyNameController.text.trim().isEmpty) {
+        Get.snackbar('Error', 'Please enter your company name');
+        return false;
+      }
+
+      if (licenseNumberController.text.trim().isEmpty) {
+        Get.snackbar('Error', 'Please enter your license number');
+        return false;
+      }
+
+      return true;
+    } catch (e) {
+      if (kDebugMode) {
+        print('⚠️ Error validating form (controllers may be disposed): $e');
+      }
       return false;
     }
-
-    if (!GetUtils.isEmail(emailController.text.trim())) {
-      Get.snackbar('Error', 'Please enter a valid email');
-      return false;
-    }
-
-    if (companyNameController.text.trim().isEmpty) {
-      Get.snackbar('Error', 'Please enter your company name');
-      return false;
-    }
-
-    if (licenseNumberController.text.trim().isEmpty) {
-      Get.snackbar('Error', 'Please enter your license number');
-      return false;
-    }
-
-    return true;
   }
 
   @override
   void onClose() {
+    // Set disposed flag first to prevent any further access
+    _isDisposed = true;
+
+    // Dispose controllers safely
+    try {
+      fullNameController.dispose();
+      emailController.dispose();
+      phoneController.dispose();
+      bioController.dispose();
+      licenseNumberController.dispose();
+      companyNameController.dispose();
+      mortgageApplicationUrlController.dispose();
+      externalReviewsUrlController.dispose();
+      serviceAreasController.dispose();
+    } catch (e) {
+      if (kDebugMode) {
+        print('⚠️ Error disposing controllers: $e');
+      }
+    }
+
     fullNameController.dispose();
     emailController.dispose();
     phoneController.dispose();

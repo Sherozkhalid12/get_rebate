@@ -8,8 +8,13 @@ import 'package:getrebate/app/models/agent_listing_model.dart';
 import 'package:getrebate/app/models/subscription_model.dart';
 import 'package:getrebate/app/models/promo_code_model.dart';
 import 'package:getrebate/app/services/zip_code_pricing_service.dart';
+import 'package:getrebate/app/services/zip_codes_service.dart';
+import 'package:getrebate/app/services/leads_service.dart';
+import 'package:getrebate/app/models/lead_model.dart';
+import 'package:getrebate/app/modules/messages/controllers/messages_controller.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart' as global;
 import 'package:getrebate/app/utils/api_constants.dart';
+import 'package:getrebate/app/utils/network_error_handler.dart';
 import 'dart:math';
 
 class AgentController extends GetxController {
@@ -26,11 +31,24 @@ class AgentController extends GetxController {
   final _allListings = <AgentListingModel>[].obs; // All listings from API (unfiltered)
   final _isLoading = false.obs;
   final _selectedTab = 0
-      .obs; // 0: Dashboard, 1: ZIP Management, 2: My Listings, 3: Stats, 4: Billing
+      .obs; // 0: Dashboard, 1: ZIP Management, 2: My Listings, 3: Stats, 4: Billing, 5: Leads
   
   // Filters
   final _selectedStatusFilter = Rxn<MarketStatus>(); // null = all
   final _searchQuery = ''.obs;
+  
+  // State and ZIP code management
+  final _selectedState = Rxn<String>();
+  final _isLoadingZipCodes = false.obs;
+  final _processingZipCodes = <String>{}.obs; // Track which ZIP codes are being processed
+  
+  // Leads management
+  final _leads = <LeadModel>[].obs;
+  final _isLoadingLeads = false.obs;
+  
+  // Services
+  final _zipCodesService = ZipCodesService();
+  final _leadsService = LeadsService();
 
   // Stats
   final _searchesAppearedIn = 0.obs;
@@ -58,6 +76,15 @@ class AgentController extends GetxController {
   int get selectedTab => _selectedTab.value;
   MarketStatus? get selectedStatusFilter => _selectedStatusFilter.value;
   String get searchQuery => _searchQuery.value;
+  
+  // State and ZIP code getters
+  String? get selectedState => _selectedState.value;
+  bool get isLoadingZipCodes => _isLoadingZipCodes.value;
+  bool isZipProcessing(String zipCode) => _processingZipCodes.contains(zipCode);
+  
+  // Leads getters
+  List<LeadModel> get leads => _leads;
+  bool get isLoadingLeads => _isLoadingLeads.value;
   
   // Filter methods
   void setStatusFilter(MarketStatus? status) {
@@ -366,6 +393,7 @@ class AgentController extends GetxController {
 
   Future<void> claimZipCode(ZipCodeModel zipCode) async {
     try {
+      _processingZipCodes.add(zipCode.zipCode);
       _isLoading.value = true;
 
       // Check if agent can claim more ZIP codes (max 6)
@@ -395,14 +423,19 @@ class AgentController extends GetxController {
         'ZIP code ${zipCode.zipCode} claimed successfully!',
       );
     } catch (e) {
-      Get.snackbar('Error', 'Failed to claim ZIP code: ${e.toString()}');
+      NetworkErrorHandler.handleError(
+        e,
+        defaultMessage: 'Unable to claim ZIP code. Please check your internet connection and try again.',
+      );
     } finally {
       _isLoading.value = false;
+      _processingZipCodes.remove(zipCode.zipCode);
     }
   }
 
   Future<void> releaseZipCode(ZipCodeModel zipCode) async {
     try {
+      _processingZipCodes.add(zipCode.zipCode);
       _isLoading.value = true;
 
       // Simulate API call
@@ -428,9 +461,13 @@ class AgentController extends GetxController {
         'ZIP code ${zipCode.zipCode} released successfully!',
       );
     } catch (e) {
-      Get.snackbar('Error', 'Failed to release ZIP code: ${e.toString()}');
+      NetworkErrorHandler.handleError(
+        e,
+        defaultMessage: 'Unable to release ZIP code. Please check your internet connection and try again.',
+      );
     } finally {
       _isLoading.value = false;
+      _processingZipCodes.remove(zipCode.zipCode);
     }
   }
 
@@ -452,7 +489,10 @@ class AgentController extends GetxController {
 
       _availableZipCodes.value = filteredZips;
     } catch (e) {
-      Get.snackbar('Error', 'Search failed: ${e.toString()}');
+      NetworkErrorHandler.handleError(
+        e,
+        defaultMessage: 'Unable to search ZIP codes. Please check your internet connection and try again.',
+      );
     } finally {
       _isLoading.value = false;
     }
@@ -586,7 +626,10 @@ class AgentController extends GetxController {
         colorText: Colors.white,
       );
     } catch (e) {
-      Get.snackbar('Error', 'Failed to apply promo code: ${e.toString()}');
+      NetworkErrorHandler.handleError(
+        e,
+        defaultMessage: 'Unable to apply promo code. Please check your internet connection and try again.',
+      );
     } finally {
       _isLoading.value = false;
     }
@@ -658,7 +701,10 @@ class AgentController extends GetxController {
         colorText: Colors.white,
       );
     } catch (e) {
-      Get.snackbar('Error', 'Failed to generate promo code: ${e.toString()}');
+      NetworkErrorHandler.handleError(
+        e,
+        defaultMessage: 'Unable to generate promo code. Please check your internet connection and try again.',
+      );
     } finally {
       _isLoading.value = false;
     }
@@ -960,6 +1006,115 @@ class AgentController extends GetxController {
   int get staleListingsCount => _allListings.where((l) => l.isStale).length;
 
   // Fetch listings from API
+  // State and ZIP code methods
+  Future<void> selectStateAndFetchZipCodes(String state) async {
+    if (state.isEmpty) {
+      _selectedState.value = null;
+      _availableZipCodes.value = [];
+      return;
+    }
+    
+    _selectedState.value = state;
+    await _fetchZipCodesByState(state);
+  }
+  
+  Future<void> _fetchZipCodesByState(String state) async {
+    try {
+      _isLoadingZipCodes.value = true;
+      
+      final zipCodes = await _zipCodesService.getZipCodesByState(state: state);
+      
+      // Update available ZIP codes, filtering out already claimed ones
+      final claimedZipCodesSet = _claimedZipCodes.map((z) => z.zipCode).toSet();
+      _availableZipCodes.value = zipCodes
+          .where((zip) => !claimedZipCodesSet.contains(zip.zipCode))
+          .toList();
+    } catch (e) {
+      NetworkErrorHandler.handleError(
+        e,
+        defaultMessage: 'Unable to fetch ZIP codes. Please check your internet connection and try again.',
+      );
+    } finally {
+      _isLoadingZipCodes.value = false;
+    }
+  }
+  
+  // Leads methods
+  Future<void> refreshLeads() async {
+    try {
+      _isLoadingLeads.value = true;
+      
+      final authController = Get.find<global.AuthController>();
+      final agentId = authController.currentUser?.id;
+      
+      if (agentId == null || agentId.isEmpty) {
+        _leads.value = [];
+        return;
+      }
+      
+      final response = await _leadsService.getLeadsByAgentId(agentId);
+      _leads.value = response.leads;
+    } catch (e) {
+      NetworkErrorHandler.handleError(
+        e,
+        defaultMessage: 'Unable to fetch leads. Please check your internet connection and try again.',
+      );
+    } finally {
+      _isLoadingLeads.value = false;
+    }
+  }
+  
+  Future<void> contactBuyerFromLead(LeadModel lead) async {
+    try {
+      // Get buyer info from lead
+      final buyerInfo = lead.buyerInfo;
+      if (buyerInfo == null) {
+        Get.snackbar('Error', 'Buyer information not available');
+        return;
+      }
+      
+      // Check if conversation exists with this buyer
+      final messagesController = Get.find<MessagesController>();
+      
+      // Wait for threads to load if needed
+      if (messagesController.allConversations.isEmpty && !messagesController.isLoadingThreads) {
+        await messagesController.loadThreads();
+      }
+      
+      // Wait a bit for threads to load
+      int retries = 0;
+      while (messagesController.allConversations.isEmpty && messagesController.isLoadingThreads && retries < 10) {
+        await Future.delayed(const Duration(milliseconds: 200));
+        retries++;
+      }
+      
+      // Check if conversation exists
+      var conversations = messagesController.allConversations
+          .where((conv) => conv.senderId == buyerInfo.id);
+      var existingConversation = conversations.isNotEmpty ? conversations.first : null;
+      
+      if (existingConversation != null) {
+        // Conversation exists - go directly to chat
+        messagesController.selectConversation(existingConversation);
+        // Navigate to messages tab
+        Get.toNamed('/messages');
+      } else {
+        // No conversation - show Start Chat screen
+        Get.toNamed('/contact', arguments: {
+          'userId': buyerInfo.id,
+          'userName': buyerInfo.fullname ?? 'Buyer',
+          'userProfilePic': buyerInfo.profilePic,
+          'userRole': 'buyer',
+        });
+      }
+    } catch (e) {
+      NetworkErrorHandler.handleError(
+        e,
+        defaultMessage: 'Unable to contact buyer. Please try again.',
+      );
+    }
+  }
+
   Future<void> fetchAgentListings() async {
     try {
       // Don't show global loading indicator - let listings load in background

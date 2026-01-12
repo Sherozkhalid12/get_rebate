@@ -8,6 +8,8 @@ import 'package:getrebate/app/models/user_model.dart';
 import 'package:getrebate/app/services/chat_service.dart';
 import 'package:getrebate/app/services/user_service.dart';
 import 'package:getrebate/app/services/socket_service.dart';
+import 'package:getrebate/app/services/agent_service.dart';
+import 'package:getrebate/app/services/loan_officer_service.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
 
@@ -145,6 +147,9 @@ class MessagesController extends GetxController {
 
   // Message input
   final messageController = TextEditingController();
+  
+  // Track previous message count for auto-scroll
+  int _previousMessageCount = 0;
 
   // Getters
   List<ConversationModel> get conversations => _conversations;
@@ -180,48 +185,86 @@ class MessagesController extends GetxController {
   
   /// Scrolls to the bottom of the messages list
   void _scrollToBottom({bool immediate = false}) {
-    if (!_messagesScrollController.hasClients) {
-      // If scroll controller not ready, try again after a short delay
-      Future.delayed(const Duration(milliseconds: 100), () => _scrollToBottom(immediate: immediate));
-      return;
-    }
+    // Use multiple attempts to ensure scroll happens after ListView rebuilds
+    void attemptScroll(int attempt) {
+      if (attempt > 5) {
+        if (kDebugMode) {
+          print('⚠️ Failed to scroll after 5 attempts');
+        }
+        return;
+      }
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_messagesScrollController.hasClients) {
-        try {
-          // Wait a bit more to ensure ListView is fully rendered
-          Future.delayed(Duration(milliseconds: immediate ? 0 : 100), () {
-            if (_messagesScrollController.hasClients) {
-              final maxExtent = _messagesScrollController.position.maxScrollExtent;
+      if (!_messagesScrollController.hasClients) {
+        // If scroll controller not ready, try again after a delay
+        Future.delayed(Duration(milliseconds: 50 * (attempt + 1)), () {
+          attemptScroll(attempt + 1);
+        });
+        return;
+      }
+
+      // Use post frame callback to ensure ListView is built
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        // Add another small delay to ensure ListView has updated
+        Future.delayed(Duration(milliseconds: immediate ? 10 : 50), () {
+          if (_messagesScrollController.hasClients) {
+            try {
+              final position = _messagesScrollController.position;
+              final maxExtent = position.maxScrollExtent;
+              
               if (maxExtent > 0) {
                 if (immediate) {
-                  // Jump immediately without animation
+                  // Jump immediately without animation for instant feedback
                   _messagesScrollController.jumpTo(maxExtent);
+                  if (kDebugMode) {
+                    print('✅ Scrolled to bottom immediately (maxExtent: $maxExtent, attempt: $attempt)');
+                  }
                 } else {
                   // Animate smoothly
                   _messagesScrollController.animateTo(
                     maxExtent,
-                    duration: const Duration(milliseconds: 300),
+                    duration: const Duration(milliseconds: 200),
                     curve: Curves.easeOut,
                   );
-                }
-                if (kDebugMode) {
-                  print('✅ Scrolled to bottom (maxExtent: $maxExtent)');
+                  if (kDebugMode) {
+                    print('✅ Scrolled to bottom with animation (maxExtent: $maxExtent, attempt: $attempt)');
+                  }
                 }
               } else {
-                if (kDebugMode) {
-                  print('⚠️ Cannot scroll - maxExtent is 0 (list may be empty or not rendered yet)');
+                // If maxExtent is 0, the list might not be rendered yet, try again
+                if (attempt < 5) {
+                  Future.delayed(Duration(milliseconds: 100 * (attempt + 1)), () {
+                    attemptScroll(attempt + 1);
+                  });
+                } else {
+                  if (kDebugMode) {
+                    print('⚠️ Cannot scroll - maxExtent is 0 after $attempt attempts');
+                  }
                 }
               }
+            } catch (e) {
+              if (kDebugMode) {
+                print('⚠️ Error scrolling to bottom: $e');
+              }
+              // Try again if error occurs
+              if (attempt < 5) {
+                Future.delayed(Duration(milliseconds: 100 * (attempt + 1)), () {
+                  attemptScroll(attempt + 1);
+                });
+              }
             }
-          });
-        } catch (e) {
-          if (kDebugMode) {
-            print('⚠️ Error scrolling to bottom: $e');
+          } else {
+            // Scroll controller lost clients, try again
+            if (attempt < 5) {
+              Future.delayed(Duration(milliseconds: 100 * (attempt + 1)), () {
+                attemptScroll(attempt + 1);
+              });
+            }
           }
-        }
-      }
-    });
+        });
+      });
+    }
+
+    attemptScroll(0);
   }
 
   @override
@@ -234,6 +277,25 @@ class MessagesController extends GetxController {
     
     _loadArguments();
     
+    // Listen to messages list changes and auto-scroll when new messages are added
+    ever(_messages, (_) {
+      // Only auto-scroll if there's a selected conversation and message count increased
+      if (_selectedConversation.value != null && 
+          _messages.isNotEmpty && 
+          _messages.length > _previousMessageCount) {
+        _previousMessageCount = _messages.length;
+        // Delay to ensure ListView has rebuilt
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          Future.delayed(const Duration(milliseconds: 150), () {
+            _scrollToBottom(immediate: true);
+          });
+        });
+      } else if (_messages.length != _previousMessageCount) {
+        // Update count even if not scrolling (e.g., when loading initial messages)
+        _previousMessageCount = _messages.length;
+      }
+    });
+    
     // Always initialize socket if user is logged in (socket can reconnect)
     if (_authController.isLoggedIn && _authController.currentUser != null) {
       if (!_hasInitialized) {
@@ -241,10 +303,13 @@ class MessagesController extends GetxController {
         if (kDebugMode) {
           print('📱 MessagesController: First initialization - loading threads and socket');
         }
-        // Only load threads on first init if not already loading
+        // Load threads immediately in background - don't wait
+        // This ensures threads are ready when user opens messages screen
         if (!_isLoadingThreads.value) {
-          loadThreads();
+          // Use microtask to load in background without blocking initialization
+          Future.microtask(() => loadThreads());
         }
+        // Initialize socket in parallel
         _initializeSocket();
       } else {
         // Already initialized - ensure socket is still connected
@@ -528,7 +593,14 @@ class MessagesController extends GetxController {
         }
         
         // Auto-scroll to bottom when new message arrives
-        _scrollToBottom();
+        // Use immediate scroll for socket messages to show them instantly
+        _scrollToBottom(immediate: true);
+        Future.delayed(const Duration(milliseconds: 100), () {
+          _scrollToBottom(immediate: true);
+        });
+        Future.delayed(const Duration(milliseconds: 300), () {
+          _scrollToBottom(immediate: false);
+        });
         
         if (kDebugMode) {
           print('✅ Added message to current conversation');
@@ -608,7 +680,9 @@ class MessagesController extends GetxController {
   Future<void> loadThreads() async {
     // Prevent multiple simultaneous loads
     if (_isLoadingThreads.value) {
-      print('⚠️ Threads already loading, skipping duplicate call');
+      if (kDebugMode) {
+        print('⚠️ Threads already loading, skipping duplicate call');
+      }
       return;
     }
 
@@ -619,8 +693,13 @@ class MessagesController extends GetxController {
       return;
     }
 
+    // Set loading state BEFORE async operation
     _isLoadingThreads.value = true;
     _error.value = null;
+    
+    if (kDebugMode) {
+      print('📡 Starting to load threads...');
+    }
 
     try {
       // Fetch threads from API
@@ -634,39 +713,8 @@ class MessagesController extends GetxController {
               final otherParticipant = thread.getOtherParticipant(user.id);
               if (otherParticipant == null) return null;
 
-              // Build profile pic URL from API data (no extra fetch needed)
-              // Normalize: trim whitespace and convert empty strings to null
-              String? profilePicUrl = otherParticipant.profilePic?.trim();
-              if (profilePicUrl != null && profilePicUrl.isNotEmpty && !profilePicUrl.contains('file://')) {
-                // Normalize path separators (handle Windows backslashes)
-                profilePicUrl = profilePicUrl.replaceAll('\\', '/');
-                // Build full URL if it's a relative path
-                if (!profilePicUrl.startsWith('http://') && 
-                    !profilePicUrl.startsWith('https://')) {
-                  // Remove leading slash if present to avoid double slashes
-                  if (profilePicUrl.startsWith('/')) {
-                    profilePicUrl = profilePicUrl.substring(1);
-                  }
-                  // Ensure baseUrl doesn't end with / and profilePicUrl doesn't start with /
-                  final baseUrl = ApiConstants.baseUrl.endsWith('/') 
-                      ? ApiConstants.baseUrl.substring(0, ApiConstants.baseUrl.length - 1)
-                      : ApiConstants.baseUrl;
-                  profilePicUrl = '$baseUrl/$profilePicUrl';
-                }
-                // Final validation - ensure it's a valid URI
-                try {
-                  final uri = Uri.parse(profilePicUrl);
-                  if (!uri.hasScheme || (!uri.scheme.startsWith('http'))) {
-                    profilePicUrl = null;
-                  }
-                } catch (e) {
-                  // Invalid URI, set to null
-                  profilePicUrl = null;
-                }
-              } else {
-                // Set to null if empty or invalid to avoid 404 errors
-                profilePicUrl = null;
-              }
+              // Build profile pic URL using helper function
+              final profilePicUrl = ApiConstants.getImageUrl(otherParticipant.profilePic?.trim());
 
               // Map role from API to sender type - use role directly from API response
               String senderType = 'user';
@@ -739,7 +787,7 @@ class MessagesController extends GetxController {
 
       // Merge with existing conversations to preserve any newly created threads
       // that haven't appeared in the API response yet
-      final existingConversations = _conversations.toList();
+      final existingConversations = _allConversations.toList();
       final mergedConversations = <ConversationModel>[];
       
       // Add all conversations from API
@@ -750,6 +798,7 @@ class MessagesController extends GetxController {
       // 2. Are real conversations (not temp) that don't appear in API yet (newly created)
       for (final existing in existingConversations) {
         // Check if this conversation exists in the API response
+        // Match by ID or by senderId (for real conversations, not temp)
         final existsInApi = conversations.any((c) => 
           c.id == existing.id || 
           (c.senderId == existing.senderId && !existing.id.startsWith('temp_'))
@@ -761,24 +810,56 @@ class MessagesController extends GetxController {
           if (kDebugMode) {
             print('📌 Preserving conversation not in API: ${existing.id} (${existing.senderName})');
           }
+        } else {
+          // If conversation exists in API, prefer API version (it has latest data)
+          // But if existing is temp and API has real one, we'll use API version
+          if (kDebugMode && existing.id.startsWith('temp_')) {
+            print('🔄 Replacing temp conversation with API version: ${existing.id}');
+          }
         }
       }
       
-      // Sort again after merging
-      mergedConversations.sort((a, b) => b.lastMessageTime.compareTo(a.lastMessageTime));
+      // Remove duplicates - if same senderId appears multiple times, keep the one with real ID (not temp)
+      final uniqueConversations = <String, ConversationModel>{};
+      for (final conv in mergedConversations) {
+        final key = conv.senderId;
+        if (!uniqueConversations.containsKey(key)) {
+          uniqueConversations[key] = conv;
+        } else {
+          // If we have both temp and real, prefer real
+          final existing = uniqueConversations[key]!;
+          if (conv.id.startsWith('temp_') && !existing.id.startsWith('temp_')) {
+            // Keep existing (real), skip temp
+            continue;
+          } else if (!conv.id.startsWith('temp_') && existing.id.startsWith('temp_')) {
+            // Replace temp with real
+            uniqueConversations[key] = conv;
+          } else {
+            // Both same type, prefer the one with more recent lastMessageTime
+            if (conv.lastMessageTime.isAfter(existing.lastMessageTime)) {
+              uniqueConversations[key] = conv;
+            }
+          }
+        }
+      }
+      
+      final finalConversations = uniqueConversations.values.toList();
+      
+      // Sort again after merging and deduplication
+      finalConversations.sort((a, b) => b.lastMessageTime.compareTo(a.lastMessageTime));
       
       // Update both lists - all conversations and filtered conversations
-      _allConversations.value = mergedConversations;
+      _allConversations.value = finalConversations;
       
       // Apply current search filter if any
       if (_searchQuery.value.trim().isNotEmpty) {
         searchConversations(_searchQuery.value);
       } else {
-        _conversations.value = mergedConversations;
+        _conversations.value = finalConversations;
       }
       
       if (kDebugMode) {
-        print('✅ Loaded ${conversations.length} conversations');
+        print('✅ Loaded ${finalConversations.length} conversations (${conversations.length} from API, ${finalConversations.length - conversations.length} preserved)');
       }
     } on ChatServiceException catch (e) {
       _error.value = e.message;
@@ -791,6 +872,7 @@ class MessagesController extends GetxController {
         print('❌ Unexpected error loading threads: $e');
       }
     } finally {
+      // Always reset loading state, even if there was an error
       _isLoadingThreads.value = false;
       if (kDebugMode) {
         print('✅ Loading state reset to false');
@@ -830,6 +912,7 @@ class MessagesController extends GetxController {
     // Set loading state
     _isLoadingMessages.value = true;
     _messages.clear();
+    _previousMessageCount = 0; // Reset message count when loading new conversation
     
     // Reset scroll position before loading (in case user had scrolled up in previous chat)
     if (_messagesScrollController.hasClients) {
@@ -882,31 +965,9 @@ class MessagesController extends GetxController {
             senderType = 'loan_officer';
           }
 
-          // Build profile pic URL
-          String? senderImage = sender?['profilePic']?.toString()?.trim();
-          if (senderImage != null && senderImage.isNotEmpty && !senderImage.contains('file://')) {
-            senderImage = senderImage.replaceAll('\\', '/');
-            if (!senderImage.startsWith('http://') && !senderImage.startsWith('https://')) {
-              if (senderImage.startsWith('/')) {
-                senderImage = senderImage.substring(1);
-              }
-              final baseUrl = ApiConstants.baseUrl.endsWith('/') 
-                  ? ApiConstants.baseUrl.substring(0, ApiConstants.baseUrl.length - 1)
-                  : ApiConstants.baseUrl;
-              senderImage = '$baseUrl/$senderImage';
-            }
-            // Validate URI
-            try {
-              final uri = Uri.parse(senderImage);
-              if (!uri.hasScheme || (!uri.scheme.startsWith('http'))) {
-                senderImage = null;
-              }
-            } catch (e) {
-              senderImage = null;
-            }
-          } else {
-            senderImage = null;
-          }
+          // Build profile pic URL using helper function
+          final senderImageRaw = sender?['profilePic']?.toString()?.trim();
+          final senderImage = ApiConstants.getImageUrl(senderImageRaw);
 
           // Parse timestamp
           DateTime timestamp;
@@ -976,13 +1037,20 @@ class MessagesController extends GetxController {
 
       // Update messages list
       _messages.value = messages;
+      
+      // Update message count after loading
+      _previousMessageCount = _messages.length;
 
       // Auto-scroll to bottom after loading messages
-      // Use immediate jump for initial load to ensure it reaches the bottom
-      _scrollToBottom(immediate: true);
+      // Use post frame callback to ensure ListView is built
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Future.delayed(const Duration(milliseconds: 200), () {
+          _scrollToBottom(immediate: true);
+        });
+      });
       
       // Also try again after a delay to handle cases where list takes time to render
-      Future.delayed(const Duration(milliseconds: 300), () {
+      Future.delayed(const Duration(milliseconds: 400), () {
         _scrollToBottom(immediate: false);
       });
 
@@ -1000,7 +1068,6 @@ class MessagesController extends GetxController {
       // Clear messages on error
       _messages.clear();
       // Show error to user
-      SnackbarHelper.showError('Failed to load messages. Please try again.');
     } finally {
       _isLoadingMessages.value = false;
       if (kDebugMode) {
@@ -1046,8 +1113,19 @@ class MessagesController extends GetxController {
     _messages.add(message);
     messageController.clear();
     
-    // Auto-scroll to bottom when sending message
-    _scrollToBottom();
+    // Force scroll to bottom immediately and multiple times to ensure it works
+    // This ensures the ListView scrolls down when a new message is added
+    _scrollToBottom(immediate: true);
+    
+    // Also try after a short delay to handle ListView rebuild
+    Future.delayed(const Duration(milliseconds: 100), () {
+      _scrollToBottom(immediate: true);
+    });
+    
+    // And once more after ListView fully renders
+    Future.delayed(const Duration(milliseconds: 300), () {
+      _scrollToBottom(immediate: false);
+    });
     
     if (kDebugMode) {
       print('📝 Added optimistic message: $tempId');
@@ -1174,19 +1252,57 @@ class MessagesController extends GetxController {
     }
   }
 
-  void deleteConversation(String conversationId) {
-    // Remove from both lists
-    _allConversations.removeWhere((conv) => conv.id == conversationId);
-    _conversations.removeWhere((conv) => conv.id == conversationId);
-    
-    if (_selectedConversation.value?.id == conversationId) {
-      _selectedConversation.value = null;
-      _messages.clear();
+  Future<void> deleteConversation(String conversationId) async {
+    try {
+      if (kDebugMode) {
+        print('🗑️ Deleting chat: $conversationId');
+      }
+
+      // Call API to delete the chat
+      await _chatService.deleteChat(chatId: conversationId);
+
+      // Remove from both lists after successful API call
+      _allConversations.removeWhere((conv) => conv.id == conversationId);
+      _conversations.removeWhere((conv) => conv.id == conversationId);
+      
+      if (_selectedConversation.value?.id == conversationId) {
+        _selectedConversation.value = null;
+        _messages.clear();
+        
+        // Show navbar again when conversation is deleted
+        if (Get.isRegistered<MainNavigationController>()) {
+          try {
+            final mainNavController = Get.find<MainNavigationController>();
+            mainNavController.showNavBar();
+          } catch (e) {
+            // Navbar controller might not be available
+          }
+        }
+      }
+      
+      SnackbarHelper.showSuccess('Conversation deleted', title: 'Deleted');
+    } on ChatServiceException catch (e) {
+      if (kDebugMode) {
+        print('❌ Error deleting chat: ${e.message}');
+      }
+      SnackbarHelper.showError(
+        e.message,
+        title: 'Delete Failed',
+      );
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Unexpected error deleting chat: $e');
+      }
+      SnackbarHelper.showError(
+        'Failed to delete conversation. Please try again.',
+        title: 'Error',
+      );
     }
-    SnackbarHelper.showSuccess('Conversation deleted', title: 'Deleted');
   }
 
   void goBack() {
+    // Clear conversation state - this will automatically show conversations list
+    // Don't use Navigator.pop() because MessagesView is part of main navigation
     _selectedConversation.value = null;
     _messages.clear();
     
@@ -1200,12 +1316,21 @@ class MessagesController extends GetxController {
       }
     }
     
-    // Always refresh threads silently when going back to ensure list is up-to-date
+    // Refresh threads silently when going back to ensure list is up-to-date
+    // But only if not already loading to avoid unnecessary refreshes
     // This ensures threads are sorted correctly with latest messages at top
     if (kDebugMode) {
-      print('🔄 Going back: Silently refreshing threads to update sort order');
+      print('🔄 Going back: Clearing conversation and showing conversations list');
     }
-    _refreshThreadsSilently();
+    
+    // Only refresh if not currently loading to avoid race conditions
+    if (!_isLoadingThreads.value) {
+      _refreshThreadsSilently();
+    } else {
+      if (kDebugMode) {
+        print('⚠️ Skipping refresh - threads already loading');
+      }
+    }
   }
 
   /// Refreshes chat threads from the API - can be called from anywhere
@@ -1218,9 +1343,18 @@ class MessagesController extends GetxController {
 
   /// Refreshes threads silently without showing loading indicator
   /// Used when going back from chat to ensure threads are sorted correctly
+  /// Preserves existing conversations (temp and newly created) that might not be in API yet
   Future<void> _refreshThreadsSilently() async {
     final user = _authController.currentUser;
     if (user == null || user.id.isEmpty) {
+      return;
+    }
+
+    // Prevent multiple simultaneous silent refreshes
+    if (_isLoadingThreads.value) {
+      if (kDebugMode) {
+        print('⚠️ Threads already loading, skipping silent refresh');
+      }
       return;
     }
 
@@ -1241,31 +1375,8 @@ class MessagesController extends GetxController {
               final otherParticipant = thread.getOtherParticipant(user.id);
               if (otherParticipant == null) return null;
 
-              // Build profile pic URL from API data (no extra fetch needed)
-              String? profilePicUrl = otherParticipant.profilePic?.trim();
-              if (profilePicUrl != null && profilePicUrl.isNotEmpty && !profilePicUrl.contains('file://')) {
-                profilePicUrl = profilePicUrl.replaceAll('\\', '/');
-                if (!profilePicUrl.startsWith('http://') && 
-                    !profilePicUrl.startsWith('https://')) {
-                  if (profilePicUrl.startsWith('/')) {
-                    profilePicUrl = profilePicUrl.substring(1);
-                  }
-                  final baseUrl = ApiConstants.baseUrl.endsWith('/') 
-                      ? ApiConstants.baseUrl.substring(0, ApiConstants.baseUrl.length - 1)
-                      : ApiConstants.baseUrl;
-                  profilePicUrl = '$baseUrl/$profilePicUrl';
-                }
-                try {
-                  final uri = Uri.parse(profilePicUrl);
-                  if (!uri.hasScheme || (!uri.scheme.startsWith('http'))) {
-                    profilePicUrl = null;
-                  }
-                } catch (e) {
-                  profilePicUrl = null;
-                }
-              } else {
-                profilePicUrl = null;
-              }
+              // Build profile pic URL using helper function
+              final profilePicUrl = ApiConstants.getImageUrl(otherParticipant.profilePic?.trim());
 
               // Map role from API to sender type
               String senderType = 'user';
@@ -1318,24 +1429,90 @@ class MessagesController extends GetxController {
       // Sort by last message time (most recent first)
       conversations.sort((a, b) => b.lastMessageTime.compareTo(a.lastMessageTime));
 
-      // Update both lists
-      _allConversations.value = conversations;
+      // CRITICAL: Merge with existing conversations to preserve:
+      // 1. Temp conversations (starting with 'temp_') that don't have a match in API
+      // 2. Real conversations (not temp) that don't appear in API yet (newly created)
+      // This ensures newly created threads appear immediately when navigating back
+      final existingConversations = _allConversations.toList();
+      final mergedConversations = <ConversationModel>[];
+      
+      // Add all conversations from API
+      mergedConversations.addAll(conversations);
+      
+      // Preserve conversations that:
+      // 1. Are temp conversations (starting with 'temp_') that don't have a match in API
+      // 2. Are real conversations (not temp) that don't appear in API yet (newly created)
+      for (final existing in existingConversations) {
+        // Check if this conversation exists in the API response
+        // Match by ID or by senderId (for real conversations, not temp)
+        final existsInApi = conversations.any((c) => 
+          c.id == existing.id || 
+          (c.senderId == existing.senderId && !existing.id.startsWith('temp_'))
+        );
+        
+        if (!existsInApi) {
+          // Keep this conversation if it's not in the API response
+          mergedConversations.add(existing);
+          if (kDebugMode) {
+            print('📌 Preserving conversation not in API: ${existing.id} (${existing.senderName})');
+          }
+        } else {
+          // If conversation exists in API, prefer API version (it has latest data)
+          // But if existing is temp and API has real one, we'll use API version
+          if (kDebugMode && existing.id.startsWith('temp_')) {
+            print('🔄 Replacing temp conversation with API version: ${existing.id}');
+          }
+        }
+      }
+      
+      // Remove duplicates - if same senderId appears multiple times, keep the one with real ID (not temp)
+      final uniqueConversations = <String, ConversationModel>{};
+      for (final conv in mergedConversations) {
+        final key = conv.senderId;
+        if (!uniqueConversations.containsKey(key)) {
+          uniqueConversations[key] = conv;
+        } else {
+          // If we have both temp and real, prefer real
+          final existing = uniqueConversations[key]!;
+          if (conv.id.startsWith('temp_') && !existing.id.startsWith('temp_')) {
+            // Keep existing (real), skip temp
+            continue;
+          } else if (!conv.id.startsWith('temp_') && existing.id.startsWith('temp_')) {
+            // Replace temp with real
+            uniqueConversations[key] = conv;
+          } else {
+            // Both same type, prefer the one with more recent lastMessageTime
+            if (conv.lastMessageTime.isAfter(existing.lastMessageTime)) {
+              uniqueConversations[key] = conv;
+            }
+          }
+        }
+      }
+      
+      final finalConversations = uniqueConversations.values.toList();
+      
+      // Sort again after merging and deduplication
+      finalConversations.sort((a, b) => b.lastMessageTime.compareTo(a.lastMessageTime));
+
+      // Update both lists - all conversations and filtered conversations
+      _allConversations.value = finalConversations;
       
       // Apply current search filter if any
       if (_searchQuery.value.trim().isNotEmpty) {
         searchConversations(_searchQuery.value);
       } else {
-        _conversations.value = conversations;
+        _conversations.value = finalConversations;
       }
       
       if (kDebugMode) {
-        print('✅ Silently refreshed ${conversations.length} conversations');
+        print('✅ Silently refreshed ${finalConversations.length} conversations (${conversations.length} from API, ${finalConversations.length - conversations.length} preserved)');
       }
     } catch (e) {
       if (kDebugMode) {
         print('❌ Error silently refreshing threads: $e');
       }
       // Don't show error to user - this is a silent background refresh
+      // Don't clear existing conversations on error - preserve what we have
     }
   }
 
@@ -1358,46 +1535,95 @@ class MessagesController extends GetxController {
       return null;
     }
 
-    // Build profile pic URL - set to null if empty or invalid to avoid 404 errors
-    // Normalize: trim whitespace and convert empty strings to null
-    String? profilePicUrl = otherUserProfilePic?.trim();
-    if (profilePicUrl != null && profilePicUrl.isNotEmpty && !profilePicUrl.contains('file://')) {
-      profilePicUrl = profilePicUrl.replaceAll('\\', '/');
-      if (!profilePicUrl.startsWith('http://') && !profilePicUrl.startsWith('https://')) {
-        if (profilePicUrl.startsWith('/')) {
-          profilePicUrl = profilePicUrl.substring(1);
-        }
-        // Ensure baseUrl doesn't end with / and profilePicUrl doesn't start with /
-        final baseUrl = ApiConstants.baseUrl.endsWith('/') 
-            ? ApiConstants.baseUrl.substring(0, ApiConstants.baseUrl.length - 1)
-            : ApiConstants.baseUrl;
-        profilePicUrl = '$baseUrl/$profilePicUrl';
-      }
-      // Final validation - ensure it's a valid URI
+    // Record contact if chatting with an agent
+    if (otherUserRole == 'agent' && otherUserId.isNotEmpty) {
       try {
-        final uri = Uri.parse(profilePicUrl);
-        if (!uri.hasScheme || (!uri.scheme.startsWith('http'))) {
-          profilePicUrl = null;
+        if (Get.isRegistered<AgentService>()) {
+          final agentService = Get.find<AgentService>();
+          agentService.recordContact(otherUserId);
+        } else {
+          final agentService = AgentService();
+          agentService.recordContact(otherUserId);
+        }
+        if (kDebugMode) {
+          print('📞 Recording contact for agent: $otherUserId');
         }
       } catch (e) {
-        // Invalid URI, set to null
-        profilePicUrl = null;
+        if (kDebugMode) {
+          print('⚠️ Error recording contact: $e');
+        }
+        // Don't block chat if contact recording fails
       }
-    } else {
-      // Set to null if empty or invalid to avoid 404 errors
-      profilePicUrl = null;
+    }
+    
+    // Record contact for loan officers
+    if (otherUserRole == 'loan_officer' && otherUserId.isNotEmpty) {
+      try {
+        final loanOfficerService = LoanOfficerService();
+        loanOfficerService.recordContact(otherUserId);
+        if (kDebugMode) {
+          print('📞 Recording contact for loan officer: $otherUserId');
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          print('⚠️ Error recording loan officer contact: $e');
+        }
+        // Don't block chat if contact recording fails
+      }
     }
 
-    // Check if thread already exists
-    final existingThread = _allConversations.firstWhereOrNull(
+    // Build profile pic URL using helper function
+    final profilePicUrl = ApiConstants.getImageUrl(otherUserProfilePic?.trim());
+
+    // Check if thread already exists - check both by senderId and by ID
+    // This prevents duplicates when:
+    // 1. A temp conversation is being created
+    // 2. A real thread exists but hasn't appeared in API yet
+    // 3. A thread was just created and is in the process of being updated
+    ConversationModel? existingThread;
+    
+    // First, check for exact match by senderId (most common case)
+    existingThread = _allConversations.firstWhereOrNull(
       (conv) => conv.senderId == otherUserId,
     );
-
+    
+    // If found, verify it's not a stale temp conversation that's being replaced
     if (existingThread != null) {
+      // If it's a temp conversation, check if there's a real one being created
+      // by checking if there's another conversation with same senderId but different ID
+      if (existingThread.id.startsWith('temp_')) {
+        // Check if there's a non-temp version (real thread was created)
+        final realThread = _allConversations.firstWhereOrNull(
+          (conv) => conv.senderId == otherUserId && !conv.id.startsWith('temp_'),
+        );
+        if (realThread != null) {
+          existingThread = realThread;
+        }
+      }
+      
+      if (kDebugMode) {
+        print('✅ Found existing thread: ${existingThread.id} (${existingThread.senderName})');
+      }
+      
       // Thread exists, select it and navigate instantly
       selectConversation(existingThread);
       _navigateToMessages();
       return existingThread;
+    }
+    
+    // Also check if we're currently creating a thread for this user
+    // by checking if there's a temp conversation being created
+    final tempThread = _allConversations.firstWhereOrNull(
+      (conv) => conv.senderId == otherUserId && conv.id.startsWith('temp_'),
+    );
+    
+    if (tempThread != null) {
+      if (kDebugMode) {
+        print('⚠️ Temp thread already exists for this user, selecting it: ${tempThread.id}');
+      }
+      selectConversation(tempThread);
+      _navigateToMessages();
+      return tempThread;
     }
 
     // Create temporary conversation for instant navigation
@@ -1413,9 +1639,21 @@ class MessagesController extends GetxController {
       unreadCount: 0,
     );
 
-    // Add to both lists immediately
-    _allConversations.insert(0, tempConversation);
-    _conversations.insert(0, tempConversation);
+    // Add to both lists immediately - this ensures it shows instantly
+    // Use value assignment to trigger reactive updates
+    final updatedAll = List<ConversationModel>.from(_allConversations);
+    updatedAll.insert(0, tempConversation);
+    _allConversations.value = updatedAll;
+    
+    final updatedFiltered = List<ConversationModel>.from(_conversations);
+    updatedFiltered.insert(0, tempConversation);
+    _conversations.value = updatedFiltered;
+    
+    if (kDebugMode) {
+      print('✅ Added temp conversation instantly: ${tempConversation.id}');
+      print('   Total conversations: ${_conversations.length}');
+    }
+    
     selectConversation(tempConversation);
     
     // Navigate instantly
@@ -1536,7 +1774,7 @@ class MessagesController extends GetxController {
   /// Navigates to messages screen
   void _navigateToMessages() {
     try {
-      // Navigate to main screen and switch to messages tab (index 3)
+      // Navigate to main screen and switch to messages tab (index 2)
       // Use offAllNamed to replace the entire navigation stack (removes contact screen)
       Get.offAllNamed('/main');
       
@@ -1545,7 +1783,7 @@ class MessagesController extends GetxController {
         if (Get.isRegistered<MainNavigationController>()) {
           try {
             final mainNavController = Get.find<MainNavigationController>();
-            mainNavController.changeIndex(3);
+            mainNavController.changeIndex(2); // Messages tab is at index 2 (0=Home, 1=Favorites, 2=Messages, 3=Profile)
           } catch (e) {
             print('⚠️ Error changing tab index: $e');
           }

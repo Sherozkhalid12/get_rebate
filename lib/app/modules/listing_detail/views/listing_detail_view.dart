@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:carousel_slider/carousel_slider.dart';
 import 'package:getrebate/app/modules/listing_detail/controllers/listing_detail_controller.dart';
 import 'package:getrebate/app/modules/buyer/controllers/buyer_controller.dart';
 import 'package:getrebate/app/models/agent_model.dart';
@@ -65,35 +66,103 @@ class ListingDetailView extends GetView<ListingDetailController> {
 
     return Scaffold(
       backgroundColor: AppTheme.lightGray,
-      body: CustomScrollView(
-        slivers: [
-          // Custom App Bar with Image
-          SliverAppBar(
-            expandedHeight: 300.h,
-            floating: false,
-            pinned: true,
-            backgroundColor: AppTheme.primaryBlue,
-            flexibleSpace: FlexibleSpaceBar(
-              background: Stack(
-                fit: StackFit.expand,
-                children: [
-                  // Property Image
-                  listing.photoUrls.isNotEmpty
-                      ? Image.network(
-                          listing.photoUrls.first,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return Container(
-                              color: AppTheme.lightGray,
-                              child: const Icon(
-                                Icons.home,
-                                size: 64,
-                                color: AppTheme.mediumGray,
+      body: NotificationListener<ScrollNotification>(
+        onNotification: (notification) {
+          // Allow horizontal scrolls to pass through
+          if (notification is ScrollUpdateNotification) {
+            final delta = notification.scrollDelta ?? 0;
+            // If horizontal scroll detected, don't consume the notification
+            if (delta.abs() > 0 && notification.metrics.axis == Axis.horizontal) {
+              return false;
+            }
+          }
+          return false;
+        },
+        child: CustomScrollView(
+          slivers: [
+            // Custom App Bar with Image Slider
+            SliverAppBar(
+              expandedHeight: 400.h,
+              floating: false,
+              pinned: true,
+              backgroundColor: AppTheme.primaryBlue,
+              flexibleSpace: FlexibleSpaceBar(
+                background: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final carouselHeight = constraints.maxHeight > 0 ? constraints.maxHeight : 400.h;
+                    return Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        // Image Carousel Slider
+                        if (listing.photoUrls.isNotEmpty)
+                          SizedBox(
+                            width: constraints.maxWidth,
+                            height: carouselHeight,
+                            child: CarouselSlider.builder(
+                              carouselController: controller.carouselController,
+                              itemCount: listing.photoUrls.length,
+                              itemBuilder: (context, index, realIndex) {
+                                return GestureDetector(
+                                  onTap: () => _showFullScreenImageSlider(context, listing.photoUrls, controller.currentImageIndex),
+                                  child: Image.network(
+                                    listing.photoUrls[index],
+                                    fit: BoxFit.cover,
+                                    width: double.infinity,
+                                    height: double.infinity,
+                                    loadingBuilder: (context, child, loadingProgress) {
+                                      if (loadingProgress == null) return child;
+                                      return Container(
+                                        width: double.infinity,
+                                        height: double.infinity,
+                                        color: AppTheme.lightGray,
+                                        child: Center(
+                                          child: CircularProgressIndicator(
+                                            value: loadingProgress.expectedTotalBytes != null
+                                                ? loadingProgress.cumulativeBytesLoaded /
+                                                    loadingProgress.expectedTotalBytes!
+                                                : null,
+                                            color: AppTheme.primaryBlue,
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                    errorBuilder: (context, error, stackTrace) {
+                                      return Container(
+                                        width: double.infinity,
+                                        height: double.infinity,
+                                        color: AppTheme.lightGray,
+                                        child: const Icon(
+                                          Icons.home,
+                                          size: 64,
+                                          color: AppTheme.mediumGray,
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                );
+                              },
+                              options: CarouselOptions(
+                                height: carouselHeight,
+                                viewportFraction: 1.0,
+                                enableInfiniteScroll: listing.photoUrls.length > 1,
+                                autoPlay: false,
+                                enlargeCenterPage: false,
+                                onPageChanged: (index, reason) {
+                                  controller.onImageChanged(index);
+                                },
+                                scrollPhysics: const PageScrollPhysics(),
+                                scrollDirection: Axis.horizontal,
+                                pageSnapping: true,
+                                padEnds: false,
+                                disableCenter: false,
+                                enlargeStrategy: CenterPageEnlargeStrategy.scale,
                               ),
-                            );
-                          },
-                        )
-                      : Container(
+                            ),
+                          )
+                      else
+                        Container(
+                          width: constraints.maxWidth,
+                          height: carouselHeight,
                           color: AppTheme.lightGray,
                           child: const Icon(
                             Icons.home,
@@ -101,34 +170,131 @@ class ListingDetailView extends GetView<ListingDetailController> {
                             color: AppTheme.mediumGray,
                           ),
                         ),
-                  // Gradient Overlay
-                  Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.transparent,
-                          Colors.black.withOpacity(0.3),
-                        ],
+                      // Gradient Overlay - use IgnorePointer to allow touches to pass through
+                      IgnorePointer(
+                        child: Container(
+                          width: constraints.maxWidth,
+                          height: carouselHeight,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Colors.black.withOpacity(0.2),
+                                Colors.transparent,
+                                Colors.black.withOpacity(0.4),
+                              ],
+                              stops: const [0.0, 0.5, 1.0],
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                ],
+                      // Page Indicators
+                      if (listing.photoUrls.length > 1)
+                        Positioned(
+                          bottom: 20.h,
+                          left: 0,
+                          right: 0,
+                          child: IgnorePointer(
+                            child: Obx(() => Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: List.generate(
+                                listing.photoUrls.length,
+                                (index) => AnimatedContainer(
+                                  duration: const Duration(milliseconds: 300),
+                                  curve: Curves.easeInOut,
+                                  margin: EdgeInsets.symmetric(horizontal: 4.w),
+                                  width: controller.currentImageIndex == index ? 24.w : 8.w,
+                                  height: 8.h,
+                                  decoration: BoxDecoration(
+                                    color: controller.currentImageIndex == index
+                                        ? AppTheme.white
+                                        : AppTheme.white.withOpacity(0.5),
+                                    borderRadius: BorderRadius.circular(4.r),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.2),
+                                        blurRadius: 4,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            )),
+                          ),
+                        ),
+                      // Image Counter
+                      if (listing.photoUrls.length > 1)
+                        Positioned(
+                          top: 60.h,
+                          right: 16.w,
+                          child: IgnorePointer(
+                            child: Container(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: 12.w,
+                                vertical: 6.h,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withOpacity(0.6),
+                                borderRadius: BorderRadius.circular(20.r),
+                              ),
+                              child: Obx(() => Text(
+                                '${controller.currentImageIndex + 1} / ${listing.photoUrls.length}',
+                                style: TextStyle(
+                                  color: AppTheme.white,
+                                  fontSize: 13.sp,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              )),
+                            ),
+                          ),
+                        ),
+                    ],
+                  );
+                },
               ),
-            ),
+              ),
             leading: Container(
               margin: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.3),
+                color: Colors.black.withOpacity(0.5),
                 borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
               child: IconButton(
                 icon: const Icon(Icons.arrow_back, color: Colors.white),
                 onPressed: () => Navigator.pop(context),
               ),
             ),
-            actions: [],
+            actions: [
+              // Full Screen Button
+              if (listing.photoUrls.isNotEmpty)
+                Container(
+                  margin: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.5),
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: IconButton(
+                    icon: const Icon(Icons.fullscreen, color: Colors.white),
+                    onPressed: () => _showFullScreenImageSlider(context, listing.photoUrls, controller.currentImageIndex),
+                  ),
+                ),
+            ],
           ),
 
           // Content
@@ -442,6 +608,7 @@ class ListingDetailView extends GetView<ListingDetailController> {
             ),
           ),
         ],
+      ),
       ),
     );
   }
@@ -916,6 +1083,20 @@ class ListingDetailView extends GetView<ListingDetailController> {
                         agent.phone!,
                         onTap: () async {
                           try {
+                            // Record contact when user taps to call
+                            try {
+                              final agentService = AgentService();
+                              await agentService.recordContact(agent.id);
+                              if (kDebugMode) {
+                                print('📞 Recording contact for agent: ${agent.id}');
+                              }
+                            } catch (e) {
+                              if (kDebugMode) {
+                                print('⚠️ Error recording contact: $e');
+                              }
+                              // Don't block call if contact recording fails
+                            }
+                            
                             // Clean phone number (remove spaces, dashes, etc.)
                             final cleanPhone = agent.phone!.replaceAll(RegExp(r'[^\d+]'), '');
                             final uri = Uri.parse('tel:$cleanPhone');
@@ -1151,6 +1332,142 @@ class ListingDetailView extends GetView<ListingDetailController> {
         ),
       ),
     );
+  }
+
+  void _showFullScreenImageSlider(BuildContext context, List<String> images, int initialIndex) {
+    final currentIndex = initialIndex.obs;
+    final pageController = PageController(initialPage: initialIndex);
+
+    Get.dialog(
+      Dialog(
+        backgroundColor: Colors.black,
+        insetPadding: EdgeInsets.zero,
+        child: Stack(
+          children: [
+            PageView.builder(
+              controller: pageController,
+              onPageChanged: (index) => currentIndex.value = index,
+              itemCount: images.length,
+              itemBuilder: (context, index) {
+                return InteractiveViewer(
+                  minScale: 0.5,
+                  maxScale: 4.0,
+                  child: Image.network(
+                    images[index],
+                    fit: BoxFit.contain,
+                    loadingBuilder: (context, child, loadingProgress) {
+                      if (loadingProgress == null) return child;
+                      return Center(
+                        child: CircularProgressIndicator(
+                          value: loadingProgress.expectedTotalBytes != null
+                              ? loadingProgress.cumulativeBytesLoaded /
+                                  loadingProgress.expectedTotalBytes!
+                              : null,
+                          color: AppTheme.white,
+                        ),
+                      );
+                    },
+                    errorBuilder: (context, error, stackTrace) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.error_outline,
+                              color: AppTheme.white,
+                              size: 64,
+                            ),
+                            SizedBox(height: 16),
+                            Text(
+                              'Failed to load image',
+                              style: TextStyle(
+                                color: AppTheme.white,
+                                fontSize: 16.sp,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                );
+              },
+            ),
+            // Close Button
+            Positioned(
+              top: 40.h,
+              right: 16.w,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.6),
+                  shape: BoxShape.circle,
+                ),
+                child: IconButton(
+                  icon: const Icon(Icons.close, color: Colors.white, size: 28),
+                  onPressed: () {
+                    pageController.dispose();
+                    Get.back();
+                  },
+                ),
+              ),
+            ),
+            // Page Indicators (bottom)
+            if (images.length > 1)
+              Positioned(
+                bottom: 40.h,
+                left: 0,
+                right: 0,
+                child: Obx(() => Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: List.generate(
+                    images.length,
+                    (index) => AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeInOut,
+                      margin: EdgeInsets.symmetric(horizontal: 4.w),
+                      width: currentIndex.value == index ? 32.w : 8.w,
+                      height: 8.h,
+                      decoration: BoxDecoration(
+                        color: currentIndex.value == index
+                            ? AppTheme.white
+                            : AppTheme.white.withOpacity(0.5),
+                        borderRadius: BorderRadius.circular(4.r),
+                      ),
+                    ),
+                  ),
+                )),
+              ),
+            // Image Counter (top)
+            if (images.length > 1)
+              Positioned(
+                top: 40.h,
+                left: 16.w,
+                child: Container(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: 16.w,
+                    vertical: 8.h,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.6),
+                    borderRadius: BorderRadius.circular(20.r),
+                  ),
+                  child: Obx(() => Text(
+                    '${currentIndex.value + 1} / ${images.length}',
+                    style: TextStyle(
+                      color: AppTheme.white,
+                      fontSize: 14.sp,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  )),
+                ),
+              ),
+          ],
+        ),
+      ),
+      barrierColor: Colors.black.withOpacity(0.95),
+    ).then((_) {
+      pageController.dispose();
+    });
   }
 }
 

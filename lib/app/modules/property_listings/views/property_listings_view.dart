@@ -7,6 +7,7 @@ import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/modules/property_listings/controllers/property_listings_controller.dart';
 import 'package:getrebate/app/widgets/custom_button.dart';
 import 'package:getrebate/app/widgets/custom_search_field.dart';
+import 'package:getrebate/app/widgets/notification_badge_icon.dart';
 
 class PropertyListingsView extends GetView<PropertyListingsController> {
   const PropertyListingsView({super.key});
@@ -36,6 +37,12 @@ class PropertyListingsView extends GetView<PropertyListingsController> {
           ),
         ),
         centerTitle: true,
+        actions: [
+          Padding(
+            padding: EdgeInsets.only(right: 16.w),
+            child: const NotificationBadgeIcon(),
+          ),
+        ],
       ),
       body: SafeArea(
         child: Column(
@@ -120,12 +127,12 @@ class PropertyListingsView extends GetView<PropertyListingsController> {
           CustomSearchField(
             controller: TextEditingController(text: controller.searchQuery),
             hintText: 'Search properties...',
+            allowText: true,
             onChanged: controller.setSearchQuery,
           ),
 
           SizedBox(height: 16.h),
 
-          // Filter Chips
           Obx(
             () => SingleChildScrollView(
               scrollDirection: Axis.horizontal,
@@ -251,6 +258,7 @@ class PropertyListingsView extends GetView<PropertyListingsController> {
       padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
     );
   }
+
 
   Widget _buildDropdownFilter(
     BuildContext context,

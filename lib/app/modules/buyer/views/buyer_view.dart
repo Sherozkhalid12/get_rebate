@@ -9,6 +9,7 @@ import 'package:getrebate/app/widgets/custom_search_field.dart';
 import 'package:getrebate/app/widgets/custom_button.dart';
 import 'package:getrebate/app/widgets/agent_card.dart';
 import 'package:getrebate/app/widgets/loan_officer_card.dart';
+import 'package:getrebate/app/widgets/notification_badge_icon.dart';
 import 'package:intl/intl.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart';
 
@@ -42,33 +43,23 @@ class BuyerView extends GetView<BuyerController> {
                 fontWeight: FontWeight.w600,
               ),
             ),
-            Obx(() {
-              final user = Get.find<AuthController>().currentUser;
-              if (user != null) {
-                return Text(
-                  'User ID: ${user.id}',
-                  style: TextStyle(
-                    color: AppTheme.white.withOpacity(0.8),
-                    fontSize: 10.sp,
-                    fontWeight: FontWeight.normal,
-                  ),
-                );
-              }
-              return const SizedBox.shrink();
-            }),
           ],
         ),
         centerTitle: true,
+        actions: [
+          Padding(
+            padding: EdgeInsets.only(right: 16.w),
+            child: const NotificationBadgeIcon(),
+          ),
+        ],
       ),
       body: SafeArea(
         child: Column(
           children: [
             // Search Section
             _buildSearchSection(context),
-
             // Tabs
             _buildTabs(context),
-
             // Content
             Expanded(child: _buildContent(context)),
           ],
@@ -93,7 +84,6 @@ class BuyerView extends GetView<BuyerController> {
                 controller.clearZipCodeFilter();
                 return;
               }
-              
               // Only process if it's a valid 5-digit ZIP code
               if (value.length == 5 && RegExp(r'^\d+$').hasMatch(value)) {
                 controller.searchByZipCode(value);
@@ -323,10 +313,20 @@ class BuyerView extends GetView<BuyerController> {
         );
       }
 
+      // Access reactive values directly inside Obx
+      final currentPage = controller.currentPage.value;
+      final totalPages = controller.totalPages.value;
+      final canLoadMore = currentPage < totalPages;
+
       return ListView.builder(
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
-        itemCount: controller.agents.length,
+        itemCount: controller.agents.length + (canLoadMore ? 1 : 0),
         itemBuilder: (context, index) {
+          // Show Load More button at the end
+          if (index == controller.agents.length) {
+            return _buildLoadMoreButton(context);
+          }
+          
           final agent = controller.agents[index];
           return Padding(
             padding: const EdgeInsets.only(bottom: 16),
@@ -356,6 +356,125 @@ class BuyerView extends GetView<BuyerController> {
                     ),
           );
         },
+      );
+    });
+  }
+  
+  Widget _buildLoadMoreButton(BuildContext context) {
+    return Obx(() {
+      final isLoadingMore = controller.isLoadingMoreAgents;
+      final currentPage = controller.currentPage.value;
+      final totalPages = controller.totalPages.value;
+      final canLoadMore = currentPage < totalPages;
+      
+      if (!canLoadMore) {
+        return const SizedBox.shrink();
+      }
+      
+      return Padding(
+        padding: const EdgeInsets.only(top: 16, bottom: 24),
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                AppTheme.primaryBlue.withOpacity(0.05),
+                AppTheme.primaryBlue.withOpacity(0.02),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: AppTheme.primaryBlue.withOpacity(0.1),
+              width: 1,
+            ),
+          ),
+          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+          child: Column(
+            children: [
+              // Count text with icon
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.people_outline,
+                    size: 18,
+                    color: AppTheme.mediumGray,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Showing ${controller.agents.length} of ${controller.totalAgents.value} agents',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppTheme.mediumGray,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              // Load More Button
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeInOut,
+                child: isLoadingMore
+                    ? Container(
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: AppTheme.primaryBlue.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Center(
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    AppTheme.primaryBlue,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Text(
+                                'Loading more agents...',
+                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                  color: AppTheme.primaryBlue,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    : CustomButton(
+                        text: 'Load More Agents',
+                        onPressed: () => controller.loadMoreAgents(),
+                        icon: Icons.expand_more,
+                        height: 48,
+                        isOutlined: false,
+                      ),
+              ),
+            ],
+          ),
+        )
+            .animate()
+            .fadeIn(
+              duration: 500.ms,
+              curve: Curves.easeOut,
+            )
+            .slideY(
+              begin: 0.3,
+              duration: 500.ms,
+              curve: Curves.easeOut,
+            )
+            .scale(
+              duration: 500.ms,
+              curve: Curves.easeOut,
+            ),
       );
     });
   }

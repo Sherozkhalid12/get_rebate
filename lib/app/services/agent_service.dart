@@ -20,17 +20,48 @@ class AgentServiceException implements Exception {
   String toString() => message;
 }
 
+/// Paginated agents response model
+class PaginatedAgentsResponse {
+  final List<AgentModel> agents;
+  final int page;
+  final int limit;
+  final int totalAgents;
+  final int totalPages;
+  final int count;
+  final bool hasMore;
+
+  PaginatedAgentsResponse({
+    required this.agents,
+    required this.page,
+    required this.limit,
+    required this.totalAgents,
+    required this.totalPages,
+    required this.count,
+  }) : hasMore = page < totalPages;
+}
+
 /// Service for handling agent-related API calls
 class AgentService {
   late final Dio _dio;
+  
+  // Cache to prevent duplicate API calls within a short time window
+  final Map<String, DateTime> _searchCallCache = {};
+  final Map<String, DateTime> _profileViewCallCache = {};
+  final Map<String, DateTime> _contactCallCache = {};
+  static const Duration _cacheDuration = Duration(minutes: 5); // Cache for 5 minutes
+  
+  // Track 404 errors to reduce logging noise
+  static bool _hasLogged404ForSearch = false;
+  static bool _hasLogged404ForProfileView = false;
+  static bool _hasLogged404ForContact = false;
 
   AgentService() {
     _dio = Dio(
       BaseOptions(
         baseUrl: ApiConstants.baseUrl,
-        connectTimeout: const Duration(seconds: 30),
-        receiveTimeout: const Duration(seconds: 30),
-        sendTimeout: const Duration(seconds: 30),
+        connectTimeout: const Duration(seconds: 10), // Reduced from 30 to 10
+        receiveTimeout: const Duration(seconds: 10), // Reduced from 30 to 10
+        sendTimeout: const Duration(seconds: 10), // Reduced from 30 to 10
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
@@ -51,27 +82,47 @@ class AgentService {
 
   /// Handles Dio errors
   void _handleError(DioException error) {
+    // Suppress 404 errors for tracking endpoints (they're expected if endpoints don't exist)
+    final path = error.requestOptions.path.toLowerCase();
+    final isTrackingEndpoint = path.contains('addsearch') || 
+                               path.contains('addprofileview') || 
+                               path.contains('addcontact');
+    
+    if (error.response?.statusCode == 404 && isTrackingEndpoint) {
+      // Suppress 404s for tracking endpoints - they're already handled in individual methods
+      return;
+    }
+    
     if (kDebugMode) {
       print('❌ Agent Service Error:');
       print('   Type: ${error.type}');
       print('   Message: ${error.message}');
       print('   Response: ${error.response?.data}');
       print('   Status Code: ${error.response?.statusCode}');
+      print('   Path: ${error.requestOptions.path}');
     }
   }
 
-  /// Fetches all agents from the API
+  /// Fetches all agents from the API (backward compatibility - uses page 1)
   /// 
   /// Throws [AgentServiceException] if the request fails
   Future<List<AgentModel>> getAllAgents() async {
+    final result = await getAllAgentsPaginated(page: 1);
+    return result.agents;
+  }
+
+  /// Fetches agents from the API with pagination
+  /// 
+  /// Throws [AgentServiceException] if the request fails
+  Future<PaginatedAgentsResponse> getAllAgentsPaginated({required int page}) async {
     try {
       if (kDebugMode) {
-        print('📡 Fetching all agents from API...');
-        print('   URL: ${ApiConstants.apiBaseUrl}/agent/getAllAgents');
+        print('📡 Fetching agents from API (page $page)...');
+        print('   URL: ${ApiConstants.getAllAgentsEndpoint(page)}');
       }
 
       final response = await _dio.get(
-        '${ApiConstants.apiBaseUrl}/agent/getAllAgents',
+        ApiConstants.getAllAgentsEndpoint(page),
         options: Options(
           headers: ApiConstants.ngrokHeaders,
         ),
@@ -82,21 +133,33 @@ class AgentService {
         print('   Status Code: ${response.statusCode}');
       }
 
-      // Handle different response formats
-      List<dynamic> agentsData;
+      // Handle paginated response format
+      if (response.data is! Map<String, dynamic>) {
+        throw AgentServiceException(
+          message: 'Invalid response format from server',
+        );
+      }
+
+      final responseMap = response.data as Map<String, dynamic>;
       
-      if (response.data is Map) {
-        final responseMap = response.data as Map<String, dynamic>;
-        // Check for the format with 'success' and 'agents'
-        if (responseMap['success'] == true && responseMap['agents'] != null) {
-          agentsData = responseMap['agents'] as List<dynamic>;
-        } else if (responseMap['data'] != null) {
-          agentsData = responseMap['data'] as List<dynamic>;
-        } else {
-          agentsData = [];
-        }
-      } else if (response.data is List) {
-        agentsData = response.data as List<dynamic>;
+      // Check for success flag
+      if (responseMap['success'] != true) {
+        throw AgentServiceException(
+          message: responseMap['message']?.toString() ?? 'Failed to fetch agents',
+        );
+      }
+
+      // Extract pagination metadata
+      final pageNum = responseMap['page'] as int? ?? page;
+      final limit = responseMap['limit'] as int? ?? 10;
+      final totalAgents = responseMap['totalAgents'] as int? ?? 0;
+      final totalPages = responseMap['totalPages'] as int? ?? 1;
+      final count = responseMap['count'] as int? ?? 0;
+
+      // Extract agents array
+      List<dynamic> agentsData;
+      if (responseMap['agents'] != null && responseMap['agents'] is List) {
+        agentsData = responseMap['agents'] as List<dynamic>;
       } else {
         agentsData = [];
       }
@@ -128,9 +191,19 @@ class AgentService {
 
       if (kDebugMode) {
         print('✅ Successfully parsed ${agents.length} agents');
+        print('   Page: $pageNum/$totalPages');
+        print('   Total: $totalAgents');
+        print('   Has more: ${pageNum < totalPages}');
       }
 
-      return agents;
+      return PaginatedAgentsResponse(
+        agents: agents,
+        page: pageNum,
+        limit: limit,
+        totalAgents: totalAgents,
+        totalPages: totalPages,
+        count: count,
+      );
     } on DioException catch (e) {
       String errorMessage;
       int? statusCode;
@@ -220,38 +293,136 @@ class AgentService {
 
   /// Records a search for an agent
   /// Returns the response data with message and searches count
-  Future<Map<String, dynamic>?> recordSearch(String agentId) async {
-    try {
-      if (kDebugMode) {
-        print('📊 Recording search for agent: $agentId');
-        print('   URL: ${ApiConstants.getAddSearchEndpoint(agentId)}');
-      }
+  /// Note: API expects agent name, not ID
+  Future<Map<String, dynamic>?> recordSearch(String agentId, {String? agentName}) async {
+    if (agentId.isEmpty) {
+      return null;
+    }
 
+    // Get agent name - use provided name or fetch by ID
+    String? name = agentName?.trim();
+    if (kDebugMode) {
+      print('📊 recordSearch called with:');
+      print('   Agent ID: $agentId');
+      print('   Agent Name provided: ${agentName ?? "null"}');
+    }
+    
+    if (name == null || name.isEmpty) {
+      if (kDebugMode) {
+        print('📊 Agent name not provided, fetching by ID: $agentId');
+      }
+      try {
+        // Try to get agent by ID to get the name
+        final agent = await getAgentById(agentId);
+        name = agent?.name?.trim();
+        if (kDebugMode) {
+          if (name != null && name.isNotEmpty) {
+            print('✅ Fetched agent name: "$name" for ID: $agentId');
+          } else {
+            print('⚠️ Agent found but name is empty for ID: $agentId');
+          }
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          print('❌ Could not fetch agent name for ID: $agentId - $e');
+        }
+      }
+    } else {
+      if (kDebugMode) {
+        print('✅ Using provided agent name: "$name" for ID: $agentId');
+      }
+    }
+    
+    if (name == null || name.isEmpty) {
+      if (kDebugMode) {
+        print('❌ Cannot record search: Agent name not available for ID: $agentId');
+        print('   Skipping search recording - API requires agent name, not ID');
+      }
+      return null;
+    }
+
+    // Check cache to prevent duplicate calls (use name as key)
+    final now = DateTime.now();
+    if (_searchCallCache.containsKey(name)) {
+      final lastCall = _searchCallCache[name]!;
+      if (now.difference(lastCall) < _cacheDuration) {
+        // Already called recently, skip
+        return null;
+      }
+    }
+    
+    // Update cache
+    _searchCallCache[name] = now;
+    
+    // Clean old cache entries (keep only last 100)
+    if (_searchCallCache.length > 100) {
+      final entries = _searchCallCache.entries.toList()
+        ..sort((a, b) => b.value.compareTo(a.value));
+      _searchCallCache.clear();
+      for (var i = 0; i < 50 && i < entries.length; i++) {
+        _searchCallCache[entries[i].key] = entries[i].value;
+      }
+    }
+
+    // Use agent name in the endpoint instead of ID
+    // URL encode the name to handle spaces and special characters
+    final encodedName = Uri.encodeComponent(name);
+    final endpoint = ApiConstants.getAddSearchEndpoint(encodedName);
+    
+    if (kDebugMode) {
+      print('📊 Recording search for agent: "$name" (ID: $agentId)');
+      print('   Encoded name: $encodedName');
+      print('   URL: $endpoint');
+    }
+
+    try {
       final response = await _dio.post(
-        ApiConstants.getAddSearchEndpoint(agentId),
+        endpoint,
         options: Options(
           headers: ApiConstants.ngrokHeaders,
+          validateStatus: (status) {
+            // Accept all status codes to handle them manually
+            return true;
+          },
         ),
       );
 
-      if (kDebugMode) {
-        print('✅ Search recorded successfully');
-        print('   Status Code: ${response.statusCode}');
-        print('   Response: ${response.data}');
-      }
-
       if (response.statusCode == 200 || response.statusCode == 201) {
+        if (kDebugMode) {
+          print('✅ Search recorded successfully for agent: $name');
+        }
         return response.data as Map<String, dynamic>?;
+      } else if (response.statusCode == 404) {
+        // Endpoint doesn't exist - log once and suppress future logs
+        if (kDebugMode && !_hasLogged404ForSearch) {
+          print('⚠️ Search endpoint not found (404) - endpoint may not exist on server');
+          print('   Endpoint: $endpoint');
+          print('   Future 404 errors for this endpoint will be suppressed');
+          _hasLogged404ForSearch = true;
+        }
+        return null;
+      } else {
+        if (kDebugMode) {
+          print('⚠️ Search recording failed for agent: $name');
+          print('   Status Code: ${response.statusCode}');
+          print('   Response: ${response.data}');
+        }
+        return null;
       }
-
-      return null;
     } on DioException catch (e) {
-      if (kDebugMode) {
-        print('⚠️ Error recording search: ${e.message}');
+      // Suppress 404 errors after first log
+      if (e.response?.statusCode == 404 && _hasLogged404ForSearch) {
+        return null;
+      }
+      
+      if (kDebugMode && (!_hasLogged404ForSearch || e.response?.statusCode != 404)) {
+        print('⚠️ Error recording search for agent: $name');
         print('   Status Code: ${e.response?.statusCode}');
         print('   Response: ${e.response?.data}');
+        if (e.response?.statusCode == 404) {
+          _hasLogged404ForSearch = true;
+        }
       }
-      // Don't throw - tracking should not break the app
       return null;
     } catch (e) {
       if (kDebugMode) {
@@ -264,37 +435,76 @@ class AgentService {
   /// Records a contact/chat action for an agent
   /// Returns the response data
   Future<Map<String, dynamic>?> recordContact(String agentId) async {
-    try {
-      if (kDebugMode) {
-        print('📞 Recording contact for agent: $agentId');
-        print('   URL: ${ApiConstants.getAddContactEndpoint(agentId)}');
-      }
+    if (agentId.isEmpty) {
+      return null;
+    }
 
-      final response = await _dio.post(
-        ApiConstants.getAddContactEndpoint(agentId),
+    // Check cache to prevent duplicate calls
+    final now = DateTime.now();
+    if (_contactCallCache.containsKey(agentId)) {
+      final lastCall = _contactCallCache[agentId]!;
+      if (now.difference(lastCall) < _cacheDuration) {
+        // Already called recently, skip
+        return null;
+      }
+    }
+    
+    // Update cache
+    _contactCallCache[agentId] = now;
+
+    final endpoint = ApiConstants.getAddContactEndpoint(agentId);
+    
+    if (kDebugMode && !_hasLogged404ForContact) {
+      print('📞 Recording contact for agent: $agentId');
+      print('   URL: $endpoint');
+    }
+
+    try {
+      // API expects GET request, not POST
+      final response = await _dio.get(
+        endpoint,
         options: Options(
           headers: ApiConstants.ngrokHeaders,
+          validateStatus: (status) => true,
         ),
       );
 
-      if (kDebugMode) {
-        print('✅ Contact recorded successfully');
-        print('   Status Code: ${response.statusCode}');
-        print('   Response: ${response.data}');
-      }
-
       if (response.statusCode == 200 || response.statusCode == 201) {
+        if (kDebugMode) {
+          print('✅ Contact recorded successfully for agent: $agentId');
+        }
         return response.data as Map<String, dynamic>?;
+      } else if (response.statusCode == 404) {
+        // Endpoint doesn't exist - log once and suppress future logs
+        if (kDebugMode && !_hasLogged404ForContact) {
+          print('⚠️ Contact endpoint not found (404) - endpoint may not exist on server');
+          print('   Endpoint: $endpoint');
+          print('   Future 404 errors for this endpoint will be suppressed');
+          _hasLogged404ForContact = true;
+        }
+        return null;
+      } else {
+        if (kDebugMode) {
+          print('⚠️ Contact recording failed for agent: $agentId');
+          print('   Status Code: ${response.statusCode}');
+          print('   Response: ${response.data}');
+        }
+        return null;
       }
-
-      return null;
     } on DioException catch (e) {
-      if (kDebugMode) {
-        print('⚠️ Error recording contact: ${e.message}');
+      // Suppress 404 errors after first log
+      if (e.response?.statusCode == 404 && _hasLogged404ForContact) {
+        return null;
+      }
+      
+      if (kDebugMode && (!_hasLogged404ForContact || e.response?.statusCode != 404)) {
+        print('⚠️ Error recording contact for agent: $agentId');
         print('   Status Code: ${e.response?.statusCode}');
         print('   Response: ${e.response?.data}');
+        if (e.response?.statusCode == 404) {
+          _hasLogged404ForContact = true;
+        }
       }
-      // Don't throw - tracking should not break the app
       return null;
     } catch (e) {
       if (kDebugMode) {
@@ -307,37 +517,78 @@ class AgentService {
   /// Records a profile view for an agent
   /// Returns the response data
   Future<Map<String, dynamic>?> recordProfileView(String agentId) async {
-    try {
-      if (kDebugMode) {
-        print('👁️ Recording profile view for agent: $agentId');
-        print('   URL: ${ApiConstants.getAddProfileViewEndpoint(agentId)}');
-      }
+    if (agentId.isEmpty) {
+      return null;
+    }
 
+    // Check cache to prevent duplicate calls
+    final now = DateTime.now();
+    if (_profileViewCallCache.containsKey(agentId)) {
+      final lastCall = _profileViewCallCache[agentId]!;
+      if (now.difference(lastCall) < _cacheDuration) {
+        // Already called recently, skip
+        return null;
+      }
+    }
+    
+    // Update cache
+    _profileViewCallCache[agentId] = now;
+
+    final endpoint = ApiConstants.getAddProfileViewEndpoint(agentId);
+    
+    if (kDebugMode && !_hasLogged404ForProfileView) {
+      print('👁️ Recording profile view for agent: $agentId');
+      print('   URL: $endpoint');
+    }
+
+    try {
       final response = await _dio.post(
-        ApiConstants.getAddProfileViewEndpoint(agentId),
+        endpoint,
         options: Options(
           headers: ApiConstants.ngrokHeaders,
+          validateStatus: (status) {
+            // Accept all status codes to handle them manually
+            return true;
+          },
         ),
       );
 
-      if (kDebugMode) {
-        print('✅ Profile view recorded successfully');
-        print('   Status Code: ${response.statusCode}');
-        print('   Response: ${response.data}');
-      }
-
       if (response.statusCode == 200 || response.statusCode == 201) {
+        if (kDebugMode) {
+          print('✅ Profile view recorded successfully for agent: $agentId');
+        }
         return response.data as Map<String, dynamic>?;
+      } else if (response.statusCode == 404) {
+        // Endpoint doesn't exist - log once and suppress future logs
+        if (kDebugMode && !_hasLogged404ForProfileView) {
+          print('⚠️ Profile view endpoint not found (404) - endpoint may not exist on server');
+          print('   Endpoint: $endpoint');
+          print('   Future 404 errors for this endpoint will be suppressed');
+          _hasLogged404ForProfileView = true;
+        }
+        return null;
+      } else {
+        if (kDebugMode) {
+          print('⚠️ Profile view recording failed for agent: $agentId');
+          print('   Status Code: ${response.statusCode}');
+          print('   Response: ${response.data}');
+        }
+        return null;
       }
-
-      return null;
     } on DioException catch (e) {
-      if (kDebugMode) {
-        print('⚠️ Error recording profile view: ${e.message}');
+      // Suppress 404 errors after first log
+      if (e.response?.statusCode == 404 && _hasLogged404ForProfileView) {
+        return null;
+      }
+      
+      if (kDebugMode && (!_hasLogged404ForProfileView || e.response?.statusCode != 404)) {
+        print('⚠️ Error recording profile view for agent: $agentId');
         print('   Status Code: ${e.response?.statusCode}');
         print('   Response: ${e.response?.data}');
+        if (e.response?.statusCode == 404) {
+          _hasLogged404ForProfileView = true;
+        }
       }
-      // Don't throw - tracking should not break the app
       return null;
     } catch (e) {
       if (kDebugMode) {

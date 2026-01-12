@@ -36,9 +36,9 @@ import 'package:getrebate/app/modules/listing_detail/bindings/listing_detail_bin
 import 'package:getrebate/app/modules/listing_detail/views/listing_detail_view.dart';
 import 'package:getrebate/app/modules/find_agents/bindings/find_agents_binding.dart';
 import 'package:getrebate/app/modules/find_agents/views/find_agents_view.dart';
-// DISABLED: Add listing imports - buyers cannot create listings anymore
-// import 'package:getrebate/app/modules/add_listing/bindings/add_listing_binding.dart';
-// import 'package:getrebate/app/modules/add_listing/views/add_listing_view.dart';
+// Add listing imports - enabled for agents
+import 'package:getrebate/app/modules/add_listing/bindings/add_listing_binding.dart';
+import 'package:getrebate/app/modules/add_listing/views/add_listing_view.dart';
 import 'package:getrebate/app/modules/add_loan/bindings/add_loan_binding.dart';
 import 'package:getrebate/app/modules/add_loan/views/add_loan_view.dart';
 import 'package:getrebate/app/modules/post_closing_survey/bindings/post_closing_survey_binding.dart';
@@ -65,6 +65,12 @@ import 'package:getrebate/app/modules/loan_officer_buyer_connections/views/loan_
 import 'package:getrebate/app/modules/loan_officer_buyer_connections/bindings/loan_officer_buyer_connections_binding.dart';
 import 'package:getrebate/app/modules/loan_officer_buyer_detail/views/loan_officer_buyer_detail_view.dart';
 import 'package:getrebate/app/modules/loan_officer_buyer_detail/bindings/loan_officer_buyer_detail_binding.dart';
+import 'package:getrebate/app/modules/notifications/views/notifications_view.dart';
+import 'package:getrebate/app/modules/notifications/bindings/notifications_binding.dart';
+import 'package:getrebate/app/modules/proposals/views/proposals_view.dart';
+import 'package:getrebate/app/modules/proposals/views/lead_detail_view.dart';
+import 'package:getrebate/app/modules/proposals/bindings/proposals_binding.dart';
+import 'package:getrebate/app/modules/proposals/bindings/lead_detail_binding.dart';
 import 'package:flutter/material.dart';
 
 class AppPages {
@@ -100,6 +106,9 @@ class AppPages {
   static const TERMS_OF_SERVICE = '/terms-of-service';
   static const LOAN_OFFICER_BUYER_CONNECTIONS = '/loan-officer-buyer-connections';
   static const LOAN_OFFICER_BUYER_DETAIL = '/loan-officer-buyer-detail';
+  static const NOTIFICATIONS = '/notifications';
+  static const PROPOSALS = '/proposals';
+  static const LEAD_DETAIL = '/lead-detail';
 
   static final routes = [
     GetPage(
@@ -201,12 +210,12 @@ class AppPages {
       page: () => const EditListingView(),
       binding: EditListingBinding(),
     ),
-    // DISABLED: Add listing route - buyers cannot create listings anymore
-    // GetPage(
-    //   name: ADD_LISTING,
-    //   page: () => const AddListingView(),
-    //   binding: AddListingBinding(),
-    // ),
+    // Add listing route - enabled for agents
+    GetPage(
+      name: ADD_LISTING,
+      page: () => const AddListingView(),
+      binding: AddListingBinding(),
+    ),
     GetPage(
       name: ADD_LOAN,
       page: () => const AddLoanView(),
@@ -258,6 +267,21 @@ class AppPages {
       name: LOAN_OFFICER_BUYER_DETAIL,
       page: () => const LoanOfficerBuyerDetailView(),
       binding: LoanOfficerBuyerDetailBinding(),
+    ),
+    GetPage(
+      name: NOTIFICATIONS,
+      page: () => const NotificationsView(),
+      binding: NotificationsBinding(),
+    ),
+    GetPage(
+      name: PROPOSALS,
+      page: () => const ProposalsView(),
+      binding: ProposalsBinding(),
+    ),
+    GetPage(
+      name: LEAD_DETAIL,
+      page: () => const LeadDetailView(),
+      binding: LeadDetailBinding(),
     ),
   ];
 }

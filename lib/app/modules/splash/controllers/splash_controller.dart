@@ -22,8 +22,8 @@ class SplashController extends GetxController {
   }
 
   void _startTimer() {
-    print('Splash: Starting 1.5-second timer for faster loading...');
-    Timer(const Duration(milliseconds: 1500), () {
+    print('Splash: Starting 0.8-second timer for faster loading...');
+    Timer(const Duration(milliseconds: 800), () {
       print('Splash: Timer completed, checking auth status...');
       _checkAuthAndNavigate();
     });
@@ -36,8 +36,8 @@ class SplashController extends GetxController {
       final authController = Get.find<AuthController>();
 
       if (authController.isLoggedIn && authController.currentUser != null) {
-        // User is logged in - preload threads in background for instant access
-        _preloadThreads();
+        // User is logged in - preload data in background for instant access
+        _preloadData();
         
         // Navigate to appropriate screen based on role
         final user = authController.currentUser!;
@@ -55,26 +55,31 @@ class SplashController extends GetxController {
     }
   }
 
-  /// Preloads chat threads in background for instant access
-  /// Uses lazy initialization - MessagesController will load threads when accessed
-  void _preloadThreads() {
+  /// Preloads data in background for instant access when user opens app
+  void _preloadData() {
     try {
-      // Initialize messages controller in background without blocking navigation
-      // The controller will load threads automatically when the messages screen is opened
+      // Initialize messages controller immediately to start loading threads
+      // This ensures threads are loading while splash screen is showing
       if (!Get.isRegistered<MessagesController>()) {
-        // Use Future.microtask to initialize controller in background without blocking
-        Future.microtask(() {
-          try {
-            Get.put(MessagesController(), permanent: true);
-            print('🚀 Splash: MessagesController initialized in background');
-          } catch (e) {
-            print('⚠️ Splash: Failed to initialize MessagesController: $e');
-          }
-        });
+        // Initialize controller immediately - it will start loading threads in background
+        Get.put(MessagesController(), permanent: true);
+        print('🚀 Splash: MessagesController initialized - threads loading in background');
+      } else {
+        // Controller already exists, trigger thread refresh
+        try {
+          final messagesController = Get.find<MessagesController>();
+          messagesController.refreshThreads();
+          print('🚀 Splash: Triggered thread refresh for existing MessagesController');
+        } catch (e) {
+          print('⚠️ Splash: Failed to refresh threads: $e');
+        }
       }
-      print('🚀 Splash: Chat preload scheduled (lazy initialization)');
+      
+      // Note: BuyerController will be initialized when main screen loads via bindings
+      // This ensures data loads in parallel with navigation
+      print('🚀 Splash: Data preload initiated');
     } catch (e) {
-      print('⚠️ Splash: Failed to schedule preload: $e');
+      print('⚠️ Splash: Failed to preload data: $e');
       // Don't block navigation if preload fails
     }
   }

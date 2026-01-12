@@ -5,6 +5,7 @@ import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart' as global;
+import 'package:getrebate/app/models/user_model.dart';
 import 'package:getrebate/app/routes/app_pages.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
@@ -190,6 +191,22 @@ class AddListingController extends GetxController {
         _isLoading.value = false;
         SnackbarHelper.showError('Please login to create a listing');
         return;
+      }
+
+      // Get user role and convert to API format
+      String createdByRole = 'user'; // Default
+      if (currentUser?.role != null) {
+        switch (currentUser!.role) {
+          case UserRole.agent:
+            createdByRole = 'agent';
+            break;
+          case UserRole.loanOfficer:
+            createdByRole = 'loan_officer';
+            break;
+          case UserRole.buyerSeller:
+            createdByRole = 'buyerSeller';
+            break;
+        }
       }
 
       // Prepare form data

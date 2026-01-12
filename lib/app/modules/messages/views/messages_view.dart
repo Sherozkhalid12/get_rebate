@@ -10,6 +10,7 @@ import 'package:getrebate/app/controllers/main_navigation_controller.dart';
 class MessagesView extends GetView<MessagesController> {
   const MessagesView({super.key});
 
+
   void _updateNavBarVisibility(bool hide) {
     if (Get.isRegistered<MainNavigationController>()) {
       try {
@@ -29,13 +30,27 @@ class MessagesView extends GetView<MessagesController> {
   Widget build(BuildContext context) {
     // Listen to conversation changes and update navbar - outside of Obx
     ever(controller.selectedConversationRx, (conversation) {
+      // Hide navbar when conversation is selected, show when null
+      _updateNavBarVisibility(conversation != null);
+      // Also ensure it's applied after frame
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _updateNavBarVisibility(conversation != null);
       });
     });
 
+    // Set initial navbar state
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (controller.selectedConversation != null) {
+        _updateNavBarVisibility(true); // Hide navbar when in chat
+      } else {
+        _updateNavBarVisibility(false); // Show navbar when on conversations list
+      }
+    });
+
     return Scaffold(
       backgroundColor: AppTheme.lightGray,
+      // Ensure no bottom navigation bar is shown in chat
+      bottomNavigationBar: null,
       body: SafeArea(
         child: Obx(() {
           if (controller.selectedConversation != null) {
@@ -49,15 +64,25 @@ class MessagesView extends GetView<MessagesController> {
   }
 
   Widget _buildConversationsList(BuildContext context) {
-    return Column(
-      children: [
-        // Search
-        _buildSearch(context),
+    return Obx(() {
+      // Check if navbar is visible - use Obx to reactively update
+      final isNavBarVisible = Get.isRegistered<MainNavigationController>()
+          ? Get.find<MainNavigationController>().isNavBarVisible
+          : true;
+      
+      return Column(
+        children: [
+          // Header with back button - only show when navbar is NOT visible (hidden)
+          if (!isNavBarVisible) _buildHeader(context),
+          
+          // Search
+          _buildSearch(context),
 
-        // Conversations List
-        Expanded(child: _buildConversationsListView(context)),
-      ],
-    );
+          // Conversations List
+          Expanded(child: _buildConversationsListView(context)),
+        ],
+      );
+    });
   }
 
   Widget _buildHeader(BuildContext context) {
@@ -110,7 +135,9 @@ class MessagesView extends GetView<MessagesController> {
 
   Widget _buildConversationsListView(BuildContext context) {
     return Obx(() {
-      if (controller.isLoadingThreads) {
+      // Only show loading if we're loading AND have no conversations yet
+      // This allows temp conversations to show immediately even while loading
+      if (controller.isLoadingThreads && controller.conversations.isEmpty) {
         return Center(
           child: Padding(
             padding: const EdgeInsets.all(40),
@@ -309,7 +336,7 @@ class MessagesView extends GetView<MessagesController> {
 
   Widget _buildChatHeader(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       decoration: const BoxDecoration(
         color: AppTheme.white,
         boxShadow: [
@@ -319,9 +346,17 @@ class MessagesView extends GetView<MessagesController> {
       child: Row(
         children: [
           IconButton(
-            onPressed: controller.goBack,
+            onPressed: () {
+              // Just clear the conversation - don't use Navigator.pop
+              // MessagesView is part of the main navigation, not a separate route
+              // Clearing the conversation will automatically show the conversations list
+              controller.goBack();
+            },
             icon: const Icon(Icons.arrow_back, color: AppTheme.darkGray),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
           ),
+          const SizedBox(width: 8),
           _buildAvatar(
             imageUrl: controller.selectedConversation!.senderImage,
             senderType: controller.selectedConversation!.senderType,
@@ -440,7 +475,7 @@ class MessagesView extends GetView<MessagesController> {
       // Show messages list - use reverse to show newest at bottom
       return ListView.builder(
         controller: controller.messagesScrollController,
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         reverse: false, // Show oldest first
         itemCount: controller.messages.length,
         itemBuilder: (context, index) {
@@ -532,7 +567,7 @@ class MessagesView extends GetView<MessagesController> {
 
   Widget _buildMessageInput(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: const BoxDecoration(
         color: AppTheme.white,
         boxShadow: [
