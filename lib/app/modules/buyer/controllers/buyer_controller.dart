@@ -46,6 +46,7 @@ class BuyerController extends GetxController {
   final _openHouses = <OpenHouseModel>[].obs;
   final _favoriteAgents = <String>[].obs;
   final _favoriteLoanOfficers = <String>[].obs;
+  final _favoriteListings = <String>[].obs;
   final _isLoading = false.obs;
   final _selectedBuyerAgent = Rxn<AgentModel>(); // Track the buyer's selected agent
   final _togglingFavorites = <String>{}.obs; // Track which IDs are currently being toggled
@@ -76,6 +77,7 @@ class BuyerController extends GetxController {
   List<OpenHouseModel> get openHouses => _openHouses;
   List<String> get favoriteAgents => _favoriteAgents;
   List<String> get favoriteLoanOfficers => _favoriteLoanOfficers;
+  List<String> get favoriteListings => _favoriteListings;
   bool get isLoading => _isLoading.value;
   AgentModel? get selectedBuyerAgent => _selectedBuyerAgent.value;
   bool get hasSelectedAgent => _selectedBuyerAgent.value != null;
@@ -407,6 +409,38 @@ class BuyerController extends GetxController {
             // Parse as AgentListingModel first (handles API format)
             final agentListing = AgentListingModel.fromApiJson(listingJson);
             
+            // Process photo URLs - encode URLs with spaces and special characters
+            final processedPhotoUrls = agentListing.photoUrls
+                .map((url) {
+                  final trimmed = url?.trim() ?? '';
+                  if (trimmed.isEmpty) return null;
+                  // Properly encode URLs with spaces and special characters
+                  return ApiConstants.getImageUrl(trimmed);
+                })
+                .where((url) => url != null && url.isNotEmpty)
+                .cast<String>()
+                .toList();
+            
+            // Log image URLs for debugging
+            if (kDebugMode && processedPhotoUrls.isNotEmpty) {
+              print('\n🖼️ IMAGE URLS for Listing ${agentListing.id}:');
+              print('   Address: ${agentListing.address}, ${agentListing.city}, ${agentListing.state} ${agentListing.zipCode}');
+              print('   Total Images: ${processedPhotoUrls.length}');
+              for (int i = 0; i < processedPhotoUrls.length; i++) {
+                print('   [${i + 1}] ${processedPhotoUrls[i]}');
+                // Check if URL is valid
+                try {
+                  final uri = Uri.parse(processedPhotoUrls[i]);
+                  print('      ✅ Valid URI - Scheme: ${uri.scheme}, Host: ${uri.host}');
+                  if (uri.path.contains(' ') || uri.path.contains('(') || uri.path.contains(')')) {
+                    print('      ⚠️  Path contains unencoded characters: ${uri.path}');
+                  }
+                } catch (e) {
+                  print('      ❌ Invalid URI: $e');
+                }
+              }
+            }
+            
             // Convert to Listing model
             final listing = Listing(
               id: agentListing.id,
@@ -418,17 +452,7 @@ class BuyerController extends GetxController {
                 state: agentListing.state,
                 zip: agentListing.zipCode,
               ),
-              photoUrls: agentListing.photoUrls.map((url) {
-                // Build full URL if relative - handle leading slashes
-                if (url.isNotEmpty && !url.startsWith('http://') && !url.startsWith('https://')) {
-                  final cleanUrl = url.startsWith('/') ? url.substring(1) : url;
-                  final baseUrl = ApiConstants.baseUrl.endsWith('/') 
-                      ? ApiConstants.baseUrl.substring(0, ApiConstants.baseUrl.length - 1) 
-                      : ApiConstants.baseUrl;
-                  return '$baseUrl/$cleanUrl';
-                }
-                return url;
-              }).toList(),
+              photoUrls: processedPhotoUrls,
               bacPercent: agentListing.bacPercent,
               dualAgencyAllowed: agentListing.dualAgencyAllowed,
               dualAgencyCommissionPercent: agentListing.dualAgencyCommissionPercent,
@@ -442,8 +466,27 @@ class BuyerController extends GetxController {
             
             fetchedListings.add(listing);
             
-            // Extract open houses from listing data
+            // Check if listing is liked by current user (from API response)
             if (listingJson is Map<String, dynamic>) {
+              final likes = listingJson['likes'] as List?;
+              final currentUser = _authController.currentUser;
+              if (currentUser != null && currentUser.id.isNotEmpty) {
+                if (likes != null && likes.isNotEmpty) {
+                  final isLiked = likes.contains(currentUser.id);
+                  if (isLiked && !_favoriteListings.contains(listing.id)) {
+                    _favoriteListings.add(listing.id);
+                  } else if (!isLiked && _favoriteListings.contains(listing.id)) {
+                    _favoriteListings.remove(listing.id);
+                  }
+                } else {
+                  // If likes array is empty or null, ensure listing is not in favorites
+                  if (_favoriteListings.contains(listing.id)) {
+                    _favoriteListings.remove(listing.id);
+                  }
+                }
+              }
+              
+              // Extract open houses from listing data
               final openHousesData = listingJson['openHouses'] as List?;
               if (openHousesData != null && openHousesData.isNotEmpty) {
                 for (final ohData in openHousesData) {
@@ -509,11 +552,46 @@ class BuyerController extends GetxController {
         
         _allListings.value = fetchedListings;
         _allOpenHouses.value = extractedOpenHouses;
+        
+        // Refresh favorite listings to ensure UI updates
+        _favoriteListings.refresh();
+        
         _applyZipCodeFilter(); // Apply filter after loading
         
         if (kDebugMode) {
+          print('\n' + '='*80);
+          print('🖼️ ALL IMAGE URLS FROM LISTINGS ON HOME SCREEN');
+          print('='*80);
           print('✅ Loaded ${fetchedListings.length} listings from API');
           print('✅ Extracted ${extractedOpenHouses.length} open houses from listings');
+          
+          // Print all image URLs from all listings
+          for (int i = 0; i < fetchedListings.length; i++) {
+            final listing = fetchedListings[i];
+            print('\n📋 Listing #${i + 1} (ID: ${listing.id}):');
+            print('   Address: ${listing.address}');
+            print('   ZIP Code: ${listing.address.zip}');
+            print('   Photo URLs (${listing.photoUrls.length}):');
+            if (listing.photoUrls.isEmpty) {
+              print('      ⚠️  No images available');
+            } else {
+              for (int j = 0; j < listing.photoUrls.length; j++) {
+                final url = listing.photoUrls[j];
+                print('      [${j + 1}] $url');
+                // Validate URL
+                try {
+                  final uri = Uri.parse(url);
+                  if (uri.path.contains(' ') || uri.path.contains('(') || uri.path.contains(')')) {
+                    print('         ⚠️  Contains unencoded characters in path');
+                  } else {
+                    print('         ✅ URL appears properly formatted');
+                  }
+                } catch (e) {
+                  print('         ❌ Invalid URL format: $e');
+                }
+              }
+            }
+          }
           
           // Print all homes for sale data
           print('\n' + '='*80);
@@ -1062,6 +1140,11 @@ class BuyerController extends GetxController {
       _listings.refresh();
       _openHouses.refresh();
       
+      // Also update the search controller text if it's empty but we have a filter
+      if (zipCode == null && searchController.text.isNotEmpty) {
+        // Don't clear the text field, just clear the filter
+      }
+      
       if (kDebugMode) {
         print('📋 Showing all data (no filter)');
         print('   All Agents: ${_allAgents.length}');
@@ -1072,26 +1155,36 @@ class BuyerController extends GetxController {
       return;
     }
     
+    // Normalize ZIP code for consistent comparison
+    final normalizedZipCode = zipCode.trim();
+    
     // Filter agents by ZIP code (comprehensive check like FindAgentsController)
     _agents.value = _allAgents.where((agent) {
       // Check 1: claimedZipCodes (array of strings - extracted from postalCode objects)
-      final hasClaimedZip = agent.claimedZipCodes.contains(zipCode);
+      final hasClaimedZip = agent.claimedZipCodes.any((claimedZip) => 
+        claimedZip.trim() == normalizedZipCode
+      );
       
       // Check 2: serviceZipCodes (array of strings)
-      final hasServiceZip = agent.serviceZipCodes.contains(zipCode);
+      final hasServiceZip = agent.serviceZipCodes.any((serviceZip) => 
+        serviceZip.trim() == normalizedZipCode
+      );
       
       // Check 3: serviceAreas (array of strings - can contain ZIP codes)
-      final hasServiceArea = agent.serviceAreas?.contains(zipCode) ?? false;
+      final hasServiceArea = agent.serviceAreas?.any((area) => 
+        area.trim() == normalizedZipCode
+      ) ?? false;
       
       // Check 4: Check if agent has any listings with this ZIP code
-      final hasListingZip = _allListings.any((listing) => 
-        listing.agentId == agent.id && listing.address.zip == zipCode
-      );
+      final hasListingZip = _allListings.any((listing) {
+        final listingZip = listing.address.zip?.trim() ?? '';
+        return listing.agentId == agent.id && listingZip == normalizedZipCode;
+      });
       
       final matches = hasClaimedZip || hasServiceZip || hasServiceArea || hasListingZip;
       
       if (kDebugMode && matches) {
-        print('   ✅ Agent "${agent.name}" matches ZIP $zipCode');
+        print('   ✅ Agent "${agent.name}" matches ZIP $normalizedZipCode');
         print('      claimedZipCodes: ${agent.claimedZipCodes}');
         print('      serviceZipCodes: ${agent.serviceZipCodes}');
         print('      serviceAreas: ${agent.serviceAreas}');
@@ -1101,21 +1194,41 @@ class BuyerController extends GetxController {
       return matches;
     }).toList();
     
-    // Filter loan officers by ZIP code
-    _loanOfficers.value = _allLoanOfficers.where((loanOfficer) {
-      return loanOfficer.claimedZipCodes.contains(zipCode);
+    // Filter listings by ZIP code first (needed for open houses filtering)
+    // Normalize ZIP codes for comparison (trim and ensure consistent format)
+    final filteredListingIds = _allListings
+        .where((listing) {
+          final listingZip = listing.address.zip?.trim() ?? '';
+          return listingZip == normalizedZipCode;
+        })
+        .map((l) => l.id)
+        .toSet();
+    
+    _listings.value = _allListings.where((listing) {
+      final listingZip = listing.address.zip?.trim() ?? '';
+      return listingZip == normalizedZipCode;
     }).toList();
     
-    // Filter listings by ZIP code
-    _listings.value = _allListings.where((listing) {
-      return listing.address.zip == zipCode;
+    // Filter loan officers by ZIP code (check claimedZipCodes)
+    _loanOfficers.value = _allLoanOfficers.where((loanOfficer) {
+      // Check if any claimed ZIP code matches (normalize for comparison)
+      final hasClaimedZip = loanOfficer.claimedZipCodes.any((claimedZip) => 
+        claimedZip.trim() == normalizedZipCode
+      );
+      
+      if (kDebugMode && hasClaimedZip) {
+        print('   ✅ Loan Officer "${loanOfficer.name}" matches ZIP $normalizedZipCode');
+        print('      claimedZipCodes: ${loanOfficer.claimedZipCodes}');
+      }
+      
+      return hasClaimedZip;
     }).toList();
     
     // Filter open houses by listings in that ZIP code
     // Open houses are linked to listings, so filter by listing ZIP codes
-    final listingIds = _listings.map((l) => l.id).toSet();
+    // Use the filtered listing IDs from all listings, not just the filtered _listings
     _openHouses.value = _allOpenHouses.where((oh) {
-      final matches = listingIds.contains(oh.listingId);
+      final matches = filteredListingIds.contains(oh.listingId);
       
       if (kDebugMode && matches) {
         final listing = _allListings.firstWhere(
@@ -1132,7 +1245,7 @@ class BuyerController extends GetxController {
           ),
         );
         if (listing.id.isNotEmpty) {
-          print('   ✅ Open House matches ZIP $zipCode (Listing: ${listing.address.zip})');
+          print('   ✅ Open House matches ZIP $normalizedZipCode (Listing: ${listing.address.zip})');
         }
       }
       
@@ -1140,12 +1253,18 @@ class BuyerController extends GetxController {
     }).toList();
     
     if (kDebugMode) {
-      print('🔍 Applied ZIP code filter: $zipCode');
+      print('🔍 Applied ZIP code filter: $normalizedZipCode');
       print('   Filtered Agents: ${_agents.length} / ${_allAgents.length}');
       print('   Filtered Loan Officers: ${_loanOfficers.length} / ${_allLoanOfficers.length}');
       print('   Filtered Listings: ${_listings.length} / ${_allListings.length}');
       print('   Filtered Open Houses: ${_openHouses.length} / ${_allOpenHouses.length}');
     }
+    
+    // Force refresh to ensure UI updates for all tabs
+    _agents.refresh();
+    _loanOfficers.refresh();
+    _listings.refresh();
+    _openHouses.refresh();
     
     // Record search for all displayed agents and loan officers
     _recordSearchesForDisplayedAgents();
@@ -1248,9 +1367,9 @@ class BuyerController extends GetxController {
 
   Future<void> searchByZipCode(String zipCode) async {
     try {
-      // Validate ZIP code format (5 digits)
-      if (zipCode.length != 5 || !RegExp(r'^\d+$').hasMatch(zipCode)) {
-        // Don't set loading state for invalid input
+      // Trim and validate ZIP code format (5 digits)
+      final trimmedZipCode = zipCode.trim();
+      if (trimmedZipCode.length != 5 || !RegExp(r'^\d+$').hasMatch(trimmedZipCode)) {
         SnackbarHelper.showError(
           'Please enter a valid 5-digit ZIP code',
           title: 'Invalid ZIP Code',
@@ -1259,28 +1378,47 @@ class BuyerController extends GetxController {
         return;
       }
       
-      _isLoading.value = true;
+      if (kDebugMode) {
+        print('🔍 Starting ZIP code search: $trimmedZipCode');
+        print('   All Agents count: ${_allAgents.length}');
+        print('   All Loan Officers count: ${_allLoanOfficers.length}');
+        print('   All Listings count: ${_allListings.length}');
+        print('   All Open Houses count: ${_allOpenHouses.length}');
+      }
       
       // Set the ZIP code filter
-      _currentZipCode.value = zipCode;
+      _currentZipCode.value = trimmedZipCode;
       
-      // Apply filter to all data
+      // Apply filter to all data immediately (no loading state needed for instant filtering)
       _applyZipCodeFilter();
       
       if (kDebugMode) {
-        print('🔍 Filtered by ZIP code: $zipCode');
-        print('   Agents: ${_agents.length}');
-        print('   Loan Officers: ${_loanOfficers.length}');
-        print('   Listings: ${_listings.length}');
-        print('   Open Houses: ${_openHouses.length}');
+        print('🔍 Filtered by ZIP code: $trimmedZipCode');
+        print('   Filtered Agents: ${_agents.length} / ${_allAgents.length}');
+        print('   Filtered Loan Officers: ${_loanOfficers.length} / ${_allLoanOfficers.length}');
+        print('   Filtered Listings: ${_listings.length} / ${_allListings.length}');
+        print('   Filtered Open Houses: ${_openHouses.length} / ${_allOpenHouses.length}');
+      }
+      
+      // Show feedback message
+      final totalResults = _agents.length + _loanOfficers.length + _listings.length + _openHouses.length;
+      if (totalResults > 0) {
+        SnackbarHelper.showSuccess(
+          'Found $totalResults results for ZIP $trimmedZipCode',
+          duration: const Duration(seconds: 2),
+        );
+      } else {
+        SnackbarHelper.showInfo(
+          'No results found for ZIP $trimmedZipCode',
+          duration: const Duration(seconds: 2),
+        );
       }
     } catch (e) {
       if (kDebugMode) {
         print('❌ Error filtering by ZIP code: $e');
+        print('   Stack trace: ${StackTrace.current}');
       }
-      Get.snackbar('Error', 'Search failed: ${e.toString()}');
-    } finally {
-      _isLoading.value = false;
+      SnackbarHelper.showError('Search failed: ${e.toString()}');
     }
   }
   
@@ -2046,6 +2184,334 @@ class BuyerController extends GetxController {
       return _listings.firstWhere((l) => l.id == openHouse.listingId);
     } catch (e) {
       return null;
+    }
+  }
+
+  bool isListingFavorite(String listingId) {
+    return _favoriteListings.contains(listingId);
+  }
+
+  Future<void> toggleFavoriteListing(String listingId) async {
+    if (_togglingFavorites.contains(listingId)) return;
+    
+    final currentUser = _authController.currentUser;
+    if (currentUser == null || currentUser.id.isEmpty) {
+      SnackbarHelper.showError(
+        'Please login to like listings',
+        duration: const Duration(seconds: 2),
+      );
+      return;
+    }
+    
+    // Optimistic update
+    final isCurrentlyLiked = _favoriteListings.contains(listingId);
+    if (isCurrentlyLiked) {
+      _favoriteListings.remove(listingId);
+    } else {
+      _favoriteListings.add(listingId);
+    }
+    _favoriteListings.refresh(); // Force UI update immediately
+    
+    // Immediately update favorites screen if available
+    if (Get.isRegistered<FavoritesController>()) {
+      try {
+        final favoritesController = Get.find<FavoritesController>();
+        if (isCurrentlyLiked) {
+          // Remove from favorites immediately
+          favoritesController.removeFavoriteListingImmediately(listingId);
+        } else {
+          // Find the listing and add to top immediately
+          // Determine which tab the listing is from based on current context
+          final isFromOpenHousesTab = _selectedTab.value == 2; // Open Houses tab
+          try {
+            final listing = _listings.firstWhere((l) => l.id == listingId);
+            favoritesController.addFavoriteListingToTop(listing, isFromOpenHousesTab: isFromOpenHousesTab);
+          } catch (e) {
+            // Try from all listings
+            try {
+              final listing = _allListings.firstWhere((l) => l.id == listingId);
+              favoritesController.addFavoriteListingToTop(listing, isFromOpenHousesTab: isFromOpenHousesTab);
+            } catch (e2) {
+              if (kDebugMode) {
+                print('⚠️ Could not find listing $listingId to add to favorites: $e2');
+              }
+              // Still refresh to get it from API
+              favoritesController.refreshFavorites();
+            }
+          }
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          print('⚠️ Could not update favorites controller immediately: $e');
+        }
+      }
+    }
+    
+    try {
+      _togglingFavorites.add(listingId);
+      
+      final userId = currentUser.id;
+      final endpoint = ApiConstants.likeListingEndpoint;
+      
+      final GetStorage storage = GetStorage();
+      final authToken = storage.read('auth_token');
+      
+      _dio.options.headers = {
+        ...ApiConstants.ngrokHeaders,
+        'Content-Type': 'application/json',
+        if (authToken != null) 'Authorization': 'Bearer $authToken',
+      };
+      
+      if (kDebugMode) {
+        print('❤️ Toggling favorite for listing: $listingId');
+        print('   Endpoint: $endpoint');
+        print('   User ID: $userId');
+      }
+      
+      // Temporarily increase timeout for this request
+      final originalConnectTimeout = _dio.options.connectTimeout;
+      final originalReceiveTimeout = _dio.options.receiveTimeout;
+      _dio.options.connectTimeout = const Duration(seconds: 30);
+      _dio.options.receiveTimeout = const Duration(seconds: 30);
+      
+      try {
+        final response = await _dio.post(
+          endpoint,
+          data: {
+            'listingId': listingId,
+            'userId': userId,
+          },
+        );
+        
+        // Restore original timeouts
+        _dio.options.connectTimeout = originalConnectTimeout;
+        _dio.options.receiveTimeout = originalReceiveTimeout;
+        
+        if (kDebugMode) {
+          print('📥 Like Listing API Response:');
+          print('   Status Code: ${response.statusCode}');
+          print('   Response Data: ${response.data}');
+        }
+        
+        if (response.statusCode == 200 || response.statusCode == 201) {
+          final responseData = response.data;
+          final success = responseData['success'] ?? false;
+          
+          // Check if user ID is in the likes array (more reliable than isLiked field)
+          final likes = responseData['likes'] as List?;
+          final isLiked = likes != null && likes.contains(userId);
+          
+          if (kDebugMode) {
+            print('   Success: $success');
+            print('   Likes array: $likes');
+            print('   User ID: $userId');
+            print('   Is Liked (from likes array): $isLiked');
+          }
+          
+          if (success) {
+            // Update the listing's likes array if we can find it
+            try {
+              final listingIndex = _listings.indexWhere((l) => l.id == listingId);
+              if (listingIndex != -1 && likes != null) {
+                // Update the listing model with the new likes array
+                // Note: This assumes Listing model has a way to update likes
+                // For now, we'll just sync the favoriteListings
+              }
+            } catch (e) {
+              if (kDebugMode) {
+                print('⚠️ Could not update listing likes: $e');
+              }
+            }
+            
+            // Sync with API response - ensure state matches API
+            if (isLiked) {
+              if (!_favoriteListings.contains(listingId)) {
+                _favoriteListings.add(listingId);
+              }
+            } else {
+              _favoriteListings.remove(listingId);
+            }
+            _favoriteListings.refresh(); // Force UI update
+            
+            // Update favorites controller to sync with API response
+            if (Get.isRegistered<FavoritesController>()) {
+              try {
+                final favoritesController = Get.find<FavoritesController>();
+                if (isLiked) {
+                  // Ensure listing is in favorites (might have been added optimistically)
+                  // Determine which tab based on current context
+                  final isFromOpenHousesTab = _selectedTab.value == 2;
+                  try {
+                    final listing = _listings.firstWhere((l) => l.id == listingId);
+                    favoritesController.addFavoriteListingToTop(listing, isFromOpenHousesTab: isFromOpenHousesTab);
+                  } catch (e) {
+                    // Try from all listings
+                    try {
+                      final listing = _allListings.firstWhere((l) => l.id == listingId);
+                      favoritesController.addFavoriteListingToTop(listing, isFromOpenHousesTab: isFromOpenHousesTab);
+                    } catch (e2) {
+                      // Refresh to get from API
+                      favoritesController.refreshFavorites();
+                    }
+                  }
+                } else {
+                  // Remove from favorites
+                  favoritesController.removeFavoriteListingImmediately(listingId);
+                }
+              } catch (e) {
+                if (kDebugMode) {
+                  print('⚠️ Could not update favorites controller: $e');
+                }
+              }
+            }
+            
+            if (kDebugMode) {
+              print('   ✅ Updated favorite listings: ${_favoriteListings.length} total');
+              print('   Current favorites: $_favoriteListings');
+            }
+            
+            Future.delayed(const Duration(milliseconds: 200), () {
+              SnackbarHelper.showSuccess(
+                isLiked 
+                    ? 'Listing added to your favorites' 
+                    : 'Listing removed from your favorites',
+                duration: const Duration(seconds: 2),
+              );
+            });
+          } else {
+            // API returned success: false - revert optimistic update
+            if (kDebugMode) {
+              print('   ⚠️ API returned success: false, reverting optimistic update');
+            }
+            
+            // Revert to previous state (opposite of what we optimistically set)
+            final wasLikedBeforeToggle = !isCurrentlyLiked;
+            if (wasLikedBeforeToggle) {
+              // We optimistically removed it, but API failed - add it back
+              if (!_favoriteListings.contains(listingId)) {
+                _favoriteListings.add(listingId);
+              }
+            } else {
+              // We optimistically added it, but API failed - remove it
+              _favoriteListings.remove(listingId);
+            }
+            _favoriteListings.refresh();
+            
+            // Update favorites controller to match reverted state
+            if (Get.isRegistered<FavoritesController>()) {
+              try {
+                final favoritesController = Get.find<FavoritesController>();
+                if (wasLikedBeforeToggle) {
+                  final isFromOpenHousesTab = _selectedTab.value == 2;
+                  try {
+                    final listing = _listings.firstWhere((l) => l.id == listingId);
+                    favoritesController.addFavoriteListingToTop(listing, isFromOpenHousesTab: isFromOpenHousesTab);
+                  } catch (e) {
+                    try {
+                      final listing = _allListings.firstWhere((l) => l.id == listingId);
+                      favoritesController.addFavoriteListingToTop(listing, isFromOpenHousesTab: isFromOpenHousesTab);
+                    } catch (e2) {
+                      favoritesController.refreshFavorites();
+                    }
+                  }
+                } else {
+                  favoritesController.removeFavoriteListingImmediately(listingId);
+                }
+              } catch (e) {
+                if (kDebugMode) {
+                  print('⚠️ Could not update favorites controller: $e');
+                }
+              }
+            }
+            
+            SnackbarHelper.showError(
+              'Failed to update favorite status. Please try again.',
+              duration: const Duration(seconds: 2),
+            );
+          }
+        } else {
+          if (kDebugMode) {
+            print('   ⚠️ Unexpected status code: ${response.statusCode}');
+          }
+        }
+      } catch (requestError) {
+        // Restore original timeouts before rethrowing
+        _dio.options.connectTimeout = originalConnectTimeout;
+        _dio.options.receiveTimeout = originalReceiveTimeout;
+        rethrow;
+      }
+      
+    } catch (e) {
+      // On error, rollback optimistic update
+      if (kDebugMode) {
+        print('❌ Error toggling favorite listing: $e');
+        if (e is DioException) {
+          print('   Error Type: ${e.type}');
+          print('   Status Code: ${e.response?.statusCode}');
+          print('   Response: ${e.response?.data}');
+          print('   Request Path: ${e.requestOptions.path}');
+          print('   Request Data: ${e.requestOptions.data}');
+        }
+      }
+      
+      // Rollback optimistic update - revert to previous state
+      final wasLikedBeforeToggle = !isCurrentlyLiked; // Opposite of optimistic state
+      if (wasLikedBeforeToggle) {
+        // Was liked before, we optimistically removed it - add it back
+        if (!_favoriteListings.contains(listingId)) {
+          _favoriteListings.add(listingId);
+        }
+      } else {
+        // Was not liked before, we optimistically added it - remove it
+        _favoriteListings.remove(listingId);
+      }
+      _favoriteListings.refresh();
+      
+      // Update favorites controller to match rolled back state
+      if (Get.isRegistered<FavoritesController>()) {
+        try {
+          final favoritesController = Get.find<FavoritesController>();
+          if (wasLikedBeforeToggle) {
+            final isFromOpenHousesTab = _selectedTab.value == 2;
+            try {
+              final listing = _listings.firstWhere((l) => l.id == listingId);
+              favoritesController.addFavoriteListingToTop(listing, isFromOpenHousesTab: isFromOpenHousesTab);
+            } catch (e2) {
+              try {
+                final listing = _allListings.firstWhere((l) => l.id == listingId);
+                favoritesController.addFavoriteListingToTop(listing, isFromOpenHousesTab: isFromOpenHousesTab);
+              } catch (e3) {
+                favoritesController.refreshFavorites();
+              }
+            }
+          } else {
+            favoritesController.removeFavoriteListingImmediately(listingId);
+          }
+        } catch (e2) {
+          if (kDebugMode) {
+            print('⚠️ Could not update favorites controller on rollback: $e2');
+          }
+        }
+      }
+      
+      String errorMessage = 'Failed to update favorite listing';
+      if (e is DioException) {
+        if (e.response?.statusCode == 404) {
+          errorMessage = 'Like endpoint not found. Please contact support.';
+        } else if (e.type == DioExceptionType.connectionTimeout || 
+                   e.type == DioExceptionType.receiveTimeout) {
+          errorMessage = 'Request timed out. Please check your connection.';
+        } else if (e.response?.statusCode != null) {
+          errorMessage = 'Server error (${e.response?.statusCode}). Please try again.';
+        }
+      }
+      
+      SnackbarHelper.showError(
+        errorMessage,
+        duration: const Duration(seconds: 3),
+      );
+    } finally {
+      _togglingFavorites.remove(listingId);
     }
   }
 

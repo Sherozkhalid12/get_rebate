@@ -279,15 +279,6 @@ class LoanOfficerProfileView extends GetView<LoanOfficerProfileController> {
             const SizedBox(height: 20),
 
             // Action Buttons
-            // Primary Action: Create Proposal
-            CustomButton(
-              text: 'Create Proposal',
-              onPressed: () => controller.createProposal(context),
-              icon: Icons.description_outlined,
-              width: double.infinity,
-              backgroundColor: AppTheme.lightGreen,
-            ),
-            const SizedBox(height: 12),
             if (loanOfficer.mortgageApplicationUrl != null && 
                 loanOfficer.mortgageApplicationUrl!.isNotEmpty) ...[
               CustomButton(

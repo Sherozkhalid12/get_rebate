@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/modules/profile/controllers/profile_controller.dart';
 import 'package:getrebate/app/widgets/custom_button.dart';
@@ -157,12 +158,21 @@ class ProfileView extends GetView<ProfileController> {
                                   fit: BoxFit.cover,
                                 )
                               : hasImageUrl
-                                  ? Image.network(
-                                      controller.profileImageUrl!,
+                                  ? CachedNetworkImage(
+                                      imageUrl: controller.profileImageUrl!,
                                       fit: BoxFit.cover,
-                                      errorBuilder: (context, error, stackTrace) {
+                                      placeholder: (context, url) => Container(
+                                        color: AppTheme.white.withOpacity(0.2),
+                                        child: Center(
+                                          child: CircularProgressIndicator(
+                                            color: AppTheme.white,
+                                            strokeWidth: 2,
+                                          ),
+                                        ),
+                                      ),
+                                      errorWidget: (context, url, error) {
                                         if (kDebugMode) {
-                                          print('❌ ProfileView: Failed to load image: ${controller.profileImageUrl}');
+                                          print('❌ ProfileView: Failed to load image: $url');
                                           print('   Error: $error');
                                         }
                                         return Container(
@@ -174,6 +184,11 @@ class ProfileView extends GetView<ProfileController> {
                                           ),
                                         );
                                       },
+                                      httpHeaders: const {
+                                        'Accept': 'image/*',
+                                      },
+                                      maxWidthDiskCache: 500,
+                                      maxHeightDiskCache: 500,
                                     )
                                   : Container(
                                       decoration: BoxDecoration(

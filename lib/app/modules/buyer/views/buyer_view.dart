@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/modules/buyer/controllers/buyer_controller.dart';
 import 'package:getrebate/app/widgets/custom_search_field.dart';
@@ -85,8 +87,10 @@ class BuyerView extends GetView<BuyerController> {
                 return;
               }
               // Only process if it's a valid 5-digit ZIP code
-              if (value.length == 5 && RegExp(r'^\d+$').hasMatch(value)) {
-                controller.searchByZipCode(value);
+              final trimmedValue = value.trim();
+              if (trimmedValue.length == 5 && RegExp(r'^\d+$').hasMatch(trimmedValue)) {
+                // Apply filter immediately when valid ZIP is entered
+                controller.searchByZipCode(trimmedValue);
               }
               // If user is typing but hasn't reached 5 digits yet, clear the filter
               // This ensures partial input doesn't keep the old filter active
@@ -622,21 +626,113 @@ class BuyerView extends GetView<BuyerController> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     listing.photoUrls.isNotEmpty
-                        ? Image.network(
-                            listing.photoUrls.first,
-                            height: 160,
-                            width: double.infinity,
-                            fit: BoxFit.cover,
+                        ? Stack(
+                            children: [
+                              Builder(
+                                builder: (context) {
+                                  final imageUrl = listing.photoUrls.first;
+                                  if (kDebugMode) {
+                                    print('🖼️ Rendering image with URL: $imageUrl');
+                                  }
+                                  return CachedNetworkImage(
+                                    imageUrl: imageUrl,
+                                    height: 160,
+                                    width: double.infinity,
+                                    fit: BoxFit.cover,
+                                    placeholder: (context, url) => Container(
+                                      height: 160,
+                                      width: double.infinity,
+                                      color: Colors.grey.shade200,
+                                      child: const Center(
+                                        child: CircularProgressIndicator(),
+                                      ),
+                                    ),
+                                    errorWidget: (context, url, error) {
+                                      if (kDebugMode) {
+                                        print('❌ Image load error for URL: $url');
+                                        print('   Error: $error');
+                                        print('   Error type: ${error.runtimeType}');
+                                      }
+                                      return Container(
+                                        height: 160,
+                                        width: double.infinity,
+                                        color: Colors.grey.shade200,
+                                        child: const Icon(
+                                          Icons.home,
+                                          size: 48,
+                                          color: Colors.grey,
+                                        ),
+                                      );
+                                    },
+                                    httpHeaders: const {
+                                      'Accept': 'image/*',
+                                    },
+                                    maxWidthDiskCache: 1000,
+                                    maxHeightDiskCache: 1000,
+                                  );
+                                },
+                              ),
+                              Positioned(
+                                top: 8,
+                                right: 8,
+                                child: Obx(() => GestureDetector(
+                                  onTap: () => controller.toggleFavoriteListing(listing.id),
+                                  child: Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: Colors.black.withOpacity(0.5),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Icon(
+                                      controller.isListingFavorite(listing.id)
+                                          ? Icons.favorite
+                                          : Icons.favorite_border,
+                                      color: controller.isListingFavorite(listing.id)
+                                          ? Colors.red
+                                          : Colors.white,
+                                      size: 24,
+                                    ),
+                                  ),
+                                )),
+                              ),
+                            ],
                           )
-                        : Container(
-                            height: 160,
-                            color: Colors.grey.shade200,
-                            alignment: Alignment.center,
-                            child: const Icon(
-                              Icons.home,
-                              size: 48,
-                              color: Colors.grey,
-                            ),
+                        : Stack(
+                            children: [
+                              Container(
+                                height: 160,
+                                color: Colors.grey.shade200,
+                                alignment: Alignment.center,
+                                child: const Icon(
+                                  Icons.home,
+                                  size: 48,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                              Positioned(
+                                top: 8,
+                                right: 8,
+                                child: Obx(() => GestureDetector(
+                                  onTap: () => controller.toggleFavoriteListing(listing.id),
+                                  child: Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: Colors.black.withOpacity(0.5),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Icon(
+                                      controller.isListingFavorite(listing.id)
+                                          ? Icons.favorite
+                                          : Icons.favorite_border,
+                                      color: controller.isListingFavorite(listing.id)
+                                          ? Colors.red
+                                          : Colors.white,
+                                      size: 24,
+                                    ),
+                                  ),
+                                )),
+                              ),
+                            ],
                           ),
                     Padding(
                       padding: const EdgeInsets.all(12),
@@ -722,11 +818,48 @@ class BuyerView extends GetView<BuyerController> {
                             listing != null && listing.photoUrls.isNotEmpty
                                 ? Stack(
                                     children: [
-                                      Image.network(
-                                        listing.photoUrls.first,
-                                        height: 180,
-                                        width: double.infinity,
-                                        fit: BoxFit.cover,
+                                      Builder(
+                                        builder: (context) {
+                                          final imageUrl = listing.photoUrls.first;
+                                          if (kDebugMode) {
+                                            print('🖼️ Open House - Rendering image with URL: $imageUrl');
+                                          }
+                                          return CachedNetworkImage(
+                                            imageUrl: imageUrl,
+                                            height: 180,
+                                            width: double.infinity,
+                                            fit: BoxFit.cover,
+                                            placeholder: (context, url) => Container(
+                                              height: 180,
+                                              width: double.infinity,
+                                              color: Colors.grey.shade200,
+                                              child: const Center(
+                                                child: CircularProgressIndicator(),
+                                              ),
+                                            ),
+                                            errorWidget: (context, url, error) {
+                                              if (kDebugMode) {
+                                                print('❌ Open House - Image load error for URL: $url');
+                                                print('   Error: $error');
+                                              }
+                                              return Container(
+                                                height: 180,
+                                                width: double.infinity,
+                                                color: Colors.grey.shade200,
+                                                child: const Icon(
+                                                  Icons.event,
+                                                  size: 48,
+                                                  color: Colors.grey,
+                                                ),
+                                              );
+                                            },
+                                            httpHeaders: const {
+                                              'Accept': 'image/*',
+                                            },
+                                            maxWidthDiskCache: 1000,
+                                            maxHeightDiskCache: 1000,
+                                          );
+                                        },
                                       ),
                                       Positioned(
                                         top: 12,
@@ -763,17 +896,67 @@ class BuyerView extends GetView<BuyerController> {
                                           ),
                                         ),
                                       ),
+                                      Positioned(
+                                        top: 8,
+                                        left: 8,
+                                        child: Obx(() => GestureDetector(
+                                          onTap: () => controller.toggleFavoriteListing(listing.id),
+                                          child: Container(
+                                            padding: const EdgeInsets.all(8),
+                                            decoration: BoxDecoration(
+                                              color: Colors.black.withOpacity(0.5),
+                                              shape: BoxShape.circle,
+                                            ),
+                                            child: Icon(
+                                              controller.isListingFavorite(listing.id)
+                                                  ? Icons.favorite
+                                                  : Icons.favorite_border,
+                                              color: controller.isListingFavorite(listing.id)
+                                                  ? Colors.red
+                                                  : Colors.white,
+                                              size: 24,
+                                            ),
+                                          ),
+                                        )),
+                                      ),
                                     ],
                                   )
-                                : Container(
-                                    height: 180,
-                                    color: Colors.grey.shade200,
-                                    alignment: Alignment.center,
-                                    child: const Icon(
-                                      Icons.event,
-                                      size: 48,
-                                      color: Colors.grey,
-                                    ),
+                                : Stack(
+                                    children: [
+                                      Container(
+                                        height: 180,
+                                        color: Colors.grey.shade200,
+                                        alignment: Alignment.center,
+                                        child: const Icon(
+                                          Icons.event,
+                                          size: 48,
+                                          color: Colors.grey,
+                                        ),
+                                      ),
+                                      Positioned(
+                                        top: 8,
+                                        left: 8,
+                                        child: Obx(() => GestureDetector(
+                                          onTap: () => controller.toggleFavoriteListing(listing?.id ?? openHouse.listingId),
+                                          child: Container(
+                                            padding: const EdgeInsets.all(8),
+                                            decoration: BoxDecoration(
+                                              color: Colors.black.withOpacity(0.5),
+                                              shape: BoxShape.circle,
+                                            ),
+                                            child: Icon(
+                                              controller.isListingFavorite(listing?.id ?? openHouse.listingId)
+                                                  ? Icons.favorite
+                                                  : Icons.favorite_border,
+                                              color: controller.isListingFavorite(listing?.id ?? openHouse.listingId)
+                                                  ? Colors.red
+                                                  : Colors.white,
+                                              size: 24,
+                                            ),
+                                          ),
+                                        )),
+                                      ),
+                                    ],
                                   ),
                             Padding(
                               padding: const EdgeInsets.all(16),

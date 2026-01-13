@@ -398,12 +398,10 @@ class SnackbarHelper {
             ),
           ),
           backgroundColor: backgroundColor,
-          behavior: SnackBarBehavior.floating,
-          margin: EdgeInsets.only(
-            top: topMargin,
-            left: 16,
-            right: 16,
-            bottom: screenHeight * 0.7, // Large bottom margin to push snackbar to top
+          behavior: SnackBarBehavior.fixed,
+          padding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 12,
           ),
           duration: duration,
           shape: RoundedRectangleBorder(
@@ -503,16 +501,12 @@ class SnackbarHelper {
             ),
           ),
           backgroundColor: AppTheme.primaryBlue,
-          behavior: SnackBarBehavior.floating,
-          margin: EdgeInsets.only(
-            top: topMargin,
-            left: 16,
-            right: 16,
-            bottom: screenHeight * 0.7, // Large bottom margin to push snackbar to top
-          ),
+          behavior: SnackBarBehavior.fixed,
+          margin: EdgeInsets.zero,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           duration: duration,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(0),
           ),
           elevation: 6,
           dismissDirection: DismissDirection.horizontal,

@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:carousel_slider/carousel_slider.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:getrebate/app/modules/listing_detail/controllers/listing_detail_controller.dart';
 import 'package:getrebate/app/modules/buyer/controllers/buyer_controller.dart';
 import 'package:getrebate/app/models/agent_model.dart';
@@ -104,38 +105,49 @@ class ListingDetailView extends GetView<ListingDetailController> {
                               itemBuilder: (context, index, realIndex) {
                                 return GestureDetector(
                                   onTap: () => _showFullScreenImageSlider(context, listing.photoUrls, controller.currentImageIndex),
-                                  child: Image.network(
-                                    listing.photoUrls[index],
-                                    fit: BoxFit.cover,
-                                    width: double.infinity,
-                                    height: double.infinity,
-                                    loadingBuilder: (context, child, loadingProgress) {
-                                      if (loadingProgress == null) return child;
-                                      return Container(
+                                  child: Builder(
+                                    builder: (context) {
+                                      final imageUrl = listing.photoUrls[index];
+                                      if (kDebugMode) {
+                                        print('🖼️ Listing Detail - Rendering image $index with URL: $imageUrl');
+                                      }
+                                      return CachedNetworkImage(
+                                        imageUrl: imageUrl,
+                                        fit: BoxFit.cover,
                                         width: double.infinity,
                                         height: double.infinity,
-                                        color: AppTheme.lightGray,
-                                        child: Center(
-                                          child: CircularProgressIndicator(
-                                            value: loadingProgress.expectedTotalBytes != null
-                                                ? loadingProgress.cumulativeBytesLoaded /
-                                                    loadingProgress.expectedTotalBytes!
-                                                : null,
-                                            color: AppTheme.primaryBlue,
+                                        placeholder: (context, url) => Container(
+                                          width: double.infinity,
+                                          height: double.infinity,
+                                          color: AppTheme.lightGray,
+                                          child: const Center(
+                                            child: CircularProgressIndicator(
+                                              color: AppTheme.primaryBlue,
+                                            ),
                                           ),
                                         ),
-                                      );
-                                    },
-                                    errorBuilder: (context, error, stackTrace) {
-                                      return Container(
-                                        width: double.infinity,
-                                        height: double.infinity,
-                                        color: AppTheme.lightGray,
-                                        child: const Icon(
-                                          Icons.home,
-                                          size: 64,
-                                          color: AppTheme.mediumGray,
-                                        ),
+                                        errorWidget: (context, url, error) {
+                                          if (kDebugMode) {
+                                            print('❌ Listing Detail - Image load error for URL: $url');
+                                            print('   Error: $error');
+                                            print('   Error type: ${error.runtimeType}');
+                                          }
+                                          return Container(
+                                            width: double.infinity,
+                                            height: double.infinity,
+                                            color: AppTheme.lightGray,
+                                            child: const Icon(
+                                              Icons.home,
+                                              size: 64,
+                                              color: AppTheme.mediumGray,
+                                            ),
+                                          );
+                                        },
+                                        httpHeaders: const {
+                                          'Accept': 'image/*',
+                                        },
+                                        maxWidthDiskCache: 2000,
+                                        maxHeightDiskCache: 2000,
                                       );
                                     },
                                   ),
@@ -1352,24 +1364,27 @@ class ListingDetailView extends GetView<ListingDetailController> {
                 return InteractiveViewer(
                   minScale: 0.5,
                   maxScale: 4.0,
-                  child: Image.network(
-                    images[index],
-                    fit: BoxFit.contain,
-                    loadingBuilder: (context, child, loadingProgress) {
-                      if (loadingProgress == null) return child;
-                      return Center(
-                        child: CircularProgressIndicator(
-                          value: loadingProgress.expectedTotalBytes != null
-                              ? loadingProgress.cumulativeBytesLoaded /
-                                  loadingProgress.expectedTotalBytes!
-                              : null,
-                          color: AppTheme.white,
+                  child: Builder(
+                    builder: (context) {
+                      final imageUrl = images[index];
+                      if (kDebugMode) {
+                        print('🖼️ Full Screen Image Viewer - Rendering image $index with URL: $imageUrl');
+                      }
+                      return CachedNetworkImage(
+                        imageUrl: imageUrl,
+                        fit: BoxFit.contain,
+                        placeholder: (context, url) => Center(
+                          child: CircularProgressIndicator(
+                            color: AppTheme.white,
+                          ),
                         ),
-                      );
-                    },
-                    errorBuilder: (context, error, stackTrace) {
-                      return Center(
-                        child: Column(
+                        errorWidget: (context, url, error) {
+                          if (kDebugMode) {
+                            print('❌ Full Screen Image Viewer - Image load error for URL: $url');
+                            print('   Error: $error');
+                          }
+                          return Center(
+                            child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Icon(
@@ -1389,6 +1404,13 @@ class ListingDetailView extends GetView<ListingDetailController> {
                         ),
                       );
                     },
+                        httpHeaders: const {
+                          'Accept': 'image/*',
+                        },
+                        maxWidthDiskCache: 3000,
+                        maxHeightDiskCache: 3000,
+                      );
+                    },
                   ),
                 );
               },
@@ -1405,8 +1427,13 @@ class ListingDetailView extends GetView<ListingDetailController> {
                 child: IconButton(
                   icon: const Icon(Icons.close, color: Colors.white, size: 28),
                   onPressed: () {
-                    pageController.dispose();
-                    Get.back();
+                    Navigator.pop(context);
+                    // Dispose after navigation completes
+                    Future.delayed(const Duration(milliseconds: 100), () {
+                      if (pageController.hasClients) {
+                        pageController.dispose();
+                      }
+                    });
                   },
                 ),
               ),
@@ -1466,7 +1493,7 @@ class ListingDetailView extends GetView<ListingDetailController> {
       ),
       barrierColor: Colors.black.withOpacity(0.95),
     ).then((_) {
-      pageController.dispose();
+      // Don't dispose here - it's already disposed in onPressed
     });
   }
 }

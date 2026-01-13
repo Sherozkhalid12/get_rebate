@@ -154,6 +154,9 @@ class ApiConstants {
     return "$apiBaseUrl/loan-officers/$loanOfficerId/like";
   }
 
+  // Like/Unlike listing endpoint
+  static String get likeListingEndpoint => "$apiBaseUrl/buyer/like";
+
   // Agent and Loan Officer tracking endpoints (shared)
   // Note: addSearch endpoint expects name, not ID
   static String getAddSearchEndpoint(String identifier) {
@@ -255,7 +258,7 @@ class ApiConstants {
   /// Returns null if the input is null or empty
   /// Returns the original URL if it's already a full HTTP/HTTPS URL
   /// Otherwise prepends the base URL
-  /// Get image URL - images are already coming with correct URLs, so just return as-is
+  /// Get image URL - properly encode URLs with spaces and special characters
   static String? getImageUrl(String? imagePath) {
     if (imagePath == null || imagePath.trim().isEmpty) {
       if (kDebugMode) {
@@ -270,7 +273,115 @@ class ApiConstants {
       print('🖼️ getImageUrl: Input path = "$trimmedPath"');
     }
     
-    // Images are already coming with correct URLs, so just return as-is
+    // If it's a full URL, encode it properly to handle spaces and special characters
+    if (trimmedPath.startsWith('http://') || trimmedPath.startsWith('https://')) {
+      try {
+        // Check if URL contains unencoded characters (spaces, parentheses, etc.)
+        // Check for spaces, parentheses, brackets that aren't already encoded
+        // Also check if URL is partially encoded (has %20 but still has unencoded parentheses)
+        final hasUnencodedChars = (trimmedPath.contains(' ') && !trimmedPath.contains('%20')) ||
+                                  (trimmedPath.contains('(') && !trimmedPath.contains('%28')) ||
+                                  (trimmedPath.contains(')') && !trimmedPath.contains('%29')) ||
+                                  (trimmedPath.contains('[') && !trimmedPath.contains('%5B')) ||
+                                  (trimmedPath.contains(']') && !trimmedPath.contains('%5D'));
+        
+        // Also check if URL is partially encoded (e.g., has %20 but still has unencoded parentheses)
+        final isPartiallyEncoded = trimmedPath.contains('%20') && 
+                                   (trimmedPath.contains('(') || trimmedPath.contains(')'));
+        
+        if (hasUnencodedChars || isPartiallyEncoded) {
+          // Manually parse and encode the URL to avoid Uri.parse() issues with spaces
+          final schemeEnd = trimmedPath.indexOf('://');
+          if (schemeEnd == -1) {
+            return trimmedPath; // Invalid URL format
+          }
+          
+          final scheme = trimmedPath.substring(0, schemeEnd);
+          final afterScheme = trimmedPath.substring(schemeEnd + 3);
+          
+          // Find the first '/' to separate host from path
+          final pathStart = afterScheme.indexOf('/');
+          if (pathStart == -1) {
+            // No path, just return as-is
+            return trimmedPath;
+          }
+          
+          final host = afterScheme.substring(0, pathStart);
+          final pathAndQuery = afterScheme.substring(pathStart);
+          
+          // Separate path from query/fragment
+          final queryStart = pathAndQuery.indexOf('?');
+          final fragmentStart = pathAndQuery.indexOf('#');
+          
+          String path;
+          String? query;
+          String? fragment;
+          
+          if (queryStart != -1) {
+            path = pathAndQuery.substring(0, queryStart);
+            final afterQuery = pathAndQuery.substring(queryStart + 1);
+            if (fragmentStart != -1 && fragmentStart > queryStart) {
+              final fragmentIndexInAfterQuery = fragmentStart - queryStart - 1;
+              query = afterQuery.substring(0, fragmentIndexInAfterQuery);
+              fragment = afterQuery.substring(fragmentIndexInAfterQuery + 1);
+            } else {
+              query = afterQuery;
+            }
+          } else if (fragmentStart != -1) {
+            path = pathAndQuery.substring(0, fragmentStart);
+            fragment = pathAndQuery.substring(fragmentStart + 1);
+          } else {
+            path = pathAndQuery;
+          }
+          
+          // Encode path segments
+          final segments = path.split('/').where((s) => s.isNotEmpty).toList();
+          final encodedSegments = segments.map((segment) {
+            try {
+              // Decode first in case it's partially encoded
+              final decoded = Uri.decodeComponent(segment);
+              return Uri.encodeComponent(decoded);
+            } catch (e) {
+              // If decoding fails, just encode as-is
+              return Uri.encodeComponent(segment);
+            }
+          }).toList();
+          
+          // Reconstruct the encoded path
+          final encodedPath = '/${encodedSegments.join('/')}';
+          
+          // Reconstruct the full URL
+          String encodedUrl = '$scheme://$host$encodedPath';
+          if (query != null && query.isNotEmpty) {
+            encodedUrl += '?$query';
+          }
+          if (fragment != null && fragment.isNotEmpty) {
+            encodedUrl += '#$fragment';
+          }
+          
+          if (kDebugMode) {
+            print('🖼️ getImageUrl: Encoded URL');
+            print('   Original: "$trimmedPath"');
+            print('   Encoded:  "$encodedUrl"');
+          }
+          return encodedUrl;
+        } else {
+          // Already properly encoded or no special characters
+          if (kDebugMode) {
+            print('🖼️ getImageUrl: URL appears properly encoded, returning as-is');
+          }
+          return trimmedPath;
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          print('⚠️ getImageUrl: Error encoding URL: $e');
+        }
+        // Fallback: return original
+        return trimmedPath;
+      }
+    }
+    
+    // Not a full URL, return as-is
     return trimmedPath;
   }
 }
