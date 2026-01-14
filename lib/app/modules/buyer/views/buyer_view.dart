@@ -639,13 +639,16 @@ class BuyerView extends GetView<BuyerController> {
                                     height: 160,
                                     width: double.infinity,
                                     fit: BoxFit.cover,
+                                    cacheKey: imageUrl,
+                                    memCacheWidth: 400,
+                                    memCacheHeight: 300,
+                                    maxWidthDiskCache: 800,
+                                    maxHeightDiskCache: 600,
+                                    fadeInDuration: Duration.zero,
                                     placeholder: (context, url) => Container(
                                       height: 160,
                                       width: double.infinity,
                                       color: Colors.grey.shade200,
-                                      child: const Center(
-                                        child: CircularProgressIndicator(),
-                                      ),
                                     ),
                                     errorWidget: (context, url, error) {
                                       if (kDebugMode) {
@@ -667,8 +670,6 @@ class BuyerView extends GetView<BuyerController> {
                                     httpHeaders: const {
                                       'Accept': 'image/*',
                                     },
-                                    maxWidthDiskCache: 1000,
-                                    maxHeightDiskCache: 1000,
                                   );
                                 },
                               ),
@@ -829,13 +830,16 @@ class BuyerView extends GetView<BuyerController> {
                                             height: 180,
                                             width: double.infinity,
                                             fit: BoxFit.cover,
+                                            cacheKey: imageUrl,
+                                            memCacheWidth: 450,
+                                            memCacheHeight: 350,
+                                            maxWidthDiskCache: 900,
+                                            maxHeightDiskCache: 700,
+                                            fadeInDuration: Duration.zero,
                                             placeholder: (context, url) => Container(
                                               height: 180,
                                               width: double.infinity,
                                               color: Colors.grey.shade200,
-                                              child: const Center(
-                                                child: CircularProgressIndicator(),
-                                              ),
                                             ),
                                             errorWidget: (context, url, error) {
                                               if (kDebugMode) {
@@ -856,8 +860,6 @@ class BuyerView extends GetView<BuyerController> {
                                             httpHeaders: const {
                                               'Accept': 'image/*',
                                             },
-                                            maxWidthDiskCache: 1000,
-                                            maxHeightDiskCache: 1000,
                                           );
                                         },
                                       ),

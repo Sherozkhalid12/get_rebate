@@ -333,7 +333,7 @@ class ProposalController extends GetxController {
             status = ProposalStatus.reported;
             break;
           case 'accepted':
-            status = ProposalStatus.inProgress; // Accepted leads are in progress
+            status = ProposalStatus.accepted; // Keep as accepted - don't show complete service button
             break;
           case 'pending':
             status = ProposalStatus.pending;
@@ -354,7 +354,7 @@ class ProposalController extends GetxController {
           status = ProposalStatus.reported;
         } else if (lead.isAccepted) {
           // Lead is accepted (agent responded and accepted)
-          status = ProposalStatus.inProgress; // Accepted leads are in progress
+          status = ProposalStatus.accepted; // Keep as accepted - don't show complete service button
         } else if (lead.agentResponse != null && lead.agentResponse!.status == 'rejected') {
           // Lead was rejected
           status = ProposalStatus.rejected;

@@ -161,14 +161,14 @@ class ProfileView extends GetView<ProfileController> {
                                   ? CachedNetworkImage(
                                       imageUrl: controller.profileImageUrl!,
                                       fit: BoxFit.cover,
+                                      cacheKey: controller.profileImageUrl,
+                                      memCacheWidth: 300,
+                                      memCacheHeight: 300,
+                                      maxWidthDiskCache: 500,
+                                      maxHeightDiskCache: 500,
+                                      fadeInDuration: Duration.zero,
                                       placeholder: (context, url) => Container(
                                         color: AppTheme.white.withOpacity(0.2),
-                                        child: Center(
-                                          child: CircularProgressIndicator(
-                                            color: AppTheme.white,
-                                            strokeWidth: 2,
-                                          ),
-                                        ),
                                       ),
                                       errorWidget: (context, url, error) {
                                         if (kDebugMode) {
@@ -187,8 +187,6 @@ class ProfileView extends GetView<ProfileController> {
                                       httpHeaders: const {
                                         'Accept': 'image/*',
                                       },
-                                      maxWidthDiskCache: 500,
-                                      maxHeightDiskCache: 500,
                                     )
                                   : Container(
                                       decoration: BoxDecoration(

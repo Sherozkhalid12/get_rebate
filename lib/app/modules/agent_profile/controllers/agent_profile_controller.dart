@@ -58,6 +58,7 @@ class AgentProfileController extends GetxController {
   void _loadAgentData() {
     final args = Get.arguments;
     if (args != null && args['agent'] != null) {
+      // Set agent immediately for instant UI display
       _agent.value = args['agent'] as AgentModel;
       
       if (kDebugMode) {
@@ -70,11 +71,11 @@ class AgentProfileController extends GetxController {
         print('   Review Count: ${_agent.value!.reviewCount}');
       }
       
-      // Load properties for this agent
-      _loadAgentProperties();
-      
-      // Record profile view
-      _recordProfileView();
+      // Load properties and record view asynchronously (non-blocking)
+      Future.microtask(() {
+        _loadAgentProperties();
+        _recordProfileView();
+      });
     } else {
       // Fallback to mock data
       _agent.value = AgentModel(

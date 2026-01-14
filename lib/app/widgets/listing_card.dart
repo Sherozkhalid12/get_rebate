@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../models/listing.dart';
@@ -114,11 +115,29 @@ class _ListingPhotoHero extends StatelessWidget {
             alignment: Alignment.center,
             child: const Icon(Icons.home, size: 48, color: Colors.grey),
           )
-        : Image.network(
-            photoUrl!,
+        : CachedNetworkImage(
+            imageUrl: photoUrl!,
             height: 160,
             width: double.infinity,
             fit: BoxFit.cover,
+            cacheKey: photoUrl,
+            memCacheWidth: 400,
+            memCacheHeight: 300,
+            maxWidthDiskCache: 800,
+            maxHeightDiskCache: 600,
+            fadeInDuration: Duration.zero,
+            placeholder: (context, url) => Container(
+              height: 160,
+              width: double.infinity,
+              color: Colors.grey.shade200,
+            ),
+            errorWidget: (context, url, error) => Container(
+              height: 160,
+              width: double.infinity,
+              color: Colors.grey.shade200,
+              alignment: Alignment.center,
+              child: const Icon(Icons.home, size: 48, color: Colors.grey),
+            ),
           );
     return SizedBox(height: 160, width: double.infinity, child: image);
   }

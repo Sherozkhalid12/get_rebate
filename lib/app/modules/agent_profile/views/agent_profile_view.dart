@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -44,6 +45,8 @@ class AgentProfileView extends GetView<AgentProfileController> {
       ),
       body: SafeArea(
         child: Obx(() {
+          // Show profile immediately if agent data is available
+          // Don't wait for properties to load
           if (controller.agent == null) {
             return Center(
               child: SpinKitFadingCircle(
@@ -172,10 +175,19 @@ class AgentProfileView extends GetView<AgentProfileController> {
                       padding: const EdgeInsets.all(8),
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(8),
-                        child: Image.network(
-                          agent.companyLogoUrl!,
+                        child: CachedNetworkImage(
+                          imageUrl: agent.companyLogoUrl!,
                           fit: BoxFit.contain,
-                          errorBuilder: (_, __, ___) => const Icon(
+                          cacheKey: agent.companyLogoUrl,
+                          memCacheWidth: 200,
+                          memCacheHeight: 200,
+                          maxWidthDiskCache: 400,
+                          maxHeightDiskCache: 400,
+                          fadeInDuration: Duration.zero,
+                          placeholder: (context, url) => Container(
+                            color: AppTheme.white,
+                          ),
+                          errorWidget: (context, url, error) => const Icon(
                             Icons.business_outlined,
                             color: AppTheme.primaryBlue,
                           ),
@@ -1288,12 +1300,23 @@ class AgentProfileView extends GetView<AgentProfileController> {
                     top: Radius.circular(12),
                   ),
                   child: property['image'] != null && property['image'].toString().isNotEmpty
-                      ? Image.network(
-                          property['image'],
+                      ? CachedNetworkImage(
+                          imageUrl: property['image'],
                           height: 200,
                           width: double.infinity,
                           fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
+                          cacheKey: property['image'],
+                          memCacheWidth: 500,
+                          memCacheHeight: 400,
+                          maxWidthDiskCache: 1000,
+                          maxHeightDiskCache: 800,
+                          fadeInDuration: Duration.zero,
+                          placeholder: (context, url) => Container(
+                            height: 200,
+                            width: double.infinity,
+                            color: AppTheme.lightGray,
+                          ),
+                          errorWidget: (context, url, error) {
                             return Container(
                               height: 200,
                               color: AppTheme.lightGray,

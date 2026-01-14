@@ -116,15 +116,16 @@ class ListingDetailView extends GetView<ListingDetailController> {
                                         fit: BoxFit.cover,
                                         width: double.infinity,
                                         height: double.infinity,
+                                        cacheKey: imageUrl,
+                                        memCacheWidth: 800,
+                                        memCacheHeight: 600,
+                                        maxWidthDiskCache: 1600,
+                                        maxHeightDiskCache: 1200,
+                                        fadeInDuration: Duration.zero,
                                         placeholder: (context, url) => Container(
                                           width: double.infinity,
                                           height: double.infinity,
                                           color: AppTheme.lightGray,
-                                          child: const Center(
-                                            child: CircularProgressIndicator(
-                                              color: AppTheme.primaryBlue,
-                                            ),
-                                          ),
                                         ),
                                         errorWidget: (context, url, error) {
                                           if (kDebugMode) {
@@ -146,8 +147,6 @@ class ListingDetailView extends GetView<ListingDetailController> {
                                         httpHeaders: const {
                                           'Accept': 'image/*',
                                         },
-                                        maxWidthDiskCache: 2000,
-                                        maxHeightDiskCache: 2000,
                                       );
                                     },
                                   ),
@@ -1373,10 +1372,14 @@ class ListingDetailView extends GetView<ListingDetailController> {
                       return CachedNetworkImage(
                         imageUrl: imageUrl,
                         fit: BoxFit.contain,
-                        placeholder: (context, url) => Center(
-                          child: CircularProgressIndicator(
-                            color: AppTheme.white,
-                          ),
+                        cacheKey: imageUrl,
+                        memCacheWidth: 1200,
+                        memCacheHeight: 1600,
+                        maxWidthDiskCache: 3000,
+                        maxHeightDiskCache: 3000,
+                        fadeInDuration: Duration.zero,
+                        placeholder: (context, url) => Container(
+                          color: AppTheme.darkGray,
                         ),
                         errorWidget: (context, url, error) {
                           if (kDebugMode) {
@@ -1407,8 +1410,6 @@ class ListingDetailView extends GetView<ListingDetailController> {
                         httpHeaders: const {
                           'Accept': 'image/*',
                         },
-                        maxWidthDiskCache: 3000,
-                        maxHeightDiskCache: 3000,
                       );
                     },
                   ),

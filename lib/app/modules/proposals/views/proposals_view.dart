@@ -30,6 +30,10 @@ class ProposalsView extends GetView<ProposalController> {
         backgroundColor: AppTheme.white,
         elevation: 0,
         iconTheme: const IconThemeData(color: AppTheme.black),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: AppTheme.black),
+          onPressed: () => Navigator.pop(context),
+        ),
       ),
       body: Column(
         children: [
@@ -283,51 +287,52 @@ class ProposalsView extends GetView<ProposalController> {
     if (controller.error != null && controller.proposals.isEmpty && !controller.isLoading) {
       return Center(
         child: Padding(
-          padding: const EdgeInsets.all(40),
+          padding: EdgeInsets.all(24.w),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Container(
-                width: 120,
-                height: 120,
+                width: 80.w,
+                height: 80.h,
                 decoration: BoxDecoration(
                   color: Colors.red.withOpacity(0.1),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.error_outline,
-                  size: 60,
+                  size: 40.sp,
                   color: Colors.red,
                 ),
               ),
-              const SizedBox(height: 24),
+              SizedBox(height: 16.h),
               Text(
                 'Error Loading Leads',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      color: AppTheme.darkGray,
-                      fontWeight: FontWeight.w600,
-                    ),
+                style: TextStyle(
+                  color: AppTheme.darkGray,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 16.sp,
+                ),
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: 8.h),
               Text(
                 controller.error ?? 'An error occurred',
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      color: AppTheme.mediumGray,
-                      height: 1.5,
-                    ),
+                style: TextStyle(
+                  color: AppTheme.mediumGray,
+                  fontSize: 13.sp,
+                ),
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 32),
+              SizedBox(height: 20.h),
               ElevatedButton.icon(
                 onPressed: controller.loadProposals,
-                icon: const Icon(Icons.refresh),
-                label: const Text('Retry'),
+                icon: Icon(Icons.refresh, size: 16.sp),
+                label: Text('Retry', style: TextStyle(fontSize: 13.sp)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppTheme.primaryBlue,
                   foregroundColor: AppTheme.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 10.h),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(8.r),
                   ),
                 ),
               ),
@@ -337,90 +342,82 @@ class ProposalsView extends GetView<ProposalController> {
       );
     }
 
-    // Default empty state
+    // Get context-aware empty state based on selected filter
+    final selectedFilter = controller.selectedFilter;
+    String title;
+    String message;
+    IconData icon;
+    
+    switch (selectedFilter) {
+      case 'pending':
+        title = 'No Pending Proposals';
+        message = 'You don\'t have any pending proposals at the moment.';
+        icon = Icons.pending_outlined;
+        break;
+      case 'accepted':
+        title = 'No Accepted Proposals';
+        message = 'You don\'t have any accepted proposals yet.';
+        icon = Icons.check_circle_outline;
+        break;
+      case 'completed':
+        title = 'No Completed Proposals';
+        message = 'Your completed proposals will appear here.';
+        icon = Icons.task_alt_outlined;
+        break;
+      case 'reported':
+        title = 'No Reported Issues';
+        message = 'You haven\'t reported any proposals.';
+        icon = Icons.flag_outlined;
+        break;
+      default:
+        title = 'No Leads or Proposals';
+        message = 'Your leads and proposals will appear here once you start working with agents or loan officers.';
+        icon = Icons.description_outlined;
+    }
+
+    // Compact empty state
     return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(40),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                width: 140.w,
-                height: 140.h,
-                decoration: BoxDecoration(
-                  color: AppTheme.primaryBlue.withOpacity(0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  Icons.description_outlined,
-                  size: 70.sp,
-                  color: AppTheme.primaryBlue,
-                ),
+      child: Padding(
+        padding: EdgeInsets.all(24.w),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 80.w,
+              height: 80.h,
+              decoration: BoxDecoration(
+                color: AppTheme.primaryBlue.withOpacity(0.1),
+                shape: BoxShape.circle,
               ),
-              SizedBox(height: 32.h),
-              Text(
-                'No Leads or Proposals',
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      color: AppTheme.darkGray,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 24.sp,
-                    ),
+              child: Icon(
+                icon,
+                size: 40.sp,
+                color: AppTheme.primaryBlue,
               ),
-              SizedBox(height: 16.h),
-              Container(
-                padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 20.h),
-                decoration: BoxDecoration(
-                  color: AppTheme.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
-                      blurRadius: 10,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  children: [
-                    Text(
-                      'Your leads and proposals will appear here once you start working with agents or loan officers.',
-                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                            color: AppTheme.mediumGray,
-                            height: 1.6,
-                            fontSize: 15.sp,
-                          ),
-                      textAlign: TextAlign.center,
-                    ),
-                    SizedBox(height: 20.h),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.info_outline,
-                          size: 18.sp,
-                          color: AppTheme.primaryBlue,
-                        ),
-                        SizedBox(width: 8.w),
-                        Flexible(
-                          child: Text(
-                            'Navigate to agent profiles to create leads',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                  color: AppTheme.primaryBlue,
-                                  fontSize: 13.sp,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+            ),
+            SizedBox(height: 16.h),
+            Text(
+              title,
+              style: TextStyle(
+                color: AppTheme.darkGray,
+                fontWeight: FontWeight.w600,
+                fontSize: 16.sp,
               ),
-            ],
-          ),
+            ),
+            SizedBox(height: 8.h),
+            Text(
+              message,
+              style: TextStyle(
+                color: AppTheme.mediumGray,
+                fontSize: 13.sp,
+                height: 1.4,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
         ),
-      );
+      ),
+    );
   }
 
   Widget _buildProposalCard(
@@ -696,8 +693,8 @@ class ProposalsView extends GetView<ProposalController> {
     } else if (proposal.status == ProposalStatus.reported) {
       return _buildReportedActions(context, proposal);
     } else if (proposal.status == ProposalStatus.accepted) {
-      // Show "In Progress" badge for accepted leads
-      return const SizedBox.shrink();
+      // Show only "Report Issue" button for accepted proposals (no "Complete Service")
+      return _buildAcceptedActions(context, proposal);
     } else if (proposal.status == ProposalStatus.rejected) {
       return const SizedBox.shrink();
     }
@@ -729,7 +726,35 @@ class ProposalsView extends GetView<ProposalController> {
             ),
           ),
         ),
-        SizedBox(height: 8.h),
+        if (!proposal.userHasReviewed) ...[
+          SizedBox(height: 8.h),
+          TextButton.icon(
+            onPressed: () => _showReportDialog(context, proposal),
+            icon: Icon(Icons.flag_outlined, size: 16.sp),
+            label: Text(
+              'Report Issue',
+              style: TextStyle(fontSize: 13.sp),
+            ),
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.red.shade600,
+              padding: EdgeInsets.symmetric(vertical: 10.h, horizontal: 12.w),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildAcceptedActions(BuildContext context, ProposalModel proposal) {
+    // Hide report button if review has been given
+    if (proposal.userHasReviewed) {
+      return const SizedBox.shrink();
+    }
+    
+    return Column(
+      children: [
+        const Divider(),
+        const SizedBox(height: 12),
         TextButton.icon(
           onPressed: () => _showReportDialog(context, proposal),
           icon: Icon(Icons.flag_outlined, size: 16.sp),
@@ -912,31 +937,33 @@ class ProposalsView extends GetView<ProposalController> {
             ),
           ),
         ),
-        SizedBox(height: 12.h),
-        // Report Issue Button
-        SizedBox(
-          width: double.infinity,
-          child: OutlinedButton.icon(
-            onPressed: () => _showReportDialog(context, proposal),
-            icon: Icon(Icons.flag_outlined, size: 18.sp, color: Colors.red.shade600),
-            label: Text(
-              'Report an Issue',
-              style: TextStyle(
-                fontSize: 14.sp,
-                fontWeight: FontWeight.w600,
-                color: Colors.red.shade600,
+        if (!proposal.userHasReviewed) ...[
+          SizedBox(height: 12.h),
+          // Report Issue Button
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => _showReportDialog(context, proposal),
+              icon: Icon(Icons.flag_outlined, size: 18.sp, color: Colors.red.shade600),
+              label: Text(
+                'Report an Issue',
+                style: TextStyle(
+                  fontSize: 14.sp,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.red.shade600,
+                ),
               ),
-            ),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: Colors.red.shade600,
-              padding: EdgeInsets.symmetric(vertical: 12.h, horizontal: 16.w),
-              side: BorderSide(color: Colors.red.shade600, width: 1.5),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12.r),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.red.shade600,
+                padding: EdgeInsets.symmetric(vertical: 12.h, horizontal: 16.w),
+                side: BorderSide(color: Colors.red.shade600, width: 1.5),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12.r),
+                ),
               ),
             ),
           ),
-        ),
+        ],
       ],
     );
   }
@@ -1106,258 +1133,232 @@ class ProposalsView extends GetView<ProposalController> {
   }
 
   void _showReviewDialog(BuildContext context, ProposalModel proposal) {
-    final ratingController = 5.obs;
+    final ratingController = 0.obs;
     final reviewController = TextEditingController();
+    final reviewText = ''.obs;
 
     Get.dialog(
       Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24.r)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.r)),
         backgroundColor: Colors.transparent,
         elevation: 0,
         child: Container(
+          constraints: BoxConstraints(
+            maxWidth: 400.w,
+            maxHeight: MediaQuery.of(context).size.height * 0.75,
+          ),
           decoration: BoxDecoration(
             color: AppTheme.white,
-            borderRadius: BorderRadius.circular(24.r),
+            borderRadius: BorderRadius.circular(16.r),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.15),
-                blurRadius: 20,
-                offset: const Offset(0, 10),
-                spreadRadius: 0,
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
               ),
             ],
           ),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(24.r),
+            borderRadius: BorderRadius.circular(16.r),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Header with gradient
+                // Compact header
                 Container(
                   width: double.infinity,
-                  padding: EdgeInsets.all(24.w),
+                  padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        AppTheme.primaryBlue,
-                        AppTheme.primaryBlue.withOpacity(0.8),
-                      ],
+                    color: AppTheme.primaryBlue,
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(16.r),
+                      topRight: Radius.circular(16.r),
                     ),
                   ),
-                  child: Column(
+                  child: Row(
                     children: [
-                      Container(
-                        padding: EdgeInsets.all(16.w),
-                        decoration: BoxDecoration(
-                          color: AppTheme.white.withOpacity(0.2),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          Icons.star_rounded,
-                          color: AppTheme.white,
-                          size: 32.sp,
+                      Icon(Icons.star_rounded, color: AppTheme.white, size: 20.sp),
+                      SizedBox(width: 8.w),
+                      Expanded(
+                        child: Text(
+                          'Rate Your Experience',
+                          style: TextStyle(
+                            fontSize: 16.sp,
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.white,
+                          ),
                         ),
                       ),
-                      SizedBox(height: 16.h),
-                      Text(
-                        'Rate Your Experience',
-                        style: TextStyle(
-                          fontSize: 22.sp,
-                          fontWeight: FontWeight.w700,
-                          color: AppTheme.white,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      SizedBox(height: 8.h),
-                      Text(
-                        'Share your feedback with ${proposal.professionalName}',
-                        style: TextStyle(
-                          fontSize: 14.sp,
-                          color: AppTheme.white.withOpacity(0.9),
-                        ),
-                        textAlign: TextAlign.center,
+                      IconButton(
+                        icon: Icon(Icons.close, color: AppTheme.white, size: 20.sp),
+                        onPressed: () => Get.back(),
+                        padding: EdgeInsets.zero,
+                        constraints: BoxConstraints(),
                       ),
                     ],
                   ),
                 ),
-                // Content
-                Padding(
-                  padding: EdgeInsets.all(24.w),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Star rating with animation
-                      Center(
-                        child: Obx(() => Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: List.generate(5, (index) {
-                                final isSelected = index < ratingController.value;
-                                return GestureDetector(
-                                  onTap: () => ratingController.value = index + 1,
-                                  child: AnimatedContainer(
-                                    duration: const Duration(milliseconds: 300),
-                                    curve: Curves.elasticOut,
-                                    margin: EdgeInsets.symmetric(horizontal: 4.w),
-                                    child: Transform.scale(
-                                      scale: isSelected ? 1.2 : 1.0,
+                // Scrollable content
+                Flexible(
+                  child: SingleChildScrollView(
+                    padding: EdgeInsets.all(16.w),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Star rating
+                        Center(
+                          child: Obx(() => Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: List.generate(5, (index) {
+                                  final isSelected = index < ratingController.value;
+                                  return GestureDetector(
+                                    onTap: () => ratingController.value = index + 1,
+                                    child: Padding(
+                                      padding: EdgeInsets.symmetric(horizontal: 4.w),
                                       child: Icon(
                                         isSelected ? Icons.star_rounded : Icons.star_border_rounded,
                                         color: isSelected 
                                             ? Colors.amber.shade600
-                                            : AppTheme.mediumGray.withOpacity(0.5),
-                                        size: 44.sp,
+                                            : AppTheme.mediumGray.withOpacity(0.4),
+                                        size: 36.sp,
                                       ),
                                     ),
-                                  ),
-                                );
-                              }),
-                            )),
-                      ),
-                      SizedBox(height: 8.h),
-                      Center(
-                        child: Obx(() => Text(
-                              ratingController.value == 0
-                                  ? 'Tap to rate'
-                                  : '${ratingController.value} ${ratingController.value == 1 ? 'Star' : 'Stars'}',
-                              style: TextStyle(
-                                fontSize: 13.sp,
-                                color: AppTheme.mediumGray,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            )),
-                      ),
-                      SizedBox(height: 32.h),
-                      // Review text
-                      Container(
-                        decoration: BoxDecoration(
-                          color: AppTheme.lightGray,
-                          borderRadius: BorderRadius.circular(16.r),
-                          border: Border.all(
-                            color: AppTheme.mediumGray.withOpacity(0.2),
-                            width: 1,
-                          ),
+                                  );
+                                }),
+                              )),
                         ),
-                        child: TextField(
-                          controller: reviewController,
-                          maxLines: 5,
-                          style: TextStyle(fontSize: 15.sp),
-                          decoration: InputDecoration(
-                            hintText: 'Write your review here...\n\nWhat did you like about the service? Any suggestions?',
-                            hintStyle: TextStyle(
-                              fontSize: 14.sp,
-                              color: AppTheme.mediumGray.withOpacity(0.7),
-                            ),
-                            border: InputBorder.none,
-                            contentPadding: EdgeInsets.all(16.w),
-                          ),
-                        ),
-                      ),
-                      SizedBox(height: 24.h),
-                      // Action buttons
-                      Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: () => Get.back(),
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: AppTheme.darkGray,
-                                side: BorderSide(
-                                  color: AppTheme.mediumGray.withOpacity(0.3),
-                                  width: 1.5,
-                                ),
-                                padding: EdgeInsets.symmetric(vertical: 14.h),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12.r),
-                                ),
-                              ),
-                              child: Text(
-                                'Cancel',
+                        SizedBox(height: 8.h),
+                        Center(
+                          child: Obx(() => Text(
+                                ratingController.value == 0
+                                    ? 'Tap to rate'
+                                    : '${ratingController.value} ${ratingController.value == 1 ? 'Star' : 'Stars'}',
                                 style: TextStyle(
-                                  fontSize: 15.sp,
-                                  fontWeight: FontWeight.w600,
+                                  fontSize: 12.sp,
+                                  color: AppTheme.mediumGray,
+                                  fontWeight: FontWeight.w500,
                                 ),
-                              ),
+                              )),
+                        ),
+                        SizedBox(height: 16.h),
+                        // Review text
+                        Text(
+                          'Your Review',
+                          style: TextStyle(
+                            fontSize: 13.sp,
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.darkGray,
+                          ),
+                        ),
+                        SizedBox(height: 8.h),
+                        Container(
+                          decoration: BoxDecoration(
+                            color: AppTheme.lightGray,
+                            borderRadius: BorderRadius.circular(8.r),
+                            border: Border.all(
+                              color: AppTheme.mediumGray.withOpacity(0.2),
+                              width: 1,
                             ),
                           ),
-                          SizedBox(width: 12.w),
-                          Expanded(
-                            flex: 2,
-                            child: Obx(() => Container(
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(12.r),
-                                    gradient: LinearGradient(
-                                      begin: Alignment.topLeft,
-                                      end: Alignment.bottomRight,
-                                      colors: [
-                                        AppTheme.primaryBlue,
-                                        AppTheme.primaryBlue.withOpacity(0.8),
-                                      ],
-                                    ),
-                                    boxShadow: controller.isLoading || reviewController.text.trim().isEmpty
-                                        ? null
-                                        : [
-                                            BoxShadow(
-                                              color: AppTheme.primaryBlue.withOpacity(0.4),
-                                              blurRadius: 12,
-                                              offset: const Offset(0, 4),
-                                            ),
-                                          ],
-                                  ),
-                                  child: ElevatedButton(
-                                    onPressed: controller.isLoading || reviewController.text.trim().isEmpty
-                                        ? null
-                                        : () async {
-                                            if (reviewController.text.trim().isEmpty) {
-                                              SnackbarHelper.showError('Please write a review');
-                                              return;
-                                            }
-                                            Get.back();
-                                            await controller.submitReview(
-                                              proposalId: proposal.id,
-                                              professionalId: proposal.professionalId,
-                                              professionalType: proposal.professionalType,
-                                              rating: ratingController.value,
-                                              review: reviewController.text.trim(),
-                                            );
-                                          },
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.transparent,
-                                      shadowColor: Colors.transparent,
-                                      foregroundColor: AppTheme.white,
-                                      padding: EdgeInsets.symmetric(vertical: 14.h),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(12.r),
+                          child: TextField(
+                            controller: reviewController,
+                            maxLines: 4,
+                            style: TextStyle(fontSize: 13.sp),
+                            decoration: InputDecoration(
+                              hintText: 'Write your review here...',
+                              hintStyle: TextStyle(
+                                fontSize: 12.sp,
+                                color: AppTheme.mediumGray.withOpacity(0.6),
+                              ),
+                              border: InputBorder.none,
+                              contentPadding: EdgeInsets.all(12.w),
+                            ),
+                            onChanged: (value) => reviewText.value = value,
+                          ),
+                        ),
+                        SizedBox(height: 16.h),
+                      ],
+                    ),
+                  ),
+                ),
+                // Action buttons
+                Container(
+                  padding: EdgeInsets.all(16.w),
+                  decoration: BoxDecoration(
+                    color: AppTheme.lightGray.withOpacity(0.3),
+                    borderRadius: BorderRadius.only(
+                      bottomLeft: Radius.circular(16.r),
+                      bottomRight: Radius.circular(16.r),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Get.back(),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppTheme.darkGray,
+                            side: BorderSide(
+                              color: AppTheme.mediumGray.withOpacity(0.3),
+                              width: 1,
+                            ),
+                            padding: EdgeInsets.symmetric(vertical: 10.h),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8.r),
+                            ),
+                          ),
+                          child: Text(
+                            'Cancel',
+                            style: TextStyle(
+                              fontSize: 13.sp,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                      SizedBox(width: 12.w),
+                      Expanded(
+                        child: Obx(() => ElevatedButton(
+                              onPressed: controller.isLoading || 
+                                      ratingController.value == 0 || 
+                                      reviewText.value.trim().isEmpty
+                                  ? null
+                                  : () async {
+                                      Get.back();
+                                      await controller.submitReview(
+                                        proposalId: proposal.id,
+                                        professionalId: proposal.professionalId,
+                                        professionalType: proposal.professionalType,
+                                        rating: ratingController.value,
+                                        review: reviewText.value.trim(),
+                                      );
+                                    },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppTheme.primaryBlue,
+                                foregroundColor: AppTheme.white,
+                                padding: EdgeInsets.symmetric(vertical: 10.h),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8.r),
+                                ),
+                                elevation: 0,
+                              ),
+                              child: controller.isLoading
+                                  ? SizedBox(
+                                      width: 16.w,
+                                      height: 16.h,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor: AlwaysStoppedAnimation<Color>(AppTheme.white),
+                                      ),
+                                    )
+                                  : Text(
+                                      'Submit',
+                                      style: TextStyle(
+                                        fontSize: 13.sp,
+                                        fontWeight: FontWeight.w600,
                                       ),
                                     ),
-                                    child: controller.isLoading
-                                        ? SizedBox(
-                                            width: 20.w,
-                                            height: 20.h,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2.5,
-                                              valueColor: AlwaysStoppedAnimation<Color>(AppTheme.white),
-                                            ),
-                                          )
-                                        : Row(
-                                            mainAxisAlignment: MainAxisAlignment.center,
-                                            children: [
-                                              Icon(Icons.send_rounded, size: 18.sp),
-                                              SizedBox(width: 8.w),
-                                              Text(
-                                                'Submit Review',
-                                                style: TextStyle(
-                                                  fontSize: 15.sp,
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                  ),
-                                )),
-                          ),
-                        ],
+                            )),
                       ),
                     ],
                   ),
@@ -1365,16 +1366,17 @@ class ProposalsView extends GetView<ProposalController> {
               ],
             ),
           ),
-        ).animate().scale(delay: 100.ms, duration: 300.ms, curve: Curves.easeOutBack).fadeIn(duration: 300.ms),
+        ),
       ),
       barrierDismissible: true,
-      barrierColor: Colors.black.withOpacity(0.6),
+      barrierColor: Colors.black.withOpacity(0.5),
     );
   }
 
   void _showReportDialog(BuildContext context, ProposalModel proposal) {
     final descriptionController = TextEditingController();
     final selectedReason = Rxn<String>();
+    final descriptionText = ''.obs;
 
     final reasons = [
       {'label': 'Service failure', 'icon': Icons.build_circle_outlined},
@@ -1385,319 +1387,277 @@ class ProposalsView extends GetView<ProposalController> {
 
     Get.dialog(
       Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24.r)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.r)),
         backgroundColor: Colors.transparent,
         elevation: 0,
         child: Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.85,
+            maxWidth: 400,
+          ),
           decoration: BoxDecoration(
             color: AppTheme.white,
-            borderRadius: BorderRadius.circular(24.r),
+            borderRadius: BorderRadius.circular(16.r),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.15),
-                blurRadius: 20,
-                offset: const Offset(0, 10),
-                spreadRadius: 0,
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
               ),
             ],
           ),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(24.r),
+            borderRadius: BorderRadius.circular(16.r),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Header with gradient
+                // Compact Header
                 Container(
                   width: double.infinity,
-                  padding: EdgeInsets.all(24.w),
+                  padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 16.h),
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        Colors.red.shade600,
-                        Colors.red.shade700,
-                      ],
+                    color: Colors.red.shade50,
+                    border: Border(
+                      bottom: BorderSide(
+                        color: Colors.red.shade100,
+                        width: 1,
+                      ),
                     ),
                   ),
-                  child: Column(
+                  child: Row(
                     children: [
-                      Container(
-                        padding: EdgeInsets.all(16.w),
-                        decoration: BoxDecoration(
-                          color: AppTheme.white.withOpacity(0.2),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          Icons.flag_rounded,
-                          color: AppTheme.white,
-                          size: 32.sp,
+                      Icon(
+                        Icons.flag_outlined,
+                        color: Colors.red.shade600,
+                        size: 20.sp,
+                      ),
+                      SizedBox(width: 12.w),
+                      Expanded(
+                        child: Text(
+                          'Report an Issue',
+                          style: TextStyle(
+                            fontSize: 16.sp,
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.darkGray,
+                          ),
                         ),
                       ),
-                      SizedBox(height: 16.h),
-                      Text(
-                        'Report an Issue',
-                        style: TextStyle(
-                          fontSize: 22.sp,
-                          fontWeight: FontWeight.w700,
-                          color: AppTheme.white,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      SizedBox(height: 8.h),
-                      Text(
-                        'Help us understand the problem with this service',
-                        style: TextStyle(
-                          fontSize: 14.sp,
-                          color: AppTheme.white.withOpacity(0.9),
-                        ),
-                        textAlign: TextAlign.center,
+                      IconButton(
+                        icon: Icon(Icons.close, size: 20.sp, color: AppTheme.mediumGray),
+                        onPressed: () => Navigator.pop(context),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
                       ),
                     ],
                   ),
                 ),
-                // Content
-                Padding(
-                  padding: EdgeInsets.all(24.w),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Reason selection
-                      Text(
-                        'Select a reason',
-                        style: TextStyle(
-                          fontSize: 16.sp,
-                          fontWeight: FontWeight.w600,
-                          color: AppTheme.darkGray,
+                // Scrollable Content
+                Flexible(
+                  child: SingleChildScrollView(
+                    padding: EdgeInsets.all(20.w),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Reason selection
+                        Text(
+                          'Select a reason',
+                          style: TextStyle(
+                            fontSize: 14.sp,
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.darkGray,
+                          ),
                         ),
-                      ),
-                      SizedBox(height: 12.h),
-                      Obx(() => Column(
-                            children: reasons.map((reasonData) {
-                              final reason = reasonData['label'] as String;
-                              final icon = reasonData['icon'] as IconData;
-                              final isSelected = selectedReason.value == reason;
-                              return GestureDetector(
-                                onTap: () => selectedReason.value = reason,
-                                child: AnimatedContainer(
-                                  duration: const Duration(milliseconds: 200),
-                                  margin: EdgeInsets.only(bottom: 8.h),
-                                  padding: EdgeInsets.all(16.w),
-                                  decoration: BoxDecoration(
-                                    color: isSelected
-                                        ? Colors.red.shade50
-                                        : AppTheme.lightGray,
-                                    borderRadius: BorderRadius.circular(12.r),
-                                    border: Border.all(
+                        SizedBox(height: 10.h),
+                        Obx(() => Column(
+                              children: reasons.map((reasonData) {
+                                final reason = reasonData['label'] as String;
+                                final icon = reasonData['icon'] as IconData;
+                                final isSelected = selectedReason.value == reason;
+                                return GestureDetector(
+                                  onTap: () => selectedReason.value = reason,
+                                  child: AnimatedContainer(
+                                    duration: const Duration(milliseconds: 200),
+                                    margin: EdgeInsets.only(bottom: 8.h),
+                                    padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 10.h),
+                                    decoration: BoxDecoration(
                                       color: isSelected
-                                          ? Colors.red.shade600
-                                          : AppTheme.mediumGray.withOpacity(0.2),
-                                      width: isSelected ? 2 : 1,
+                                          ? Colors.red.shade50
+                                          : AppTheme.lightGray,
+                                      borderRadius: BorderRadius.circular(10.r),
+                                      border: Border.all(
+                                        color: isSelected
+                                            ? Colors.red.shade600
+                                            : AppTheme.mediumGray.withOpacity(0.2),
+                                        width: isSelected ? 1.5 : 1,
+                                      ),
                                     ),
-                                    boxShadow: isSelected
-                                        ? [
-                                            BoxShadow(
-                                              color: Colors.red.withOpacity(0.2),
-                                              blurRadius: 8,
-                                              offset: const Offset(0, 2),
-                                            ),
-                                          ]
-                                        : null,
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Container(
-                                        padding: EdgeInsets.all(8.w),
-                                        decoration: BoxDecoration(
-                                          color: isSelected
-                                              ? Colors.red.shade600
-                                              : AppTheme.mediumGray.withOpacity(0.2),
-                                          borderRadius: BorderRadius.circular(8.r),
-                                        ),
-                                        child: Icon(
+                                    child: Row(
+                                      children: [
+                                        Icon(
                                           icon,
                                           color: isSelected
-                                              ? AppTheme.white
-                                              : AppTheme.darkGray,
-                                          size: 20.sp,
+                                              ? Colors.red.shade600
+                                              : AppTheme.mediumGray,
+                                          size: 18.sp,
                                         ),
-                                      ),
-                                      SizedBox(width: 12.w),
-                                      Expanded(
-                                        child: Text(
-                                          reason,
-                                          style: TextStyle(
-                                            fontSize: 15.sp,
-                                            fontWeight: isSelected
-                                                ? FontWeight.w600
-                                                : FontWeight.w500,
-                                            color: isSelected
-                                                ? Colors.red.shade700
-                                                : AppTheme.darkGray,
+                                        SizedBox(width: 10.w),
+                                        Expanded(
+                                          child: Text(
+                                            reason,
+                                            style: TextStyle(
+                                              fontSize: 13.sp,
+                                              fontWeight: isSelected
+                                                  ? FontWeight.w600
+                                                  : FontWeight.w500,
+                                              color: isSelected
+                                                  ? Colors.red.shade700
+                                                  : AppTheme.darkGray,
+                                            ),
                                           ),
                                         ),
-                                      ),
-                                      if (isSelected)
-                                        Icon(
-                                          Icons.check_circle_rounded,
-                                          color: Colors.red.shade600,
-                                          size: 22.sp,
-                                        ),
-                                    ],
-                                  ),
-                                ),
-                              );
-                            }).toList(),
-                          )),
-                      SizedBox(height: 24.h),
-                      // Description
-                      Text(
-                        'Describe the issue',
-                        style: TextStyle(
-                          fontSize: 16.sp,
-                          fontWeight: FontWeight.w600,
-                          color: AppTheme.darkGray,
-                        ),
-                      ),
-                      SizedBox(height: 12.h),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: AppTheme.lightGray,
-                          borderRadius: BorderRadius.circular(16.r),
-                          border: Border.all(
-                            color: AppTheme.mediumGray.withOpacity(0.2),
-                            width: 1,
-                          ),
-                        ),
-                        child: TextField(
-                          controller: descriptionController,
-                          maxLines: 5,
-                          style: TextStyle(fontSize: 15.sp),
-                          decoration: InputDecoration(
-                            hintText: 'Provide detailed information about the issue...\n\nWhat happened? When did it occur? How did it affect you?',
-                            hintStyle: TextStyle(
-                              fontSize: 14.sp,
-                              color: AppTheme.mediumGray.withOpacity(0.7),
-                            ),
-                            border: InputBorder.none,
-                            contentPadding: EdgeInsets.all(16.w),
-                          ),
-                        ),
-                      ),
-                      SizedBox(height: 24.h),
-                      // Action buttons
-                      Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: () => Get.back(),
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: AppTheme.darkGray,
-                                side: BorderSide(
-                                  color: AppTheme.mediumGray.withOpacity(0.3),
-                                  width: 1.5,
-                                ),
-                                padding: EdgeInsets.symmetric(vertical: 14.h),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12.r),
-                                ),
-                              ),
-                              child: Text(
-                                'Cancel',
-                                style: TextStyle(
-                                  fontSize: 15.sp,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          ),
-                          SizedBox(width: 12.w),
-                          Expanded(
-                            flex: 2,
-                            child: Obx(() => Container(
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(12.r),
-                                    gradient: LinearGradient(
-                                      begin: Alignment.topLeft,
-                                      end: Alignment.bottomRight,
-                                      colors: [
-                                        Colors.red.shade600,
-                                        Colors.red.shade700,
+                                        if (isSelected)
+                                          Icon(
+                                            Icons.check_circle,
+                                            color: Colors.red.shade600,
+                                            size: 18.sp,
+                                          ),
                                       ],
                                     ),
-                                    boxShadow: controller.isLoading ||
-                                            selectedReason.value == null ||
-                                            descriptionController.text.trim().isEmpty
-                                        ? null
-                                        : [
-                                            BoxShadow(
-                                              color: Colors.red.withOpacity(0.4),
-                                              blurRadius: 12,
-                                              offset: const Offset(0, 4),
-                                            ),
-                                          ],
                                   ),
-                                  child: ElevatedButton(
-                                    onPressed: controller.isLoading ||
-                                            selectedReason.value == null ||
-                                            descriptionController.text.trim().isEmpty
-                                        ? null
-                                        : () async {
-                                            Get.back();
-                                            await controller.submitReport(
-                                              proposalId: proposal.id,
-                                              reportedUserId: proposal.professionalId,
-                                              reason: selectedReason.value!,
-                                              description: descriptionController.text.trim(),
-                                            );
-                                          },
+                                );
+                              }).toList(),
+                            )),
+                        SizedBox(height: 20.h),
+                        // Description
+                        Text(
+                          'Description',
+                          style: TextStyle(
+                            fontSize: 14.sp,
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.darkGray,
+                          ),
+                        ),
+                        SizedBox(height: 10.h),
+                        Container(
+                          decoration: BoxDecoration(
+                            color: AppTheme.lightGray,
+                            borderRadius: BorderRadius.circular(10.r),
+                            border: Border.all(
+                              color: AppTheme.mediumGray.withOpacity(0.2),
+                              width: 1,
+                            ),
+                          ),
+                          child: TextField(
+                            controller: descriptionController,
+                            maxLines: 4,
+                            style: TextStyle(fontSize: 13.sp),
+                            onChanged: (value) => descriptionText.value = value,
+                            decoration: InputDecoration(
+                              hintText: 'Describe the issue...',
+                              hintStyle: TextStyle(
+                                fontSize: 12.sp,
+                                color: AppTheme.mediumGray,
+                              ),
+                              border: InputBorder.none,
+                              contentPadding: EdgeInsets.all(12.w),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                // Action buttons
+                Container(
+                  padding: EdgeInsets.all(16.w),
+                  decoration: BoxDecoration(
+                    border: Border(
+                      top: BorderSide(
+                        color: AppTheme.lightGray,
+                        width: 1,
+                      ),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.pop(context),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppTheme.darkGray,
+                            side: BorderSide(
+                              color: AppTheme.mediumGray.withOpacity(0.3),
+                              width: 1,
+                            ),
+                            padding: EdgeInsets.symmetric(vertical: 12.h),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10.r),
+                            ),
+                          ),
+                          child: Text(
+                            'Cancel',
+                            style: TextStyle(
+                              fontSize: 14.sp,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                      SizedBox(width: 12.w),
+                      Expanded(
+                        child: Obx(() => ElevatedButton(
+                              onPressed: controller.isLoading ||
+                                      selectedReason.value == null ||
+                                      descriptionText.value.trim().isEmpty
+                                  ? null
+                                  : () async {
+                                      Navigator.pop(context);
+                                      await controller.submitReport(
+                                        proposalId: proposal.id,
+                                        reportedUserId: proposal.professionalId,
+                                        reason: selectedReason.value!,
+                                        description: descriptionText.value.trim(),
+                                      );
+                                    },
                                     style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.transparent,
-                                      shadowColor: Colors.transparent,
+                                      backgroundColor: Colors.red.shade600,
                                       foregroundColor: AppTheme.white,
-                                      padding: EdgeInsets.symmetric(vertical: 14.h),
+                                      padding: EdgeInsets.symmetric(vertical: 12.h),
                                       shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(12.r),
+                                        borderRadius: BorderRadius.circular(10.r),
                                       ),
+                                      elevation: 0,
                                     ),
                                     child: controller.isLoading
                                         ? SizedBox(
-                                            width: 20.w,
-                                            height: 20.h,
+                                            width: 18.w,
+                                            height: 18.h,
                                             child: CircularProgressIndicator(
-                                              strokeWidth: 2.5,
+                                              strokeWidth: 2,
                                               valueColor: AlwaysStoppedAnimation<Color>(AppTheme.white),
                                             ),
                                           )
-                                        : Row(
-                                            mainAxisAlignment: MainAxisAlignment.center,
-                                            children: [
-                                              Icon(Icons.send_rounded, size: 18.sp),
-                                              SizedBox(width: 8.w),
-                                              Text(
-                                                'Submit Report',
-                                                style: TextStyle(
-                                                  fontSize: 15.sp,
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                              ),
-                                            ],
+                                        : Text(
+                                            'Submit',
+                                            style: TextStyle(
+                                              fontSize: 14.sp,
+                                              fontWeight: FontWeight.w600,
+                                            ),
                                           ),
                                   ),
-                                )),
-                          ),
-                        ],
-                      ),
+                            )),
+
                     ],
                   ),
                 ),
               ],
             ),
           ),
-        ).animate().scale(delay: 100.ms, duration: 300.ms, curve: Curves.easeOutBack).fadeIn(duration: 300.ms),
+        ),
       ),
       barrierDismissible: true,
-      barrierColor: Colors.black.withOpacity(0.6),
+      barrierColor: Colors.black.withOpacity(0.5),
     );
   }
 

@@ -274,8 +274,6 @@ class FavoritesView extends GetView<FavoritesController> {
           'No favorite agents',
           'Agents you favorite will appear here',
           Icons.person_search,
-          'Find Agents',
-          () => Get.toNamed('/find-agents'),
         );
       }
 
@@ -328,17 +326,6 @@ class FavoritesView extends GetView<FavoritesController> {
           'No favorite loan officers',
           'Loan officers you favorite will appear here',
           Icons.account_balance,
-          'Find Loan Officers',
-          () {
-            // Switch to home tab in main navigation and set buyer tab to loan officers (tab 3)
-            // We're already in main navigation, just switch to home tab
-            if (Get.isRegistered<MainNavigationController>()) {
-              final mainNavController = Get.find<MainNavigationController>();
-              mainNavController.changeIndex(0); // Switch to home tab (BuyerView)
-            }
-            // Set the buyer tab after navigation with multiple retries
-            _setBuyerTabWithRetry(3, retries: 5);
-          },
         );
       }
 
@@ -381,8 +368,6 @@ class FavoritesView extends GetView<FavoritesController> {
     String title,
     String subtitle,
     IconData icon,
-    String buttonText,
-    VoidCallback onButtonPressed,
   ) {
     return Center(
       child: Padding(
@@ -417,23 +402,6 @@ class FavoritesView extends GetView<FavoritesController> {
               ),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 32),
-            ElevatedButton.icon(
-              onPressed: onButtonPressed,
-              icon: const Icon(Icons.search),
-              label: Text(buttonText),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.primaryBlue,
-                foregroundColor: AppTheme.white,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 12,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-            ),
           ],
         ),
       ),
@@ -457,16 +425,6 @@ class FavoritesView extends GetView<FavoritesController> {
           'No favorite listings',
           'Listings you favorite will appear here',
           Icons.home,
-          'Browse Listings',
-          () {
-            // Switch to home tab in main navigation and set buyer tab to listings (tab 1)
-            if (Get.isRegistered<MainNavigationController>()) {
-              final mainNavController = Get.find<MainNavigationController>();
-              mainNavController.changeIndex(0); // Switch to home tab (BuyerView)
-            }
-            // Set the buyer tab after navigation with multiple retries
-            _setBuyerTabWithRetry(1, retries: 5);
-          },
         );
       }
 
@@ -505,13 +463,16 @@ class FavoritesView extends GetView<FavoritesController> {
                                     height: 160,
                                     width: double.infinity,
                                     fit: BoxFit.cover,
+                                    cacheKey: imageUrl,
+                                    memCacheWidth: 400,
+                                    memCacheHeight: 300,
+                                    maxWidthDiskCache: 800,
+                                    maxHeightDiskCache: 600,
+                                    fadeInDuration: Duration.zero,
                                     placeholder: (context, url) => Container(
                                       height: 160,
                                       width: double.infinity,
                                       color: Colors.grey.shade200,
-                                      child: const Center(
-                                        child: CircularProgressIndicator(),
-                                      ),
                                     ),
                                     errorWidget: (context, url, error) {
                                       if (kDebugMode) {
@@ -533,8 +494,6 @@ class FavoritesView extends GetView<FavoritesController> {
                                     httpHeaders: const {
                                       'Accept': 'image/*',
                                     },
-                                    maxWidthDiskCache: 1000,
-                                    maxHeightDiskCache: 1000,
                                   );
                                 },
                               ),
@@ -664,16 +623,6 @@ class FavoritesView extends GetView<FavoritesController> {
           'No favorite open houses',
           'Open houses you favorite will appear here',
           Icons.event,
-          'Browse Open Houses',
-          () {
-            // Switch to home tab in main navigation and set buyer tab to open houses (tab 2)
-            if (Get.isRegistered<MainNavigationController>()) {
-              final mainNavController = Get.find<MainNavigationController>();
-              mainNavController.changeIndex(0); // Switch to home tab (BuyerView)
-            }
-            // Set the buyer tab after navigation with multiple retries
-            _setBuyerTabWithRetry(2, retries: 5);
-          },
         );
       }
 
@@ -727,13 +676,16 @@ class FavoritesView extends GetView<FavoritesController> {
                                           height: 180,
                                           width: double.infinity,
                                           fit: BoxFit.cover,
+                                          cacheKey: imageUrl,
+                                          memCacheWidth: 450,
+                                          memCacheHeight: 350,
+                                          maxWidthDiskCache: 900,
+                                          maxHeightDiskCache: 700,
+                                          fadeInDuration: Duration.zero,
                                           placeholder: (context, url) => Container(
                                             height: 180,
                                             width: double.infinity,
                                             color: Colors.grey.shade200,
-                                            child: const Center(
-                                              child: CircularProgressIndicator(),
-                                            ),
                                           ),
                                           errorWidget: (context, url, error) {
                                             if (kDebugMode) {
@@ -754,8 +706,6 @@ class FavoritesView extends GetView<FavoritesController> {
                                           httpHeaders: const {
                                             'Accept': 'image/*',
                                           },
-                                          maxWidthDiskCache: 1000,
-                                          maxHeightDiskCache: 1000,
                                         )
                                       : Container(
                                           height: 180,

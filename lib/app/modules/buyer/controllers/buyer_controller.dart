@@ -550,8 +550,33 @@ class BuyerController extends GetxController {
           }
         }
         
+        // Deduplicate open houses by listingId and startTime
+        final Map<String, OpenHouseModel> uniqueOpenHouses = {};
+        int duplicateCount = 0;
+        for (final openHouse in extractedOpenHouses) {
+          // Create a unique key based on listingId and startTime
+          final key = '${openHouse.listingId}_${openHouse.startTime.millisecondsSinceEpoch}';
+          if (!uniqueOpenHouses.containsKey(key)) {
+            uniqueOpenHouses[key] = openHouse;
+          } else {
+            duplicateCount++;
+            if (kDebugMode) {
+              print('⚠️ Duplicate open house detected and removed:');
+              print('   Listing ID: ${openHouse.listingId}');
+              print('   Start Time: ${openHouse.startTime}');
+              print('   Open House ID: ${openHouse.id}');
+            }
+          }
+        }
+        
+        if (kDebugMode && duplicateCount > 0) {
+          print('🔍 Deduplication: Removed $duplicateCount duplicate open house(s)');
+          print('   Before: ${extractedOpenHouses.length} open houses');
+          print('   After: ${uniqueOpenHouses.length} unique open houses');
+        }
+        
         _allListings.value = fetchedListings;
-        _allOpenHouses.value = extractedOpenHouses;
+        _allOpenHouses.value = uniqueOpenHouses.values.toList();
         
         // Refresh favorite listings to ensure UI updates
         _favoriteListings.refresh();
