@@ -435,44 +435,26 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
               ),
             ),
             const SizedBox(height: 16),
-            Row(
+            Column(
               children: [
-                Expanded(
-                  child: CustomButton(
-                    text: 'ZIP Codes',
-                    onPressed: () => controller.setSelectedTab(2),
-                    icon: Icons.location_on,
-                  ),
+                CustomButton(
+                  text: 'ZIP Codes',
+                  onPressed: () => controller.setSelectedTab(2),
+                  icon: Icons.location_on,
+                  width: double.infinity,
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: CustomButton(
-                    text: 'Edit Profile',
-                    onPressed: () {
-                      Get.to(
-                        () => const LoanOfficerEditProfileView(),
-                        binding: LoanOfficerEditProfileBinding(),
-                      );
-                    },
-                    icon: Icons.edit,
-                    isOutlined: true,
-                  ),
-                ),
-                
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: CustomButton(
-                    text: 'Buyer Connections',
-                    onPressed: () {
-                      Get.toNamed('/loan-officer-buyer-connections');
-                    },
-                    icon: Icons.people,
-                    isOutlined: true,
-                  ),
+                const SizedBox(height: 12),
+                CustomButton(
+                  text: 'Edit Profile',
+                  onPressed: () {
+                    Get.to(
+                      () => const LoanOfficerEditProfileView(),
+                      binding: LoanOfficerEditProfileBinding(),
+                    );
+                  },
+                  icon: Icons.edit,
+                  isOutlined: true,
+                  width: double.infinity,
                 ),
               ],
             ),
