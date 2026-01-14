@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:video_thumbnail/video_thumbnail.dart';
+// import 'package:video_thumbnail/video_thumbnail.dart'; // Removed - package not available
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter/foundation.dart';
@@ -312,29 +312,11 @@ class AgentEditProfileController extends GetxController {
         print('🎬 Generating video thumbnail...');
       }
       
-      // Try to generate thumbnail using video_thumbnail package
-      try {
-        final thumbnailPath = await VideoThumbnail.thumbnailFile(
-          video: videoFile.path,
-          thumbnailPath: (await getTemporaryDirectory()).path,
-          imageFormat: ImageFormat.JPEG,
-          maxWidth: 400,
-          quality: 85,
-        );
-
-        if (thumbnailPath != null) {
-          _videoThumbnail.value = File(thumbnailPath);
-          if (kDebugMode) {
-            print('✅ Video thumbnail generated: $thumbnailPath');
-          }
-          return;
-        }
-      } catch (pluginError) {
-        // If plugin is not available, continue without thumbnail
-        if (kDebugMode) {
-          print('⚠️ Video thumbnail plugin not available: $pluginError');
-          print('   Continuing without thumbnail - video will still be uploaded');
-        }
+      // Video thumbnail generation disabled - package not available
+      // TODO: Re-enable when video_thumbnail package is added to pubspec.yaml
+      if (kDebugMode) {
+        print('⚠️ Video thumbnail generation disabled - package not available');
+        print('   Continuing without thumbnail - video will still be uploaded');
       }
       
       // If thumbnail generation fails, set to null (UI will show fallback)

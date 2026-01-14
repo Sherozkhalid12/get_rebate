@@ -277,5 +277,166 @@ class LeadsService {
       );
     }
   }
+
+  /// Responds to a lead (accept/reject) with optional note
+  /// 
+  /// Throws [LeadsServiceException] if the request fails
+  Future<void> respondToLead(
+    String leadId,
+    String agentId, {
+    required String action, // 'accepted' or 'rejected'
+    String? note,
+  }) async {
+    if (leadId.isEmpty || agentId.isEmpty) {
+      throw LeadsServiceException(
+        message: 'Lead ID and Agent ID cannot be empty',
+        statusCode: 400,
+      );
+    }
+
+    try {
+      final endpoint = '/api/v1/agent/respondToLead';
+      
+      if (kDebugMode) {
+        print('📡 Responding to lead: $leadId');
+        print('   Agent ID: $agentId');
+        print('   Action: $action');
+        print('   Note: ${note ?? "Not provided"}');
+      }
+
+      final response = await _dio.post(
+        endpoint,
+        data: {
+          'leadId': leadId,
+          'agentId': agentId,
+          'action': action,
+          if (note != null && note.isNotEmpty) 'note': note,
+        },
+        options: Options(
+          headers: {
+            ...ApiConstants.ngrokHeaders,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+        ),
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        if (kDebugMode) {
+          print('✅ Successfully responded to lead');
+        }
+      } else {
+        throw LeadsServiceException(
+          message: 'Failed to respond to lead: ${response.statusCode}',
+          statusCode: response.statusCode,
+        );
+      }
+    } on DioException catch (e) {
+      if (e.response != null) {
+        final statusCode = e.response!.statusCode;
+        final errorMessage = e.response!.data?['message']?.toString() ?? 
+                            e.response!.data?['error']?.toString() ?? 
+                            'Failed to respond to lead';
+        
+        throw LeadsServiceException(
+          message: errorMessage,
+          statusCode: statusCode,
+          originalError: e,
+        );
+      } else {
+        throw LeadsServiceException(
+          message: 'Network error: ${e.message ?? "Unknown error"}',
+          originalError: e,
+        );
+      }
+    } catch (e) {
+      if (e is LeadsServiceException) {
+        rethrow;
+      }
+      throw LeadsServiceException(
+        message: 'Unexpected error: ${e.toString()}',
+        originalError: e,
+      );
+    }
+  }
+
+  /// Marks a lead as complete
+  /// 
+  /// Throws [LeadsServiceException] if the request fails
+  Future<void> markLeadComplete(
+    String leadId,
+    String userId,
+    String role,
+  ) async {
+    if (leadId.isEmpty || userId.isEmpty) {
+      throw LeadsServiceException(
+        message: 'Lead ID and User ID cannot be empty',
+        statusCode: 400,
+      );
+    }
+
+    try {
+      final endpoint = '/api/v1/agent/markLeadComplete';
+      
+      if (kDebugMode) {
+        print('📡 Marking lead as complete: $leadId');
+        print('   User ID: $userId');
+        print('   Role: $role');
+      }
+
+      final response = await _dio.post(
+        endpoint,
+        data: {
+          'leadId': leadId,
+          'userId': userId,
+          'role': role,
+        },
+        options: Options(
+          headers: {
+            ...ApiConstants.ngrokHeaders,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+        ),
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        if (kDebugMode) {
+          print('✅ Successfully marked lead as complete');
+        }
+      } else {
+        throw LeadsServiceException(
+          message: 'Failed to mark lead as complete: ${response.statusCode}',
+          statusCode: response.statusCode,
+        );
+      }
+    } on DioException catch (e) {
+      if (e.response != null) {
+        final statusCode = e.response!.statusCode;
+        final errorMessage = e.response!.data?['message']?.toString() ?? 
+                            e.response!.data?['error']?.toString() ?? 
+                            'Failed to mark lead as complete';
+        
+        throw LeadsServiceException(
+          message: errorMessage,
+          statusCode: statusCode,
+          originalError: e,
+        );
+      } else {
+        throw LeadsServiceException(
+          message: 'Network error: ${e.message ?? "Unknown error"}',
+          originalError: e,
+        );
+      }
+    } catch (e) {
+      if (e is LeadsServiceException) {
+        rethrow;
+      }
+      throw LeadsServiceException(
+        message: 'Unexpected error: ${e.toString()}',
+        originalError: e,
+      );
+    }
+  }
 }
 

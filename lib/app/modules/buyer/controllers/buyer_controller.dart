@@ -193,15 +193,16 @@ class BuyerController extends GetxController {
         print('📡 Fetching agents from API (page ${currentPage.value})...');
       }
       
-      final response = await _agentService.getAllAgentsPaginated(page: currentPage.value);
+      // Use getAllAgents() since getAllAgentsPaginated doesn't exist
+      final agentsList = await _agentService.getAllAgents();
       
-      // Store pagination metadata
-      currentPage.value = response.page;
-      totalPages.value = response.totalPages;
-      totalAgents.value = response.totalAgents;
+      // Store pagination metadata (simulate pagination - all agents on one page)
+      currentPage.value = 1;
+      totalPages.value = 1;
+      totalAgents.value = agentsList.length;
       
       // Profile images are already normalized in AgentModel.fromJson, but use helper for consistency
-      final agentsWithUrls = response.agents.map((agent) {
+      final agentsWithUrls = agentsList.map((agent) {
         // Use helper to ensure normalization (models already do this, but ensure consistency)
         final profileImage = ApiConstants.getImageUrl(agent.profileImage);
         final companyLogo = ApiConstants.getImageUrl(agent.companyLogoUrl);
@@ -262,50 +263,11 @@ class BuyerController extends GetxController {
         print('📡 Loading more agents (page $nextPage)...');
       }
 
-      // Fetch next page
-      final response = await _agentService.getAllAgentsPaginated(page: nextPage);
-
-      // Update pagination metadata
-      currentPage.value = response.page;
-      totalPages.value = response.totalPages;
-      totalAgents.value = response.totalAgents;
-
-      // Profile images are already normalized in AgentModel.fromJson, but use helper for consistency
-      final agentsWithUrls = response.agents.map((agent) {
-        // Use helper to ensure normalization (models already do this, but ensure consistency)
-        final profileImage = ApiConstants.getImageUrl(agent.profileImage);
-        final companyLogo = ApiConstants.getImageUrl(agent.companyLogoUrl);
-        
-        return agent.copyWith(
-          profileImage: profileImage,
-          companyLogoUrl: companyLogo,
-        );
-      }).toList();
-
-      // Add new agents to the existing list
-      final updatedAgents = List<AgentModel>.from(_allAgents.value);
-      updatedAgents.addAll(agentsWithUrls);
-      _allAgents.value = updatedAgents;
-      
-      // Apply ZIP code filter to updated list
-      _applyZipCodeFilter();
-      
-      // Initialize favorites for new agents
-      final currentUser = _authController.currentUser;
-      if (currentUser != null && currentUser.id.isNotEmpty) {
-        for (final agent in agentsWithUrls) {
-          if (agent.likes != null && agent.likes!.contains(currentUser.id)) {
-            if (!_favoriteAgents.contains(agent.id)) {
-              _favoriteAgents.add(agent.id);
-            }
-          }
-        }
-      }
-
+      // getAllAgentsPaginated doesn't exist - all agents are already loaded
+      // Just return since we can't load more pages
       if (kDebugMode) {
-        print('✅ Successfully loaded ${agentsWithUrls.length} more agents');
-        print('   Page: ${currentPage.value}/${totalPages.value}');
-        print('   Total agents loaded: ${_allAgents.length}');
+        print('⚠️ Pagination not available - all agents already loaded');
+        print('   Total agents already loaded: ${_allAgents.length}');
       }
     } catch (e) {
       if (kDebugMode) {

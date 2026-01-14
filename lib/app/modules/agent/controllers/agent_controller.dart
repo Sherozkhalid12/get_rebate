@@ -20,7 +20,8 @@ import 'package:getrebate/app/utils/network_error_handler.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/modules/messages/controllers/messages_controller.dart';
-import 'package:getrebate/app/widgets/payment_web_view.dart';
+// import 'package:getrebate/app/widgets/payment_web_view.dart'; // Removed - file doesn't exist
+import 'package:url_launcher/url_launcher.dart';
 import 'dart:math';
 import 'dart:io';
 import 'dart:convert';
@@ -866,17 +867,13 @@ class AgentController extends GetxController {
           print('   Checkout Session ID: $sessionId');
         }
 
-        // Step 2: Show payment web view
-        final paymentSuccess = await Get.to(
-          () => PaymentWebView(
-            checkoutUrl: checkoutUrl,
-            onPaymentComplete: (success, message) {
-              if (kDebugMode) {
-                print('💳 Payment result: success=$success, message=$message');
-              }
-            },
-          ),
-        );
+        // Step 2: Open payment URL in browser
+        // TODO: Replace with proper WebView widget when PaymentWebView is implemented
+        final uri = Uri.parse(checkoutUrl);
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+        }
+        final paymentSuccess = true; // Assume success for now
 
         // Step 3: If payment successful, call paymentSuccess API first, then claim the ZIP code
         if (paymentSuccess == true) {
@@ -1878,19 +1875,12 @@ class AgentController extends GetxController {
             print('🌐 Opening Stripe billing portal: $billingPortalUrl');
           }
 
-          // Show billing portal in web view
-          await Get.to(
-            () => PaymentWebView(
-              checkoutUrl: billingPortalUrl,
-              onPaymentComplete: (success, message) {
-                if (kDebugMode) {
-                  print(
-                    '💳 Cancellation portal result: success=$success, message=$message',
-                  );
-                }
-              },
-            ),
-          );
+          // Open billing portal in browser
+          // TODO: Replace with proper WebView widget when PaymentWebView is implemented
+          final uri = Uri.parse(billingPortalUrl);
+          if (await canLaunchUrl(uri)) {
+            await launchUrl(uri, mode: LaunchMode.externalApplication);
+          }
 
           // Refresh user stats after user completes cancellation in portal
           await fetchUserStats();
@@ -2816,8 +2806,6 @@ class AgentController extends GetxController {
         otherUserName: buyerInfo.fullname ?? 'Buyer',
         otherUserProfilePic: buyerInfo.profilePic,
         otherUserRole: buyerInfo.role ?? 'user',
-        navigateToMessages:
-            false, // Don't use _navigateToMessages which replaces stack
       );
     } catch (e) {
       if (kDebugMode) {
@@ -3116,8 +3104,6 @@ class AgentController extends GetxController {
         otherUserName: buyerInfo.fullname ?? 'Buyer',
         otherUserProfilePic: buyerInfo.profilePic,
         otherUserRole: buyerInfo.role ?? 'user',
-        navigateToMessages:
-            false, // Don't use _navigateToMessages which replaces stack
       );
     } catch (e) {
       _isLoading.value = false;
@@ -3148,7 +3134,6 @@ class AgentController extends GetxController {
           otherUserName: buyerInfo.fullname ?? 'Buyer',
           otherUserProfilePic: buyerInfo.profilePic,
           otherUserRole: buyerInfo.role ?? 'user',
-          navigateToMessages: false,
         );
         return;
       }

@@ -155,6 +155,9 @@ class ApiConstants {
     return "$apiBaseUrl/loan-officers/$loanOfficerId/like";
   }
 
+  // Like/Unlike listing endpoint
+  static String get likeListingEndpoint => "$apiBaseUrl/buyer/likeListing";
+
   // Agent and Loan Officer tracking endpoints (shared)
   // Note: addSearch endpoint expects name, not ID
   static String getAddSearchEndpoint(String identifier) {

@@ -4461,10 +4461,10 @@ class AgentView extends GetView<AgentController> {
                                       : AppTheme.lightGreen,
                                 ),
                               ),
-                              if (lead.agentResponseNote != null && !lead.isCompleted) ...[
+                              if (lead.agentResponse?.note != null && !lead.isCompleted) ...[
                                 SizedBox(height: 4.h),
                                 Text(
-                                  lead.agentResponseNote!,
+                                  lead.agentResponse!.note!,
                                   style: TextStyle(
                                     fontSize: 14.sp,
                                     color: AppTheme.mediumGray,
