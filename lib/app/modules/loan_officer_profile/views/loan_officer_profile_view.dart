@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -167,10 +168,19 @@ class LoanOfficerProfileView extends GetView<LoanOfficerProfileController> {
                       padding: const EdgeInsets.all(8),
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(8),
-                        child: Image.network(
-                          loanOfficer.companyLogoUrl!,
+                        child: CachedNetworkImage(
+                          imageUrl: loanOfficer.companyLogoUrl!,
                           fit: BoxFit.contain,
-                          errorBuilder: (_, __, ___) => const Icon(
+                          cacheKey: loanOfficer.companyLogoUrl,
+                          memCacheWidth: 200,
+                          memCacheHeight: 200,
+                          maxWidthDiskCache: 400,
+                          maxHeightDiskCache: 400,
+                          fadeInDuration: Duration.zero,
+                          placeholder: (context, url) => Container(
+                            color: AppTheme.white,
+                          ),
+                          errorWidget: (context, url, error) => const Icon(
                             Icons.account_balance,
                             color: AppTheme.lightGreen,
                           ),
@@ -290,15 +300,6 @@ class LoanOfficerProfileView extends GetView<LoanOfficerProfileController> {
             const SizedBox(height: 20),
 
             // Action Buttons
-            // Primary Action: Create Proposal
-            CustomButton(
-              text: 'Create Proposal',
-              onPressed: () => controller.createProposal(context),
-              icon: Icons.description_outlined,
-              width: double.infinity,
-              backgroundColor: AppTheme.lightGreen,
-            ),
-            const SizedBox(height: 12),
             if (loanOfficer.mortgageApplicationUrl != null && 
                 loanOfficer.mortgageApplicationUrl!.isNotEmpty) ...[
               CustomButton(

@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -1303,12 +1304,23 @@ class AgentView extends GetView<AgentController> {
                       topLeft: Radius.circular(20),
                       topRight: Radius.circular(20),
                     ),
-                    child: Image.network(
-                      listing.photoUrls.first,
+                    child: CachedNetworkImage(
+                      imageUrl: listing.photoUrls.first,
                       width: double.infinity,
                       height: 120,
                       fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
+                      cacheKey: listing.photoUrls.first,
+                      memCacheWidth: 400,
+                      memCacheHeight: 240,
+                      maxWidthDiskCache: 800,
+                      maxHeightDiskCache: 480,
+                      fadeInDuration: Duration.zero,
+                      placeholder: (context, url) => Container(
+                        width: double.infinity,
+                        height: 120,
+                        color: AppTheme.lightGray,
+                      ),
+                      errorWidget: (context, url, error) {
                         return Container(
                           color: AppTheme.lightGray,
                           child: Center(
@@ -1317,18 +1329,6 @@ class AgentView extends GetView<AgentController> {
                               size: 40,
                               color: AppTheme.mediumGray,
                             ),
-                          ),
-                        );
-                      },
-                      loadingBuilder: (context, child, loadingProgress) {
-                        if (loadingProgress == null) return child;
-                        return Container(
-                          color: AppTheme.lightGray,
-                          child: Center(
-                            child: SpinKitFadingCircle(
-                            color: AppTheme.primaryBlue,
-                            size: 24,
-                          ),
                           ),
                         );
                       },

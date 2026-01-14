@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -827,19 +828,47 @@ class MessagesView extends GetView<MessagesController> {
         !normalizedUrl.contains('file://') &&
         Uri.tryParse(normalizedUrl) != null; // Additional URI validation
 
-    // CircleAvatar assertion: if backgroundImage is null, onBackgroundImageError must also be null
+    // Use CachedNetworkImage to prevent reloading on navigation
     if (isValidUrl) {
+      final size = radius * 2;
       return CircleAvatar(
         radius: radius,
         backgroundColor: _getSenderColor(senderType).withOpacity(0.1),
-        backgroundImage: NetworkImage(
-          normalizedUrl!,
-          headers: {'ngrok-skip-browser-warning': 'true'},
+        child: ClipOval(
+          child: CachedNetworkImage(
+            imageUrl: normalizedUrl!,
+            width: size,
+            height: size,
+            fit: BoxFit.cover,
+            cacheKey: normalizedUrl,
+            memCacheWidth: (size * 3).toInt(), // Higher quality for clarity
+            memCacheHeight: (size * 3).toInt(),
+            maxWidthDiskCache: (size * 4).toInt(),
+            maxHeightDiskCache: (size * 4).toInt(),
+            fadeInDuration: Duration.zero,
+            httpHeaders: const {'ngrok-skip-browser-warning': 'true'},
+            placeholder: (context, url) => Container(
+              width: size,
+              height: size,
+              color: _getSenderColor(senderType).withOpacity(0.1),
+              child: Icon(
+                _getSenderIcon(senderType),
+                color: _getSenderColor(senderType),
+                size: radius,
+              ),
+            ),
+            errorWidget: (context, url, error) => Container(
+              width: size,
+              height: size,
+              color: _getSenderColor(senderType).withOpacity(0.1),
+              child: Icon(
+                _getSenderIcon(senderType),
+                color: _getSenderColor(senderType),
+                size: radius,
+              ),
+            ),
+          ),
         ),
-        onBackgroundImageError: (exception, stackTrace) {
-          // Silently handle image load errors - will show icon instead
-        },
-        child: null,
       );
     } else {
       return CircleAvatar(

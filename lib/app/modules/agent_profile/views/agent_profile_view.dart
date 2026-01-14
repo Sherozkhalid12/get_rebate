@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -9,6 +10,9 @@ import 'package:getrebate/app/widgets/custom_button.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
+import 'package:video_player/video_player.dart';
+import 'package:webview_flutter/webview_flutter.dart';
+import 'package:flutter/foundation.dart';
 
 class AgentProfileView extends GetView<AgentProfileController> {
   const AgentProfileView({super.key});
@@ -41,6 +45,8 @@ class AgentProfileView extends GetView<AgentProfileController> {
       ),
       body: SafeArea(
         child: Obx(() {
+          // Show profile immediately if agent data is available
+          // Don't wait for properties to load
           if (controller.agent == null) {
             return Center(
               child: SpinKitFadingCircle(
@@ -169,10 +175,19 @@ class AgentProfileView extends GetView<AgentProfileController> {
                       padding: const EdgeInsets.all(8),
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(8),
-                        child: Image.network(
-                          agent.companyLogoUrl!,
+                        child: CachedNetworkImage(
+                          imageUrl: agent.companyLogoUrl!,
                           fit: BoxFit.contain,
-                          errorBuilder: (_, __, ___) => const Icon(
+                          cacheKey: agent.companyLogoUrl,
+                          memCacheWidth: 200,
+                          memCacheHeight: 200,
+                          maxWidthDiskCache: 400,
+                          maxHeightDiskCache: 400,
+                          fadeInDuration: Duration.zero,
+                          placeholder: (context, url) => Container(
+                            color: AppTheme.white,
+                          ),
+                          errorWidget: (context, url, error) => const Icon(
                             Icons.business_outlined,
                             color: AppTheme.primaryBlue,
                           ),
@@ -217,8 +232,8 @@ class AgentProfileView extends GetView<AgentProfileController> {
             const SizedBox(height: 20),
 
             // Video Introduction
-            if (agent.videoUrl != null) ...[
-              _buildVideoPlayer(context, agent.videoUrl!),
+            if (agent.videoUrl != null && agent.videoUrl!.isNotEmpty) ...[
+              _buildVideoSection(context, agent.videoUrl!),
               const SizedBox(height: 20),
             ],
 
@@ -250,40 +265,26 @@ class AgentProfileView extends GetView<AgentProfileController> {
             const SizedBox(height: 20),
 
             // Action Buttons
-            Column(
+            Row(
               children: [
-                // Primary Action: Create Proposal
-                CustomButton(
-                  text: 'Create Proposal',
-                  onPressed: () => controller.createProposal(context),
-                  icon: Icons.description_outlined,
-                  width: double.infinity,
-                  backgroundColor: AppTheme.primaryBlue,
+                Expanded(
+                  child: CustomButton(
+                    text: 'Contact',
+                    onPressed: controller.contactAgent,
+                    icon: Icons.phone,
+                    isOutlined: true,
+                  ),
                 ),
-                const SizedBox(height: 12),
-                // Secondary Actions
-                Row(
-                  children: [
-                    Expanded(
-                      child: CustomButton(
-                        text: 'Contact',
-                        onPressed: controller.contactAgent,
-                        icon: Icons.phone,
-                        isOutlined: true,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: CustomButton(
-                        text: 'Chat',
-                        onPressed: controller.startChat,
-                        icon: Icons.chat,
-                        isOutlined: true,
-                        backgroundColor: AppTheme.primaryBlue,
-                        textColor: AppTheme.primaryBlue,
-                      ),
-                    ),
-                  ],
+                const SizedBox(width: 12),
+                Expanded(
+                  child: CustomButton(
+                    text: 'Chat',
+                    onPressed: controller.startChat,
+                    icon: Icons.chat,
+                    isOutlined: true,
+                    backgroundColor: AppTheme.primaryBlue,
+                    textColor: AppTheme.primaryBlue,
+                  ),
                 ),
               ],
             ),
@@ -293,58 +294,147 @@ class AgentProfileView extends GetView<AgentProfileController> {
     );
   }
 
-  Widget _buildVideoPlayer(BuildContext context, String videoUrl) {
-    // Extract YouTube video ID from URL
-    String? videoId = YoutubePlayer.convertUrlToId(videoUrl);
-
-    if (videoId == null) {
-      // If not a YouTube URL, show a placeholder or link
-      return InkWell(
-        onTap: () => _launchUrl(videoUrl),
-        child: Container(
-          height: 200,
-          decoration: BoxDecoration(
-            color: AppTheme.lightGray,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppTheme.mediumGray.withOpacity(0.3)),
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+  Widget _buildVideoSection(BuildContext context, String videoUrl) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Row(
             children: [
               Icon(
-                Icons.play_circle_outline,
-                size: 64,
+                Icons.video_library,
                 color: AppTheme.primaryBlue,
+                size: 20.sp,
               ),
-              const SizedBox(height: 8),
+              const SizedBox(width: 8),
               Text(
-                'Watch Introduction Video',
+                'Introduction Video',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: AppTheme.primaryBlue,
+                  color: AppTheme.darkGray,
                   fontWeight: FontWeight.w600,
+                  fontSize: 16.sp,
                 ),
               ),
             ],
           ),
         ),
-      );
+        _buildVideoPlayer(context, videoUrl),
+      ],
+    );
+  }
+
+  Widget _buildVideoPlayer(BuildContext context, String videoUrl) {
+    if (kDebugMode) {
+      print('🎥 Building video player for URL: $videoUrl');
     }
 
-    // For YouTube videos, use youtube_player_flutter
-    final controller = YoutubePlayerController(
-      initialVideoId: videoId,
-      flags: const YoutubePlayerFlags(autoPlay: false, mute: false),
-    );
+    // Normalize video URL
+    final normalizedUrl = ApiConstants.getImageUrl(videoUrl);
+    
+    // Handle null case
+    if (normalizedUrl == null || normalizedUrl.isEmpty) {
+      if (kDebugMode) {
+        print('⚠️ Video URL is null or empty after normalization');
+      }
+      return _buildErrorPlaceholder(context, 'Invalid video URL');
+    }
+    
+    // Check if it's a YouTube URL
+    String? videoId = YoutubePlayer.convertUrlToId(normalizedUrl);
 
-    return ClipRRect(
+    if (videoId != null) {
+      // YouTube video - use youtube_player_flutter
+      return _buildYouTubePlayer(context, videoId);
+    } else {
+      // Direct video file URL - use video_player
+      return _buildDirectVideoPlayer(context, normalizedUrl);
+    }
+  }
 
-      borderRadius: BorderRadius.circular(12),
-      child: YoutubePlayer(
-        controller: controller,
-        showVideoProgressIndicator: true,
-        progressIndicatorColor: AppTheme.primaryBlue,
+  Widget _buildErrorPlaceholder(BuildContext context, String message) {
+    return Container(
+      height: 200,
+      decoration: BoxDecoration(
+        color: AppTheme.lightGray,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppTheme.mediumGray.withOpacity(0.3)),
+      ),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.error_outline,
+              size: 48,
+              color: AppTheme.mediumGray,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: AppTheme.mediumGray,
+              ),
+            ),
+          ],
+        ),
       ),
     );
+  }
+
+  Widget _buildYouTubePlayer(BuildContext context, String videoId) {
+    final youtubeController = YoutubePlayerController(
+      initialVideoId: videoId,
+      flags: const YoutubePlayerFlags(
+        autoPlay: false,
+        mute: false,
+        enableCaption: true,
+        loop: false,
+        isLive: false,
+      ),
+    );
+
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: YoutubePlayer(
+          controller: youtubeController,
+          showVideoProgressIndicator: true,
+          progressIndicatorColor: AppTheme.primaryBlue,
+          progressColors: ProgressBarColors(
+            playedColor: AppTheme.primaryBlue,
+            handleColor: AppTheme.primaryBlue,
+            backgroundColor: AppTheme.mediumGray.withOpacity(0.3),
+            bufferedColor: AppTheme.mediumGray.withOpacity(0.5),
+          ),
+          onReady: () {
+            if (kDebugMode) {
+              print('✅ YouTube player ready');
+            }
+          },
+          onEnded: (metadata) {
+            if (kDebugMode) {
+              print('✅ YouTube video ended');
+            }
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDirectVideoPlayer(BuildContext context, String videoUrl) {
+    // Use WebView for direct video files as it's more reliable on Android
+    return _WebViewVideoPlayerWidget(videoUrl: videoUrl);
   }
 
   Widget _buildExpertiseSection(BuildContext context) {
@@ -1210,12 +1300,23 @@ class AgentProfileView extends GetView<AgentProfileController> {
                     top: Radius.circular(12),
                   ),
                   child: property['image'] != null && property['image'].toString().isNotEmpty
-                      ? Image.network(
-                          property['image'],
+                      ? CachedNetworkImage(
+                          imageUrl: property['image'],
                           height: 200,
                           width: double.infinity,
                           fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
+                          cacheKey: property['image'],
+                          memCacheWidth: 500,
+                          memCacheHeight: 400,
+                          maxWidthDiskCache: 1000,
+                          maxHeightDiskCache: 800,
+                          fadeInDuration: Duration.zero,
+                          placeholder: (context, url) => Container(
+                            height: 200,
+                            width: double.infinity,
+                            color: AppTheme.lightGray,
+                          ),
+                          errorWidget: (context, url, error) {
                             return Container(
                               height: 200,
                               color: AppTheme.lightGray,
@@ -1396,5 +1497,539 @@ class AgentProfileView extends GetView<AgentProfileController> {
 
   void _viewAllPlatformReviews() {
     Get.toNamed('/agent-reviews', arguments: {'agentId': controller.agent!.id});
+  }
+}
+
+/// Widget for playing direct video file URLs (non-YouTube videos)
+class _DirectVideoPlayerWidget extends StatefulWidget {
+  final String videoUrl;
+
+  const _DirectVideoPlayerWidget({required this.videoUrl});
+
+  @override
+  State<_DirectVideoPlayerWidget> createState() => _DirectVideoPlayerWidgetState();
+}
+
+class _DirectVideoPlayerWidgetState extends State<_DirectVideoPlayerWidget> {
+  VideoPlayerController? _controller;
+  bool _isInitialized = false;
+  bool _hasError = false;
+  bool _isPlaying = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeVideo();
+  }
+
+  Future<void> _initializeVideo() async {
+    try {
+      if (kDebugMode) {
+        print('🎥 Initializing video player for: ${widget.videoUrl}');
+      }
+
+      // Try using networkUrl first (preferred for newer video_player versions)
+      try {
+        _controller = VideoPlayerController.networkUrl(
+          Uri.parse(widget.videoUrl),
+          httpHeaders: const {
+            'Accept': 'video/*',
+          },
+        );
+
+        await _controller!.initialize();
+      } catch (e) {
+        if (kDebugMode) {
+          print('⚠️ networkUrl failed, trying network method: $e');
+        }
+        // Fallback to network method (older API)
+        _controller?.dispose();
+        _controller = VideoPlayerController.network(
+          widget.videoUrl,
+          httpHeaders: const {
+            'Accept': 'video/*',
+          },
+        );
+        await _controller!.initialize();
+      }
+
+      if (mounted) {
+        setState(() {
+          _isInitialized = true;
+          _hasError = false;
+        });
+      }
+
+      // Add listener for video completion
+      _controller!.addListener(() {
+        if (mounted && _controller != null && _controller!.value.isInitialized) {
+          if (_controller!.value.position >= _controller!.value.duration) {
+            setState(() {
+              _isPlaying = false;
+            });
+          }
+        }
+      });
+
+      if (kDebugMode) {
+        print('✅ Video player initialized successfully');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Error initializing video player: $e');
+        print('   Error type: ${e.runtimeType}');
+      }
+      if (mounted) {
+        setState(() {
+          _hasError = true;
+          _isInitialized = false;
+        });
+      }
+    }
+  }
+
+  void _togglePlayPause() {
+    if (_controller == null || !_isInitialized) return;
+
+    setState(() {
+      if (_controller!.value.isPlaying) {
+        _controller!.pause();
+        _isPlaying = false;
+      } else {
+        _controller!.play();
+        _isPlaying = true;
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_hasError) {
+      return _buildErrorWidget(context);
+    }
+
+    if (!_isInitialized) {
+      return _buildLoadingWidget(context);
+    }
+
+    return _buildVideoPlayer(context);
+  }
+
+  Widget _buildLoadingWidget(BuildContext context) {
+    return Container(
+      height: 200,
+      decoration: BoxDecoration(
+        color: AppTheme.lightGray,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: AppTheme.mediumGray.withOpacity(0.3),
+        ),
+      ),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            SpinKitFadingCircle(
+              color: AppTheme.primaryBlue,
+              size: 40,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Loading video...',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: AppTheme.mediumGray,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorWidget(BuildContext context) {
+    return Container(
+      height: 200,
+      decoration: BoxDecoration(
+        color: AppTheme.lightGray,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: AppTheme.mediumGray.withOpacity(0.3),
+        ),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.error_outline,
+            size: 48,
+            color: AppTheme.mediumGray,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Unable to load video',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: AppTheme.mediumGray,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              TextButton.icon(
+                onPressed: () {
+                  setState(() {
+                    _hasError = false;
+                    _isInitialized = false;
+                  });
+                  _initializeVideo();
+                },
+                icon: Icon(Icons.refresh, size: 18, color: AppTheme.primaryBlue),
+                label: Text(
+                  'Retry',
+                  style: TextStyle(color: AppTheme.primaryBlue),
+                ),
+              ),
+              const SizedBox(width: 8),
+              TextButton.icon(
+                onPressed: () async {
+                  try {
+                    final uri = Uri.parse(widget.videoUrl);
+                    if (await canLaunchUrl(uri)) {
+                      await launchUrl(uri, mode: LaunchMode.externalApplication);
+                    }
+                  } catch (e) {
+                    if (kDebugMode) {
+                      print('❌ Error launching video URL: $e');
+                    }
+                  }
+                },
+                icon: Icon(Icons.open_in_new, size: 18, color: AppTheme.primaryBlue),
+                label: Text(
+                  'Open in Browser',
+                  style: TextStyle(color: AppTheme.primaryBlue),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildVideoPlayer(BuildContext context) {
+    if (_controller == null) return _buildErrorWidget(context);
+
+    return Container(
+      height: 200,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            AspectRatio(
+              aspectRatio: _controller!.value.aspectRatio,
+              child: VideoPlayer(_controller!),
+            ),
+            // Play/Pause overlay
+            GestureDetector(
+              onTap: _togglePlayPause,
+              child: Container(
+                color: Colors.transparent,
+                child: _isPlaying
+                    ? const SizedBox.shrink()
+                    : Container(
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.5),
+                          shape: BoxShape.circle,
+                        ),
+                        padding: const EdgeInsets.all(16),
+                        child: Icon(
+                          Icons.play_arrow,
+                          color: AppTheme.white,
+                          size: 48,
+                        ),
+                      ),
+              ),
+            ),
+            // Video controls overlay
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.bottomCenter,
+                    end: Alignment.topCenter,
+                    colors: [
+                      Colors.black.withOpacity(0.7),
+                      Colors.transparent,
+                    ],
+                  ),
+                ),
+                padding: const EdgeInsets.all(8),
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: Icon(
+                        _isPlaying ? Icons.pause : Icons.play_arrow,
+                        color: AppTheme.white,
+                      ),
+                      onPressed: _togglePlayPause,
+                    ),
+                    Expanded(
+                      child: VideoProgressIndicator(
+                        _controller!,
+                        allowScrubbing: true,
+                        colors: VideoProgressColors(
+                          playedColor: AppTheme.primaryBlue,
+                          bufferedColor: AppTheme.mediumGray.withOpacity(0.5),
+                          backgroundColor: AppTheme.mediumGray.withOpacity(0.3),
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      child: Text(
+                        _formatDuration(_controller!.value.position) +
+                            ' / ' +
+                            _formatDuration(_controller!.value.duration),
+                        style: TextStyle(
+                          color: AppTheme.white,
+                          fontSize: 12.sp,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _formatDuration(Duration duration) {
+    String twoDigits(int n) => n.toString().padLeft(2, '0');
+    final minutes = twoDigits(duration.inMinutes.remainder(60));
+    final seconds = twoDigits(duration.inSeconds.remainder(60));
+    return '$minutes:$seconds';
+  }
+}
+
+/// WebView-based video player (more reliable for direct video files on Android)
+class _WebViewVideoPlayerWidget extends StatefulWidget {
+  final String videoUrl;
+
+  const _WebViewVideoPlayerWidget({required this.videoUrl});
+
+  @override
+  State<_WebViewVideoPlayerWidget> createState() => _WebViewVideoPlayerWidgetState();
+}
+
+class _WebViewVideoPlayerWidgetState extends State<_WebViewVideoPlayerWidget> {
+  late final WebViewController _webViewController;
+  bool _isLoading = true;
+  bool _hasError = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeWebView();
+  }
+
+  void _initializeWebView() {
+    if (kDebugMode) {
+      print('🌐 Initializing WebView video player for: ${widget.videoUrl}');
+    }
+
+    // Create HTML with HTML5 video player
+    final htmlContent = '''
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            background-color: #000;
+        }
+    </style>
+</head>
+<body>
+    <video controls autoplay muted playsinline>
+        <source src="${widget.videoUrl}" type="video/mp4">
+        Your browser does not support the video tag.
+    </video>
+</body>
+</html>
+    ''';
+
+    _webViewController = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setBackgroundColor(Colors.black)
+      ..setNavigationDelegate(
+        NavigationDelegate(
+          onPageStarted: (String url) {
+            if (kDebugMode) {
+              print('🌐 WebView page started: $url');
+            }
+          },
+          onPageFinished: (String url) {
+            if (mounted) {
+              setState(() {
+                _isLoading = false;
+              });
+            }
+            if (kDebugMode) {
+              print('✅ WebView page finished: $url');
+            }
+          },
+          onWebResourceError: (WebResourceError error) {
+            if (kDebugMode) {
+              print('❌ WebView error: ${error.description}');
+              print('   Error code: ${error.errorCode}');
+            }
+            if (mounted) {
+              setState(() {
+                _hasError = true;
+                _isLoading = false;
+              });
+            }
+          },
+        ),
+      )
+      ..loadHtmlString(htmlContent);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_hasError) {
+      return _buildErrorWidget(context);
+    }
+
+    return Container(
+      height: 200,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Stack(
+          children: [
+            WebViewWidget(controller: _webViewController),
+            if (_isLoading)
+              Container(
+                color: Colors.black,
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      SpinKitFadingCircle(
+                        color: AppTheme.primaryBlue,
+                        size: 40,
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Loading video...',
+                        style: TextStyle(
+                          color: AppTheme.white,
+                          fontSize: 14.sp,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorWidget(BuildContext context) {
+    return Container(
+      height: 200,
+      decoration: BoxDecoration(
+        color: AppTheme.lightGray,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: AppTheme.mediumGray.withOpacity(0.3),
+        ),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.error_outline,
+            size: 48,
+            color: AppTheme.mediumGray,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Unable to load video',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: AppTheme.mediumGray,
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextButton.icon(
+            onPressed: () {
+              setState(() {
+                _hasError = false;
+                _isLoading = true;
+              });
+              _initializeWebView();
+            },
+            icon: Icon(Icons.refresh, size: 18, color: AppTheme.primaryBlue),
+            label: Text(
+              'Retry',
+              style: TextStyle(color: AppTheme.primaryBlue),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

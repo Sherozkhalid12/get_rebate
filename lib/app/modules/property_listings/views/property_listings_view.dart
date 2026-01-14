@@ -127,7 +127,6 @@ class PropertyListingsView extends GetView<PropertyListingsController> {
           CustomSearchField(
             controller: TextEditingController(text: controller.searchQuery),
             hintText: 'Search properties...',
-            // allowText: true,
             onChanged: controller.setSearchQuery,
           ),
 

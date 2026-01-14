@@ -107,19 +107,8 @@ class ProfileController extends GetxController {
     try {
       _isLoading.value = true;
 
-      // Get profilePic value - use selected file path or existing URL
-      String? profilePicValue;
-      if (_selectedImageFile.value != null) {
-        // If new image selected, use the file path
-        // In a real app, you'd upload this to a server first
-        // For now, we'll use the existing URL or keep it null
-        profilePicValue = _profileImageUrl.value;
-      } else {
-        profilePicValue = _profileImageUrl.value;
-      }
-
-      // Update via API
-      final updatedUserData = await _userService.updateUser(
+      // Use AuthController's updateUserProfile which handles file uploads
+      await _authController.updateUserProfile(
         userId: userId,
         fullname: nameController.text.trim(),
         email: emailController.text.trim(),
@@ -129,40 +118,19 @@ class ProfileController extends GetxController {
         bio: bioController.text.trim().isNotEmpty
             ? bioController.text.trim()
             : null,
-        profilePic: profilePicValue,
+        profilePic: _selectedImageFile.value, // Pass the File directly
       );
 
-      // Normalize profile image URL using helper
-      final profileImageRaw = updatedUserData.profilePic;
-      
-      if (kDebugMode) {
-        print('📸 ProfileController.saveProfile:');
-        print('   Raw profilePic from API: "$profileImageRaw"');
-        print('   Base URL: ${ApiConstants.baseUrl}');
-      }
-      
-      final profileImage = ApiConstants.getImageUrl(profileImageRaw);
-      
-      if (kDebugMode) {
-        print('   Normalized profileImage: "$profileImage"');
-      }
-      
-      // Update local user model
-      final updatedUser = currentUser?.copyWith(
-        name: updatedUserData.fullname ?? nameController.text.trim(),
-        phone: updatedUserData.phone,
-        profileImage: profileImage,
-        additionalData: {
-          ...?currentUser?.additionalData,
-          'bio': updatedUserData.bio ?? bioController.text.trim(),
-        },
-      );
-
+      // Refresh user data from AuthController to get updated profile image
+      final updatedUser = _authController.currentUser;
       if (updatedUser != null) {
-        _authController.updateUser(updatedUser);
+        // Update local profile image URL
         _profileImageUrl.value = updatedUser.profileImage;
         _selectedImageFile.value = null;
         _isEditing.value = false;
+        
+        // Reload form data to reflect any changes
+        _loadUserData();
         
         SnackbarHelper.showSuccess('Profile updated successfully!');
         

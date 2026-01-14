@@ -179,11 +179,14 @@ class AgentModel {
       }
     }
 
-    // Video URL
-    final videoUrl =
+    // Video URL - normalize using ApiConstants.getImageUrl for proper URL handling
+    final videoUrlRaw =
         json['video']?.toString() ??
         json['agentvideo']?.toString() ??
         json['videoUrl']?.toString();
+    final videoUrl = videoUrlRaw != null && videoUrlRaw.isNotEmpty
+        ? ApiConstants.getImageUrl(videoUrlRaw)
+        : null;
 
     // Expertise
     List<String>? expertise;

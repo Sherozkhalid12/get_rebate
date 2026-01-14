@@ -43,6 +43,8 @@ dependencies:
 
   # Video Player
   youtube_player_flutter:
+  video_player: ^2.8.2
+  webview_flutter: ^4.9.0
   
   # Navigation & Routing
   go_router: ^14.2.7

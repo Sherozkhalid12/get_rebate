@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -427,10 +428,19 @@ class PropertyDetailView extends GetView<PropertyDetailController> {
                 onPageChanged: controller.setCurrentImageIndex,
                 itemCount: images.length,
                 itemBuilder: (context, index) {
-                  return Image.network(
-                    images[index],
+                  return CachedNetworkImage(
+                    imageUrl: images[index],
                     fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
+                    cacheKey: images[index],
+                    memCacheWidth: 800,
+                    memCacheHeight: 600,
+                    maxWidthDiskCache: 1600,
+                    maxHeightDiskCache: 1200,
+                    fadeInDuration: Duration.zero,
+                    placeholder: (context, url) => Container(
+                      color: AppTheme.lightGray,
+                    ),
+                    errorWidget: (context, url, error) {
                       return Container(
                         color: AppTheme.lightGray,
                         child: const Icon(
