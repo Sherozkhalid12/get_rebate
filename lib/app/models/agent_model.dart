@@ -1,5 +1,3 @@
-import 'package:getrebate/app/utils/api_constants.dart';
-
 class AgentModel {
   final String id;
   final String name;
@@ -89,14 +87,31 @@ class AgentModel {
     final email = json['email']?.toString() ?? '';
     final phone = json['phone']?.toString();
 
-    // Profile picture - normalize URL with base URL prepended
-    final profileImageRaw =
+    // Profile picture - handle Windows paths and build full URL
+    String? profileImage =
         json['profilePic']?.toString() ?? json['profileImage']?.toString();
-    final profileImage = ApiConstants.getImageUrl(profileImageRaw);
+    if (profileImage != null && profileImage.isNotEmpty) {
+      profileImage = profileImage.replaceAll('\\', '/');
+      if (!profileImage.startsWith('http://') &&
+          !profileImage.startsWith('https://')) {
+        if (profileImage.startsWith('/')) {
+          profileImage = profileImage.substring(1);
+        }
+        // Will be built with base URL in the controller if needed
+      }
+    }
 
-    // Company logo - normalize URL with base URL prepended
-    final companyLogoRaw = json['companyLogo']?.toString();
-    final companyLogoUrl = ApiConstants.getImageUrl(companyLogoRaw);
+    // Company logo
+    String? companyLogoUrl = json['companyLogo']?.toString();
+    if (companyLogoUrl != null && companyLogoUrl.isNotEmpty) {
+      companyLogoUrl = companyLogoUrl.replaceAll('\\', '/');
+      if (!companyLogoUrl.startsWith('http://') &&
+          !companyLogoUrl.startsWith('https://')) {
+        if (companyLogoUrl.startsWith('/')) {
+          companyLogoUrl = companyLogoUrl.substring(1);
+        }
+      }
+    }
 
     // Brokerage/Company name
     final brokerage =
@@ -179,14 +194,11 @@ class AgentModel {
       }
     }
 
-    // Video URL - normalize using ApiConstants.getImageUrl for proper URL handling
-    final videoUrlRaw =
+    // Video URL
+    final videoUrl =
         json['video']?.toString() ??
         json['agentvideo']?.toString() ??
         json['videoUrl']?.toString();
-    final videoUrl = videoUrlRaw != null && videoUrlRaw.isNotEmpty
-        ? ApiConstants.getImageUrl(videoUrlRaw)
-        : null;
 
     // Expertise
     List<String>? expertise;

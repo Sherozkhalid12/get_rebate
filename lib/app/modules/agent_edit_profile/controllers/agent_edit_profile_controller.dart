@@ -1,11 +1,15 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:video_thumbnail/video_thumbnail.dart';
 import 'dart:io';
+import 'package:path_provider/path_provider.dart';
+import 'package:flutter/foundation.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
+import 'package:getrebate/app/routes/app_pages.dart';
+import 'package:getrebate/app/models/user_model.dart';
 
 class AgentEditProfileController extends GetxController {
   final AuthController _authController = Get.find<AuthController>();
@@ -29,6 +33,7 @@ class AgentEditProfileController extends GetxController {
   final _selectedProfilePic = Rxn<File>();
   final _selectedCompanyLogo = Rxn<File>();
   final _selectedVideo = Rxn<File>();
+  final _videoThumbnail = Rxn<File>();
   final _dualAgencyState = Rxn<bool>();
   final _dualAgencyBrokerage = Rxn<bool>();
   final _licensedStates = <String>[].obs;
@@ -43,6 +48,7 @@ class AgentEditProfileController extends GetxController {
   File? get selectedProfilePic => _selectedProfilePic.value;
   File? get selectedCompanyLogo => _selectedCompanyLogo.value;
   File? get selectedVideo => _selectedVideo.value;
+  File? get videoThumbnail => _videoThumbnail.value;
   bool? get dualAgencyState => _dualAgencyState.value;
   bool? get dualAgencyBrokerage => _dualAgencyBrokerage.value;
   List<String> get licensedStates => _licensedStates;
@@ -58,20 +64,126 @@ class AgentEditProfileController extends GetxController {
     final user = _authController.currentUser;
     final profilePic = user?.profileImage;
 
-    // Use helper function to normalize URL
-    final fullUrl = ApiConstants.getImageUrl(profilePic);
-    if (kDebugMode && fullUrl != null) {
-      print('📸 AgentEditProfile: Profile picture URL: $fullUrl');
-      print('   Base URL: ${ApiConstants.baseUrl}');
-      print('   Raw profilePic: $profilePic');
+    if (profilePic == null || profilePic.isEmpty) {
+      return null;
     }
+
+    // If profilePic already contains http/https, return as is
+    if (profilePic.startsWith('http://') || profilePic.startsWith('https://')) {
+      print('📸 Using full profile picture URL: $profilePic');
+      return profilePic;
+    }
+
+    // Otherwise, prepend base URL
+    // Handle both paths with and without leading slash
+    String path = profilePic;
+    if (!path.startsWith('/')) {
+      path = '/$path';
+    }
+
+    final fullUrl = '$_baseUrl$path';
+    print('📸 Constructed profile picture URL: $fullUrl');
+    print('   Base URL: $_baseUrl');
+    print('   Profile Pic Path: $profilePic');
     return fullUrl;
+  }
+
+  // Get video URL - returns full URL if exists, null otherwise
+  String? get videoUrl {
+    if (_selectedVideo.value != null) {
+      // If a new video is selected, return null (will use File)
+      return null;
+    }
+
+    final user = _authController.currentUser;
+    final video = user?.additionalData?['video'];
+
+    if (video == null || video.toString().isEmpty) {
+      return null;
+    }
+
+    final videoStr = video.toString();
+    
+    // If video already contains http/https, return as is
+    if (videoStr.startsWith('http://') || videoStr.startsWith('https://')) {
+      return videoStr;
+    }
+
+    // Otherwise, prepend base URL
+    String path = videoStr;
+    if (!path.startsWith('/')) {
+      path = '/$path';
+    }
+
+    return '$_baseUrl$path';
   }
 
   @override
   void onInit() {
     super.onInit();
     _loadUserData();
+  }
+
+  /// Converts full state name (e.g., "California") to state code (e.g., "CA")
+  String _getStateCodeFromName(String name) {
+    final stateMap = {
+      'Alabama': 'AL',
+      'Alaska': 'AK',
+      'Arizona': 'AZ',
+      'Arkansas': 'AR',
+      'California': 'CA',
+      'Colorado': 'CO',
+      'Connecticut': 'CT',
+      'Delaware': 'DE',
+      'Florida': 'FL',
+      'Georgia': 'GA',
+      'Hawaii': 'HI',
+      'Idaho': 'ID',
+      'Illinois': 'IL',
+      'Indiana': 'IN',
+      'Iowa': 'IA',
+      'Kansas': 'KS',
+      'Kentucky': 'KY',
+      'Louisiana': 'LA',
+      'Maine': 'ME',
+      'Maryland': 'MD',
+      'Massachusetts': 'MA',
+      'Michigan': 'MI',
+      'Minnesota': 'MN',
+      'Mississippi': 'MS',
+      'Missouri': 'MO',
+      'Montana': 'MT',
+      'Nebraska': 'NE',
+      'Nevada': 'NV',
+      'New Hampshire': 'NH',
+      'New Jersey': 'NJ',
+      'New Mexico': 'NM',
+      'New York': 'NY',
+      'North Carolina': 'NC',
+      'North Dakota': 'ND',
+      'Ohio': 'OH',
+      'Oklahoma': 'OK',
+      'Oregon': 'OR',
+      'Pennsylvania': 'PA',
+      'Rhode Island': 'RI',
+      'South Carolina': 'SC',
+      'South Dakota': 'SD',
+      'Tennessee': 'TN',
+      'Texas': 'TX',
+      'Utah': 'UT',
+      'Vermont': 'VT',
+      'Virginia': 'VA',
+      'Washington': 'WA',
+      'West Virginia': 'WV',
+      'Wisconsin': 'WI',
+      'Wyoming': 'WY',
+    };
+    // If already a code (2 letters), return as is
+    if (name.length == 2 && name == name.toUpperCase()) {
+      return name;
+    }
+    // Otherwise, try to find the code from the name
+    return stateMap[name] ?? name; // Return code if found, otherwise return original
   }
 
   void _loadUserData() {
@@ -109,7 +221,13 @@ class AgentEditProfileController extends GetxController {
 
       _dualAgencyState.value = user.additionalData?['dualAgencyState'];
       _dualAgencyBrokerage.value = user.additionalData?['dualAgencySBrokerage'];
-      _licensedStates.value = List<String>.from(user.licensedStates);
+      
+      // Convert full state names to state codes for UI display
+      final stateCodes = user.licensedStates
+          .map((state) => _getStateCodeFromName(state))
+          .where((code) => code.length == 2) // Only keep valid 2-letter codes
+          .toList();
+      _licensedStates.value = stateCodes;
     }
   }
 
@@ -156,21 +274,86 @@ class AgentEditProfileController extends GetxController {
   }
 
   Future<void> pickVideo() async {
+    // This will be called from the view to show the dialog
+    // The actual picking is done in pickVideoFromSource
+  }
+
+  Future<void> pickVideoFromSource(ImageSource source) async {
     try {
       final XFile? video = await _imagePicker.pickVideo(
-        source: ImageSource.gallery,
+        source: source,
       );
 
       if (video != null) {
         _selectedVideo.value = File(video.path);
+        if (kDebugMode) {
+          print('✅ Video selected from ${source == ImageSource.gallery ? "Gallery" : "Camera"}');
+          print('   Path: ${video.path}');
+        }
+        
+        // Generate thumbnail for the selected video
+        await _generateVideoThumbnail(File(video.path));
       }
     } catch (e) {
-      SnackbarHelper.showError('Failed to pick video: ${e.toString()}');
+      if (kDebugMode) {
+        print('❌ Error picking video: $e');
+      }
+      SnackbarHelper.showError(
+        source == ImageSource.gallery
+            ? 'Unable to access your videos. Please check app permissions and try again.'
+            : 'Unable to record video. Please check app permissions and try again.',
+      );
+    }
+  }
+
+  Future<void> _generateVideoThumbnail(File videoFile) async {
+    try {
+      if (kDebugMode) {
+        print('🎬 Generating video thumbnail...');
+      }
+      
+      // Try to generate thumbnail using video_thumbnail package
+      try {
+        final thumbnailPath = await VideoThumbnail.thumbnailFile(
+          video: videoFile.path,
+          thumbnailPath: (await getTemporaryDirectory()).path,
+          imageFormat: ImageFormat.JPEG,
+          maxWidth: 400,
+          quality: 85,
+        );
+
+        if (thumbnailPath != null) {
+          _videoThumbnail.value = File(thumbnailPath);
+          if (kDebugMode) {
+            print('✅ Video thumbnail generated: $thumbnailPath');
+          }
+          return;
+        }
+      } catch (pluginError) {
+        // If plugin is not available, continue without thumbnail
+        if (kDebugMode) {
+          print('⚠️ Video thumbnail plugin not available: $pluginError');
+          print('   Continuing without thumbnail - video will still be uploaded');
+        }
+      }
+      
+      // If thumbnail generation fails, set to null (UI will show fallback)
+      _videoThumbnail.value = null;
+      if (kDebugMode) {
+        print('⚠️ Video thumbnail not available - will show fallback UI');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Error generating video thumbnail: $e');
+        print('   Video will still be uploaded without thumbnail');
+      }
+      _videoThumbnail.value = null;
     }
   }
 
   void removeVideo() {
     _selectedVideo.value = null;
+    _videoThumbnail.value = null;
   }
 
   void setDualAgencyState(bool? value) {
@@ -278,7 +461,60 @@ class AgentEditProfileController extends GetxController {
       // Success snackbar is shown in updateUserProfile method
       // Wait a moment for snackbar to be visible, then navigate back
       await Future.delayed(const Duration(milliseconds: 500));
-      Navigator.pop(Get.context!);
+      
+      // Navigate back to previous screen instead of clearing stack
+      // This preserves the navigation history and allows back button to work
+      // Use Navigator directly to avoid Get.back() snackbar controller issues
+      try {
+        final navigator = Navigator.of(Get.context!);
+        if (navigator.canPop()) {
+          navigator.pop();
+        } else {
+          // If can't pop, navigate to home page based on user role
+          final user = _authController.currentUser;
+          if (user != null) {
+            switch (user.role) {
+              case UserRole.agent:
+                Get.offAllNamed(AppPages.AGENT);
+                break;
+              case UserRole.buyerSeller:
+                Get.offAllNamed(AppPages.MAIN);
+                break;
+              case UserRole.loanOfficer:
+                Get.offAllNamed(AppPages.LOAN_OFFICER);
+                break;
+            }
+          }
+        }
+      } catch (e) {
+        // If Navigator fails, try Get.back() with error handling
+        try {
+          // Close any open snackbars first to avoid controller errors
+          Get.closeCurrentSnackbar();
+        } catch (_) {
+          // Ignore snackbar close errors
+        }
+        
+        try {
+          Get.back();
+        } catch (e2) {
+          // Last resort: navigate to home page
+          final user = _authController.currentUser;
+          if (user != null) {
+            switch (user.role) {
+              case UserRole.agent:
+                Get.offAllNamed(AppPages.AGENT);
+                break;
+              case UserRole.buyerSeller:
+                Get.offAllNamed(AppPages.MAIN);
+                break;
+              case UserRole.loanOfficer:
+                Get.offAllNamed(AppPages.LOAN_OFFICER);
+                break;
+            }
+          }
+        }
+      }
     } catch (e) {
       // Error is already handled in updateUserProfile method
       // Just log it here
