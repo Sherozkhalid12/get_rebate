@@ -1,11 +1,11 @@
-
 class ApiConstants {
   const ApiConstants._();
+  // const ApiConstants._();
 
   // ============================================================================
   // BASE URL CONFIGURATION
   // ============================================================================
-  
+
   // Base URL for all API calls
   static const String _baseUrl = 'http://98.93.16.113:3001';
 
@@ -34,7 +34,8 @@ class ApiConstants {
     return "${chatEndPoint}thread/$threadId/messages?userId=$userId";
   }
 
-  static String get markThreadAsReadEndpoint => "${chatEndPoint}thread/mark-read";
+  static String get markThreadAsReadEndpoint =>
+      "${chatEndPoint}thread/mark-read";
   static String get deleteChatEndpoint => "${chatEndPoint}deleteChat";
 
   // Agent specific endpoints
@@ -71,15 +72,18 @@ class ApiConstants {
   }
 
   // Subscription checkout session endpoint
-  static String get createCheckoutSessionEndpoint => "$apiBaseUrl/subscription/create-checkout-session";
-  
+  static String get createCheckoutSessionEndpoint =>
+      "$apiBaseUrl/subscription/create-checkout-session";
+
   // Cancel subscription endpoint
-  static String get cancelSubscriptionEndpoint => "$apiBaseUrl/subscription/cancelSubscription";
-  
+  static String get cancelSubscriptionEndpoint =>
+      "$apiBaseUrl/subscription/cancelSubscription";
+
   // Payment success endpoint (takes checkout session ID as path parameter)
   static String getPaymentSuccessEndpoint(String checkoutSessionId) {
     return "$apiBaseUrl/subscription/paymentSuccess/$checkoutSessionId";
   }
+
   // Loan Officer specific endpoints
   static String get allLoanOfficersEndpoint => "$apiBaseUrl/loan-officers/all";
 
@@ -144,13 +148,15 @@ class ApiConstants {
   }
 
   // Update listing status endpoint
-  static String get updateListingStatusEndpoint => "$apiBaseUrl/agent/updateListingStatus";
-
+  static String get updateListingStatusEndpoint =>
+      "$apiBaseUrl/agent/updateListingStatus";
 
   // Rebate Calculator endpoints
   static String get rebateEstimateEndpoint => "$apiBaseUrl/rebate/estimate";
-  static String get rebateCalculateExactEndpoint => "$apiBaseUrl/rebate/calculate-exact";
-  static String get rebateCalculateSellerRateEndpoint => "$apiBaseUrl/rebate/calculate-seller-rate";
+  static String get rebateCalculateExactEndpoint =>
+      "$apiBaseUrl/rebate/calculate-exact";
+  static String get rebateCalculateSellerRateEndpoint =>
+      "$apiBaseUrl/rebate/calculate-seller-rate";
 
   // Notification endpoints
   static String getNotificationsEndpoint(String userId) {
@@ -176,4 +182,3 @@ class ApiConstants {
     return _baseUrl;
   }
 }
-
