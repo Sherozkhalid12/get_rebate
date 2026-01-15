@@ -1,4 +1,3 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -6,7 +5,6 @@ import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/modules/loan_officer_profile/controllers/loan_officer_profile_controller.dart';
 import 'package:getrebate/app/widgets/custom_button.dart';
-import 'package:getrebate/app/utils/api_constants.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class LoanOfficerProfileView extends GetView<LoanOfficerProfileController> {
@@ -168,19 +166,10 @@ class LoanOfficerProfileView extends GetView<LoanOfficerProfileController> {
                       padding: const EdgeInsets.all(8),
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(8),
-                        child: CachedNetworkImage(
-                          imageUrl: loanOfficer.companyLogoUrl!,
+                        child: Image.network(
+                          loanOfficer.companyLogoUrl!,
                           fit: BoxFit.contain,
-                          cacheKey: loanOfficer.companyLogoUrl,
-                          memCacheWidth: 200,
-                          memCacheHeight: 200,
-                          maxWidthDiskCache: 400,
-                          maxHeightDiskCache: 400,
-                          fadeInDuration: Duration.zero,
-                          placeholder: (context, url) => Container(
-                            color: AppTheme.white,
-                          ),
-                          errorWidget: (context, url, error) => const Icon(
+                          errorBuilder: (_, __, ___) => const Icon(
                             Icons.account_balance,
                             color: AppTheme.lightGreen,
                           ),
@@ -283,74 +272,31 @@ class LoanOfficerProfileView extends GetView<LoanOfficerProfileController> {
               const SizedBox(height: 20),
             ],
 
-            // Why Pick Me Section
-            if (loanOfficer.yearsOfExperience != null ||
-                loanOfficer.languagesSpoken.isNotEmpty ||
-                (loanOfficer.discountsOffered != null && loanOfficer.discountsOffered!.isNotEmpty))
-              _buildWhyPickMeSection(context),
-
-            if (loanOfficer.yearsOfExperience != null ||
-                loanOfficer.languagesSpoken.isNotEmpty ||
-                (loanOfficer.discountsOffered != null && loanOfficer.discountsOffered!.isNotEmpty))
-              const SizedBox(height: 20),
-
             // Reviews Section
             _buildReviewsSection(context),
 
             const SizedBox(height: 20),
 
             // Action Buttons
-            if (loanOfficer.mortgageApplicationUrl != null && 
-                loanOfficer.mortgageApplicationUrl!.isNotEmpty) ...[
+            if (loanOfficer.mortgageApplicationUrl != null) ...[
               CustomButton(
                 text: 'Apply for a Mortgage',
                 onPressed: () async {
-                  final mortgageLink = loanOfficer.mortgageApplicationUrl!;
-                  
-                  // Validate URL format
-                  if (mortgageLink.isEmpty) {
+                  final url = Uri.parse(loanOfficer.mortgageApplicationUrl!);
+                  if (await canLaunchUrl(url)) {
+                    await launchUrl(url, mode: LaunchMode.externalApplication);
+                  } else {
                     Get.snackbar(
                       'Error',
-                      'Mortgage application link is not available',
-                      snackPosition: SnackPosition.BOTTOM,
-                      backgroundColor: Colors.red,
-                      colorText: AppTheme.white,
-                    );
-                    return;
-                  }
-                  
-                  try {
-                    // Ensure URL has protocol
-                    String urlString = mortgageLink;
-                    if (!urlString.startsWith('http://') && 
-                        !urlString.startsWith('https://')) {
-                      urlString = 'https://$urlString';
-                    }
-                    
-                    final url = Uri.parse(urlString);
-                    if (await canLaunchUrl(url)) {
-                      await launchUrl(url, mode: LaunchMode.externalApplication);
-                    } else {
-                      Get.snackbar(
-                        'Error',
-                        'Unable to open mortgage application',
-                        snackPosition: SnackPosition.BOTTOM,
-                        backgroundColor: Colors.red,
-                        colorText: AppTheme.white,
-                      );
-                    }
-                  } catch (e) {
-                    Get.snackbar(
-                      'Error',
-                      'Invalid mortgage application link',
+                      'Unable to open mortgage application',
                       snackPosition: SnackPosition.BOTTOM,
                       backgroundColor: Colors.red,
                       colorText: AppTheme.white,
                     );
                   }
                 },
-                icon: Icons.link,
-                backgroundColor: AppTheme.lightGreen.withOpacity(0.8),
+                icon: Icons.description,
+                backgroundColor: AppTheme.lightGreen,
                 width: double.infinity,
               ),
               const SizedBox(height: 12),
@@ -770,10 +716,8 @@ class LoanOfficerProfileView extends GetView<LoanOfficerProfileController> {
     // Build full profile picture URL if available
     String? profilePicUrl = review['profilePic'];
     if (profilePicUrl != null && profilePicUrl.isNotEmpty && !profilePicUrl.startsWith('http')) {
-      final baseUrl = ApiConstants.baseUrl.endsWith('/') 
-          ? ApiConstants.baseUrl.substring(0, ApiConstants.baseUrl.length - 1)
-          : ApiConstants.baseUrl;
-      profilePicUrl = '$baseUrl/$profilePicUrl';
+      // Use profile pic URL directly from API - don't prepend base URL
+      // The API should return full URLs or paths that work directly
     }
 
     return Card(
@@ -976,167 +920,6 @@ class LoanOfficerProfileView extends GetView<LoanOfficerProfileController> {
               height: 1.4,
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildWhyPickMeSection(BuildContext context) {
-    final loanOfficer = controller.loanOfficer!;
-
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: AppTheme.successGradient.map((c) => c.withOpacity(0.1)).toList(),
-        ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AppTheme.lightGreen.withOpacity(0.3),
-          width: 1.5,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                Icons.star,
-                color: AppTheme.lightGreen,
-                size: 24,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'Why Pick Me',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      color: AppTheme.black,
-                      fontWeight: FontWeight.w600,
-                    ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-
-          // Years of Experience
-          if (loanOfficer.yearsOfExperience != null) ...[
-            Row(
-              children: [
-                Icon(
-                  Icons.calendar_today,
-                  color: AppTheme.lightGreen,
-                  size: 20,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    '${loanOfficer.yearsOfExperience} ${loanOfficer.yearsOfExperience == 1 ? 'year' : 'years'} of experience',
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          color: AppTheme.darkGray,
-                          fontWeight: FontWeight.w500,
-                        ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-          ],
-
-          // Languages Spoken
-          if (loanOfficer.languagesSpoken.isNotEmpty) ...[
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(
-                  Icons.language,
-                  color: AppTheme.lightGreen,
-                  size: 20,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Languages Spoken',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: AppTheme.mediumGray,
-                            ),
-                      ),
-                      const SizedBox(height: 4),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: loanOfficer.languagesSpoken.map((language) {
-                          return Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppTheme.lightGreen.withOpacity(0.15),
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                color: AppTheme.lightGreen.withOpacity(0.3),
-                                width: 1,
-                              ),
-                            ),
-                            child: Text(
-                              language,
-                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                    color: AppTheme.lightGreen,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                            ),
-                          );
-                        }).toList(),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-          ],
-
-          // Discounts & Special Offers
-          if (loanOfficer.discountsOffered != null &&
-              loanOfficer.discountsOffered!.isNotEmpty) ...[
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(
-                  Icons.local_offer,
-                  color: AppTheme.lightGreen,
-                  size: 20,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Special Offers & Discounts',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: AppTheme.mediumGray,
-                            ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        loanOfficer.discountsOffered!,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: AppTheme.darkGray,
-                              height: 1.5,
-                            ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ],
         ],
       ),
     );

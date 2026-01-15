@@ -3620,6 +3620,10 @@ class AgentView extends GetView<AgentController> {
       final monthlyLeads = monthlyLeadsData['values'] as List<int>;
       final months = monthlyLeadsData['labels'] as List<String>;
       final monthsCount = monthlyLeadsData['count'] as int;
+      final screenWidth = MediaQuery.of(context).size.width;
+      final cardWidth = (screenWidth - 40 - 12) / 2;
+      final now = DateTime.now();
+      final monthLabel = _getMonthName(now.month);
       
       // Get activity breakdown
       final activityData = controller.getActivityBreakdown();
@@ -3633,53 +3637,130 @@ class AgentView extends GetView<AgentController> {
               'Performance Analytics',
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
                 color: AppTheme.black,
-                fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.w700,
               ),
+            ),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Text(
+                  'Snapshot for $monthLabel ${now.year}',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppTheme.mediumGray,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: AppTheme.primaryBlue.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    'Last 30 days',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppTheme.primaryBlue,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 20),
 
             // Summary Stats
-            Row(
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
               children: [
-                Expanded(
+                SizedBox(
+                  width: cardWidth,
                   child: _buildStatsCard(
                     context,
                     'Total Leads',
                     totalLeads.toString(),
                     Icons.people,
                     AppTheme.primaryBlue,
-                    '$leadsChange from last month',
+                    '$leadsChange vs last month',
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
+                SizedBox(
+                  width: cardWidth,
                   child: _buildStatsCard(
                     context,
                     'Conversions',
                     conversions.toString(),
                     Icons.trending_up,
                     AppTheme.lightGreen,
-                    '$conversionsChange from last month',
+                    '$conversionsChange vs last month',
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
+                SizedBox(
+                  width: cardWidth,
                   child: _buildStatsCard(
                     context,
                     'Close Rate',
                     '${closeRate.toStringAsFixed(1)}%',
                     Icons.check_circle,
                     Colors.orange,
-                    '$closeRateChange from last month',
+                    '$closeRateChange vs last month',
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
+
+            // Portfolio Snapshot
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Portfolio Snapshot',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildMiniStatCard(
+                            context,
+                            'Active Listings',
+                            controller.currentListingCount.toString(),
+                            Icons.home_work_outlined,
+                            AppTheme.primaryBlue,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildMiniStatCard(
+                            context,
+                            'Claimed ZIPs',
+                            controller.claimedZipCodes.length.toString(),
+                            Icons.place_outlined,
+                            AppTheme.lightGreen,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    _buildMiniStatCard(
+                      context,
+                      'Active Subscriptions',
+                      controller.activeSubscriptions.length.toString(),
+                      Icons.credit_card,
+                      Colors.orange,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
 
             // Monthly Leads Chart
             Card(
@@ -3778,37 +3859,132 @@ class AgentView extends GetView<AgentController> {
     Color color,
     String subtitle,
   ) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, color: color, size: 24),
-            const SizedBox(height: 12),
-            Text(
-              value,
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: AppTheme.black,
+    final trimmedSubtitle = subtitle.trim();
+    final isNegative = trimmedSubtitle.startsWith('-');
+    final trendColor = isNegative ? Colors.redAccent : color;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.lightGray.withOpacity(0.6)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: color, size: 18),
               ),
+              if (trimmedSubtitle.isNotEmpty)
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 140),
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: trendColor.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      trimmedSubtitle,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: trendColor,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 11,
+                          ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Text(
+            value,
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: AppTheme.black,
             ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: AppTheme.mediumGray),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: AppTheme.mediumGray,
+                  fontWeight: FontWeight.w500,
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMiniStatCard(
+    BuildContext context,
+    String label,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppTheme.lightGray.withOpacity(0.6)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(10),
             ),
-            const SizedBox(height: 8),
-            Text(
-              subtitle,
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: color, fontSize: 11),
+            child: Icon(icon, color: color, size: 18),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppTheme.mediumGray,
+                        fontWeight: FontWeight.w500,
+                      ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: AppTheme.black,
+                      ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -4461,10 +4637,10 @@ class AgentView extends GetView<AgentController> {
                                       : AppTheme.lightGreen,
                                 ),
                               ),
-                              if (lead.agentResponse?.note != null && !lead.isCompleted) ...[
+                              if (lead.agentResponseNote != null && !lead.isCompleted) ...[
                                 SizedBox(height: 4.h),
                                 Text(
-                                  lead.agentResponse!.note!,
+                                  lead.agentResponseNote!,
                                   style: TextStyle(
                                     fontSize: 14.sp,
                                     color: AppTheme.mediumGray,

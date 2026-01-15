@@ -37,17 +37,17 @@ class AddListingController extends GetxController {
   final _dualAgencyTotalCommissionPercent =
       5.0.obs; // Default 5% total commission
   final _openHouses = <OpenHouseEntry>[].obs;
-  
+
   // Property details fields (for propertyDetails JSON)
   final _propertyType = 'house'.obs; // Default to 'house'
   final _propertyStatus = 'active'.obs; // Default to 'active'
   final _bedrooms = ''.obs;
   final _bathrooms = ''.obs;
   final _squareFeet = ''.obs;
-  
+
   // Property features (array)
   final _propertyFeatures = <String>[].obs;
-  
+
   // Status field (separate from propertyDetails.status)
   final _listingStatus = 'active'.obs; // Default to 'active'
 
@@ -70,7 +70,7 @@ class AddListingController extends GetxController {
   String get squareFeet => _squareFeet.value;
   List<String> get propertyFeatures => _propertyFeatures;
   String get listingStatus => _listingStatus.value;
-  
+
   void setPropertyType(String type) => _propertyType.value = type;
   void setPropertyStatus(String status) => _propertyStatus.value = status;
   void setBedrooms(String value) => _bedrooms.value = value;
@@ -83,6 +83,7 @@ class AddListingController extends GetxController {
       _propertyFeatures.add(feature);
     }
   }
+
   void setListingStatus(String status) => _listingStatus.value = status;
 
   @override
@@ -129,7 +130,10 @@ class AddListingController extends GetxController {
       // Max 10 photos
       _selectedPhotos.add(photoFile);
     } else {
-      SnackbarHelper.showInfo('You can add up to 10 photos', title: 'Limit Reached');
+      SnackbarHelper.showInfo(
+        'You can add up to 10 photos',
+        title: 'Limit Reached',
+      );
     }
   }
 
@@ -139,7 +143,10 @@ class AddListingController extends GetxController {
 
   void addOpenHouse() {
     if (_openHouses.length >= 4) {
-      SnackbarHelper.showInfo('You can add up to 4 open houses', title: 'Limit Reached');
+      SnackbarHelper.showInfo(
+        'You can add up to 4 open houses',
+        title: 'Limit Reached',
+      );
       return;
     }
     _openHouses.add(OpenHouseEntry());
@@ -252,24 +259,92 @@ class AddListingController extends GetxController {
         if (_bedrooms.value.isNotEmpty) 'bedrooms': _bedrooms.value,
         if (_bathrooms.value.isNotEmpty) 'bathrooms': _bathrooms.value,
       };
-      formData.fields.add(MapEntry('propertyDetails', jsonEncode(propertyDetailsJson)));
+      formData.fields.add(
+        MapEntry('propertyDetails', jsonEncode(propertyDetailsJson)),
+      );
 
       // Format propertyFeatures as JSON array
-      formData.fields.add(MapEntry('propertyFeatures', jsonEncode(_propertyFeatures)));
+      formData.fields.add(
+        MapEntry('propertyFeatures', jsonEncode(_propertyFeatures)),
+      );
 
       // Add property photos (files)
-      for (var photo in _selectedPhotos) {
+      if (kDebugMode) {
+        print('📸 Preparing to upload ${_selectedPhotos.length} photo(s)');
+      }
+
+      for (int i = 0; i < _selectedPhotos.length; i++) {
+        final photo = _selectedPhotos[i];
         final fileName = photo.path.split('/').last;
-        formData.files.add(
-          MapEntry(
-            'propertyPhotos',
-            await MultipartFile.fromFile(photo.path, filename: fileName),
-          ),
-        );
+
+        // Verify file exists and is readable
+        if (!await photo.exists()) {
+          if (kDebugMode) {
+            print('❌ Photo file does not exist: ${photo.path}');
+          }
+          continue;
+        }
+
+        try {
+          final fileSize = await photo.length();
+          if (kDebugMode) {
+            print(
+              '📸 Photo [$i]: $fileName (${(fileSize / 1024).toStringAsFixed(2)} KB)',
+            );
+            print('   Path: ${photo.path}');
+          }
+
+          // Read file bytes to ensure file is accessible
+          final fileBytes = await photo.readAsBytes();
+          if (kDebugMode) {
+            print('   File bytes read: ${fileBytes.length} bytes');
+          }
+
+          // Create multipart file from bytes
+          // This ensures the file is sent as multipart/form-data
+          // Determine content type from file extension
+          String? contentType;
+          if (fileName.toLowerCase().endsWith('.png')) {
+            contentType = 'image/png';
+          } else if (fileName.toLowerCase().endsWith('.jpg') ||
+              fileName.toLowerCase().endsWith('.jpeg')) {
+            contentType = 'image/jpeg';
+          } else if (fileName.toLowerCase().endsWith('.gif')) {
+            contentType = 'image/gif';
+          } else {
+            contentType = 'image/png'; // Default
+          }
+
+          final multipartFile = MultipartFile.fromBytes(
+            fileBytes,
+            filename: fileName,
+          );
+
+          // Use exact field name 'propertyPhotos' to match server's multer configuration
+          // Multer expects this exact field name (without brackets) for multiple files
+          formData.files.add(MapEntry('propertyPhotos', multipartFile));
+
+          if (kDebugMode) {
+            print('✅ Photo [$i] added to formData as multipart file');
+            print('   Content-Type: $contentType');
+            print('   Length: ${multipartFile.length} bytes');
+            print('   Filename: $fileName');
+          }
+        } catch (e) {
+          if (kDebugMode) {
+            print('❌ Error adding photo [$i]: $e');
+            print('   Stack trace: ${StackTrace.current}');
+          }
+        }
       }
 
       if (kDebugMode) {
-        print('🚀 Sending POST request to: ${ApiConstants.createListingEndpoint}');
+        print('📊 FormData Summary:');
+        print('   - Fields: ${formData.fields.length}');
+        print('   - Files: ${formData.files.length}');
+        print(
+          '🚀 Sending POST request to: ${ApiConstants.createListingEndpoint}',
+        );
         print('📤 Request Data:');
         print('  - propertyTitle: ${titleController.text.trim()}');
         print('  - description: ${descriptionController.text.trim()}');
@@ -286,7 +361,7 @@ class AddListingController extends GetxController {
         print('  - createdByRole: agent');
         print('  - propertyDetails: $propertyDetailsJson');
         print('  - propertyFeatures: $_propertyFeatures');
-        print('  - propertyPhotos: ${_selectedPhotos.length} file(s)');
+        print('  - propertyPhotos: ${formData.files.length} file(s) uploaded');
         print('  - openHouses: ${_openHouses.length} entry(ies)');
       }
 
@@ -300,7 +375,33 @@ class AddListingController extends GetxController {
       _dio.options.receiveTimeout = const Duration(seconds: 30);
       _dio.options.sendTimeout = const Duration(seconds: 30);
 
-      // Make API call
+      // Verify formData has files before sending
+      if (kDebugMode) {
+        print('📋 Final FormData check before sending:');
+        print('   Total fields: ${formData.fields.length}');
+        print('   Total files: ${formData.files.length}');
+        if (formData.files.isEmpty && _selectedPhotos.isNotEmpty) {
+          print(
+            '⚠️ WARNING: Selected photos (${_selectedPhotos.length}) but no files in formData!',
+          );
+        }
+      }
+
+      // Make API call with explicit multipart options
+      if (kDebugMode) {
+        print('📡 Making POST request with FormData:');
+        print('   Endpoint: ${ApiConstants.createListingEndpoint}');
+        print('   Files count: ${formData.files.length}');
+        print('   Fields count: ${formData.fields.length}');
+        // Log all file entries
+        for (int i = 0; i < formData.files.length; i++) {
+          final entry = formData.files[i];
+          print(
+            '   File [$i]: key="${entry.key}", filename="${entry.value.filename}"',
+          );
+        }
+      }
+
       final response = await _dio.post(
         ApiConstants.createListingEndpoint,
         data: formData,
@@ -308,7 +409,11 @@ class AddListingController extends GetxController {
           headers: {
             ...ApiConstants.ngrokHeaders,
             if (authToken != null) 'Authorization': 'Bearer $authToken',
+            // Don't set Content-Type manually - Dio will automatically set multipart/form-data with boundary
           },
+          // Ensure we're sending as multipart
+          followRedirects: false,
+          validateStatus: (status) => status! < 500,
         ),
       );
 
@@ -322,7 +427,7 @@ class AddListingController extends GetxController {
         }
 
         _isLoading.value = false;
-        
+
         // Show success snackbar
         SnackbarHelper.showSuccess(
           'Listing created successfully!',
@@ -335,7 +440,7 @@ class AddListingController extends GetxController {
       }
     } on DioException catch (e) {
       _isLoading.value = false;
-      
+
       if (kDebugMode) {
         print('❌ ERROR - Status Code: ${e.response?.statusCode ?? "N/A"}');
         print('📥 Error Response:');
@@ -371,12 +476,12 @@ class AddListingController extends GetxController {
       SnackbarHelper.showError(errorMessage);
     } catch (e) {
       _isLoading.value = false;
-      
+
       if (kDebugMode) {
         print('❌ Unexpected Error: ${e.toString()}');
         print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       }
-      
+
       CustomSnackbar.showError('Failed to create listing: ${e.toString()}');
     }
   }
@@ -434,7 +539,9 @@ class AddListingController extends GetxController {
 
     // CRITICAL: Verify listing agent status
     if (_isListingAgent.value == null) {
-      SnackbarHelper.showValidation('Please confirm if you are the listing agent for this property');
+      SnackbarHelper.showValidation(
+        'Please confirm if you are the listing agent for this property',
+      );
       return false;
     }
 

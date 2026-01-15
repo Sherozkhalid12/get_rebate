@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/services/rebate_calculator_api_service.dart';
+import 'package:getrebate/app/utils/network_error_handler.dart';
 
 class RebateCalculatorController extends GetxController {
   // MODE: 0 = Tiers, 1 = Actual, 2 = Seller Conversion
@@ -511,22 +512,14 @@ class RebateCalculatorController extends GetxController {
         );
       }
     } on RebateCalculatorApiException catch (e) {
-      Get.snackbar(
-        'Error',
-        e.message,
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red.shade100,
-        colorText: Colors.red.shade900,
-        duration: const Duration(seconds: 4),
+      NetworkErrorHandler.handleError(
+        e,
+        defaultMessage: 'Unable to calculate rebate. Please check your internet connection and try again.',
       );
     } catch (e) {
-      Get.snackbar(
-        'Error',
-        'Failed to calculate rebate. Please try again.',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red.shade100,
-        colorText: Colors.red.shade900,
-        duration: const Duration(seconds: 4),
+      NetworkErrorHandler.handleError(
+        e,
+        defaultMessage: 'Unable to calculate rebate. Please check your internet connection and try again.',
       );
     } finally {
       isLoadingEstimated.value = false;
@@ -566,22 +559,14 @@ class RebateCalculatorController extends GetxController {
         );
       }
     } on RebateCalculatorApiException catch (e) {
-      Get.snackbar(
-        'Error',
-        e.message,
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red.shade100,
-        colorText: Colors.red.shade900,
-        duration: const Duration(seconds: 4),
+      NetworkErrorHandler.handleError(
+        e,
+        defaultMessage: 'Unable to calculate rebate. Please check your internet connection and try again.',
       );
     } catch (e) {
-      Get.snackbar(
-        'Error',
-        'Failed to calculate rebate. Please try again.',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red.shade100,
-        colorText: Colors.red.shade900,
-        duration: const Duration(seconds: 4),
+      NetworkErrorHandler.handleError(
+        e,
+        defaultMessage: 'Unable to calculate rebate. Please check your internet connection and try again.',
       );
     } finally {
       isLoadingActual.value = false;
@@ -632,7 +617,10 @@ class RebateCalculatorController extends GetxController {
     } catch (e) {
       Get.snackbar(
         'Error',
-        'Failed to calculate seller rate. Please try again.',
+        NetworkErrorHandler.getUserFriendlyMessage(
+          e,
+          defaultMessage: 'Unable to calculate seller rate. Please check your internet connection and try again.',
+        ),
         snackPosition: SnackPosition.BOTTOM,
         backgroundColor: Colors.red.shade100,
         colorText: Colors.red.shade900,

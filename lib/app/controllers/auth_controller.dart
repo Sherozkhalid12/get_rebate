@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart' hide FormData, MultipartFile;
@@ -9,6 +8,7 @@ import 'dart:convert';
 import 'package:getrebate/app/models/user_model.dart';
 import 'package:getrebate/app/routes/app_pages.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
+import 'package:getrebate/app/utils/network_error_handler.dart';
 import 'package:getrebate/app/controllers/current_loan_officer_controller.dart';
 
 class AuthController extends GetxController {
@@ -22,13 +22,11 @@ class AuthController extends GetxController {
   final _isLoading = false.obs;
   final _currentUser = Rxn<UserModel>();
   final _isLoggedIn = false.obs;
-  bool _isLoadingLoanOfficerProfile = false; // Guard to prevent multiple simultaneous loads
 
   // Getters
   bool get isLoading => _isLoading.value;
   UserModel? get currentUser => _currentUser.value;
   bool get isLoggedIn => _isLoggedIn.value;
-  String? get token => _storage.read('auth_token');
 
   @override
   void onInit() {
@@ -115,76 +113,31 @@ class AuthController extends GetxController {
       print('   Role: ${_currentUser.value?.role}');
 
       // If this is a loan officer, eagerly load their full profile
-      // Only load if not already loading to prevent infinite loops
-      if (_currentUser.value?.role == UserRole.loanOfficer && !_isLoadingLoanOfficerProfile) {
-        _loadLoanOfficerProfile();
+      if (_currentUser.value?.role == UserRole.loanOfficer) {
+        try {
+          final loanOfficerId = _currentUser.value!.id;
+          print('📡 AuthController._checkAuthStatus: Detected loan officer session.');
+          print('   Loan officer ID to load: $loanOfficerId');
+
+          final currentLoanOfficerController =
+              Get.isRegistered<CurrentLoanOfficerController>()
+                  ? Get.find<CurrentLoanOfficerController>()
+                  : Get.put(CurrentLoanOfficerController(), permanent: true);
+
+          currentLoanOfficerController
+              .fetchCurrentLoanOfficer(loanOfficerId)
+              .then((_) {
+            print('✅ AuthController._checkAuthStatus: Current loan officer profile loaded after session restore.');
+          }).catchError((e) {
+            print('❌ AuthController._checkAuthStatus: Failed to load current loan officer profile: $e');
+          });
+        } catch (e) {
+          print('⚠️ AuthController._checkAuthStatus: Error initializing CurrentLoanOfficerController: $e');
+        }
       }
     } else {
       print('ℹ️ No saved user session found');
       _isLoggedIn.value = false;
-    }
-  }
-
-  /// Loads the loan officer profile asynchronously
-  /// Prevents multiple simultaneous calls with a guard flag
-  Future<void> _loadLoanOfficerProfile() async {
-    // Guard: Prevent multiple simultaneous calls
-    if (_isLoadingLoanOfficerProfile) {
-      if (kDebugMode) {
-        print('⚠️ AuthController._loadLoanOfficerProfile: Already loading, skipping duplicate call.');
-      }
-      return;
-    }
-
-    // Guard: Check if data already exists
-    try {
-      if (Get.isRegistered<CurrentLoanOfficerController>()) {
-        final currentLoanOfficerController = Get.find<CurrentLoanOfficerController>();
-        if (currentLoanOfficerController.currentLoanOfficer.value != null &&
-            currentLoanOfficerController.currentLoanOfficer.value!.id == _currentUser.value?.id) {
-          if (kDebugMode) {
-            print('✅ AuthController._loadLoanOfficerProfile: Loan officer data already loaded, skipping.');
-          }
-          return;
-        }
-      }
-    } catch (e) {
-      // Continue if controller not registered yet
-    }
-
-    _isLoadingLoanOfficerProfile = true;
-
-    try {
-      final loanOfficerId = _currentUser.value!.id;
-      if (kDebugMode) {
-        print('📡 AuthController._loadLoanOfficerProfile: Detected loan officer session.');
-        print('   Loan officer ID to load: $loanOfficerId');
-      }
-
-      final currentLoanOfficerController =
-          Get.isRegistered<CurrentLoanOfficerController>()
-              ? Get.find<CurrentLoanOfficerController>()
-              : Get.put(CurrentLoanOfficerController(), permanent: true);
-
-      await currentLoanOfficerController.fetchCurrentLoanOfficer(loanOfficerId);
-      
-      // Only log success if we actually have loan officer data
-      if (currentLoanOfficerController.currentLoanOfficer.value != null) {
-        if (kDebugMode) {
-          print('✅ AuthController._loadLoanOfficerProfile: Current loan officer profile loaded after session restore.');
-        }
-      } else {
-        if (kDebugMode) {
-          print('⚠️ AuthController._loadLoanOfficerProfile: fetchCurrentLoanOfficer completed but loan officer is still null.');
-        }
-      }
-    } catch (e) {
-      if (kDebugMode) {
-        print('❌ AuthController._loadLoanOfficerProfile: Failed to load current loan officer profile: $e');
-      }
-      // Don't block the app - user can still use it, just without full profile data
-    } finally {
-      _isLoadingLoanOfficerProfile = false;
     }
   }
 
@@ -235,11 +188,6 @@ class AuthController extends GetxController {
           }
 
           print('✅ Extracted User ID from login: $userId');
-          // Normalize profile image URL
-          final profileImageRaw = userData['profilePic']?.toString() ??
-                userData['profileImage']?.toString();
-          final profileImage = ApiConstants.getImageUrl(profileImageRaw);
-          
           // Map API response to UserModel
           final user = UserModel(
             id: userId,
@@ -248,7 +196,9 @@ class AuthController extends GetxController {
                 userData['fullname'] ?? userData['name'] ?? email.split('@')[0],
             phone: userData['phone']?.toString(),
             role: _mapApiRoleToUserRole(userData['role']?.toString()),
-            profileImage: profileImage,
+            profileImage:
+                userData['profilePic']?.toString() ??
+                userData['profileImage']?.toString(),
             licensedStates: List<String>.from(
               userData['LisencedStates'] ?? userData['licensedStates'] ?? [],
             ),
@@ -371,7 +321,10 @@ class AuthController extends GetxController {
 
       // Safely show snackbar - wrap in try-catch to prevent overlay errors
       try {
-        Get.snackbar('Error', errorMessage);
+        NetworkErrorHandler.handleError(
+          e,
+          defaultMessage: 'Unable to sign in. Please check your internet connection and try again.',
+        );
       } catch (overlayError) {
         print('⚠️ Could not show snackbar: $overlayError');
       }
@@ -380,7 +333,10 @@ class AuthController extends GetxController {
       print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       // Safely show snackbar - wrap in try-catch to prevent overlay errors
       try {
-        Get.snackbar('Error', 'Login failed: ${e.toString()}');
+        NetworkErrorHandler.handleError(
+          e,
+          defaultMessage: 'Unable to sign in. Please check your internet connection and try again.',
+        );
       } catch (overlayError) {
         print('⚠️ Could not show snackbar: $overlayError');
       }
@@ -639,13 +595,82 @@ class AuthController extends GetxController {
 
       // Add video file if provided (for agents and loan officers)
       if (video != null) {
-        final fileName = video.path.split('/').last;
-        formData.files.add(
-          MapEntry(
-            'video',
-            await MultipartFile.fromFile(video.path, filename: fileName),
-          ),
-        );
+        // Verify file exists
+        if (!await video.exists()) {
+          if (kDebugMode) {
+            print('❌ Video file does not exist: ${video.path}');
+          }
+        } else {
+          try {
+            final fileName = video.path.split('/').last;
+            final fileSize = await video.length();
+            
+            if (kDebugMode) {
+              print('🎥 Preparing to upload video:');
+              print('   Filename: $fileName');
+              print('   Size: ${(fileSize / (1024 * 1024)).toStringAsFixed(2)} MB');
+              print('   Path: ${video.path}');
+            }
+            
+            // Read video file bytes to ensure file is accessible
+            final videoBytes = await video.readAsBytes();
+            
+            if (kDebugMode) {
+              print('   Video bytes read: ${videoBytes.length} bytes');
+            }
+            
+            // Determine content type from file extension
+            String contentType;
+            if (fileName.toLowerCase().endsWith('.mp4')) {
+              contentType = 'video/mp4';
+            } else if (fileName.toLowerCase().endsWith('.mov')) {
+              contentType = 'video/quicktime';
+            } else if (fileName.toLowerCase().endsWith('.avi')) {
+              contentType = 'video/x-msvideo';
+            } else {
+              contentType = 'video/mp4'; // Default
+            }
+            
+            // Create multipart file from bytes
+            // This ensures the video is sent as multipart/form-data
+            final multipartFile = MultipartFile.fromBytes(
+              videoBytes,
+              filename: fileName,
+            );
+            
+            formData.files.add(
+              MapEntry(
+                'video',
+                multipartFile,
+              ),
+            );
+            
+            if (kDebugMode) {
+              print('✅ Video added to formData as multipart file');
+              print('   Content-Type: $contentType');
+              print('   Length: ${multipartFile.length} bytes');
+            }
+          } catch (e) {
+            if (kDebugMode) {
+              print('❌ Error adding video: $e');
+              print('   Stack trace: ${StackTrace.current}');
+            }
+          }
+        }
+      }
+
+      // Log formData summary before sending
+      if (kDebugMode) {
+        print('📊 FormData Summary before sending:');
+        print('   Total fields: ${formData.fields.length}');
+        print('   Total files: ${formData.files.length}');
+        if (formData.files.isNotEmpty) {
+          print('   Files being sent:');
+          for (int i = 0; i < formData.files.length; i++) {
+            final entry = formData.files[i];
+            print('     [$i] key="${entry.key}", filename="${entry.value.filename}"');
+          }
+        }
       }
 
       // Make API call
@@ -655,6 +680,9 @@ class AuthController extends GetxController {
       print('  - email: $email');
       print('  - phone: ${phone ?? "not provided"}');
       print('  - role: ${_mapRoleToApiFormat(role)}');
+      if (video != null) {
+        print('  - video: YES (multipart file)');
+      }
       if (licensedStates != null && licensedStates.isNotEmpty) {
         final stateNames = licensedStates
             .map((code) => _getStateNameFromCode(code))
@@ -749,11 +777,19 @@ class AuthController extends GetxController {
         print('  - profilePic: not provided');
       }
 
-      // Make API call
-      final response = await _dio.post(
+      // Make API call with extended timeout for file uploads
+      // Create a new Dio instance with extended timeouts for this request
+      final uploadDio = Dio(_dio.options);
+      uploadDio.options.connectTimeout = const Duration(seconds: 60);
+      uploadDio.options.receiveTimeout = const Duration(seconds: 120);
+      uploadDio.options.sendTimeout = const Duration(seconds: 120);
+      
+      final response = await uploadDio.post(
         '/auth/createUser',
         data: formData,
-        options: Options(headers: {'ngrok-skip-browser-warning': 'true'}),
+        options: Options(
+          headers: {'ngrok-skip-browser-warning': 'true'},
+        ),
       );
 
       // Handle successful response
@@ -916,11 +952,38 @@ class AuthController extends GetxController {
             'Connection timeout. Please check your internet connection.';
       } else if (e.type == DioExceptionType.connectionError) {
         errorMessage = 'No internet connection. Please check your network.';
+      } else if (e.type == DioExceptionType.sendTimeout) {
+        errorMessage = 'Upload timeout. The files are too large or connection is too slow. Please try again with smaller images or check your internet connection.';
       }
 
-      Get.snackbar('Error', errorMessage);
+      // Show error message using SnackbarHelper instead of NetworkErrorHandler to avoid duplicates
+      if (kDebugMode) {
+        print('❌ Sign up error: $errorMessage');
+      }
+      
+      Get.snackbar(
+        'Sign Up Failed',
+        errorMessage,
+        snackPosition: SnackPosition.BOTTOM,
+        duration: const Duration(seconds: 4),
+        backgroundColor: Colors.red.shade600,
+        colorText: Colors.white,
+        margin: const EdgeInsets.all(16),
+      );
     } catch (e) {
-      Get.snackbar('Error', 'Sign up failed: ${e.toString()}');
+      if (kDebugMode) {
+        print('❌ Unexpected error during sign up: $e');
+      }
+      
+      Get.snackbar(
+        'Sign Up Failed',
+        'Unable to create account. Please check your internet connection and try again.',
+        snackPosition: SnackPosition.BOTTOM,
+        duration: const Duration(seconds: 4),
+        backgroundColor: Colors.red.shade600,
+        colorText: Colors.white,
+        margin: const EdgeInsets.all(16),
+      );
     } finally {
       _isLoading.value = false;
     }
@@ -957,9 +1020,6 @@ class AuthController extends GetxController {
     File? profilePic,
     File? companyLogo,
     File? video,
-    int? yearsOfExperience,
-    List<String>? languagesSpoken,
-    String? discountsOffered,
   }) async {
     try {
       _isLoading.value = true;
@@ -1017,21 +1077,6 @@ class AuthController extends GetxController {
             .toList();
         formData.fields.add(MapEntry('licensedStates', jsonEncode(stateNames)));
       }
-      if (yearsOfExperience != null) {
-        formData.fields.add(
-          MapEntry('yearsOfExperience', yearsOfExperience.toString()),
-        );
-      }
-      if (languagesSpoken != null && languagesSpoken.isNotEmpty) {
-        formData.fields.add(
-          MapEntry('languagesSpoken', jsonEncode(languagesSpoken)),
-        );
-      }
-      if (discountsOffered != null && discountsOffered.isNotEmpty) {
-        formData.fields.add(
-          MapEntry('discountsOffered', discountsOffered),
-        );
-      }
 
       // Add boolean fields
       if (dualAgencyState != null) {
@@ -1067,13 +1112,68 @@ class AuthController extends GetxController {
       }
 
       if (video != null) {
-        final fileName = video.path.split('/').last;
-        formData.files.add(
-          MapEntry(
-            'video',
-            await MultipartFile.fromFile(video.path, filename: fileName),
-          ),
-        );
+        // Verify file exists
+        if (!await video.exists()) {
+          if (kDebugMode) {
+            print('❌ Video file does not exist: ${video.path}');
+          }
+        } else {
+          try {
+            final fileName = video.path.split('/').last;
+            final fileSize = await video.length();
+            
+            if (kDebugMode) {
+              print('🎥 Preparing to upload video:');
+              print('   Filename: $fileName');
+              print('   Size: ${(fileSize / (1024 * 1024)).toStringAsFixed(2)} MB');
+              print('   Path: ${video.path}');
+            }
+            
+            // Read video file bytes to ensure file is accessible
+            final videoBytes = await video.readAsBytes();
+            
+            if (kDebugMode) {
+              print('   Video bytes read: ${videoBytes.length} bytes');
+            }
+            
+            // Determine content type from file extension
+            String contentType;
+            if (fileName.toLowerCase().endsWith('.mp4')) {
+              contentType = 'video/mp4';
+            } else if (fileName.toLowerCase().endsWith('.mov')) {
+              contentType = 'video/quicktime';
+            } else if (fileName.toLowerCase().endsWith('.avi')) {
+              contentType = 'video/x-msvideo';
+            } else {
+              contentType = 'video/mp4'; // Default
+            }
+            
+            // Create multipart file from bytes
+            // This ensures the video is sent as multipart/form-data
+            final multipartFile = MultipartFile.fromBytes(
+              videoBytes,
+              filename: fileName,
+            );
+            
+            formData.files.add(
+              MapEntry(
+                'video',
+                multipartFile,
+              ),
+            );
+            
+            if (kDebugMode) {
+              print('✅ Video added to formData as multipart file');
+              print('   Content-Type: $contentType');
+              print('   Length: ${multipartFile.length} bytes');
+            }
+          } catch (e) {
+            if (kDebugMode) {
+              print('❌ Error adding video: $e');
+              print('   Stack trace: ${StackTrace.current}');
+            }
+          }
+        }
       }
 
       // Validate userId
@@ -1117,30 +1217,15 @@ class AuthController extends GetxController {
               userData['id']?.toString() ??
               _currentUser.value!.id;
 
-          // Normalize profile image URL
-          final profileImageRaw = userData['profilePic']?.toString() ??
-                userData['profileImage']?.toString();
-          
-          if (kDebugMode) {
-            print('🔐 AuthController.updateUserProfile:');
-            print('   Raw profilePic from API response: "$profileImageRaw"');
-            print('   Base URL: ${ApiConstants.baseUrl}');
-          }
-          
-          final profileImage = profileImageRaw != null
-              ? ApiConstants.getImageUrl(profileImageRaw)
-              : _currentUser.value!.profileImage;
-          
-          if (kDebugMode) {
-            print('   Normalized profileImage: "$profileImage"');
-          }
-          
           final updatedUser = _currentUser.value!.copyWith(
             id: updatedUserId, // Ensure we use the correct ID from API
             name: userData['fullname'] ?? _currentUser.value!.name,
             email: userData['email'] ?? _currentUser.value!.email,
             phone: userData['phone']?.toString() ?? _currentUser.value!.phone,
-            profileImage: profileImage,
+            profileImage:
+                userData['profilePic'] ??
+                userData['profileImage'] ??
+                _currentUser.value!.profileImage,
             licensedStates: userData['licensedStates'] != null
                 ? List<String>.from(userData['licensedStates'])
                 : _currentUser.value!.licensedStates,
@@ -1164,9 +1249,6 @@ class AuthController extends GetxController {
                   userData['dualAgencySBrokerage'] ?? dualAgencySBrokerage,
               'companyLogo': userData['companyLogo'],
               'video': userData['video'] ?? userData['videoUrl'],
-              'yearsOfExperience': userData['yearsOfExperience'] ?? yearsOfExperience,
-              'languagesSpoken': userData['languagesSpoken'] ?? languagesSpoken,
-              'discountsOffered': userData['discountsOffered'] ?? discountsOffered,
             },
           );
 
@@ -1223,28 +1305,17 @@ class AuthController extends GetxController {
       print(e.response?.data ?? e.message);
       print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
-      String errorMessage = 'Failed to update profile. Please try again.';
-
-      if (e.response != null) {
-        final responseData = e.response?.data;
-        if (responseData is Map && responseData.containsKey('message')) {
-          errorMessage = responseData['message'].toString();
-        } else {
-          errorMessage = e.response?.statusMessage ?? errorMessage;
-        }
-      } else if (e.type == DioExceptionType.connectionTimeout ||
-          e.type == DioExceptionType.receiveTimeout) {
-        errorMessage =
-            'Connection timeout. Please check your internet connection.';
-      } else if (e.type == DioExceptionType.connectionError) {
-        errorMessage = 'No internet connection. Please check your network.';
-      }
-
-      Get.snackbar('Error', errorMessage);
+      NetworkErrorHandler.handleError(
+        e,
+        defaultMessage: 'Unable to update profile. Please check your internet connection and try again.',
+      );
       rethrow;
     } catch (e) {
       print('❌ Unexpected Error: ${e.toString()}');
-      Get.snackbar('Error', 'Failed to update profile: ${e.toString()}');
+      NetworkErrorHandler.handleError(
+        e,
+        defaultMessage: 'Unable to update profile. Please check your internet connection and try again.',
+      );
       rethrow;
     } finally {
       _isLoading.value = false;
@@ -1277,7 +1348,10 @@ class AuthController extends GetxController {
       // final user = UserModel(id: userId, ...);
     } catch (e) {
       print('❌ Social login error: $e');
-      Get.snackbar('Error', 'Social login failed: ${e.toString()}');
+      NetworkErrorHandler.handleError(
+        e,
+        defaultMessage: 'Unable to sign in with social account. Please check your internet connection and try again.',
+      );
     } finally {
       _isLoading.value = false;
     }
@@ -1306,9 +1380,25 @@ class AuthController extends GetxController {
     print('   User ID: $userId');
 
     // If loan officer, ensure we trigger loading of full loan officer profile
-    // Load in background - don't block navigation
-    // Note: _loadLoanOfficerProfile already called in _checkAuthStatus, so skip here to avoid duplicate
-    // The profile will be loaded automatically when session is restored
+    if (role == UserRole.loanOfficer && userId != null && userId.isNotEmpty) {
+      try {
+        print('📡 AuthController._navigateToRoleBasedScreen: Loading current loan officer profile before navigation...');
+        final currentLoanOfficerController =
+            Get.isRegistered<CurrentLoanOfficerController>()
+                ? Get.find<CurrentLoanOfficerController>()
+                : Get.put(CurrentLoanOfficerController(), permanent: true);
+
+        currentLoanOfficerController
+            .fetchCurrentLoanOfficer(userId)
+            .then((_) {
+          print('✅ AuthController._navigateToRoleBasedScreen: Loan officer profile loaded.');
+        }).catchError((e) {
+          print('❌ AuthController._navigateToRoleBasedScreen: Failed to load loan officer profile: $e');
+        });
+      } catch (e) {
+        print('⚠️ AuthController._navigateToRoleBasedScreen: Error initializing CurrentLoanOfficerController: $e');
+      }
+    }
 
     switch (role) {
       case UserRole.buyerSeller:

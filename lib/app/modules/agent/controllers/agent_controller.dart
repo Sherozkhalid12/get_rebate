@@ -20,7 +20,7 @@ import 'package:getrebate/app/utils/network_error_handler.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/modules/messages/controllers/messages_controller.dart';
-// import 'package:getrebate/app/widgets/payment_web_view.dart'; // Removed - file doesn't exist
+import 'package:getrebate/app/widgets/payment_web_view.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:math';
 import 'dart:io';
@@ -867,13 +867,11 @@ class AgentController extends GetxController {
           print('   Checkout Session ID: $sessionId');
         }
 
-        // Step 2: Open payment URL in browser
-        // TODO: Replace with proper WebView widget when PaymentWebView is implemented
-        final uri = Uri.parse(checkoutUrl);
-        if (await canLaunchUrl(uri)) {
-          await launchUrl(uri, mode: LaunchMode.externalApplication);
-        }
-        final paymentSuccess = true; // Assume success for now
+        // Step 2: Open payment URL in in-app web view
+        final paymentSuccess = await Get.to<bool>(
+          () => PaymentWebView(checkoutUrl: checkoutUrl),
+          fullscreenDialog: true,
+        );
 
         // Step 3: If payment successful, call paymentSuccess API first, then claim the ZIP code
         if (paymentSuccess == true) {

@@ -3,14 +3,12 @@ import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:carousel_slider/carousel_slider.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:getrebate/app/modules/listing_detail/controllers/listing_detail_controller.dart';
 import 'package:getrebate/app/modules/buyer/controllers/buyer_controller.dart';
 import 'package:getrebate/app/models/agent_model.dart';
 import 'package:getrebate/app/models/listing.dart';
 import 'package:getrebate/app/utils/rebate.dart';
-import 'package:getrebate/app/utils/api_constants.dart';
+import 'package:getrebate/app/utils/image_url_helper.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/widgets/custom_button.dart';
 import 'package:getrebate/app/widgets/pros_cons_chart_widget.dart';
@@ -67,113 +65,35 @@ class ListingDetailView extends GetView<ListingDetailController> {
 
     return Scaffold(
       backgroundColor: AppTheme.lightGray,
-      body: NotificationListener<ScrollNotification>(
-        onNotification: (notification) {
-          // Allow horizontal scrolls to pass through
-          if (notification is ScrollUpdateNotification) {
-            final delta = notification.scrollDelta ?? 0;
-            // If horizontal scroll detected, don't consume the notification
-            if (delta.abs() > 0 && notification.metrics.axis == Axis.horizontal) {
-              return false;
-            }
-          }
-          return false;
-        },
-        child: CustomScrollView(
-          slivers: [
-            // Custom App Bar with Image Slider
-            SliverAppBar(
-              expandedHeight: 400.h,
-              floating: false,
-              pinned: true,
-              backgroundColor: AppTheme.primaryBlue,
-              flexibleSpace: FlexibleSpaceBar(
-                background: LayoutBuilder(
-                  builder: (context, constraints) {
-                    final carouselHeight = constraints.maxHeight > 0 ? constraints.maxHeight : 400.h;
-                    return Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        // Image Carousel Slider
-                        if (listing.photoUrls.isNotEmpty)
-                          SizedBox(
-                            width: constraints.maxWidth,
-                            height: carouselHeight,
-                            child: CarouselSlider.builder(
-                              carouselController: controller.carouselController,
-                              itemCount: listing.photoUrls.length,
-                              itemBuilder: (context, index, realIndex) {
-                                return GestureDetector(
-                                  onTap: () => _showFullScreenImageSlider(context, listing.photoUrls, controller.currentImageIndex),
-                                  child: Builder(
-                                    builder: (context) {
-                                      final imageUrl = listing.photoUrls[index];
-                                      if (kDebugMode) {
-                                        print('🖼️ Listing Detail - Rendering image $index with URL: $imageUrl');
-                                      }
-                                      return CachedNetworkImage(
-                                        imageUrl: imageUrl,
-                                        fit: BoxFit.cover,
-                                        width: double.infinity,
-                                        height: double.infinity,
-                                        cacheKey: imageUrl,
-                                        memCacheWidth: 800,
-                                        memCacheHeight: 600,
-                                        maxWidthDiskCache: 1600,
-                                        maxHeightDiskCache: 1200,
-                                        fadeInDuration: Duration.zero,
-                                        placeholder: (context, url) => Container(
-                                          width: double.infinity,
-                                          height: double.infinity,
-                                          color: AppTheme.lightGray,
-                                        ),
-                                        errorWidget: (context, url, error) {
-                                          if (kDebugMode) {
-                                            print('❌ Listing Detail - Image load error for URL: $url');
-                                            print('   Error: $error');
-                                            print('   Error type: ${error.runtimeType}');
-                                          }
-                                          return Container(
-                                            width: double.infinity,
-                                            height: double.infinity,
-                                            color: AppTheme.lightGray,
-                                            child: const Icon(
-                                              Icons.home,
-                                              size: 64,
-                                              color: AppTheme.mediumGray,
-                                            ),
-                                          );
-                                        },
-                                        httpHeaders: const {
-                                          'Accept': 'image/*',
-                                        },
-                                      );
-                                    },
-                                  ),
-                                );
-                              },
-                              options: CarouselOptions(
-                                height: carouselHeight,
-                                viewportFraction: 1.0,
-                                enableInfiniteScroll: listing.photoUrls.length > 1,
-                                autoPlay: false,
-                                enlargeCenterPage: false,
-                                onPageChanged: (index, reason) {
-                                  controller.onImageChanged(index);
-                                },
-                                scrollPhysics: const PageScrollPhysics(),
-                                scrollDirection: Axis.horizontal,
-                                pageSnapping: true,
-                                padEnds: false,
-                                disableCenter: false,
-                                enlargeStrategy: CenterPageEnlargeStrategy.scale,
+      body: CustomScrollView(
+        slivers: [
+          // Custom App Bar with Image
+          SliverAppBar(
+            expandedHeight: 300.h,
+            floating: false,
+            pinned: true,
+            backgroundColor: AppTheme.primaryBlue,
+            flexibleSpace: FlexibleSpaceBar(
+              background: Stack(
+                fit: StackFit.expand,
+                children: [
+                  // Property Image
+                  listing.photoUrls.isNotEmpty
+                      ? Image.network(
+                          ImageUrlHelper.buildImageUrl(listing.photoUrls.first) ?? listing.photoUrls.first,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              color: AppTheme.lightGray,
+                              child: const Icon(
+                                Icons.home,
+                                size: 64,
+                                color: AppTheme.mediumGray,
                               ),
-                            ),
-                          )
-                      else
-                        Container(
-                          width: constraints.maxWidth,
-                          height: carouselHeight,
+                            );
+                          },
+                        )
+                      : Container(
                           color: AppTheme.lightGray,
                           child: const Icon(
                             Icons.home,
@@ -181,131 +101,34 @@ class ListingDetailView extends GetView<ListingDetailController> {
                             color: AppTheme.mediumGray,
                           ),
                         ),
-                      // Gradient Overlay - use IgnorePointer to allow touches to pass through
-                      IgnorePointer(
-                        child: Container(
-                          width: constraints.maxWidth,
-                          height: carouselHeight,
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [
-                                Colors.black.withOpacity(0.2),
-                                Colors.transparent,
-                                Colors.black.withOpacity(0.4),
-                              ],
-                              stops: const [0.0, 0.5, 1.0],
-                            ),
-                          ),
-                        ),
+                  // Gradient Overlay
+                  Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.transparent,
+                          Colors.black.withOpacity(0.3),
+                        ],
                       ),
-                      // Page Indicators
-                      if (listing.photoUrls.length > 1)
-                        Positioned(
-                          bottom: 20.h,
-                          left: 0,
-                          right: 0,
-                          child: IgnorePointer(
-                            child: Obx(() => Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: List.generate(
-                                listing.photoUrls.length,
-                                (index) => AnimatedContainer(
-                                  duration: const Duration(milliseconds: 300),
-                                  curve: Curves.easeInOut,
-                                  margin: EdgeInsets.symmetric(horizontal: 4.w),
-                                  width: controller.currentImageIndex == index ? 24.w : 8.w,
-                                  height: 8.h,
-                                  decoration: BoxDecoration(
-                                    color: controller.currentImageIndex == index
-                                        ? AppTheme.white
-                                        : AppTheme.white.withOpacity(0.5),
-                                    borderRadius: BorderRadius.circular(4.r),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withOpacity(0.2),
-                                        blurRadius: 4,
-                                        offset: const Offset(0, 2),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            )),
-                          ),
-                        ),
-                      // Image Counter
-                      if (listing.photoUrls.length > 1)
-                        Positioned(
-                          top: 60.h,
-                          right: 16.w,
-                          child: IgnorePointer(
-                            child: Container(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: 12.w,
-                                vertical: 6.h,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.black.withOpacity(0.6),
-                                borderRadius: BorderRadius.circular(20.r),
-                              ),
-                              child: Obx(() => Text(
-                                '${controller.currentImageIndex + 1} / ${listing.photoUrls.length}',
-                                style: TextStyle(
-                                  color: AppTheme.white,
-                                  fontSize: 13.sp,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              )),
-                            ),
-                          ),
-                        ),
-                    ],
-                  );
-                },
+                    ),
+                  ),
+                ],
               ),
-              ),
+            ),
             leading: Container(
               margin: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.5),
+                color: Colors.black.withOpacity(0.3),
                 borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.3),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
               ),
               child: IconButton(
                 icon: const Icon(Icons.arrow_back, color: Colors.white),
                 onPressed: () => Navigator.pop(context),
               ),
             ),
-            actions: [
-              // Full Screen Button
-              if (listing.photoUrls.isNotEmpty)
-                Container(
-                  margin: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.5),
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.3),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: IconButton(
-                    icon: const Icon(Icons.fullscreen, color: Colors.white),
-                    onPressed: () => _showFullScreenImageSlider(context, listing.photoUrls, controller.currentImageIndex),
-                  ),
-                ),
-            ],
+            actions: [],
           ),
 
           // Content
@@ -619,7 +442,6 @@ class ListingDetailView extends GetView<ListingDetailController> {
             ),
           ),
         ],
-      ),
       ),
     );
   }
@@ -1006,11 +828,9 @@ class ListingDetailView extends GetView<ListingDetailController> {
                         if (agent.profileImage != null && agent.profileImage!.isNotEmpty)
                           CircleAvatar(
                             radius: 28,
-                            backgroundImage: NetworkImage(
-                              agent.profileImage!.startsWith('http')
-                                  ? agent.profileImage!
-                                  : '${ApiConstants.baseUrl}/${agent.profileImage!.replaceAll('\\', '/').replaceFirst('/', '')}',
-                            ),
+                            backgroundImage: ImageUrlHelper.buildImageUrl(agent.profileImage) != null
+                                ? NetworkImage(ImageUrlHelper.buildImageUrl(agent.profileImage)!)
+                                : null,
                             onBackgroundImageError: (_, __) {},
                           )
                         else
@@ -1343,159 +1163,6 @@ class ListingDetailView extends GetView<ListingDetailController> {
         ),
       ),
     );
-  }
-
-  void _showFullScreenImageSlider(BuildContext context, List<String> images, int initialIndex) {
-    final currentIndex = initialIndex.obs;
-    final pageController = PageController(initialPage: initialIndex);
-
-    Get.dialog(
-      Dialog(
-        backgroundColor: Colors.black,
-        insetPadding: EdgeInsets.zero,
-        child: Stack(
-          children: [
-            PageView.builder(
-              controller: pageController,
-              onPageChanged: (index) => currentIndex.value = index,
-              itemCount: images.length,
-              itemBuilder: (context, index) {
-                return InteractiveViewer(
-                  minScale: 0.5,
-                  maxScale: 4.0,
-                  child: Builder(
-                    builder: (context) {
-                      final imageUrl = images[index];
-                      if (kDebugMode) {
-                        print('🖼️ Full Screen Image Viewer - Rendering image $index with URL: $imageUrl');
-                      }
-                      return CachedNetworkImage(
-                        imageUrl: imageUrl,
-                        fit: BoxFit.contain,
-                        cacheKey: imageUrl,
-                        memCacheWidth: 1200,
-                        memCacheHeight: 1600,
-                        maxWidthDiskCache: 3000,
-                        maxHeightDiskCache: 3000,
-                        fadeInDuration: Duration.zero,
-                        placeholder: (context, url) => Container(
-                          color: AppTheme.darkGray,
-                        ),
-                        errorWidget: (context, url, error) {
-                          if (kDebugMode) {
-                            print('❌ Full Screen Image Viewer - Image load error for URL: $url');
-                            print('   Error: $error');
-                          }
-                          return Center(
-                            child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.error_outline,
-                              color: AppTheme.white,
-                              size: 64,
-                            ),
-                            SizedBox(height: 16),
-                            Text(
-                              'Failed to load image',
-                              style: TextStyle(
-                                color: AppTheme.white,
-                                fontSize: 16.sp,
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                        httpHeaders: const {
-                          'Accept': 'image/*',
-                        },
-                      );
-                    },
-                  ),
-                );
-              },
-            ),
-            // Close Button
-            Positioned(
-              top: 40.h,
-              right: 16.w,
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.6),
-                  shape: BoxShape.circle,
-                ),
-                child: IconButton(
-                  icon: const Icon(Icons.close, color: Colors.white, size: 28),
-                  onPressed: () {
-                    Navigator.pop(context);
-                    // Dispose after navigation completes
-                    Future.delayed(const Duration(milliseconds: 100), () {
-                      if (pageController.hasClients) {
-                        pageController.dispose();
-                      }
-                    });
-                  },
-                ),
-              ),
-            ),
-            // Page Indicators (bottom)
-            if (images.length > 1)
-              Positioned(
-                bottom: 40.h,
-                left: 0,
-                right: 0,
-                child: Obx(() => Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(
-                    images.length,
-                    (index) => AnimatedContainer(
-                      duration: const Duration(milliseconds: 300),
-                      curve: Curves.easeInOut,
-                      margin: EdgeInsets.symmetric(horizontal: 4.w),
-                      width: currentIndex.value == index ? 32.w : 8.w,
-                      height: 8.h,
-                      decoration: BoxDecoration(
-                        color: currentIndex.value == index
-                            ? AppTheme.white
-                            : AppTheme.white.withOpacity(0.5),
-                        borderRadius: BorderRadius.circular(4.r),
-                      ),
-                    ),
-                  ),
-                )),
-              ),
-            // Image Counter (top)
-            if (images.length > 1)
-              Positioned(
-                top: 40.h,
-                left: 16.w,
-                child: Container(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: 16.w,
-                    vertical: 8.h,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.6),
-                    borderRadius: BorderRadius.circular(20.r),
-                  ),
-                  child: Obx(() => Text(
-                    '${currentIndex.value + 1} / ${images.length}',
-                    style: TextStyle(
-                      color: AppTheme.white,
-                      fontSize: 14.sp,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  )),
-                ),
-              ),
-          ],
-        ),
-      ),
-      barrierColor: Colors.black.withOpacity(0.95),
-    ).then((_) {
-      // Don't dispose here - it's already disposed in onPressed
-    });
   }
 }
 

@@ -1,6 +1,3 @@
-import 'package:flutter/foundation.dart';
-import 'package:getrebate/app/utils/api_constants.dart';
-
 enum UserRole { buyerSeller, agent, loanOfficer }
 
 class UserModel {
@@ -36,22 +33,6 @@ class UserModel {
                    json['id']?.toString() ?? 
                    '';
     
-    // Normalize profile image URL using helper
-    final profileImageRaw = json['profileImage']?.toString() ?? 
-                           json['profilePic']?.toString() ??
-                           json['profile_pic']?.toString();
-    
-    if (kDebugMode) {
-      print('👤 UserModel.fromJson:');
-      print('   Raw profileImage from JSON: "$profileImageRaw"');
-    }
-    
-    final profileImage = ApiConstants.getImageUrl(profileImageRaw);
-    
-    if (kDebugMode) {
-      print('   Normalized profileImage: "$profileImage"');
-    }
-    
     return UserModel(
       id: userId,
       email: json['email'] ?? '',
@@ -61,7 +42,7 @@ class UserModel {
         (e) => e.toString() == 'UserRole.${json['role']}',
         orElse: () => UserRole.buyerSeller,
       ),
-      profileImage: profileImage,
+      profileImage: json['profileImage'],
       licensedStates: List<String>.from(json['licensedStates'] ?? []),
       createdAt: DateTime.parse(
         json['createdAt'] ?? DateTime.now().toIso8601String(),

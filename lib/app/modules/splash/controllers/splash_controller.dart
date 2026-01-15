@@ -4,6 +4,7 @@ import 'package:getrebate/app/routes/app_pages.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart';
 import 'package:getrebate/app/models/user_model.dart';
 import 'package:getrebate/app/modules/messages/controllers/messages_controller.dart';
+import 'package:getrebate/app/modules/buyer/controllers/buyer_controller.dart';
 
 class SplashController extends GetxController {
   Timer? _timer;
@@ -58,6 +59,11 @@ class SplashController extends GetxController {
   /// Preloads data in background for instant access when user opens app
   void _preloadData() {
     try {
+      final authController = Get.find<AuthController>();
+      final user = authController.currentUser;
+      
+      if (user == null) return;
+      
       // Initialize messages controller immediately to start loading threads
       // This ensures threads are loading while splash screen is showing
       if (!Get.isRegistered<MessagesController>()) {
@@ -75,8 +81,24 @@ class SplashController extends GetxController {
         }
       }
       
-      // Note: BuyerController will be initialized when main screen loads via bindings
-      // This ensures data loads in parallel with navigation
+      // Preload buyer data if user is buyer/seller
+      if (user.role == UserRole.buyerSeller) {
+        if (!Get.isRegistered<BuyerController>()) {
+          // Initialize BuyerController and load data immediately
+          Get.put(BuyerController(), permanent: true);
+          print('🚀 Splash: BuyerController initialized - data loading in background');
+        } else {
+          // Controller already exists, trigger data refresh
+          try {
+            final buyerController = Get.find<BuyerController>();
+            buyerController.preloadData();
+            print('🚀 Splash: Triggered data preload for existing BuyerController');
+          } catch (e) {
+            print('⚠️ Splash: Failed to preload buyer data: $e');
+          }
+        }
+      }
+      
       print('🚀 Splash: Data preload initiated');
     } catch (e) {
       print('⚠️ Splash: Failed to preload data: $e');

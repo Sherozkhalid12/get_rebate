@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart' as global;
 import 'package:getrebate/app/utils/api_constants.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
+import 'package:getrebate/app/utils/network_error_handler.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:get_storage/get_storage.dart';
 
@@ -235,17 +236,81 @@ class CreateListingController extends GetxController {
       formData.fields.add(MapEntry('propertyFeatures', jsonEncode(_selectedFeatures)));
 
       // Add property photos (files)
-      for (var photo in _selectedPhotos) {
-        final fileName = photo.path.split('/').last;
-        formData.files.add(
-          MapEntry(
-            'propertyPhotos',
-            await MultipartFile.fromFile(photo.path, filename: fileName),
-          ),
-        );
-      }
-
       if (kDebugMode) {
+        print('📸 Preparing to upload ${_selectedPhotos.length} photo(s)');
+      }
+      
+      for (int i = 0; i < _selectedPhotos.length; i++) {
+        final photo = _selectedPhotos[i];
+        final fileName = photo.path.split('/').last;
+        
+        // Verify file exists and is readable
+        if (!await photo.exists()) {
+          if (kDebugMode) {
+            print('❌ Photo file does not exist: ${photo.path}');
+          }
+          continue;
+        }
+        
+        try {
+          final fileSize = await photo.length();
+          if (kDebugMode) {
+            print('📸 Photo [$i]: $fileName (${(fileSize / 1024).toStringAsFixed(2)} KB)');
+            print('   Path: ${photo.path}');
+          }
+          
+          // Read file bytes to ensure file is accessible
+          final fileBytes = await photo.readAsBytes();
+          if (kDebugMode) {
+            print('   File bytes read: ${fileBytes.length} bytes');
+          }
+          
+          // Create multipart file from bytes
+          // This ensures the file is sent as multipart/form-data
+          // Determine content type from file extension
+          String? contentType;
+          if (fileName.toLowerCase().endsWith('.png')) {
+            contentType = 'image/png';
+          } else if (fileName.toLowerCase().endsWith('.jpg') || fileName.toLowerCase().endsWith('.jpeg')) {
+            contentType = 'image/jpeg';
+          } else if (fileName.toLowerCase().endsWith('.gif')) {
+            contentType = 'image/gif';
+          } else {
+            contentType = 'image/png'; // Default
+          }
+          
+          final multipartFile = MultipartFile.fromBytes(
+            fileBytes,
+            filename: fileName,
+          );
+          
+          // Use exact field name 'propertyPhotos' to match server's multer configuration
+          // Multer expects this exact field name (without brackets) for multiple files
+          formData.files.add(
+            MapEntry(
+              'propertyPhotos',
+              multipartFile,
+            ),
+          );
+          
+          if (kDebugMode) {
+            print('✅ Photo [$i] added to formData as multipart file');
+            print('   Content-Type: $contentType');
+            print('   Length: ${multipartFile.length} bytes');
+            print('   Filename: $fileName');
+          }
+        } catch (e) {
+          if (kDebugMode) {
+            print('❌ Error adding photo [$i]: $e');
+            print('   Stack trace: ${StackTrace.current}');
+          }
+        }
+      }
+      
+      if (kDebugMode) {
+        print('📊 FormData Summary:');
+        print('   - Fields: ${formData.fields.length}');
+        print('   - Files: ${formData.files.length}');
         print('🚀 Sending POST request to: ${ApiConstants.createListingEndpoint}');
         print('📤 Request Data:');
         print('  - propertyTitle: ${titleController.text.trim()}');
@@ -254,7 +319,7 @@ class CreateListingController extends GetxController {
         print('  - status: ${_selectedStatus.value}');
         print('  - propertyDetails: $propertyDetailsJson');
         print('  - propertyFeatures: $_selectedFeatures');
-        print('  - propertyPhotos: ${_selectedPhotos.length} file(s)');
+        print('  - propertyPhotos: ${formData.files.length} file(s) uploaded');
       }
 
       // Setup Dio with auth token and timeouts
@@ -267,7 +332,29 @@ class CreateListingController extends GetxController {
       _dio.options.receiveTimeout = const Duration(seconds: 30);
       _dio.options.sendTimeout = const Duration(seconds: 30);
 
-      // Make API call
+      // Verify formData has files before sending
+      if (kDebugMode) {
+        print('📋 Final FormData check before sending:');
+        print('   Total fields: ${formData.fields.length}');
+        print('   Total files: ${formData.files.length}');
+        if (formData.files.isEmpty && _selectedPhotos.isNotEmpty) {
+          print('⚠️ WARNING: Selected photos (${_selectedPhotos.length}) but no files in formData!');
+        }
+      }
+
+      // Make API call with explicit multipart options
+      if (kDebugMode) {
+        print('📡 Making POST request with FormData:');
+        print('   Endpoint: ${ApiConstants.createListingEndpoint}');
+        print('   Files count: ${formData.files.length}');
+        print('   Fields count: ${formData.fields.length}');
+        // Log all file entries
+        for (int i = 0; i < formData.files.length; i++) {
+          final entry = formData.files[i];
+          print('   File [$i]: key="${entry.key}", filename="${entry.value.filename}"');
+        }
+      }
+
       final response = await _dio.post(
         ApiConstants.createListingEndpoint,
         data: formData,
@@ -275,7 +362,11 @@ class CreateListingController extends GetxController {
           headers: {
             ...ApiConstants.ngrokHeaders,
             if (authToken != null) 'Authorization': 'Bearer $authToken',
+            // Don't set Content-Type manually - Dio will automatically set multipart/form-data with boundary
           },
+          // Ensure we're sending as multipart
+          followRedirects: false,
+          validateStatus: (status) => status! < 500,
         ),
       );
 
@@ -320,34 +411,9 @@ class CreateListingController extends GetxController {
         print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       }
 
-      String errorMessage = 'Failed to create listing. Please try again.';
-
-      if (e.response != null) {
-        final responseData = e.response?.data;
-        if (responseData is Map && responseData.containsKey('message')) {
-          errorMessage = responseData['message'].toString();
-        } else if (responseData is Map && responseData.containsKey('error')) {
-          errorMessage = responseData['error'].toString();
-        } else if (e.response?.statusCode == 401) {
-          errorMessage = 'Unauthorized. Please login again.';
-        } else if (e.response?.statusCode == 400) {
-          errorMessage = 'Invalid request. Please check your input.';
-        } else if (e.response?.statusCode == 500) {
-          errorMessage = 'Server error. Please try again later.';
-        } else {
-          errorMessage = e.response?.statusMessage ?? errorMessage;
-        }
-      } else if (e.type == DioExceptionType.connectionTimeout ||
-          e.type == DioExceptionType.receiveTimeout) {
-        errorMessage =
-            'Connection timeout. Please check your internet connection.';
-      } else if (e.type == DioExceptionType.connectionError) {
-        errorMessage = 'No internet connection. Please check your network.';
-      }
-
-      SnackbarHelper.showError(
-        errorMessage,
-        duration: const Duration(seconds: 3),
+      NetworkErrorHandler.handleError(
+        e,
+        defaultMessage: 'Unable to create listing. Please check your internet connection and try again.',
       );
     } catch (e) {
       _isLoading.value = false;
@@ -357,9 +423,9 @@ class CreateListingController extends GetxController {
         print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       }
 
-      SnackbarHelper.showError(
-        'Failed to create listing: ${e.toString()}',
-        duration: const Duration(seconds: 3),
+      NetworkErrorHandler.handleError(
+        e,
+        defaultMessage: 'Unable to create listing. Please check your internet connection and try again.',
       );
     }
   }

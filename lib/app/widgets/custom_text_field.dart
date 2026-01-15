@@ -41,12 +41,8 @@ class CustomTextField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Safely use controller - wrap in try-catch to handle disposed controllers
-    try {
-      // Test if controller is still valid by accessing a property
-      final _ = controller.text;
-      return TextFormField(
-        controller: controller,
+    return TextFormField(
+      controller: controller,
       obscureText: obscureText,
       keyboardType: keyboardType,
       maxLines: maxLines,
@@ -107,33 +103,6 @@ class CustomTextField extends StatelessWidget {
         ).textTheme.bodySmall?.copyWith(color: AppTheme.mediumGray),
       ),
     );
-    } catch (e) {
-      // Controller is disposed, return a disabled placeholder
-      return TextFormField(
-        enabled: false,
-        style: Theme.of(
-          context,
-        ).textTheme.bodyMedium?.copyWith(color: AppTheme.darkGray),
-        decoration: InputDecoration(
-          labelText: labelText,
-          hintText: hintText,
-          prefixIcon: prefixIcon != null
-              ? Icon(prefixIcon, color: AppTheme.mediumGray, size: 20)
-              : null,
-          suffixIcon: suffixIcon,
-          filled: true,
-          fillColor: fillColor ?? AppTheme.white,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(borderRadius),
-            borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-          ),
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 16,
-          ),
-        ),
-      );
-    }
   }
 }
 
@@ -155,13 +124,9 @@ class CustomSearchField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Safely use controller - wrap in try-catch to handle disposed controllers
-    try {
-      // Test if controller is still valid by accessing a property
-      final _ = controller.text;
-      return TextField(
-        controller: controller,
-        onChanged: onChanged,
+    return TextField(
+      controller: controller,
+      onChanged: onChanged,
       style: Theme.of(
         context,
       ).textTheme.bodyMedium?.copyWith(color: AppTheme.darkGray),
@@ -208,35 +173,5 @@ class CustomSearchField extends StatelessWidget {
         ).textTheme.bodyMedium?.copyWith(color: AppTheme.mediumGray),
       ),
     );
-    } catch (e) {
-      // Controller is disposed, return a disabled placeholder
-      return TextField(
-        enabled: false,
-        style: Theme.of(
-          context,
-        ).textTheme.bodyMedium?.copyWith(color: AppTheme.darkGray),
-        decoration: InputDecoration(
-          hintText: hintText,
-          prefixIcon: const Icon(
-            Icons.search,
-            color: AppTheme.mediumGray,
-            size: 20,
-          ),
-          filled: true,
-          fillColor: AppTheme.lightGray,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide.none,
-          ),
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 16,
-          ),
-          hintStyle: Theme.of(
-            context,
-          ).textTheme.bodyMedium?.copyWith(color: AppTheme.mediumGray),
-        ),
-      );
-    }
   }
 }

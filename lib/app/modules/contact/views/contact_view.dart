@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/modules/contact/controllers/contact_controller.dart';
 import 'package:getrebate/app/widgets/custom_button.dart';
@@ -115,9 +116,9 @@ class ContactView extends GetView<ContactController> {
                     SizedBox(
                       width: 30.w,
                       height: 30.h,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 3,
-                        valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primaryBlue),
+                      child: SpinKitFadingCircle(
+                        color: AppTheme.primaryBlue,
+                        size: 30,
                       ),
                     ),
                     SizedBox(height: 12.h),

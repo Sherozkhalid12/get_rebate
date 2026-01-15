@@ -52,7 +52,6 @@ import 'package:getrebate/app/modules/checklist/views/checklist_view.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/models/loan_officer_model.dart';
 import 'package:getrebate/app/models/agent_model.dart';
-import 'package:getrebate/app/modules/messages/controllers/messages_controller.dart';
 import 'package:getrebate/app/modules/contact/views/contact_view.dart';
 import 'package:getrebate/app/modules/contact/bindings/contact_binding.dart';
 import 'package:getrebate/app/modules/privacy_policy/views/privacy_policy_view.dart';
@@ -61,16 +60,10 @@ import 'package:getrebate/app/modules/help_support/views/help_support_view.dart'
 import 'package:getrebate/app/modules/help_support/bindings/help_support_binding.dart';
 import 'package:getrebate/app/modules/terms_of_service/views/terms_of_service_view.dart';
 import 'package:getrebate/app/modules/terms_of_service/bindings/terms_of_service_binding.dart';
-import 'package:getrebate/app/modules/loan_officer_buyer_connections/views/loan_officer_buyer_connections_view.dart';
-import 'package:getrebate/app/modules/loan_officer_buyer_connections/bindings/loan_officer_buyer_connections_binding.dart';
-import 'package:getrebate/app/modules/loan_officer_buyer_detail/views/loan_officer_buyer_detail_view.dart';
-import 'package:getrebate/app/modules/loan_officer_buyer_detail/bindings/loan_officer_buyer_detail_binding.dart';
 import 'package:getrebate/app/modules/notifications/views/notifications_view.dart';
 import 'package:getrebate/app/modules/notifications/bindings/notifications_binding.dart';
-import 'package:getrebate/app/modules/proposals/views/proposals_view.dart';
-import 'package:getrebate/app/modules/proposals/views/lead_detail_view.dart';
-import 'package:getrebate/app/modules/proposals/bindings/proposals_binding.dart';
-import 'package:getrebate/app/modules/proposals/bindings/lead_detail_binding.dart';
+import 'package:getrebate/app/modules/compliance_tutorial/views/compliance_tutorial_view.dart';
+import 'package:getrebate/app/modules/compliance_tutorial/bindings/compliance_tutorial_binding.dart';
 import 'package:flutter/material.dart';
 
 class AppPages {
@@ -104,11 +97,8 @@ class AppPages {
   static const PRIVACY_POLICY = '/privacy-policy';
   static const HELP_SUPPORT = '/help-support';
   static const TERMS_OF_SERVICE = '/terms-of-service';
-  static const LOAN_OFFICER_BUYER_CONNECTIONS = '/loan-officer-buyer-connections';
-  static const LOAN_OFFICER_BUYER_DETAIL = '/loan-officer-buyer-detail';
   static const NOTIFICATIONS = '/notifications';
-  static const PROPOSALS = '/proposals';
-  static const LEAD_DETAIL = '/lead-detail';
+  static const COMPLIANCE_TUTORIAL = '/compliance-tutorial';
 
   static final routes = [
     GetPage(
@@ -259,29 +249,14 @@ class AppPages {
       binding: TermsOfServiceBinding(),
     ),
     GetPage(
-      name: LOAN_OFFICER_BUYER_CONNECTIONS,
-      page: () => const LoanOfficerBuyerConnectionsView(),
-      binding: LoanOfficerBuyerConnectionsBinding(),
-    ),
-    GetPage(
-      name: LOAN_OFFICER_BUYER_DETAIL,
-      page: () => const LoanOfficerBuyerDetailView(),
-      binding: LoanOfficerBuyerDetailBinding(),
-    ),
-    GetPage(
       name: NOTIFICATIONS,
       page: () => const NotificationsView(),
       binding: NotificationsBinding(),
     ),
     GetPage(
-      name: PROPOSALS,
-      page: () => const ProposalsView(),
-      binding: ProposalsBinding(),
-    ),
-    GetPage(
-      name: LEAD_DETAIL,
-      page: () => const LeadDetailView(),
-      binding: LeadDetailBinding(),
+      name: COMPLIANCE_TUTORIAL,
+      page: () => const ComplianceTutorialView(),
+      binding: ComplianceTutorialBinding(),
     ),
   ];
 }

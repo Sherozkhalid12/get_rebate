@@ -15,7 +15,6 @@ import 'package:getrebate/app/modules/messages/bindings/messages_binding.dart';
 import 'package:getrebate/app/modules/profile/views/profile_view.dart';
 import 'package:getrebate/app/modules/profile/bindings/profile_binding.dart';
 import 'package:getrebate/app/modules/notifications/bindings/notifications_binding.dart';
-import 'package:getrebate/app/modules/notifications/controllers/notifications_controller.dart';
 // import 'package:getrebate/app/modules/property_listings/bindings/property_listings_binding.dart';
 import 'package:circle_nav_bar/circle_nav_bar.dart';
 
@@ -49,11 +48,6 @@ class MainNavigationController extends GetxController {
         print('   Pages array: [Home(0), Favorites(1), Messages(2), Profile(3)]');
         print('   Navbar visibility: true');
       }
-      
-      // Load notifications when navigating to home page (index 0)
-      if (validIndex == 0) {
-        _loadNotifications();
-      }
     } else {
       // Even if index hasn't changed, ensure navbar is visible
       if (!_isNavBarVisible.value) {
@@ -61,32 +55,6 @@ class MainNavigationController extends GetxController {
         if (kDebugMode) {
           print('🔄 Navbar visibility restored (index unchanged: $validIndex)');
         }
-      }
-      
-      // Also load notifications if already on home page and user taps home again
-      if (validIndex == 0) {
-        _loadNotifications();
-      }
-    }
-  }
-  
-  /// Loads notification data when navigating to home page
-  void _loadNotifications() {
-    try {
-      if (Get.isRegistered<NotificationsController>()) {
-        final notificationsController = Get.find<NotificationsController>();
-        notificationsController.fetchNotifications();
-        if (kDebugMode) {
-          print('📬 Loading notifications on home page navigation');
-        }
-      } else {
-        if (kDebugMode) {
-          print('⚠️ NotificationsController not registered yet');
-        }
-      }
-    } catch (e) {
-      if (kDebugMode) {
-        print('❌ Error loading notifications: $e');
       }
     }
   }

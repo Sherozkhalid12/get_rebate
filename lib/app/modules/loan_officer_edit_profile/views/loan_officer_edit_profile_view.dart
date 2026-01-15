@@ -178,14 +178,6 @@ class LoanOfficerEditProfileView extends GetView<LoanOfficerEditProfileControlle
 
               const SizedBox(height: 24),
 
-              // Why Pick Me Section
-              _buildWhyPickMeSection(context)
-                  .animate()
-                  .fadeIn(duration: 300.ms, delay: 250.ms)
-                  .slideY(begin: -0.1, duration: 300.ms, delay: 250.ms),
-
-              const SizedBox(height: 24),
-
               // Licensed States
               _buildLicensedStatesSection(context)
                   .animate()
@@ -261,14 +253,8 @@ class LoanOfficerEditProfileView extends GetView<LoanOfficerEditProfileControlle
                           width: 120,
                           height: 120,
                           fit: BoxFit.cover,
-                          cacheKey: imageUrl,
-                          memCacheWidth: 240,
-                          memCacheHeight: 240,
-                          maxWidthDiskCache: 500,
-                          maxHeightDiskCache: 500,
-                          fadeInDuration: Duration.zero,
-                          placeholder: (context, url) => Container(
-                            color: AppTheme.primaryBlue.withOpacity(0.1),
+                          placeholder: (context, url) => const Center(
+                            child: CircularProgressIndicator(),
                           ),
                           errorWidget: (context, url, error) => const Icon(
                             Icons.person,
@@ -372,14 +358,8 @@ class LoanOfficerEditProfileView extends GetView<LoanOfficerEditProfileControlle
                           width: 120,
                           height: 120,
                           fit: BoxFit.contain,
-                          cacheKey: imageUrl,
-                          memCacheWidth: 240,
-                          memCacheHeight: 240,
-                          maxWidthDiskCache: 500,
-                          maxHeightDiskCache: 500,
-                          fadeInDuration: Duration.zero,
-                          placeholder: (context, url) => Container(
-                            color: AppTheme.primaryBlue.withOpacity(0.1),
+                          placeholder: (context, url) => const Center(
+                            child: CircularProgressIndicator(),
                           ),
                           errorWidget: (context, url, error) => const Icon(
                             Icons.business,
@@ -664,109 +644,6 @@ class LoanOfficerEditProfileView extends GetView<LoanOfficerEditProfileControlle
             labelText: 'External Reviews URL (Google, Zillow, etc.)',
             prefixIcon: Icons.star_outline,
             hintText: 'https://example.com/reviews',
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildWhyPickMeSection(BuildContext context) {
-    return GradientCard(
-      gradientColors: AppTheme.cardGradient,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                Icons.star,
-                color: AppTheme.lightGreen,
-                size: 24,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Why Pick Me',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: AppTheme.black,
-                        fontWeight: FontWeight.w600,
-                      ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Help buyers understand why they should choose you. This information will be displayed on your profile.',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppTheme.mediumGray,
-                ),
-          ),
-          const SizedBox(height: 20),
-
-          CustomTextField(
-            controller: controller.yearsOfExperienceController,
-            labelText: 'Years of Experience',
-            keyboardType: TextInputType.number,
-            prefixIcon: Icons.calendar_today_outlined,
-            hintText: 'e.g., 10',
-          ),
-          const SizedBox(height: 16),
-
-          CustomTextField(
-            controller: controller.languagesSpokenController,
-            labelText: 'Languages Spoken',
-            prefixIcon: Icons.language_outlined,
-            hintText: 'e.g., English, Spanish, French',
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Separate multiple languages with commas',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppTheme.mediumGray,
-                  fontSize: 12,
-                ),
-          ),
-          const SizedBox(height: 16),
-
-          CustomTextField(
-            controller: controller.discountsOfferedController,
-            labelText: 'Discounts & Special Offers',
-            prefixIcon: Icons.local_offer_outlined,
-            maxLines: 3,
-            hintText: 'e.g., Discounted appraisal, Reduced lender fees, Special first-time buyer programs',
-          ),
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppTheme.lightGreen.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: AppTheme.lightGreen.withOpacity(0.3),
-                width: 1,
-              ),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(
-                  Icons.info_outline,
-                  color: AppTheme.lightGreen,
-                  size: 18,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'These are marketing statements only and are not enforced by the platform. Make sure all offers comply with your lender\'s policies.',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppTheme.darkGray,
-                          fontSize: 11,
-                        ),
-                  ),
-                ),
-              ],
-            ),
           ),
         ],
       ),

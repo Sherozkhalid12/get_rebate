@@ -1,13 +1,13 @@
 import 'dart:io';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/modules/profile/controllers/profile_controller.dart';
+import 'package:getrebate/app/utils/image_url_helper.dart';
 import 'package:getrebate/app/widgets/custom_button.dart';
 import 'package:getrebate/app/widgets/custom_text_field.dart';
 
@@ -30,6 +30,7 @@ class ProfileView extends GetView<ProfileController> {
             ),
           ),
         ),
+
         title: Text(
           'Profile',
           style: TextStyle(
@@ -69,29 +70,29 @@ class ProfileView extends GetView<ProfileController> {
                     .animate()
                     .fadeIn(duration: 400.ms)
                     .slideY(begin: -0.2, duration: 400.ms),
-                
+
                 // Profile Form
                 _buildProfileForm(context)
                     .animate()
                     .fadeIn(duration: 400.ms, delay: 100.ms)
                     .slideY(begin: 0.2, duration: 400.ms, delay: 100.ms),
-                
+
                 SizedBox(height: 20.h),
-                
+
                 // Settings
                 _buildSettings(context)
                     .animate()
                     .fadeIn(duration: 400.ms, delay: 200.ms)
                     .slideY(begin: 0.2, duration: 400.ms, delay: 200.ms),
-                
+
                 SizedBox(height: 20.h),
-                
+
                 // Logout Button
                 _buildLogoutButton(context)
                     .animate()
                     .fadeIn(duration: 400.ms, delay: 300.ms)
                     .slideY(begin: 0.2, duration: 400.ms, delay: 300.ms),
-                
+
                 SizedBox(height: 40.h),
               ],
             ),
@@ -120,12 +121,9 @@ class ProfileView extends GetView<ProfileController> {
               // Profile Image
               Obx(() {
                 final hasSelectedFile = controller.selectedImageFile != null;
-                final hasImageUrl = controller.profileImageUrl != null &&
+                final hasImageUrl =
+                    controller.profileImageUrl != null &&
                     controller.profileImageUrl!.isNotEmpty;
-
-                if (hasImageUrl && kDebugMode) {
-                  print('🖼️ ProfileView: Displaying image from URL: ${controller.profileImageUrl}');
-                }
 
                 return GestureDetector(
                   onTap: controller.isEditing
@@ -139,10 +137,7 @@ class ProfileView extends GetView<ProfileController> {
                         height: 120.w,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          border: Border.all(
-                            color: AppTheme.white,
-                            width: 4,
-                          ),
+                          border: Border.all(color: AppTheme.white, width: 4),
                           boxShadow: [
                             BoxShadow(
                               color: Colors.black.withOpacity(0.2),
@@ -158,93 +153,88 @@ class ProfileView extends GetView<ProfileController> {
                                   fit: BoxFit.cover,
                                 )
                               : hasImageUrl
-                                  ? CachedNetworkImage(
-                                      imageUrl: controller.profileImageUrl!,
-                                      fit: BoxFit.cover,
-                                      cacheKey: controller.profileImageUrl,
-                                      memCacheWidth: 300,
-                                      memCacheHeight: 300,
-                                      maxWidthDiskCache: 500,
-                                      maxHeightDiskCache: 500,
-                                      fadeInDuration: Duration.zero,
-                                      placeholder: (context, url) => Container(
-                                        color: AppTheme.white.withOpacity(0.2),
-                                      ),
-                                      errorWidget: (context, url, error) {
-                                        if (kDebugMode) {
-                                          print('❌ ProfileView: Failed to load image: $url');
-                                          print('   Error: $error');
-                                        }
-                                        return Container(
-                                          color: AppTheme.white.withOpacity(0.2),
-                                          child: Icon(
-                                            Icons.person,
-                                            size: 60.sp,
-                                            color: AppTheme.white,
-                                          ),
-                                        );
-                                      },
-                                      httpHeaders: const {
-                                        'Accept': 'image/*',
-                                      },
-                                    )
-                                  : Container(
-                                      decoration: BoxDecoration(
-                                        gradient: LinearGradient(
-                                          begin: Alignment.topLeft,
-                                          end: Alignment.bottomRight,
-                                          colors: [
-                                            AppTheme.white.withOpacity(0.3),
-                                            AppTheme.white.withOpacity(0.1),
-                                          ],
-                                        ),
-                                      ),
+                              ? Image.network(
+                                  ImageUrlHelper.buildImageUrl(
+                                        controller.profileImageUrl,
+                                      ) ??
+                                      controller.profileImageUrl!,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) {
+                                    if (kDebugMode) {
+                                      print(
+                                        '❌ Error loading profile image: $error',
+                                      );
+                                      print(
+                                        '   URL: ${controller.profileImageUrl}',
+                                      );
+                                    }
+                                    return Container(
+                                      color: AppTheme.white.withOpacity(0.2),
                                       child: Icon(
                                         Icons.person,
                                         size: 60.sp,
                                         color: AppTheme.white,
                                       ),
+                                    );
+                                  },
+                                )
+                              : Container(
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                      colors: [
+                                        AppTheme.white.withOpacity(0.3),
+                                        AppTheme.white.withOpacity(0.1),
+                                      ],
                                     ),
+                                  ),
+                                  child: Icon(
+                                    Icons.person,
+                                    size: 60.sp,
+                                    color: AppTheme.white,
+                                  ),
+                                ),
                         ),
-                      )
-                          .animate()
-                          .scale(
-                            duration: 300.ms,
-                            curve: Curves.elasticOut,
-                          ),
+                      ).animate().scale(
+                        duration: 300.ms,
+                        curve: Curves.elasticOut,
+                      ),
                       if (controller.isEditing)
                         Positioned(
                           bottom: 0,
                           right: 0,
-                          child: Container(
-                            width: 40.w,
-                            height: 40.w,
-                            decoration: BoxDecoration(
-                              color: AppTheme.white,
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.2),
-                                  blurRadius: 8,
+                          child:
+                              Container(
+                                width: 40.w,
+                                height: 40.w,
+                                decoration: BoxDecoration(
+                                  color: AppTheme.white,
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.2),
+                                      blurRadius: 8,
+                                    ),
+                                  ],
                                 ),
-                              ],
-                            ),
-                            child: Icon(
-                              Icons.camera_alt,
-                              color: AppTheme.primaryBlue,
-                              size: 20.sp,
-                            ),
-                          )
-                              .animate()
-                              .scale(duration: 200.ms, curve: Curves.elasticOut),
+                                child: Icon(
+                                  Icons.camera_alt,
+                                  color: AppTheme.primaryBlue,
+                                  size: 20.sp,
+                                ),
+                              ).animate().scale(
+                                duration: 200.ms,
+                                curve: Curves.elasticOut,
+                              ),
                         ),
                     ],
                   ),
                 );
               }),
-              
+
               SizedBox(height: 20.h),
-              
+
               // User Name
               Obx(() {
                 final user = controller.currentUser;
@@ -258,9 +248,9 @@ class ProfileView extends GetView<ProfileController> {
                   ),
                 );
               }),
-              
+
               SizedBox(height: 8.h),
-              
+
               // User Email
               Obx(() {
                 final user = controller.currentUser;
@@ -325,9 +315,9 @@ class ProfileView extends GetView<ProfileController> {
                 ),
               ],
             ),
-            
+
             SizedBox(height: 24.h),
-            
+
             // Name
             CustomTextField(
               controller: controller.nameController,
@@ -335,9 +325,9 @@ class ProfileView extends GetView<ProfileController> {
               prefixIcon: Icons.person_outline,
               enabled: controller.isEditing,
             ),
-            
+
             SizedBox(height: 16.h),
-            
+
             // Email
             CustomTextField(
               controller: controller.emailController,
@@ -346,9 +336,9 @@ class ProfileView extends GetView<ProfileController> {
               prefixIcon: Icons.email_outlined,
               enabled: false, // Email cannot be changed
             ),
-            
+
             SizedBox(height: 16.h),
-            
+
             // Phone
             CustomTextField(
               controller: controller.phoneController,
@@ -357,9 +347,9 @@ class ProfileView extends GetView<ProfileController> {
               prefixIcon: Icons.phone_outlined,
               enabled: controller.isEditing,
             ),
-            
+
             SizedBox(height: 16.h),
-            
+
             // Bio
             CustomTextField(
               controller: controller.bioController,
@@ -368,9 +358,9 @@ class ProfileView extends GetView<ProfileController> {
               maxLines: 4,
               enabled: controller.isEditing,
             ),
-            
+
             SizedBox(height: 24.h),
-            
+
             // Save/Cancel Buttons
             if (controller.isEditing)
               Row(
@@ -400,7 +390,9 @@ class ProfileView extends GetView<ProfileController> {
                     flex: 2,
                     child: Obx(() {
                       return ElevatedButton(
-                        onPressed: controller.isLoading ? null : controller.saveProfile,
+                        onPressed: controller.isLoading
+                            ? null
+                            : controller.saveProfile,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppTheme.primaryBlue,
                           foregroundColor: AppTheme.white,
@@ -409,7 +401,8 @@ class ProfileView extends GetView<ProfileController> {
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          disabledBackgroundColor: AppTheme.primaryBlue.withOpacity(0.6),
+                          disabledBackgroundColor: AppTheme.primaryBlue
+                              .withOpacity(0.6),
                         ),
                         child: controller.isLoading
                             ? SizedBox(
@@ -456,14 +449,6 @@ class ProfileView extends GetView<ProfileController> {
         children: [
           _buildSettingTile(
             context,
-            icon: Icons.description_outlined,
-            title: 'My Proposals',
-            subtitle: 'View and manage your service proposals',
-            onTap: () => Get.toNamed('/proposals'),
-          ),
-          Divider(height: 1, indent: 60.w),
-          _buildSettingTile(
-            context,
             icon: Icons.privacy_tip_outlined,
             title: 'Privacy Policy',
             subtitle: 'View our privacy policy',
@@ -505,11 +490,7 @@ class ProfileView extends GetView<ProfileController> {
           color: AppTheme.primaryBlue.withOpacity(0.1),
           borderRadius: BorderRadius.circular(12),
         ),
-        child: Icon(
-          icon,
-          color: AppTheme.primaryBlue,
-          size: 24.sp,
-        ),
+        child: Icon(icon, color: AppTheme.primaryBlue, size: 24.sp),
       ),
       title: Text(
         title,
@@ -521,10 +502,7 @@ class ProfileView extends GetView<ProfileController> {
       ),
       subtitle: Text(
         subtitle,
-        style: TextStyle(
-          fontSize: 13.sp,
-          color: AppTheme.mediumGray,
-        ),
+        style: TextStyle(fontSize: 13.sp, color: AppTheme.mediumGray),
       ),
       trailing: Icon(
         Icons.arrow_forward_ios,

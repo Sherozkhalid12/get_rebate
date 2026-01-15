@@ -8,12 +8,10 @@ import 'package:getrebate/app/models/mortgage_types.dart';
 import 'package:getrebate/app/controllers/main_navigation_controller.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart';
 import 'package:getrebate/app/modules/messages/controllers/messages_controller.dart';
-import 'package:getrebate/app/services/loan_officer_service.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/controllers/current_loan_officer_controller.dart';
-import 'package:getrebate/app/modules/proposals/controllers/proposal_controller.dart';
 
 class LoanOfficerProfileController extends GetxController {
   // Data
@@ -25,7 +23,6 @@ class LoanOfficerProfileController extends GetxController {
   
   // Dio for API calls
   final Dio _dio = Dio();
-  final LoanOfficerService _loanOfficerService = LoanOfficerService();
 
   // Getters
   LoanOfficerModel? get loanOfficer => _loanOfficer.value;
@@ -38,8 +35,6 @@ class LoanOfficerProfileController extends GetxController {
     super.onInit();
     _setupDio();
     _loadLoanOfficerData();
-    // Record profile view after data is loaded
-    Future.microtask(() => _recordProfileView());
   }
   
   void _setupDio() {
@@ -231,47 +226,8 @@ class LoanOfficerProfileController extends GetxController {
     }
   }
 
-  /// Records a profile view for the loan officer
-  Future<void> _recordProfileView() async {
-    if (_loanOfficer.value == null) return;
-    
-    try {
-      final response = await _loanOfficerService.recordProfileView(_loanOfficer.value!.id);
-      if (response != null && kDebugMode) {
-        print('👁️ Profile View Response for loan officer ${_loanOfficer.value!.id}:');
-        print('   Message: ${response['message'] ?? 'N/A'}');
-        print('   Views: ${response['views'] ?? 'N/A'}');
-      }
-    } catch (e) {
-      if (kDebugMode) {
-        print('⚠️ Error recording profile view: $e');
-      }
-      // Don't show error to user - tracking is silent
-    }
-  }
-
-  /// Records a contact action for the loan officer
-  Future<void> _recordContact(String loanOfficerId) async {
-    try {
-      final response = await _loanOfficerService.recordContact(loanOfficerId);
-      if (response != null && kDebugMode) {
-        print('📞 Contact Response for loan officer $loanOfficerId:');
-        print('   Message: ${response['message'] ?? 'N/A'}');
-        print('   Contacts: ${response['contacts'] ?? 'N/A'}');
-      }
-    } catch (e) {
-      if (kDebugMode) {
-        print('⚠️ Error recording contact: $e');
-      }
-      // Don't show error to user - tracking is silent
-    }
-  }
-
   void contactLoanOfficer() {
     if (_loanOfficer.value == null) return;
-    
-    // Record contact
-    _recordContact(_loanOfficer.value!.id);
 
     Get.dialog(
       AlertDialog(
@@ -320,9 +276,6 @@ class LoanOfficerProfileController extends GetxController {
       SnackbarHelper.showError('Loan officer information not available');
       return;
     }
-
-    // Record contact
-    _recordContact(_loanOfficer.value!.id);
 
     // Check if conversation exists with this loan officer
     final messagesController = Get.find<MessagesController>();
@@ -462,202 +415,5 @@ class LoanOfficerProfileController extends GetxController {
         'description': descriptions[type] ?? 'Specialized loan product',
       };
     }).toList();
-  }
-
-  /// Create a proposal for this loan officer
-  Future<void> createProposal(BuildContext context) async {
-    if (_loanOfficer.value == null) {
-      SnackbarHelper.showError('Loan officer information not available');
-      return;
-    }
-
-    // Get or create proposal controller
-    if (!Get.isRegistered<ProposalController>()) {
-      Get.put(ProposalController(), permanent: true);
-    }
-    final proposalController = Get.find<ProposalController>();
-
-    // Show proposal creation dialog
-    _showCreateProposalDialog(context, proposalController);
-  }
-
-  void _showCreateProposalDialog(
-    BuildContext context,
-    ProposalController proposalController,
-  ) {
-    final messageController = TextEditingController();
-    final propertyAddressController = TextEditingController();
-    final propertyPriceController = TextEditingController();
-
-    Get.dialog(
-      Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 500, maxHeight: 600),
-          padding: const EdgeInsets.all(24),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Header
-                Row(
-                  children: [
-                    Container(
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
-                        color: AppTheme.lightGreen.withOpacity(0.1),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.description_outlined,
-                        color: AppTheme.lightGreen,
-                        size: 24,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Create Proposal',
-                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                ),
-                          ),
-                          Text(
-                            'Send a proposal to ${_loanOfficer.value!.name}',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                  color: AppTheme.mediumGray,
-                                ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: () => Get.back(),
-                      icon: const Icon(Icons.close),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-                // Message field
-                TextField(
-                  controller: messageController,
-                  maxLines: 4,
-                  decoration: InputDecoration(
-                    labelText: 'Message (Optional)',
-                    hintText: 'Add a message to your proposal...',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: AppTheme.lightGreen, width: 2),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                // Property address (optional)
-                TextField(
-                  controller: propertyAddressController,
-                  decoration: InputDecoration(
-                    labelText: 'Property Address (Optional)',
-                    hintText: 'e.g., 123 Main St, City, State',
-                    prefixIcon: const Icon(Icons.location_on),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: AppTheme.lightGreen, width: 2),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                // Property price (optional)
-                TextField(
-                  controller: propertyPriceController,
-                  keyboardType: TextInputType.number,
-                  decoration: InputDecoration(
-                    labelText: 'Property Price (Optional)',
-                    hintText: 'e.g., 500000',
-                    prefixIcon: const Icon(Icons.attach_money),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: AppTheme.lightGreen, width: 2),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                // Action buttons
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextButton(
-                        onPressed: () => Get.back(),
-                        child: const Text('Cancel'),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Obx(() => ElevatedButton(
-                            onPressed: proposalController.isLoading
-                                ? null
-                                : () async {
-                                    Get.back();
-                                    final proposal = await proposalController.createProposal(
-                                      professionalId: _loanOfficer.value!.id,
-                                      professionalName: _loanOfficer.value!.name,
-                                      professionalType: 'loan_officer',
-                                      message: messageController.text.trim().isEmpty
-                                          ? null
-                                          : messageController.text.trim(),
-                                      propertyAddress: propertyAddressController.text.trim().isEmpty
-                                          ? null
-                                          : propertyAddressController.text.trim(),
-                                      propertyPrice: propertyPriceController.text.trim().isEmpty
-                                          ? null
-                                          : propertyPriceController.text.trim(),
-                                    );
-                                    if (proposal != null) {
-                                      // Navigate to proposals view
-                                      Get.toNamed('/proposals');
-                                    }
-                                  },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppTheme.lightGreen,
-                              foregroundColor: AppTheme.white,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            child: proposalController.isLoading
-                                ? const SizedBox(
-                                    width: 20,
-                                    height: 20,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: AppTheme.white,
-                                    ),
-                                  )
-                                : const Text('Send Proposal'),
-                          )),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-      barrierDismissible: true,
-    );
   }
 }

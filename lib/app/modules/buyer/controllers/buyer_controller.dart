@@ -20,6 +20,7 @@ import 'package:getrebate/app/modules/favorites/controllers/favorites_controller
 import 'package:getrebate/app/controllers/main_navigation_controller.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
+import 'package:getrebate/app/utils/network_error_handler.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 
 class BuyerController extends GetxController {
@@ -32,6 +33,8 @@ class BuyerController extends GetxController {
   final _selectedTab =
       0.obs; // 0: Agents, 1: Homes for Sale, 2: Open Houses, 3: Loan Officers
   final _currentZipCode = Rxn<String>(); // Current ZIP code filter
+  final _currentCity = Rxn<String>(); // Current city filter
+  final _currentState = Rxn<String>(); // Current state filter
 
   // Data - Store original unfiltered data
   final _allAgents = <AgentModel>[].obs;
@@ -46,19 +49,9 @@ class BuyerController extends GetxController {
   final _openHouses = <OpenHouseModel>[].obs;
   final _favoriteAgents = <String>[].obs;
   final _favoriteLoanOfficers = <String>[].obs;
-  final _favoriteListings = <String>[].obs;
   final _isLoading = false.obs;
   final _selectedBuyerAgent = Rxn<AgentModel>(); // Track the buyer's selected agent
   final _togglingFavorites = <String>{}.obs; // Track which IDs are currently being toggled
-  
-  // Pagination for agents
-  final RxInt currentPage = 1.obs;
-  final RxInt totalPages = 1.obs;
-  final RxInt totalAgents = 0.obs;
-  final RxBool _isLoadingMoreAgents = false.obs;
-  
-  bool get canLoadMoreAgents => currentPage.value < totalPages.value;
-  bool get isLoadingMoreAgents => _isLoadingMoreAgents.value;
 
   // Services
   final ListingService _listingService = InMemoryListingService();
@@ -77,7 +70,6 @@ class BuyerController extends GetxController {
   List<OpenHouseModel> get openHouses => _openHouses;
   List<String> get favoriteAgents => _favoriteAgents;
   List<String> get favoriteLoanOfficers => _favoriteLoanOfficers;
-  List<String> get favoriteListings => _favoriteListings;
   bool get isLoading => _isLoading.value;
   AgentModel? get selectedBuyerAgent => _selectedBuyerAgent.value;
   bool get hasSelectedAgent => _selectedBuyerAgent.value != null;
@@ -143,7 +135,7 @@ class BuyerController extends GetxController {
     final zipCode = _locationController.currentZipCode;
     if (zipCode != null && zipCode.isNotEmpty) {
       searchController.text = zipCode;
-      searchByZipCode(zipCode);
+      searchByLocation(zipCode: zipCode);
     }
   }
 
@@ -156,7 +148,52 @@ class BuyerController extends GetxController {
     _selectedTab.value = index;
   }
 
+  /// Preloads data silently (without showing loading indicator)
+  /// Used during splash screen to load data in background
+  Future<void> preloadData() async {
+    // Only preload if data is not already loaded
+    if (_allAgents.isNotEmpty || _allLoanOfficers.isNotEmpty || _allListings.isNotEmpty) {
+      if (kDebugMode) {
+        print('ℹ️ BuyerController: Data already loaded, skipping preload');
+      }
+      return;
+    }
+    
+    if (kDebugMode) {
+      print('🚀 BuyerController: Preloading data silently...');
+    }
+    
+    try {
+      // Start all API calls in parallel without setting loading state
+      await Future.wait([
+        _loadAgentsFromAPI(silent: true),
+        _loadLoanOfficersFromAPI(silent: true),
+        _loadListingsFromAPI(silent: true),
+      ], eagerError: false); // Don't fail all if one fails
+      
+      // Extract open houses after listings are loaded
+      _extractOpenHousesFromListings();
+      
+      if (kDebugMode) {
+        print('✅ BuyerController: Data preloaded successfully');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('⚠️ BuyerController: Some data failed to preload: $e');
+      }
+      // Continue with whatever data loaded successfully
+    }
+  }
+
   void _loadMockData() async {
+    // Only load if data is not already loaded (from preload)
+    if (_allAgents.isNotEmpty || _allLoanOfficers.isNotEmpty || _allListings.isNotEmpty) {
+      if (kDebugMode) {
+        print('ℹ️ BuyerController: Data already loaded, skipping _loadMockData');
+      }
+      return;
+    }
+    
     // Load all data in parallel for faster loading
     _isLoading.value = true;
     
@@ -184,28 +221,22 @@ class BuyerController extends GetxController {
     }
   }
 
-  /// Loads agents from the API with pagination
-  Future<void> _loadAgentsFromAPI() async {
+  /// Loads agents from the API
+  Future<void> _loadAgentsFromAPI({bool silent = false}) async {
     try {
-      currentPage.value = 1; // Reset to first page
-      
       if (kDebugMode) {
-        print('📡 Fetching agents from API (page ${currentPage.value})...');
+        print('📡 Fetching agents from API...');
       }
-      
-      // Use getAllAgents() since getAllAgentsPaginated doesn't exist
-      final agentsList = await _agentService.getAllAgents();
-      
-      // Store pagination metadata (simulate pagination - all agents on one page)
-      currentPage.value = 1;
-      totalPages.value = 1;
-      totalAgents.value = agentsList.length;
-      
-      // Profile images are already normalized in AgentModel.fromJson, but use helper for consistency
-      final agentsWithUrls = agentsList.map((agent) {
-        // Use helper to ensure normalization (models already do this, but ensure consistency)
-        final profileImage = ApiConstants.getImageUrl(agent.profileImage);
-        final companyLogo = ApiConstants.getImageUrl(agent.companyLogoUrl);
+      final agents = await _agentService.getAllAgents();
+
+      // Build full URLs for profile pictures
+      final agentsWithUrls = agents.map((agent) {
+        String? profileImage = agent.profileImage;
+        // Use profile image directly from API - don't prepend base URL
+        // The API should return full URLs or paths that work directly
+
+        // Use company logo directly from API - don't prepend base URL
+        String? companyLogo = agent.companyLogoUrl;
         
         return agent.copyWith(
           profileImage: profileImage,
@@ -214,7 +245,7 @@ class BuyerController extends GetxController {
       }).toList();
       
       _allAgents.value = agentsWithUrls;
-      _applyZipCodeFilter(); // Apply filter after loading
+      _applyLocationFilter(); // Apply filter after loading
       
       // Initialize favorite agents list based on likes array from API
       final currentUser = _authController.currentUser;
@@ -232,55 +263,28 @@ class BuyerController extends GetxController {
         }
       }
       
-      if (kDebugMode) {
-        print('✅ Loaded ${agentsWithUrls.length} agents from API');
-        print('   Page: ${currentPage.value}/${totalPages.value}');
-        print('   Total agents: ${totalAgents.value}');
-        print('   Can load more: $canLoadMoreAgents');
-      }
+      print('✅ Loaded ${agentsWithUrls.length} agents from API');
     } catch (e) {
       print('❌ Error loading agents: $e');
-      // Don't show snackbar - it causes overlay errors on initial load
-      // Just log the error and keep empty list
       _allAgents.value = [];
-      _applyZipCodeFilter(); // Apply filter after setting empty list
+      _applyLocationFilter(); // Apply filter after setting empty list
+
+      // Only show error if not silent (silent mode is for preloading)
+      if (!silent) {
+        NetworkErrorHandler.handleError(
+          e,
+          defaultMessage: 'Failed to load agents. Please try again.',
+        );
+      }
     } finally {
-      _isLoading.value = false;
-    }
-  }
-  
-  /// Load more agents from next page
-  Future<void> loadMoreAgents() async {
-    if (!canLoadMoreAgents || _isLoadingMoreAgents.value) {
-      return;
-    }
-
-    _isLoadingMoreAgents.value = true;
-    final nextPage = currentPage.value + 1;
-
-    try {
-      if (kDebugMode) {
-        print('📡 Loading more agents (page $nextPage)...');
+      if (!silent) {
+        _isLoading.value = false;
       }
-
-      // getAllAgentsPaginated doesn't exist - all agents are already loaded
-      // Just return since we can't load more pages
-      if (kDebugMode) {
-        print('⚠️ Pagination not available - all agents already loaded');
-        print('   Total agents already loaded: ${_allAgents.length}');
-      }
-    } catch (e) {
-      if (kDebugMode) {
-        print('❌ Error loading more agents: $e');
-      }
-      SnackbarHelper.showError('Failed to load more agents. Please try again.');
-    } finally {
-      _isLoadingMoreAgents.value = false;
     }
   }
 
   /// Loads loan officers from the API
-  Future<void> _loadLoanOfficersFromAPI() async {
+  Future<void> _loadLoanOfficersFromAPI({bool silent = false}) async {
     try {
       if (kDebugMode) {
         print('📡 Fetching loan officers from API...');
@@ -288,11 +292,14 @@ class BuyerController extends GetxController {
       
       final loanOfficers = await _loanOfficerService.getAllLoanOfficers();
       
-      // Profile images are already normalized in LoanOfficerModel.fromJson, but use helper for consistency
+      // Build full URLs for profile pictures and company logos
       final loanOfficersWithUrls = loanOfficers.map((loanOfficer) {
-        // Use helper to ensure normalization (models already do this, but ensure consistency)
-        final profileImage = ApiConstants.getImageUrl(loanOfficer.profileImage);
-        final companyLogo = ApiConstants.getImageUrl(loanOfficer.companyLogoUrl);
+        String? profileImage = loanOfficer.profileImage;
+        // Use profile image directly from API - don't prepend base URL
+        // The API should return full URLs or paths that work directly
+        
+        // Use company logo directly from API - don't prepend base URL
+        String? companyLogo = loanOfficer.companyLogoUrl;
         
         return loanOfficer.copyWith(
           profileImage: profileImage,
@@ -301,7 +308,7 @@ class BuyerController extends GetxController {
       }).toList();
       
       _allLoanOfficers.value = loanOfficersWithUrls;
-      _applyZipCodeFilter(); // Apply filter after loading
+      _applyLocationFilter(); // Apply filter after loading
       
       // Initialize favorite loan officers list based on likes array from API
       final currentUser = _authController.currentUser;
@@ -326,15 +333,21 @@ class BuyerController extends GetxController {
       if (kDebugMode) {
         print('❌ Error loading loan officers: $e');
       }
-      // Don't show snackbar - it causes overlay errors on initial load
-      // Just log the error and keep empty list
       _allLoanOfficers.value = [];
-      _applyZipCodeFilter(); // Apply filter after setting empty list
+      _applyLocationFilter(); // Apply filter after setting empty list
+      
+      // Only show error if not silent (silent mode is for preloading)
+      if (!silent) {
+        NetworkErrorHandler.handleError(
+          e,
+          defaultMessage: 'Failed to load loan officers. Please try again.',
+        );
+      }
     }
   }
 
   /// Loads listings from the API
-  Future<void> _loadListingsFromAPI() async {
+  Future<void> _loadListingsFromAPI({bool silent = false}) async {
     try {
       if (kDebugMode) {
         print('📡 Fetching listings from API...');
@@ -371,38 +384,6 @@ class BuyerController extends GetxController {
             // Parse as AgentListingModel first (handles API format)
             final agentListing = AgentListingModel.fromApiJson(listingJson);
             
-            // Process photo URLs - encode URLs with spaces and special characters
-            final processedPhotoUrls = agentListing.photoUrls
-                .map((url) {
-                  final trimmed = url?.trim() ?? '';
-                  if (trimmed.isEmpty) return null;
-                  // Properly encode URLs with spaces and special characters
-                  return ApiConstants.getImageUrl(trimmed);
-                })
-                .where((url) => url != null && url.isNotEmpty)
-                .cast<String>()
-                .toList();
-            
-            // Log image URLs for debugging
-            if (kDebugMode && processedPhotoUrls.isNotEmpty) {
-              print('\n🖼️ IMAGE URLS for Listing ${agentListing.id}:');
-              print('   Address: ${agentListing.address}, ${agentListing.city}, ${agentListing.state} ${agentListing.zipCode}');
-              print('   Total Images: ${processedPhotoUrls.length}');
-              for (int i = 0; i < processedPhotoUrls.length; i++) {
-                print('   [${i + 1}] ${processedPhotoUrls[i]}');
-                // Check if URL is valid
-                try {
-                  final uri = Uri.parse(processedPhotoUrls[i]);
-                  print('      ✅ Valid URI - Scheme: ${uri.scheme}, Host: ${uri.host}');
-                  if (uri.path.contains(' ') || uri.path.contains('(') || uri.path.contains(')')) {
-                    print('      ⚠️  Path contains unencoded characters: ${uri.path}');
-                  }
-                } catch (e) {
-                  print('      ❌ Invalid URI: $e');
-                }
-              }
-            }
-            
             // Convert to Listing model
             final listing = Listing(
               id: agentListing.id,
@@ -414,7 +395,17 @@ class BuyerController extends GetxController {
                 state: agentListing.state,
                 zip: agentListing.zipCode,
               ),
-              photoUrls: processedPhotoUrls,
+              photoUrls: agentListing.photoUrls.map((url) {
+                // Build full URL if relative - handle leading slashes
+                if (url.isNotEmpty && !url.startsWith('http://') && !url.startsWith('https://')) {
+                  final cleanUrl = url.startsWith('/') ? url.substring(1) : url;
+                  final baseUrl = ApiConstants.baseUrl.endsWith('/') 
+                      ? ApiConstants.baseUrl.substring(0, ApiConstants.baseUrl.length - 1) 
+                      : ApiConstants.baseUrl;
+                  return '$baseUrl/$cleanUrl';
+                }
+                return url;
+              }).toList(),
               bacPercent: agentListing.bacPercent,
               dualAgencyAllowed: agentListing.dualAgencyAllowed,
               dualAgencyCommissionPercent: agentListing.dualAgencyCommissionPercent,
@@ -428,27 +419,8 @@ class BuyerController extends GetxController {
             
             fetchedListings.add(listing);
             
-            // Check if listing is liked by current user (from API response)
+            // Extract open houses from listing data
             if (listingJson is Map<String, dynamic>) {
-              final likes = listingJson['likes'] as List?;
-              final currentUser = _authController.currentUser;
-              if (currentUser != null && currentUser.id.isNotEmpty) {
-                if (likes != null && likes.isNotEmpty) {
-                  final isLiked = likes.contains(currentUser.id);
-                  if (isLiked && !_favoriteListings.contains(listing.id)) {
-                    _favoriteListings.add(listing.id);
-                  } else if (!isLiked && _favoriteListings.contains(listing.id)) {
-                    _favoriteListings.remove(listing.id);
-                  }
-                } else {
-                  // If likes array is empty or null, ensure listing is not in favorites
-                  if (_favoriteListings.contains(listing.id)) {
-                    _favoriteListings.remove(listing.id);
-                  }
-                }
-              }
-              
-              // Extract open houses from listing data
               final openHousesData = listingJson['openHouses'] as List?;
               if (openHousesData != null && openHousesData.isNotEmpty) {
                 for (final ohData in openHousesData) {
@@ -512,73 +484,13 @@ class BuyerController extends GetxController {
           }
         }
         
-        // Deduplicate open houses by listingId and startTime
-        final Map<String, OpenHouseModel> uniqueOpenHouses = {};
-        int duplicateCount = 0;
-        for (final openHouse in extractedOpenHouses) {
-          // Create a unique key based on listingId and startTime
-          final key = '${openHouse.listingId}_${openHouse.startTime.millisecondsSinceEpoch}';
-          if (!uniqueOpenHouses.containsKey(key)) {
-            uniqueOpenHouses[key] = openHouse;
-          } else {
-            duplicateCount++;
-            if (kDebugMode) {
-              print('⚠️ Duplicate open house detected and removed:');
-              print('   Listing ID: ${openHouse.listingId}');
-              print('   Start Time: ${openHouse.startTime}');
-              print('   Open House ID: ${openHouse.id}');
-            }
-          }
-        }
-        
-        if (kDebugMode && duplicateCount > 0) {
-          print('🔍 Deduplication: Removed $duplicateCount duplicate open house(s)');
-          print('   Before: ${extractedOpenHouses.length} open houses');
-          print('   After: ${uniqueOpenHouses.length} unique open houses');
-        }
-        
         _allListings.value = fetchedListings;
-        _allOpenHouses.value = uniqueOpenHouses.values.toList();
-        
-        // Refresh favorite listings to ensure UI updates
-        _favoriteListings.refresh();
-        
-        _applyZipCodeFilter(); // Apply filter after loading
+        _allOpenHouses.value = extractedOpenHouses;
+        _applyLocationFilter(); // Apply filter after loading
         
         if (kDebugMode) {
-          print('\n' + '='*80);
-          print('🖼️ ALL IMAGE URLS FROM LISTINGS ON HOME SCREEN');
-          print('='*80);
           print('✅ Loaded ${fetchedListings.length} listings from API');
           print('✅ Extracted ${extractedOpenHouses.length} open houses from listings');
-          
-          // Print all image URLs from all listings
-          for (int i = 0; i < fetchedListings.length; i++) {
-            final listing = fetchedListings[i];
-            print('\n📋 Listing #${i + 1} (ID: ${listing.id}):');
-            print('   Address: ${listing.address}');
-            print('   ZIP Code: ${listing.address.zip}');
-            print('   Photo URLs (${listing.photoUrls.length}):');
-            if (listing.photoUrls.isEmpty) {
-              print('      ⚠️  No images available');
-            } else {
-              for (int j = 0; j < listing.photoUrls.length; j++) {
-                final url = listing.photoUrls[j];
-                print('      [${j + 1}] $url');
-                // Validate URL
-                try {
-                  final uri = Uri.parse(url);
-                  if (uri.path.contains(' ') || uri.path.contains('(') || uri.path.contains(')')) {
-                    print('         ⚠️  Contains unencoded characters in path');
-                  } else {
-                    print('         ✅ URL appears properly formatted');
-                  }
-                } catch (e) {
-                  print('         ❌ Invalid URL format: $e');
-                }
-              }
-            }
-          }
           
           // Print all homes for sale data
           print('\n' + '='*80);
@@ -625,7 +537,7 @@ class BuyerController extends GetxController {
       }
       _allListings.value = [];
       _allOpenHouses.value = [];
-      _applyZipCodeFilter(); // Apply filter after loading
+      _applyLocationFilter(); // Apply filter after loading
       }
     } catch (e) {
       if (kDebugMode) {
@@ -633,7 +545,15 @@ class BuyerController extends GetxController {
       }
       _allListings.value = [];
       _allOpenHouses.value = [];
-      _applyZipCodeFilter(); // Apply filter after loading
+      _applyLocationFilter(); // Apply filter after loading
+      
+      // Only show error if not silent (silent mode is for preloading)
+      if (!silent) {
+        NetworkErrorHandler.handleError(
+          e,
+          defaultMessage: 'Failed to load listings. Please try again.',
+        );
+      }
     }
   }
 
@@ -910,14 +830,14 @@ class BuyerController extends GetxController {
     }
 
     _allOpenHouses.value = mockOpenHouses;
-    _applyZipCodeFilter(); // Apply filter after setting mock data
+    _applyLocationFilter(); // Apply filter after setting mock data
   }
 
   Future<void> _seedMockListings() async {
     final List<Listing> existing = await _listingService.listListings();
     if (existing.isNotEmpty) {
       _allListings.value = existing;
-      _applyZipCodeFilter(); // Apply filter after setting existing listings
+      _applyLocationFilter(); // Apply filter after setting existing listings
       return;
     }
 
@@ -1047,7 +967,7 @@ class BuyerController extends GetxController {
       await _listingService.createListing(l);
     }
     _allListings.value = await _listingService.listListings();
-    _applyZipCodeFilter(); // Apply filter after loading listings
+    _applyLocationFilter(); // Apply filter after loading listings
     
     // Print all mock listings data
     if (kDebugMode) {
@@ -1109,11 +1029,18 @@ class BuyerController extends GetxController {
     }
   }
 
-  /// Applies ZIP code filter to all data
-  void _applyZipCodeFilter() {
+  /// Applies location filter (city, state, or ZIP code) to all data
+  void _applyLocationFilter() {
     final zipCode = _currentZipCode.value;
+    final city = _currentCity.value;
+    final state = _currentState.value;
     
-    if (zipCode == null || zipCode.isEmpty) {
+    // Check if any filter is active
+    final hasFilter = (zipCode != null && zipCode.isNotEmpty) ||
+                     (city != null && city.isNotEmpty) ||
+                     (state != null && state.isNotEmpty);
+    
+    if (!hasFilter) {
       // No filter - show all data from original lists
       // Use refresh() to ensure UI updates
       _agents.value = List.from(_allAgents);
@@ -1127,11 +1054,6 @@ class BuyerController extends GetxController {
       _listings.refresh();
       _openHouses.refresh();
       
-      // Also update the search controller text if it's empty but we have a filter
-      if (zipCode == null && searchController.text.isNotEmpty) {
-        // Don't clear the text field, just clear the filter
-      }
-      
       if (kDebugMode) {
         print('📋 Showing all data (no filter)');
         print('   All Agents: ${_allAgents.length}');
@@ -1142,125 +1064,118 @@ class BuyerController extends GetxController {
       return;
     }
     
-    // Normalize ZIP code for consistent comparison
-    final normalizedZipCode = zipCode.trim();
+    // Normalize search terms for case-insensitive matching
+    final zipCodeLower = zipCode?.toLowerCase().trim() ?? '';
+    final cityLower = city?.toLowerCase().trim() ?? '';
+    final stateLower = state?.toLowerCase().trim() ?? '';
     
-    // Filter agents by ZIP code (comprehensive check like FindAgentsController)
+    // Filter agents by city, state, or ZIP code
     _agents.value = _allAgents.where((agent) {
-      // Check 1: claimedZipCodes (array of strings - extracted from postalCode objects)
-      final hasClaimedZip = agent.claimedZipCodes.any((claimedZip) => 
-        claimedZip.trim() == normalizedZipCode
-      );
+      bool matches = false;
       
-      // Check 2: serviceZipCodes (array of strings)
-      final hasServiceZip = agent.serviceZipCodes.any((serviceZip) => 
-        serviceZip.trim() == normalizedZipCode
-      );
-      
-      // Check 3: serviceAreas (array of strings - can contain ZIP codes)
-      final hasServiceArea = agent.serviceAreas?.any((area) => 
-        area.trim() == normalizedZipCode
-      ) ?? false;
-      
-      // Check 4: Check if agent has any listings with this ZIP code
-      final hasListingZip = _allListings.any((listing) {
-        final listingZip = listing.address.zip?.trim() ?? '';
-        return listing.agentId == agent.id && listingZip == normalizedZipCode;
-      });
-      
-      final matches = hasClaimedZip || hasServiceZip || hasServiceArea || hasListingZip;
-      
-      if (kDebugMode && matches) {
-        print('   ✅ Agent "${agent.name}" matches ZIP $normalizedZipCode');
-        print('      claimedZipCodes: ${agent.claimedZipCodes}');
-        print('      serviceZipCodes: ${agent.serviceZipCodes}');
-        print('      serviceAreas: ${agent.serviceAreas}');
-        print('      hasListingZip: $hasListingZip');
-      }
-      
-      return matches;
-    }).toList();
-    
-    // Filter listings by ZIP code first (needed for open houses filtering)
-    // Normalize ZIP codes for comparison (trim and ensure consistent format)
-    final filteredListingIds = _allListings
-        .where((listing) {
-          final listingZip = listing.address.zip?.trim() ?? '';
-          return listingZip == normalizedZipCode;
-        })
-        .map((l) => l.id)
-        .toSet();
-    
-    _listings.value = _allListings.where((listing) {
-      final listingZip = listing.address.zip?.trim() ?? '';
-      return listingZip == normalizedZipCode;
-    }).toList();
-    
-    // Filter loan officers by ZIP code (check claimedZipCodes)
-    _loanOfficers.value = _allLoanOfficers.where((loanOfficer) {
-      // Check if any claimed ZIP code matches (normalize for comparison)
-      final hasClaimedZip = loanOfficer.claimedZipCodes.any((claimedZip) => 
-        claimedZip.trim() == normalizedZipCode
-      );
-      
-      if (kDebugMode && hasClaimedZip) {
-        print('   ✅ Loan Officer "${loanOfficer.name}" matches ZIP $normalizedZipCode');
-        print('      claimedZipCodes: ${loanOfficer.claimedZipCodes}');
-      }
-      
-      return hasClaimedZip;
-    }).toList();
-    
-    // Filter open houses by listings in that ZIP code
-    // Open houses are linked to listings, so filter by listing ZIP codes
-    // Use the filtered listing IDs from all listings, not just the filtered _listings
-    _openHouses.value = _allOpenHouses.where((oh) {
-      final matches = filteredListingIds.contains(oh.listingId);
-      
-      if (kDebugMode && matches) {
-        final listing = _allListings.firstWhere(
-          (l) => l.id == oh.listingId,
-          orElse: () => Listing(
-            id: '',
-            agentId: '',
-            priceCents: 0,
-            address: const ListingAddress(street: '', city: '', state: '', zip: ''),
-            photoUrls: const [],
-            bacPercent: 0,
-            dualAgencyAllowed: false,
-            createdAt: DateTime.now(),
-          ),
+      // Check ZIP code matches
+      if (zipCodeLower.isNotEmpty) {
+        final hasClaimedZip = agent.claimedZipCodes.any((zip) => zip.toLowerCase() == zipCodeLower);
+        final hasServiceZip = agent.serviceZipCodes.any((zip) => zip.toLowerCase() == zipCodeLower);
+        final hasServiceArea = agent.serviceAreas?.any((area) => area.toLowerCase() == zipCodeLower) ?? false;
+        final hasListingZip = _allListings.any((listing) => 
+          listing.agentId == agent.id && listing.address.zip.toLowerCase() == zipCodeLower
         );
-        if (listing.id.isNotEmpty) {
-          print('   ✅ Open House matches ZIP $normalizedZipCode (Listing: ${listing.address.zip})');
-        }
+        matches = matches || hasClaimedZip || hasServiceZip || hasServiceArea || hasListingZip;
+      }
+      
+      // Check city matches (from listings)
+      if (cityLower.isNotEmpty) {
+        final hasListingCity = _allListings.any((listing) => 
+          listing.agentId == agent.id && listing.address.city.toLowerCase().contains(cityLower)
+        );
+        matches = matches || hasListingCity;
+      }
+      
+      // Check state matches (from listings or licensed states)
+      if (stateLower.isNotEmpty) {
+        final hasListingState = _allListings.any((listing) => 
+          listing.agentId == agent.id && listing.address.state.toLowerCase() == stateLower
+        );
+        final hasLicensedState = agent.licensedStates.any((s) => s.toLowerCase() == stateLower);
+        matches = matches || hasListingState || hasLicensedState;
       }
       
       return matches;
+    }).toList();
+    
+    // Filter loan officers by city, state, or ZIP code
+    _loanOfficers.value = _allLoanOfficers.where((loanOfficer) {
+      bool matches = false;
+      
+      // Check ZIP code matches
+      if (zipCodeLower.isNotEmpty) {
+        final hasClaimedZip = loanOfficer.claimedZipCodes.any((zip) => zip.toLowerCase() == zipCodeLower);
+        final hasZipCode = loanOfficer.zipCode?.toLowerCase() == zipCodeLower;
+        matches = matches || hasClaimedZip || hasZipCode;
+      }
+      
+      // Check city matches
+      if (cityLower.isNotEmpty) {
+        final hasCity = loanOfficer.city?.toLowerCase().contains(cityLower) ?? false;
+        matches = matches || hasCity;
+      }
+      
+      // Check state matches
+      if (stateLower.isNotEmpty) {
+        final hasState = loanOfficer.state?.toLowerCase() == stateLower;
+        final hasLicensedState = loanOfficer.licensedStates.any((s) => s.toLowerCase() == stateLower);
+        matches = matches || hasState || hasLicensedState;
+      }
+      
+      return matches;
+    }).toList();
+    
+    // Filter listings by city, state, or ZIP code
+    _listings.value = _allListings.where((listing) {
+      bool matches = false;
+      
+      if (zipCodeLower.isNotEmpty) {
+        matches = matches || listing.address.zip.toLowerCase() == zipCodeLower;
+      }
+      if (cityLower.isNotEmpty) {
+        matches = matches || listing.address.city.toLowerCase().contains(cityLower);
+      }
+      if (stateLower.isNotEmpty) {
+        matches = matches || listing.address.state.toLowerCase() == stateLower;
+      }
+      
+      return matches;
+    }).toList();
+    
+    // Filter open houses by listings in that location
+    // Open houses are linked to listings, so filter by listing location
+    final listingIds = _listings.map((l) => l.id).toSet();
+    _openHouses.value = _allOpenHouses.where((oh) {
+      return listingIds.contains(oh.listingId);
     }).toList();
     
     if (kDebugMode) {
-      print('🔍 Applied ZIP code filter: $normalizedZipCode');
+      print('🔍 Applied location filter:');
+      if (zipCodeLower.isNotEmpty) print('   ZIP Code: $zipCodeLower');
+      if (cityLower.isNotEmpty) print('   City: $cityLower');
+      if (stateLower.isNotEmpty) print('   State: $stateLower');
       print('   Filtered Agents: ${_agents.length} / ${_allAgents.length}');
       print('   Filtered Loan Officers: ${_loanOfficers.length} / ${_allLoanOfficers.length}');
       print('   Filtered Listings: ${_listings.length} / ${_allListings.length}');
       print('   Filtered Open Houses: ${_openHouses.length} / ${_allOpenHouses.length}');
     }
     
-    // Force refresh to ensure UI updates for all tabs
-    _agents.refresh();
-    _loanOfficers.refresh();
-    _listings.refresh();
-    _openHouses.refresh();
-    
-    // Record search for all displayed agents and loan officers
+    // Record search for all displayed agents
     _recordSearchesForDisplayedAgents();
-    _recordSearchesForDisplayedLoanOfficers();
   }
   
   /// Records search tracking for all currently displayed agents
   Future<void> _recordSearchesForDisplayedAgents() async {
-    if (_currentZipCode.value == null || _currentZipCode.value!.isEmpty) {
+    final hasFilter = (_currentZipCode.value != null && _currentZipCode.value!.isNotEmpty) ||
+                     (_currentCity.value != null && _currentCity.value!.isNotEmpty) ||
+                     (_currentState.value != null && _currentState.value!.isNotEmpty);
+    if (!hasFilter) {
       return; // Only track when there's an active search/filter
     }
     
@@ -1268,19 +1183,6 @@ class BuyerController extends GetxController {
     // Pass agent name to the API as it expects name, not ID
     for (final agent in _agents) {
       _recordSearch(agent.id, agentName: agent.name);
-    }
-  }
-  
-  /// Records search tracking for all currently displayed loan officers
-  Future<void> _recordSearchesForDisplayedLoanOfficers() async {
-    if (_currentZipCode.value == null || _currentZipCode.value!.isEmpty) {
-      return; // Only track when there's an active search/filter
-    }
-    
-    // Record search for each displayed loan officer (fire and forget)
-    // Pass loan officer name to the API as it expects name, not ID
-    for (final loanOfficer in _loanOfficers) {
-      _recordLoanOfficerSearch(loanOfficer.id, loanOfficerName: loanOfficer.name);
     }
   }
   
@@ -1317,114 +1219,65 @@ class BuyerController extends GetxController {
       // Don't show error to user - tracking is silent
     }
   }
-  
-  /// Records a search for a loan officer
-  Future<void> _recordLoanOfficerSearch(String loanOfficerId, {String? loanOfficerName}) async {
-    try {
-      final response = await _loanOfficerService.recordSearch(loanOfficerId, loanOfficerName: loanOfficerName);
-      if (response != null && kDebugMode) {
-        print('📊 Search Response for loan officer $loanOfficerId:');
-        print('   Message: ${response['message'] ?? 'N/A'}');
-        print('   Searches: ${response['searches'] ?? 'N/A'}');
-      }
-    } catch (e) {
-      if (kDebugMode) {
-        print('⚠️ Error recording loan officer search: $e');
-      }
-      // Don't show error to user - tracking is silent
-    }
-  }
-  
-  /// Records a contact action for a loan officer
-  Future<void> _recordLoanOfficerContact(String loanOfficerId) async {
-    try {
-      final response = await _loanOfficerService.recordContact(loanOfficerId);
-      if (response != null && kDebugMode) {
-        print('📞 Contact Response for loan officer $loanOfficerId:');
-        print('   Message: ${response['message'] ?? 'N/A'}');
-        print('   Contacts: ${response['contacts'] ?? 'N/A'}');
-      }
-    } catch (e) {
-      if (kDebugMode) {
-        print('⚠️ Error recording loan officer contact: $e');
-      }
-      // Don't show error to user - tracking is silent
-    }
-  }
 
-  Future<void> searchByZipCode(String zipCode) async {
+  /// Searches by location (city, state, or ZIP code)
+  Future<void> searchByLocation({String? zipCode, String? city, String? state}) async {
     try {
-      // Trim and validate ZIP code format (5 digits)
-      final trimmedZipCode = zipCode.trim();
-      if (trimmedZipCode.length != 5 || !RegExp(r'^\d+$').hasMatch(trimmedZipCode)) {
-        SnackbarHelper.showError(
-          'Please enter a valid 5-digit ZIP code',
-          title: 'Invalid ZIP Code',
-          duration: const Duration(seconds: 2),
-        );
-        return;
-      }
+      _isLoading.value = true;
+      
+      // Set the filters
+      _currentZipCode.value = zipCode?.trim();
+      _currentCity.value = city?.trim();
+      _currentState.value = state?.trim();
+      
+      // Apply filter to all data
+      _applyLocationFilter();
       
       if (kDebugMode) {
-        print('🔍 Starting ZIP code search: $trimmedZipCode');
-        print('   All Agents count: ${_allAgents.length}');
-        print('   All Loan Officers count: ${_allLoanOfficers.length}');
-        print('   All Listings count: ${_allListings.length}');
-        print('   All Open Houses count: ${_allOpenHouses.length}');
-      }
-      
-      // Set the ZIP code filter
-      _currentZipCode.value = trimmedZipCode;
-      
-      // Apply filter to all data immediately (no loading state needed for instant filtering)
-      _applyZipCodeFilter();
-      
-      if (kDebugMode) {
-        print('🔍 Filtered by ZIP code: $trimmedZipCode');
-        print('   Filtered Agents: ${_agents.length} / ${_allAgents.length}');
-        print('   Filtered Loan Officers: ${_loanOfficers.length} / ${_allLoanOfficers.length}');
-        print('   Filtered Listings: ${_listings.length} / ${_allListings.length}');
-        print('   Filtered Open Houses: ${_openHouses.length} / ${_allOpenHouses.length}');
-      }
-      
-      // Show feedback message
-      final totalResults = _agents.length + _loanOfficers.length + _listings.length + _openHouses.length;
-      if (totalResults > 0) {
-        SnackbarHelper.showSuccess(
-          'Found $totalResults results for ZIP $trimmedZipCode',
-          duration: const Duration(seconds: 2),
-        );
-      } else {
-        SnackbarHelper.showInfo(
-          'No results found for ZIP $trimmedZipCode',
-          duration: const Duration(seconds: 2),
-        );
+        print('🔍 Filtered by location:');
+        if (zipCode != null) print('   ZIP Code: $zipCode');
+        if (city != null) print('   City: $city');
+        if (state != null) print('   State: $state');
+        print('   Agents: ${_agents.length}');
+        print('   Loan Officers: ${_loanOfficers.length}');
+        print('   Listings: ${_listings.length}');
+        print('   Open Houses: ${_openHouses.length}');
       }
     } catch (e) {
       if (kDebugMode) {
-        print('❌ Error filtering by ZIP code: $e');
-        print('   Stack trace: ${StackTrace.current}');
+        print('❌ Error filtering by location: $e');
       }
-      SnackbarHelper.showError('Search failed: ${e.toString()}');
+      Get.snackbar('Error', 'Search failed: ${e.toString()}');
+    } finally {
+      _isLoading.value = false;
     }
   }
   
-  /// Clears the ZIP code filter
+  /// Searches by ZIP code (for backward compatibility)
+  Future<void> searchByZipCode(String zipCode) async {
+    await searchByLocation(zipCode: zipCode);
+  }
+  
+  /// Clears all location filters
   void clearZipCodeFilter() {
     if (kDebugMode) {
-      print('🧹 Clearing ZIP code filter');
+      print('🧹 Clearing location filters');
       print('   Current ZIP: ${_currentZipCode.value}');
+      print('   Current City: ${_currentCity.value}');
+      print('   Current State: ${_currentState.value}');
       print('   All Agents count: ${_allAgents.length}');
       print('   All Loan Officers count: ${_allLoanOfficers.length}');
       print('   All Listings count: ${_allListings.length}');
       print('   All Open Houses count: ${_allOpenHouses.length}');
     }
     
-    // Clear the ZIP code filter
+    // Clear all filters
     _currentZipCode.value = null;
+    _currentCity.value = null;
+    _currentState.value = null;
     
-    // Immediately apply filter (which will show all data since zipCode is null)
-    _applyZipCodeFilter();
+    // Immediately apply filter (which will show all data since all filters are null)
+    _applyLocationFilter();
     
     if (kDebugMode) {
       print('✅ Filter cleared - showing all data');
@@ -2056,9 +1909,6 @@ class BuyerController extends GetxController {
   }
 
   Future<void> contactLoanOfficer(LoanOfficerModel loanOfficer) async {
-    // Record contact
-    _recordLoanOfficerContact(loanOfficer.id);
-    
     // Check if conversation exists with this loan officer
     final messagesController = Get.find<MessagesController>();
     
@@ -2171,334 +2021,6 @@ class BuyerController extends GetxController {
       return _listings.firstWhere((l) => l.id == openHouse.listingId);
     } catch (e) {
       return null;
-    }
-  }
-
-  bool isListingFavorite(String listingId) {
-    return _favoriteListings.contains(listingId);
-  }
-
-  Future<void> toggleFavoriteListing(String listingId) async {
-    if (_togglingFavorites.contains(listingId)) return;
-    
-    final currentUser = _authController.currentUser;
-    if (currentUser == null || currentUser.id.isEmpty) {
-      SnackbarHelper.showError(
-        'Please login to like listings',
-        duration: const Duration(seconds: 2),
-      );
-      return;
-    }
-    
-    // Optimistic update
-    final isCurrentlyLiked = _favoriteListings.contains(listingId);
-    if (isCurrentlyLiked) {
-      _favoriteListings.remove(listingId);
-    } else {
-      _favoriteListings.add(listingId);
-    }
-    _favoriteListings.refresh(); // Force UI update immediately
-    
-    // Immediately update favorites screen if available
-    if (Get.isRegistered<FavoritesController>()) {
-      try {
-        final favoritesController = Get.find<FavoritesController>();
-        if (isCurrentlyLiked) {
-          // Remove from favorites immediately
-          favoritesController.removeFavoriteListingImmediately(listingId);
-        } else {
-          // Find the listing and add to top immediately
-          // Determine which tab the listing is from based on current context
-          final isFromOpenHousesTab = _selectedTab.value == 2; // Open Houses tab
-          try {
-            final listing = _listings.firstWhere((l) => l.id == listingId);
-            favoritesController.addFavoriteListingToTop(listing, isFromOpenHousesTab: isFromOpenHousesTab);
-          } catch (e) {
-            // Try from all listings
-            try {
-              final listing = _allListings.firstWhere((l) => l.id == listingId);
-              favoritesController.addFavoriteListingToTop(listing, isFromOpenHousesTab: isFromOpenHousesTab);
-            } catch (e2) {
-              if (kDebugMode) {
-                print('⚠️ Could not find listing $listingId to add to favorites: $e2');
-              }
-              // Still refresh to get it from API
-              favoritesController.refreshFavorites();
-            }
-          }
-        }
-      } catch (e) {
-        if (kDebugMode) {
-          print('⚠️ Could not update favorites controller immediately: $e');
-        }
-      }
-    }
-    
-    try {
-      _togglingFavorites.add(listingId);
-      
-      final userId = currentUser.id;
-      final endpoint = ApiConstants.likeListingEndpoint;
-      
-      final GetStorage storage = GetStorage();
-      final authToken = storage.read('auth_token');
-      
-      _dio.options.headers = {
-        ...ApiConstants.ngrokHeaders,
-        'Content-Type': 'application/json',
-        if (authToken != null) 'Authorization': 'Bearer $authToken',
-      };
-      
-      if (kDebugMode) {
-        print('❤️ Toggling favorite for listing: $listingId');
-        print('   Endpoint: $endpoint');
-        print('   User ID: $userId');
-      }
-      
-      // Temporarily increase timeout for this request
-      final originalConnectTimeout = _dio.options.connectTimeout;
-      final originalReceiveTimeout = _dio.options.receiveTimeout;
-      _dio.options.connectTimeout = const Duration(seconds: 30);
-      _dio.options.receiveTimeout = const Duration(seconds: 30);
-      
-      try {
-        final response = await _dio.post(
-          endpoint,
-          data: {
-            'listingId': listingId,
-            'userId': userId,
-          },
-        );
-        
-        // Restore original timeouts
-        _dio.options.connectTimeout = originalConnectTimeout;
-        _dio.options.receiveTimeout = originalReceiveTimeout;
-        
-        if (kDebugMode) {
-          print('📥 Like Listing API Response:');
-          print('   Status Code: ${response.statusCode}');
-          print('   Response Data: ${response.data}');
-        }
-        
-        if (response.statusCode == 200 || response.statusCode == 201) {
-          final responseData = response.data;
-          final success = responseData['success'] ?? false;
-          
-          // Check if user ID is in the likes array (more reliable than isLiked field)
-          final likes = responseData['likes'] as List?;
-          final isLiked = likes != null && likes.contains(userId);
-          
-          if (kDebugMode) {
-            print('   Success: $success');
-            print('   Likes array: $likes');
-            print('   User ID: $userId');
-            print('   Is Liked (from likes array): $isLiked');
-          }
-          
-          if (success) {
-            // Update the listing's likes array if we can find it
-            try {
-              final listingIndex = _listings.indexWhere((l) => l.id == listingId);
-              if (listingIndex != -1 && likes != null) {
-                // Update the listing model with the new likes array
-                // Note: This assumes Listing model has a way to update likes
-                // For now, we'll just sync the favoriteListings
-              }
-            } catch (e) {
-              if (kDebugMode) {
-                print('⚠️ Could not update listing likes: $e');
-              }
-            }
-            
-            // Sync with API response - ensure state matches API
-            if (isLiked) {
-              if (!_favoriteListings.contains(listingId)) {
-                _favoriteListings.add(listingId);
-              }
-            } else {
-              _favoriteListings.remove(listingId);
-            }
-            _favoriteListings.refresh(); // Force UI update
-            
-            // Update favorites controller to sync with API response
-            if (Get.isRegistered<FavoritesController>()) {
-              try {
-                final favoritesController = Get.find<FavoritesController>();
-                if (isLiked) {
-                  // Ensure listing is in favorites (might have been added optimistically)
-                  // Determine which tab based on current context
-                  final isFromOpenHousesTab = _selectedTab.value == 2;
-                  try {
-                    final listing = _listings.firstWhere((l) => l.id == listingId);
-                    favoritesController.addFavoriteListingToTop(listing, isFromOpenHousesTab: isFromOpenHousesTab);
-                  } catch (e) {
-                    // Try from all listings
-                    try {
-                      final listing = _allListings.firstWhere((l) => l.id == listingId);
-                      favoritesController.addFavoriteListingToTop(listing, isFromOpenHousesTab: isFromOpenHousesTab);
-                    } catch (e2) {
-                      // Refresh to get from API
-                      favoritesController.refreshFavorites();
-                    }
-                  }
-                } else {
-                  // Remove from favorites
-                  favoritesController.removeFavoriteListingImmediately(listingId);
-                }
-              } catch (e) {
-                if (kDebugMode) {
-                  print('⚠️ Could not update favorites controller: $e');
-                }
-              }
-            }
-            
-            if (kDebugMode) {
-              print('   ✅ Updated favorite listings: ${_favoriteListings.length} total');
-              print('   Current favorites: $_favoriteListings');
-            }
-            
-            Future.delayed(const Duration(milliseconds: 200), () {
-              SnackbarHelper.showSuccess(
-                isLiked 
-                    ? 'Listing added to your favorites' 
-                    : 'Listing removed from your favorites',
-                duration: const Duration(seconds: 2),
-              );
-            });
-          } else {
-            // API returned success: false - revert optimistic update
-            if (kDebugMode) {
-              print('   ⚠️ API returned success: false, reverting optimistic update');
-            }
-            
-            // Revert to previous state (opposite of what we optimistically set)
-            final wasLikedBeforeToggle = !isCurrentlyLiked;
-            if (wasLikedBeforeToggle) {
-              // We optimistically removed it, but API failed - add it back
-              if (!_favoriteListings.contains(listingId)) {
-                _favoriteListings.add(listingId);
-              }
-            } else {
-              // We optimistically added it, but API failed - remove it
-              _favoriteListings.remove(listingId);
-            }
-            _favoriteListings.refresh();
-            
-            // Update favorites controller to match reverted state
-            if (Get.isRegistered<FavoritesController>()) {
-              try {
-                final favoritesController = Get.find<FavoritesController>();
-                if (wasLikedBeforeToggle) {
-                  final isFromOpenHousesTab = _selectedTab.value == 2;
-                  try {
-                    final listing = _listings.firstWhere((l) => l.id == listingId);
-                    favoritesController.addFavoriteListingToTop(listing, isFromOpenHousesTab: isFromOpenHousesTab);
-                  } catch (e) {
-                    try {
-                      final listing = _allListings.firstWhere((l) => l.id == listingId);
-                      favoritesController.addFavoriteListingToTop(listing, isFromOpenHousesTab: isFromOpenHousesTab);
-                    } catch (e2) {
-                      favoritesController.refreshFavorites();
-                    }
-                  }
-                } else {
-                  favoritesController.removeFavoriteListingImmediately(listingId);
-                }
-              } catch (e) {
-                if (kDebugMode) {
-                  print('⚠️ Could not update favorites controller: $e');
-                }
-              }
-            }
-            
-            SnackbarHelper.showError(
-              'Failed to update favorite status. Please try again.',
-              duration: const Duration(seconds: 2),
-            );
-          }
-        } else {
-          if (kDebugMode) {
-            print('   ⚠️ Unexpected status code: ${response.statusCode}');
-          }
-        }
-      } catch (requestError) {
-        // Restore original timeouts before rethrowing
-        _dio.options.connectTimeout = originalConnectTimeout;
-        _dio.options.receiveTimeout = originalReceiveTimeout;
-        rethrow;
-      }
-      
-    } catch (e) {
-      // On error, rollback optimistic update
-      if (kDebugMode) {
-        print('❌ Error toggling favorite listing: $e');
-        if (e is DioException) {
-          print('   Error Type: ${e.type}');
-          print('   Status Code: ${e.response?.statusCode}');
-          print('   Response: ${e.response?.data}');
-          print('   Request Path: ${e.requestOptions.path}');
-          print('   Request Data: ${e.requestOptions.data}');
-        }
-      }
-      
-      // Rollback optimistic update - revert to previous state
-      final wasLikedBeforeToggle = !isCurrentlyLiked; // Opposite of optimistic state
-      if (wasLikedBeforeToggle) {
-        // Was liked before, we optimistically removed it - add it back
-        if (!_favoriteListings.contains(listingId)) {
-          _favoriteListings.add(listingId);
-        }
-      } else {
-        // Was not liked before, we optimistically added it - remove it
-        _favoriteListings.remove(listingId);
-      }
-      _favoriteListings.refresh();
-      
-      // Update favorites controller to match rolled back state
-      if (Get.isRegistered<FavoritesController>()) {
-        try {
-          final favoritesController = Get.find<FavoritesController>();
-          if (wasLikedBeforeToggle) {
-            final isFromOpenHousesTab = _selectedTab.value == 2;
-            try {
-              final listing = _listings.firstWhere((l) => l.id == listingId);
-              favoritesController.addFavoriteListingToTop(listing, isFromOpenHousesTab: isFromOpenHousesTab);
-            } catch (e2) {
-              try {
-                final listing = _allListings.firstWhere((l) => l.id == listingId);
-                favoritesController.addFavoriteListingToTop(listing, isFromOpenHousesTab: isFromOpenHousesTab);
-              } catch (e3) {
-                favoritesController.refreshFavorites();
-              }
-            }
-          } else {
-            favoritesController.removeFavoriteListingImmediately(listingId);
-          }
-        } catch (e2) {
-          if (kDebugMode) {
-            print('⚠️ Could not update favorites controller on rollback: $e2');
-          }
-        }
-      }
-      
-      String errorMessage = 'Failed to update favorite listing';
-      if (e is DioException) {
-        if (e.response?.statusCode == 404) {
-          errorMessage = 'Like endpoint not found. Please contact support.';
-        } else if (e.type == DioExceptionType.connectionTimeout || 
-                   e.type == DioExceptionType.receiveTimeout) {
-          errorMessage = 'Request timed out. Please check your connection.';
-        } else if (e.response?.statusCode != null) {
-          errorMessage = 'Server error (${e.response?.statusCode}). Please try again.';
-        }
-      }
-      
-      SnackbarHelper.showError(
-        errorMessage,
-        duration: const Duration(seconds: 3),
-      );
-    } finally {
-      _togglingFavorites.remove(listingId);
     }
   }
 
