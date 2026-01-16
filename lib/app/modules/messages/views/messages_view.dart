@@ -69,7 +69,7 @@ class MessagesView extends GetView<MessagesController> {
       // Standalone messages route (no bottom nav controller registered)
       return Column(
         children: [
-          _buildHeader(context),
+          // _buildHeader(context),
           _buildSearch(context),
           Expanded(child: _buildConversationsListView(context)),
         ],
@@ -232,9 +232,9 @@ class MessagesView extends GetView<MessagesController> {
   }
 
   Widget _buildConversationCard(
-    BuildContext context,
-    ConversationModel conversation,
-  ) {
+      BuildContext context,
+      ConversationModel conversation,
+      ) {
     return Card(
       child: InkWell(
         onTap: () => controller.selectConversation(conversation),
@@ -264,9 +264,9 @@ class MessagesView extends GetView<MessagesController> {
                             conversation.senderName,
                             style: Theme.of(context).textTheme.titleMedium
                                 ?.copyWith(
-                                  color: AppTheme.black,
-                                  fontWeight: FontWeight.w600,
-                                ),
+                              color: AppTheme.black,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
                         Text(
@@ -507,9 +507,9 @@ class MessagesView extends GetView<MessagesController> {
     // For buyers/sellers, messages from user type are "from me"
     final isUser = controller.isAgent
         ? message.senderType == 'agent'
-        : (controller.isLoanOfficer 
-            ? message.senderType == 'loan_officer'
-            : message.senderType == 'user');
+        : (controller.isLoanOfficer
+        ? message.senderType == 'loan_officer'
+        : message.senderType == 'user');
 
     return Row(
       mainAxisAlignment: isUser
@@ -627,7 +627,7 @@ class MessagesView extends GetView<MessagesController> {
                     final position = controller.messagesScrollController.position;
                     final maxScroll = position.maxScrollExtent;
                     final currentScroll = position.pixels;
-                    
+
                     // If user is near bottom (within 200px), auto-scroll
                     if (maxScroll - currentScroll < 200) {
                       controller.messagesScrollController.animateTo(
@@ -756,61 +756,61 @@ class MessagesView extends GetView<MessagesController> {
     final localTime = time.toLocal();
     final now = DateTime.now();
     final nowLocal = now.toLocal();
-    
+
     // Calculate difference in local time
     final difference = nowLocal.difference(localTime);
-    
+
     // Format time in 12-hour format with AM/PM
     String format12Hour(DateTime dt) {
       int hour = dt.hour;
       final minute = dt.minute;
       final period = hour >= 12 ? 'PM' : 'AM';
-      
+
       if (hour == 0) {
         hour = 12; // 12 AM
       } else if (hour > 12) {
         hour = hour - 12; // 1 PM - 11 PM
       }
-      
+
       // Format minute with leading zero if needed
       final minuteStr = minute.toString().padLeft(2, '0');
-      
+
       return '$hour:$minuteStr $period';
     }
-    
+
     // If time is in the future or less than 1 minute ago, show current time
     if (difference.isNegative || difference.inMinutes < 1) {
       return format12Hour(localTime);
     }
-    
+
     // Same day - show time only
-    if (localTime.year == nowLocal.year && 
-        localTime.month == nowLocal.month && 
+    if (localTime.year == nowLocal.year &&
+        localTime.month == nowLocal.month &&
         localTime.day == nowLocal.day) {
       return format12Hour(localTime);
     }
-    
+
     // Yesterday - show "Yesterday" and time
     final yesterday = nowLocal.subtract(const Duration(days: 1));
-    if (localTime.year == yesterday.year && 
-        localTime.month == yesterday.month && 
+    if (localTime.year == yesterday.year &&
+        localTime.month == yesterday.month &&
         localTime.day == yesterday.day) {
       return 'Yesterday ${format12Hour(localTime)}';
     }
-    
+
     // Within same week - show day name and time
     if (difference.inDays < 7) {
       final days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
       final dayName = days[localTime.weekday - 1];
       return '$dayName ${format12Hour(localTime)}';
     }
-    
+
     // More than a week - show date and time
-    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
-                    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     final month = months[localTime.month - 1];
     final day = localTime.day;
-    
+
     // If same year, don't show year
     if (localTime.year == nowLocal.year) {
       return '$month $day, ${format12Hour(localTime)}';
@@ -830,10 +830,10 @@ class MessagesView extends GetView<MessagesController> {
     if (normalizedUrl != null && normalizedUrl.isEmpty) {
       normalizedUrl = null;
     }
-    
+
     // Validate URL - must be non-null, non-empty, and a valid HTTP/HTTPS URL
-    final isValidUrl = normalizedUrl != null && 
-        normalizedUrl.isNotEmpty && 
+    final isValidUrl = normalizedUrl != null &&
+        normalizedUrl.isNotEmpty &&
         (normalizedUrl.startsWith('http://') || normalizedUrl.startsWith('https://')) &&
         !normalizedUrl.contains('file://') &&
         Uri.tryParse(normalizedUrl) != null; // Additional URI validation
