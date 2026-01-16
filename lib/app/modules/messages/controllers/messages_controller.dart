@@ -136,7 +136,8 @@ class MessagesController extends GetxController {
 
   // Data
   final _conversations = <ConversationModel>[].obs;
-  final _allConversations = <ConversationModel>[].obs; // Store all conversations for filtering
+  final _allConversations =
+      <ConversationModel>[].obs; // Store all conversations for filtering
   final _messages = <MessageModel>[].obs;
   final _selectedConversation = Rxn<ConversationModel>();
   final _isLoading = false.obs;
@@ -147,7 +148,7 @@ class MessagesController extends GetxController {
 
   // Message input
   final messageController = TextEditingController();
-  
+
   // Track previous message count for auto-scroll
   int _previousMessageCount = 0;
 
@@ -162,13 +163,13 @@ class MessagesController extends GetxController {
   bool get isLoadingMessages => _isLoadingMessages.value;
   String get searchQuery => _searchQuery.value;
   String? get error => _error.value;
-  
+
   // Check if current user is a loan officer
   bool get isLoanOfficer {
     final user = _authController.currentUser;
     return user?.role == UserRole.loanOfficer;
   }
-  
+
   // Check if current user is an agent
   bool get isAgent {
     final user = _authController.currentUser;
@@ -178,11 +179,11 @@ class MessagesController extends GetxController {
   SocketService? _socketService;
 
   bool _hasInitialized = false;
-  
+
   // Scroll controller for messages list
   final ScrollController _messagesScrollController = ScrollController();
   ScrollController get messagesScrollController => _messagesScrollController;
-  
+
   /// Scrolls to the bottom of the messages list
   void _scrollToBottom({bool immediate = false}) {
     // Use multiple attempts to ensure scroll happens after ListView rebuilds
@@ -210,13 +211,15 @@ class MessagesController extends GetxController {
             try {
               final position = _messagesScrollController.position;
               final maxExtent = position.maxScrollExtent;
-              
+
               if (maxExtent > 0) {
                 if (immediate) {
                   // Jump immediately without animation for instant feedback
                   _messagesScrollController.jumpTo(maxExtent);
                   if (kDebugMode) {
-                    print('✅ Scrolled to bottom immediately (maxExtent: $maxExtent, attempt: $attempt)');
+                    print(
+                      '✅ Scrolled to bottom immediately (maxExtent: $maxExtent, attempt: $attempt)',
+                    );
                   }
                 } else {
                   // Animate smoothly
@@ -226,18 +229,25 @@ class MessagesController extends GetxController {
                     curve: Curves.easeOut,
                   );
                   if (kDebugMode) {
-                    print('✅ Scrolled to bottom with animation (maxExtent: $maxExtent, attempt: $attempt)');
+                    print(
+                      '✅ Scrolled to bottom with animation (maxExtent: $maxExtent, attempt: $attempt)',
+                    );
                   }
                 }
               } else {
                 // If maxExtent is 0, the list might not be rendered yet, try again
                 if (attempt < 5) {
-                  Future.delayed(Duration(milliseconds: 100 * (attempt + 1)), () {
-                    attemptScroll(attempt + 1);
-                  });
+                  Future.delayed(
+                    Duration(milliseconds: 100 * (attempt + 1)),
+                    () {
+                      attemptScroll(attempt + 1);
+                    },
+                  );
                 } else {
                   if (kDebugMode) {
-                    print('⚠️ Cannot scroll - maxExtent is 0 after $attempt attempts');
+                    print(
+                      '⚠️ Cannot scroll - maxExtent is 0 after $attempt attempts',
+                    );
                   }
                 }
               }
@@ -270,18 +280,20 @@ class MessagesController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    
+
     if (kDebugMode) {
-      print('📱 MessagesController: onInit called (initialized: $_hasInitialized)');
+      print(
+        '📱 MessagesController: onInit called (initialized: $_hasInitialized)',
+      );
     }
-    
+
     _loadArguments();
-    
+
     // Listen to messages list changes and auto-scroll when new messages are added
     ever(_messages, (_) {
       // Only auto-scroll if there's a selected conversation and message count increased
-      if (_selectedConversation.value != null && 
-          _messages.isNotEmpty && 
+      if (_selectedConversation.value != null &&
+          _messages.isNotEmpty &&
           _messages.length > _previousMessageCount) {
         _previousMessageCount = _messages.length;
         // Delay to ensure ListView has rebuilt
@@ -295,13 +307,15 @@ class MessagesController extends GetxController {
         _previousMessageCount = _messages.length;
       }
     });
-    
+
     // Always initialize socket if user is logged in (socket can reconnect)
     if (_authController.isLoggedIn && _authController.currentUser != null) {
       if (!_hasInitialized) {
         _hasInitialized = true;
         if (kDebugMode) {
-          print('📱 MessagesController: First initialization - loading threads and socket');
+          print(
+            '📱 MessagesController: First initialization - loading threads and socket',
+          );
         }
         // Load threads immediately in background - don't wait
         // This ensures threads are ready when user opens messages screen
@@ -314,9 +328,11 @@ class MessagesController extends GetxController {
       } else {
         // Already initialized - ensure socket is still connected
         if (kDebugMode) {
-          print('📱 MessagesController: Re-initialization - checking socket connection');
+          print(
+            '📱 MessagesController: Re-initialization - checking socket connection',
+          );
         }
-        
+
         // Check if socket is connected, reconnect if needed
         if (_socketService != null && !_socketService!.isConnected) {
           if (kDebugMode) {
@@ -324,13 +340,15 @@ class MessagesController extends GetxController {
           }
           _initializeSocket();
         }
-        
+
         // Use silent refresh to update data without showing loading spinner
         _refreshThreadsSilently();
       }
     } else {
       if (kDebugMode) {
-        print('📱 MessagesController: User not logged in - skipping initialization');
+        print(
+          '📱 MessagesController: User not logged in - skipping initialization',
+        );
       }
     }
   }
@@ -406,7 +424,7 @@ class MessagesController extends GetxController {
         print('✅ Socket initialization complete');
         print('   Connected: ${_socketService!.isConnected}');
         print('   Socket ID: ${_socketService!.socket?.id ?? "N/A"}');
-        
+
         // Verify listeners are registered
         if (_socketService!.socket != null) {
           print('   Socket exists: true');
@@ -432,37 +450,42 @@ class MessagesController extends GetxController {
       }
 
       // Parse chatId/threadId - can be from different fields
-      final chatId = data['chatId']?.toString() ?? 
-                     data['threadId']?.toString() ?? 
-                     data['_id']?.toString() ?? '';
-      
+      final chatId =
+          data['chatId']?.toString() ??
+          data['threadId']?.toString() ??
+          data['_id']?.toString() ??
+          '';
+
       // Parse sender - can be object or ID string
-      final sender = data['sender'] is Map 
+      final sender = data['sender'] is Map
           ? data['sender'] as Map<String, dynamic>
           : null;
-      final senderId = sender?['_id']?.toString() ?? 
-                      sender?['id']?.toString() ?? 
-                      data['sender']?.toString() ?? 
-                      data['senderId']?.toString() ?? '';
-      
+      final senderId =
+          sender?['_id']?.toString() ??
+          sender?['id']?.toString() ??
+          data['sender']?.toString() ??
+          data['senderId']?.toString() ??
+          '';
+
       // Extract and clean message text - handle JSON escaping
-      String text = data['text']?.toString() ?? 
-                   data['message']?.toString() ?? '';
-      
+      String text =
+          data['text']?.toString() ?? data['message']?.toString() ?? '';
+
       // Clean the text - remove any unwanted escaping
       // Replace escaped quotes and backslashes that might come from JSON
-      text = text.replaceAll('\\"', '"')
-                 .replaceAll('\\n', '\n')
-                 .replaceAll('\\t', '\t')
-                 .replaceAll('\\\\', '\\')
-                 .trim();
-      
+      text = text
+          .replaceAll('\\"', '"')
+          .replaceAll('\\n', '\n')
+          .replaceAll('\\t', '\t')
+          .replaceAll('\\\\', '\\')
+          .trim();
+
       // Parse timestamp
       DateTime createdAt;
       if (data['createdAt'] != null) {
         final dateStr = data['createdAt'].toString();
         final parsed = DateTime.tryParse(dateStr);
-        createdAt = parsed != null 
+        createdAt = parsed != null
             ? (parsed.isUtc ? parsed : parsed.toUtc())
             : DateTime.now().toUtc();
       } else {
@@ -470,34 +493,44 @@ class MessagesController extends GetxController {
       }
 
       if (kDebugMode) {
-        print('   Parsed - ChatId: $chatId, SenderId: $senderId, Text: ${text.substring(0, text.length > 50 ? 50 : text.length)}...');
+        print(
+          '   Parsed - ChatId: $chatId, SenderId: $senderId, Text: ${text.substring(0, text.length > 50 ? 50 : text.length)}...',
+        );
       }
 
       // Always update the conversation list with new message, even if not viewing that conversation
       // This ensures agents see new messages instantly even when on dashboard
       final user = _authController.currentUser;
       final isFromMe = senderId == (user?.id ?? '');
-      
+
       // Find the conversation in our list and update it
-      final conversationIndex = _allConversations.indexWhere((c) => c.id == chatId);
+      final conversationIndex = _allConversations.indexWhere(
+        (c) => c.id == chatId,
+      );
       if (conversationIndex != -1) {
         // Update existing conversation with new last message
         final existingConversation = _allConversations[conversationIndex];
         final updatedConversation = existingConversation.copyWith(
           lastMessage: text,
           lastMessageTime: createdAt,
-          unreadCount: isFromMe ? existingConversation.unreadCount : existingConversation.unreadCount + 1,
+          unreadCount: isFromMe
+              ? existingConversation.unreadCount
+              : existingConversation.unreadCount + 1,
         );
         _allConversations[conversationIndex] = updatedConversation;
-        _allConversations.sort((a, b) => b.lastMessageTime.compareTo(a.lastMessageTime));
-        
+        _allConversations.sort(
+          (a, b) => b.lastMessageTime.compareTo(a.lastMessageTime),
+        );
+
         // Also update in filtered conversations list
         final filteredIndex = _conversations.indexWhere((c) => c.id == chatId);
         if (filteredIndex != -1) {
           _conversations[filteredIndex] = updatedConversation;
-          _conversations.sort((a, b) => b.lastMessageTime.compareTo(a.lastMessageTime));
+          _conversations.sort(
+            (a, b) => b.lastMessageTime.compareTo(a.lastMessageTime),
+          );
         }
-        
+
         if (kDebugMode) {
           print('✅ Updated conversation list with new message');
           print('   Conversation: ${updatedConversation.senderName}');
@@ -514,14 +547,17 @@ class MessagesController extends GetxController {
       // If this message is for the currently selected conversation, also add it to messages list
       if (_selectedConversation.value?.id == chatId) {
         // user and isFromMe are already declared above
-        
+
         // Get message ID from socket data
-        final messageId = data['_id']?.toString() ?? 
-                         data['id']?.toString() ?? 
-                         'msg_${DateTime.now().millisecondsSinceEpoch}';
+        final messageId =
+            data['_id']?.toString() ??
+            data['id']?.toString() ??
+            'msg_${DateTime.now().millisecondsSinceEpoch}';
 
         // Check if message already exists (to prevent duplicates)
-        final existingMessage = _messages.firstWhereOrNull((m) => m.id == messageId);
+        final existingMessage = _messages.firstWhereOrNull(
+          (m) => m.id == messageId,
+        );
         if (existingMessage != null) {
           if (kDebugMode) {
             print('⚠️ Message already exists, skipping duplicate');
@@ -535,10 +571,11 @@ class MessagesController extends GetxController {
         if (isFromMe) {
           senderName = 'You';
         } else {
-          senderName = sender?['fullname']?.toString() ?? 
-                      sender?['name']?.toString() ?? 
-                      _selectedConversation.value?.senderName ?? 
-                      'User';
+          senderName =
+              sender?['fullname']?.toString() ??
+              sender?['name']?.toString() ??
+              _selectedConversation.value?.senderName ??
+              'User';
         }
 
         // Get sender type
@@ -565,33 +602,38 @@ class MessagesController extends GetxController {
 
         // Check if message is read
         final isReadBy = data['isReadBy'] as List<dynamic>? ?? [];
-        final isRead = isFromMe || isReadBy.contains(user?.id) || 
-                      isReadBy.any((id) => id.toString() == user?.id);
+        final isRead =
+            isFromMe ||
+            isReadBy.contains(user?.id) ||
+            isReadBy.any((id) => id.toString() == user?.id);
 
         final message = MessageModel(
           id: messageId,
           senderId: senderId,
           senderName: senderName,
           senderType: senderType,
-          senderImage: isFromMe ? null : _selectedConversation.value?.senderImage,
+          senderImage: isFromMe
+              ? null
+              : _selectedConversation.value?.senderImage,
           message: text.trim(), // Use cleaned and trimmed text
           timestamp: createdAt,
           isRead: isRead,
         );
 
         _messages.add(message);
-        
+
         // Remove any temporary optimistic messages with the same text and sender
         // This handles the case where we added an optimistic message before getting the real one
         if (isFromMe) {
-          _messages.removeWhere((m) => 
-            m.id.startsWith('temp_') && 
-            m.message == text && 
-            m.senderId == senderId &&
-            m.id != messageId
+          _messages.removeWhere(
+            (m) =>
+                m.id.startsWith('temp_') &&
+                m.message == text &&
+                m.senderId == senderId &&
+                m.id != messageId,
           );
         }
-        
+
         // Auto-scroll to bottom when new message arrives
         // Use immediate scroll for socket messages to show them instantly
         _scrollToBottom(immediate: true);
@@ -601,7 +643,7 @@ class MessagesController extends GetxController {
         Future.delayed(const Duration(milliseconds: 300), () {
           _scrollToBottom(immediate: false);
         });
-        
+
         if (kDebugMode) {
           print('✅ Added message to current conversation');
           print('   Message ID: ${message.id}');
@@ -610,7 +652,9 @@ class MessagesController extends GetxController {
       } else {
         if (kDebugMode) {
           print('ℹ️ Message received for different thread: $chatId');
-          print('   Current thread: ${_selectedConversation.value?.id ?? "none"}');
+          print(
+            '   Current thread: ${_selectedConversation.value?.id ?? "none"}',
+          );
         }
       }
 
@@ -638,27 +682,35 @@ class MessagesController extends GetxController {
   void _handleUnreadCountUpdate(Map<String, dynamic> data) {
     try {
       final chatId = data['chatId']?.toString() ?? '';
-      final unreadCount = int.tryParse(data['unreadCount']?.toString() ?? '0') ?? 0;
+      final unreadCount =
+          int.tryParse(data['unreadCount']?.toString() ?? '0') ?? 0;
 
       // Update in both lists
-      final conversation = _allConversations.firstWhereOrNull((c) => c.id == chatId);
+      final conversation = _allConversations.firstWhereOrNull(
+        (c) => c.id == chatId,
+      );
       if (conversation != null) {
-        final updatedConversation = conversation.copyWith(unreadCount: unreadCount);
-        
+        final updatedConversation = conversation.copyWith(
+          unreadCount: unreadCount,
+        );
+
         // Update in all conversations
         final allIndex = _allConversations.indexWhere((c) => c.id == chatId);
         if (allIndex != -1) {
           _allConversations[allIndex] = updatedConversation;
-          _allConversations.sort((a, b) => b.lastMessageTime.compareTo(a.lastMessageTime));
+          _allConversations.sort(
+            (a, b) => b.lastMessageTime.compareTo(a.lastMessageTime),
+          );
         }
-
 
         ;
         // Update in filtered conversations
         final filteredIndex = _conversations.indexWhere((c) => c.id == chatId);
         if (filteredIndex != -1) {
           _conversations[filteredIndex] = updatedConversation;
-          _conversations.sort((a, b) => b.lastMessageTime.compareTo(a.lastMessageTime));
+          _conversations.sort(
+            (a, b) => b.lastMessageTime.compareTo(a.lastMessageTime),
+          );
         }
       }
     } catch (e) {
@@ -696,7 +748,7 @@ class MessagesController extends GetxController {
     // Set loading state BEFORE async operation
     _isLoadingThreads.value = true;
     _error.value = null;
-    
+
     if (kDebugMode) {
       print('📡 Starting to load threads...');
     }
@@ -704,7 +756,7 @@ class MessagesController extends GetxController {
     try {
       // Fetch threads from API
       final threads = await _chatService.getChatThreads(user.id);
-      
+
       // Convert threads to conversations - FAST, no individual API calls
       final conversations = threads
           .map((thread) {
@@ -714,7 +766,9 @@ class MessagesController extends GetxController {
               if (otherParticipant == null) return null;
 
               // Build profile pic URL using helper function
-              final profilePicUrl = ApiConstants.getImageUrl(otherParticipant.profilePic?.trim());
+              final profilePicUrl = ApiConstants.getImageUrl(
+                otherParticipant.profilePic?.trim(),
+              );
 
               // Map role from API to sender type - use role directly from API response
               String senderType = 'user';
@@ -724,7 +778,7 @@ class MessagesController extends GetxController {
               } else if (role == 'loanofficer' || role == 'loan_officer') {
                 senderType = 'loan_officer';
               }
-              
+
               // Get unread count for current user
               final unreadCount = thread.getUnreadCountForUser(user.id);
 
@@ -741,7 +795,9 @@ class MessagesController extends GetxController {
                 // Fallback to now only if all are null
                 lastMessageTime = DateTime.now().toUtc();
                 if (kDebugMode) {
-                  print('⚠️ Thread ${thread.id}: All timestamps are null, using now()');
+                  print(
+                    '⚠️ Thread ${thread.id}: All timestamps are null, using now()',
+                  );
                 }
               }
 
@@ -755,12 +811,16 @@ class MessagesController extends GetxController {
                 final nowUtc = DateTime.now().toUtc();
                 final diff = nowUtc.difference(lastMessageTime);
                 print('⏰ Thread ${thread.id.substring(0, 8)}...:');
-                print('   lastMessage.createdAt: ${thread.lastMessage?.createdAt}');
+                print(
+                  '   lastMessage.createdAt: ${thread.lastMessage?.createdAt}',
+                );
                 print('   updatedAt: ${thread.updatedAt}');
                 print('   createdAt: ${thread.createdAt}');
                 print('   Using: $lastMessageTime (UTC)');
                 print('   Now: $nowUtc (UTC)');
-                print('   Difference: ${diff.inMinutes}m ${diff.inSeconds % 60}s');
+                print(
+                  '   Difference: ${diff.inMinutes}m ${diff.inSeconds % 60}s',
+                );
               }
 
               // Create conversation model
@@ -783,42 +843,50 @@ class MessagesController extends GetxController {
           .toList();
 
       // Sort by last message time (most recent first)
-      conversations.sort((a, b) => b.lastMessageTime.compareTo(a.lastMessageTime));
+      conversations.sort(
+        (a, b) => b.lastMessageTime.compareTo(a.lastMessageTime),
+      );
 
       // Merge with existing conversations to preserve any newly created threads
       // that haven't appeared in the API response yet
       final existingConversations = _allConversations.toList();
       final mergedConversations = <ConversationModel>[];
-      
+
       // Add all conversations from API
       mergedConversations.addAll(conversations);
-      
+
       // Preserve conversations that:
       // 1. Are temp conversations (starting with 'temp_') that don't have a match in API
       // 2. Are real conversations (not temp) that don't appear in API yet (newly created)
       for (final existing in existingConversations) {
         // Check if this conversation exists in the API response
         // Match by ID or by senderId (for real conversations, not temp)
-        final existsInApi = conversations.any((c) => 
-          c.id == existing.id || 
-          (c.senderId == existing.senderId && !existing.id.startsWith('temp_'))
+        final existsInApi = conversations.any(
+          (c) =>
+              c.id == existing.id ||
+              (c.senderId == existing.senderId &&
+                  !existing.id.startsWith('temp_')),
         );
-        
+
         if (!existsInApi) {
           // Keep this conversation if it's not in the API response
           mergedConversations.add(existing);
           if (kDebugMode) {
-            print('📌 Preserving conversation not in API: ${existing.id} (${existing.senderName})');
+            print(
+              '📌 Preserving conversation not in API: ${existing.id} (${existing.senderName})',
+            );
           }
         } else {
           // If conversation exists in API, prefer API version (it has latest data)
           // But if existing is temp and API has real one, we'll use API version
           if (kDebugMode && existing.id.startsWith('temp_')) {
-            print('🔄 Replacing temp conversation with API version: ${existing.id}');
+            print(
+              '🔄 Replacing temp conversation with API version: ${existing.id}',
+            );
           }
         }
       }
-      
+
       // Remove duplicates - if same senderId appears multiple times, keep the one with real ID (not temp)
       final uniqueConversations = <String, ConversationModel>{};
       for (final conv in mergedConversations) {
@@ -831,7 +899,8 @@ class MessagesController extends GetxController {
           if (conv.id.startsWith('temp_') && !existing.id.startsWith('temp_')) {
             // Keep existing (real), skip temp
             continue;
-          } else if (!conv.id.startsWith('temp_') && existing.id.startsWith('temp_')) {
+          } else if (!conv.id.startsWith('temp_') &&
+              existing.id.startsWith('temp_')) {
             // Replace temp with real
             uniqueConversations[key] = conv;
           } else {
@@ -842,24 +911,28 @@ class MessagesController extends GetxController {
           }
         }
       }
-      
+
       final finalConversations = uniqueConversations.values.toList();
-      
+
       // Sort again after merging and deduplication
-      finalConversations.sort((a, b) => b.lastMessageTime.compareTo(a.lastMessageTime));
-      
+      finalConversations.sort(
+        (a, b) => b.lastMessageTime.compareTo(a.lastMessageTime),
+      );
+
       // Update both lists - all conversations and filtered conversations
       _allConversations.value = finalConversations;
-      
+
       // Apply current search filter if any
       if (_searchQuery.value.trim().isNotEmpty) {
         searchConversations(_searchQuery.value);
       } else {
         _conversations.value = finalConversations;
       }
-      
+
       if (kDebugMode) {
-        print('✅ Loaded ${finalConversations.length} conversations (${conversations.length} from API, ${finalConversations.length - conversations.length} preserved)');
+        print(
+          '✅ Loaded ${finalConversations.length} conversations (${conversations.length} from API, ${finalConversations.length - conversations.length} preserved)',
+        );
       }
     } on ChatServiceException catch (e) {
       _error.value = e.message;
@@ -882,18 +955,18 @@ class MessagesController extends GetxController {
 
   void selectConversation(ConversationModel conversation) {
     _selectedConversation.value = conversation;
-    
+
     if (kDebugMode) {
       print('📱 Selected conversation: ${conversation.senderName}');
     }
-    
+
     _loadMessagesForConversation(conversation.id);
-    
+
     // Join socket room for this conversation
     if (_socketService != null && _socketService!.isConnected) {
       _socketService!.joinRoom(conversation.id);
     }
-    
+
     // Mark as read
     markAsRead(conversation.id);
   }
@@ -912,8 +985,9 @@ class MessagesController extends GetxController {
     // Set loading state
     _isLoadingMessages.value = true;
     _messages.clear();
-    _previousMessageCount = 0; // Reset message count when loading new conversation
-    
+    _previousMessageCount =
+        0; // Reset message count when loading new conversation
+
     // Reset scroll position before loading (in case user had scrolled up in previous chat)
     if (_messagesScrollController.hasClients) {
       try {
@@ -942,102 +1016,112 @@ class MessagesController extends GetxController {
       }
 
       // Convert API response to MessageModel
-      final messages = messagesData.map((json) {
-        try {
-          // Parse sender information
-          final sender = json['sender'] is Map
-              ? json['sender'] as Map<String, dynamic>
-              : null;
-          
-          final senderId = sender?['_id']?.toString() ?? 
-                          sender?['id']?.toString() ?? 
-                          json['sender']?.toString() ?? '';
-          
-          final senderName = sender?['fullname']?.toString() ?? 
-                            sender?['name']?.toString() ?? 
-                            'User';
-          
-          final senderRole = sender?['role']?.toString()?.toLowerCase() ?? 'user';
-          String senderType = 'user';
-          if (senderRole == 'agent') {
-            senderType = 'agent';
-          } else if (senderRole == 'loanofficer' || senderRole == 'loan_officer') {
-            senderType = 'loan_officer';
-          }
+      final messages = messagesData
+          .map((json) {
+            try {
+              // Parse sender information
+              final sender = json['sender'] is Map
+                  ? json['sender'] as Map<String, dynamic>
+                  : null;
 
-          // Build profile pic URL using helper function
-          final senderImageRaw = sender?['profilePic']?.toString()?.trim();
-          final senderImage = ApiConstants.getImageUrl(senderImageRaw);
+              final senderId =
+                  sender?['_id']?.toString() ??
+                  sender?['id']?.toString() ??
+                  json['sender']?.toString() ??
+                  '';
 
-          // Parse timestamp
-          DateTime timestamp;
-          if (json['createdAt'] != null) {
-            final dateStr = json['createdAt'].toString();
-            final parsed = DateTime.tryParse(dateStr);
-            if (parsed != null) {
-              timestamp = parsed.isUtc ? parsed : parsed.toUtc();
-            } else {
-              timestamp = DateTime.now().toUtc();
+              final senderName =
+                  sender?['fullname']?.toString() ??
+                  sender?['name']?.toString() ??
+                  'User';
+
+              final senderRole =
+                  sender?['role']?.toString()?.toLowerCase() ?? 'user';
+              String senderType = 'user';
+              if (senderRole == 'agent') {
+                senderType = 'agent';
+              } else if (senderRole == 'loanofficer' ||
+                  senderRole == 'loan_officer') {
+                senderType = 'loan_officer';
+              }
+
+              // Build profile pic URL using helper function
+              final senderImageRaw = sender?['profilePic']?.toString()?.trim();
+              final senderImage = ApiConstants.getImageUrl(senderImageRaw);
+
+              // Parse timestamp
+              DateTime timestamp;
+              if (json['createdAt'] != null) {
+                final dateStr = json['createdAt'].toString();
+                final parsed = DateTime.tryParse(dateStr);
+                if (parsed != null) {
+                  timestamp = parsed.isUtc ? parsed : parsed.toUtc();
+                } else {
+                  timestamp = DateTime.now().toUtc();
+                }
+              } else if (json['timestamp'] != null) {
+                final dateStr = json['timestamp'].toString();
+                final parsed = DateTime.tryParse(dateStr);
+                if (parsed != null) {
+                  timestamp = parsed.isUtc ? parsed : parsed.toUtc();
+                } else {
+                  timestamp = DateTime.now().toUtc();
+                }
+              } else {
+                timestamp = DateTime.now().toUtc();
+              }
+
+              // Check if message is read
+              final isReadBy = json['isReadBy'] as List<dynamic>? ?? [];
+              final isRead =
+                  isReadBy.contains(user.id) ||
+                  isReadBy.any((id) => id.toString() == user.id);
+
+              // Determine if message is from current user
+              final isFromMe = senderId == user.id;
+
+              // Extract and clean message text
+              String messageText =
+                  json['text']?.toString() ?? json['message']?.toString() ?? '';
+
+              // Clean the text - remove any unwanted escaping
+              messageText = messageText
+                  .replaceAll('\\"', '"')
+                  .replaceAll('\\n', '\n')
+                  .replaceAll('\\t', '\t')
+                  .replaceAll('\\\\', '\\')
+                  .trim();
+
+              return MessageModel(
+                id:
+                    json['_id']?.toString() ??
+                    json['id']?.toString() ??
+                    'msg_${DateTime.now().millisecondsSinceEpoch}',
+                senderId: senderId,
+                senderName: isFromMe ? 'You' : senderName,
+                senderType: senderType,
+                senderImage: isFromMe ? null : senderImage,
+                message: messageText,
+                timestamp: timestamp,
+                isRead: isRead,
+              );
+            } catch (e) {
+              if (kDebugMode) {
+                print('❌ Error parsing message: $e');
+                print('   Message data: $json');
+              }
+              return null;
             }
-          } else if (json['timestamp'] != null) {
-            final dateStr = json['timestamp'].toString();
-            final parsed = DateTime.tryParse(dateStr);
-            if (parsed != null) {
-              timestamp = parsed.isUtc ? parsed : parsed.toUtc();
-            } else {
-              timestamp = DateTime.now().toUtc();
-            }
-          } else {
-            timestamp = DateTime.now().toUtc();
-          }
-
-          // Check if message is read
-          final isReadBy = json['isReadBy'] as List<dynamic>? ?? [];
-          final isRead = isReadBy.contains(user.id) || 
-                        isReadBy.any((id) => id.toString() == user.id);
-
-          // Determine if message is from current user
-          final isFromMe = senderId == user.id;
-
-          // Extract and clean message text
-          String messageText = json['text']?.toString() ?? 
-                              json['message']?.toString() ?? 
-                              '';
-          
-          // Clean the text - remove any unwanted escaping
-          messageText = messageText.replaceAll('\\"', '"')
-                                  .replaceAll('\\n', '\n')
-                                  .replaceAll('\\t', '\t')
-                                  .replaceAll('\\\\', '\\')
-                                  .trim();
-          
-          return MessageModel(
-            id: json['_id']?.toString() ?? 
-                json['id']?.toString() ?? 
-                'msg_${DateTime.now().millisecondsSinceEpoch}',
-            senderId: senderId,
-            senderName: isFromMe ? 'You' : senderName,
-            senderType: senderType,
-            senderImage: isFromMe ? null : senderImage,
-            message: messageText,
-            timestamp: timestamp,
-            isRead: isRead,
-          );
-        } catch (e) {
-          if (kDebugMode) {
-            print('❌ Error parsing message: $e');
-            print('   Message data: $json');
-          }
-          return null;
-        }
-      }).whereType<MessageModel>().toList();
+          })
+          .whereType<MessageModel>()
+          .toList();
 
       // Sort messages by timestamp (oldest first)
       messages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
 
       // Update messages list
       _messages.value = messages;
-      
+
       // Update message count after loading
       _previousMessageCount = _messages.length;
 
@@ -1048,14 +1132,16 @@ class MessagesController extends GetxController {
           _scrollToBottom(immediate: true);
         });
       });
-      
+
       // Also try again after a delay to handle cases where list takes time to render
       Future.delayed(const Duration(milliseconds: 400), () {
         _scrollToBottom(immediate: false);
       });
 
       if (kDebugMode) {
-        print('✅ Loaded ${messages.length} messages for conversation: $conversationId');
+        print(
+          '✅ Loaded ${messages.length} messages for conversation: $conversationId',
+        );
         if (messages.isEmpty) {
           print('⚠️ No messages found in this conversation');
         }
@@ -1090,7 +1176,7 @@ class MessagesController extends GetxController {
 
     // Create optimistic message with unique ID
     final tempId = 'temp_${DateTime.now().millisecondsSinceEpoch}';
-    
+
     // Determine sender type based on user role
     String senderType = 'user';
     if (user.role == UserRole.agent) {
@@ -1098,7 +1184,7 @@ class MessagesController extends GetxController {
     } else if (user.role == UserRole.loanOfficer) {
       senderType = 'loan_officer';
     }
-    
+
     final message = MessageModel(
       id: tempId,
       senderId: user.id,
@@ -1112,21 +1198,21 @@ class MessagesController extends GetxController {
     // Add optimistic message
     _messages.add(message);
     messageController.clear();
-    
+
     // Force scroll to bottom immediately and multiple times to ensure it works
     // This ensures the ListView scrolls down when a new message is added
     _scrollToBottom(immediate: true);
-    
+
     // Also try after a short delay to handle ListView rebuild
     Future.delayed(const Duration(milliseconds: 100), () {
       _scrollToBottom(immediate: true);
     });
-    
+
     // And once more after ListView fully renders
     Future.delayed(const Duration(milliseconds: 300), () {
       _scrollToBottom(immediate: false);
     });
-    
+
     if (kDebugMode) {
       print('📝 Added optimistic message: $tempId');
     }
@@ -1137,21 +1223,29 @@ class MessagesController extends GetxController {
       lastMessage: text,
       lastMessageTime: now,
     );
-    
+
     // Update in all conversations list
-    final allIndex = _allConversations.indexWhere((c) => c.id == conversation.id);
+    final allIndex = _allConversations.indexWhere(
+      (c) => c.id == conversation.id,
+    );
     if (allIndex != -1) {
       _allConversations[allIndex] = updatedConversation;
-      _allConversations.sort((a, b) => b.lastMessageTime.compareTo(a.lastMessageTime));
+      _allConversations.sort(
+        (a, b) => b.lastMessageTime.compareTo(a.lastMessageTime),
+      );
     }
-    
+
     // Update in filtered conversations list
-    final filteredIndex = _conversations.indexWhere((c) => c.id == conversation.id);
+    final filteredIndex = _conversations.indexWhere(
+      (c) => c.id == conversation.id,
+    );
     if (filteredIndex != -1) {
       _conversations[filteredIndex] = updatedConversation;
-      _conversations.sort((a, b) => b.lastMessageTime.compareTo(a.lastMessageTime));
+      _conversations.sort(
+        (a, b) => b.lastMessageTime.compareTo(a.lastMessageTime),
+      );
     }
-    
+
     if (kDebugMode) {
       print('✅ Moved conversation to top of list instantly');
     }
@@ -1173,13 +1267,13 @@ class MessagesController extends GetxController {
 
   void searchConversations(String query) {
     _searchQuery.value = query;
-    
+
     if (query.trim().isEmpty) {
       // If search is empty, show all conversations
       _conversations.value = List.from(_allConversations);
       return;
     }
-    
+
     // Filter conversations by sender name or last message
     final lowerQuery = query.toLowerCase().trim();
     final filtered = _allConversations.where((conv) {
@@ -1187,9 +1281,9 @@ class MessagesController extends GetxController {
       final messageMatch = conv.lastMessage.toLowerCase().contains(lowerQuery);
       return nameMatch || messageMatch;
     }).toList();
-    
+
     _conversations.value = filtered;
-    
+
     if (kDebugMode) {
       print('🔍 Search: "$query" found ${filtered.length} results');
     }
@@ -1210,15 +1304,19 @@ class MessagesController extends GetxController {
     );
     if (conversation != null && conversation.unreadCount > 0) {
       final updatedConv = conversation.copyWith(unreadCount: 0);
-      
+
       // Update in all conversations
-      final allIndex = _allConversations.indexWhere((conv) => conv.id == conversationId);
+      final allIndex = _allConversations.indexWhere(
+        (conv) => conv.id == conversationId,
+      );
       if (allIndex != -1) {
         _allConversations[allIndex] = updatedConv;
       }
-      
+
       // Update in filtered conversations
-      final filteredIndex = _conversations.indexWhere((conv) => conv.id == conversationId);
+      final filteredIndex = _conversations.indexWhere(
+        (conv) => conv.id == conversationId,
+      );
       if (filteredIndex != -1) {
         _conversations[filteredIndex] = updatedConv;
       }
@@ -1230,7 +1328,7 @@ class MessagesController extends GetxController {
         threadId: conversationId,
         userId: user.id,
       );
-      
+
       if (kDebugMode) {
         print('✅ Thread marked as read via API');
         print('   Updated count: ${result['updatedCount']}');
@@ -1245,10 +1343,7 @@ class MessagesController extends GetxController {
 
     // Also mark as read via socket if connected
     if (_socketService != null && _socketService!.isConnected) {
-      _socketService!.markAsRead(
-        threadId: conversationId,
-        userId: user.id,
-      );
+      _socketService!.markAsRead(threadId: conversationId, userId: user.id);
     }
   }
 
@@ -1264,11 +1359,11 @@ class MessagesController extends GetxController {
       // Remove from both lists after successful API call
       _allConversations.removeWhere((conv) => conv.id == conversationId);
       _conversations.removeWhere((conv) => conv.id == conversationId);
-      
+
       if (_selectedConversation.value?.id == conversationId) {
         _selectedConversation.value = null;
         _messages.clear();
-        
+
         // Show navbar again when conversation is deleted
         if (Get.isRegistered<MainNavigationController>()) {
           try {
@@ -1279,16 +1374,13 @@ class MessagesController extends GetxController {
           }
         }
       }
-      
+
       SnackbarHelper.showSuccess('Conversation deleted', title: 'Deleted');
     } on ChatServiceException catch (e) {
       if (kDebugMode) {
         print('❌ Error deleting chat: ${e.message}');
       }
-      SnackbarHelper.showError(
-        e.message,
-        title: 'Delete Failed',
-      );
+      SnackbarHelper.showError(e.message, title: 'Delete Failed');
     } catch (e) {
       if (kDebugMode) {
         print('❌ Unexpected error deleting chat: $e');
@@ -1305,7 +1397,7 @@ class MessagesController extends GetxController {
     // Don't use Navigator.pop() because MessagesView is part of main navigation
     _selectedConversation.value = null;
     _messages.clear();
-    
+
     // Show navbar again
     if (Get.isRegistered<MainNavigationController>()) {
       try {
@@ -1315,14 +1407,16 @@ class MessagesController extends GetxController {
         // Navbar controller might not be available
       }
     }
-    
+
     // Refresh threads silently when going back to ensure list is up-to-date
     // But only if not already loading to avoid unnecessary refreshes
     // This ensures threads are sorted correctly with latest messages at top
     if (kDebugMode) {
-      print('🔄 Going back: Clearing conversation and showing conversations list');
+      print(
+        '🔄 Going back: Clearing conversation and showing conversations list',
+      );
     }
-    
+
     // Only refresh if not currently loading to avoid race conditions
     if (!_isLoadingThreads.value) {
       _refreshThreadsSilently();
@@ -1366,7 +1460,7 @@ class MessagesController extends GetxController {
     try {
       // Fetch threads from API
       final threads = await _chatService.getChatThreads(user.id);
-      
+
       // Convert threads to conversations - FAST, no individual API calls
       final conversations = threads
           .map((thread) {
@@ -1376,7 +1470,9 @@ class MessagesController extends GetxController {
               if (otherParticipant == null) return null;
 
               // Build profile pic URL using helper function
-              final profilePicUrl = ApiConstants.getImageUrl(otherParticipant.profilePic?.trim());
+              final profilePicUrl = ApiConstants.getImageUrl(
+                otherParticipant.profilePic?.trim(),
+              );
 
               // Map role from API to sender type
               String senderType = 'user';
@@ -1386,7 +1482,7 @@ class MessagesController extends GetxController {
               } else if (role == 'loanofficer' || role == 'loan_officer') {
                 senderType = 'loan_officer';
               }
-              
+
               // Get unread count for current user
               final unreadCount = thread.getUnreadCountForUser(user.id);
 
@@ -1427,7 +1523,9 @@ class MessagesController extends GetxController {
           .toList();
 
       // Sort by last message time (most recent first)
-      conversations.sort((a, b) => b.lastMessageTime.compareTo(a.lastMessageTime));
+      conversations.sort(
+        (a, b) => b.lastMessageTime.compareTo(a.lastMessageTime),
+      );
 
       // CRITICAL: Merge with existing conversations to preserve:
       // 1. Temp conversations (starting with 'temp_') that don't have a match in API
@@ -1435,36 +1533,42 @@ class MessagesController extends GetxController {
       // This ensures newly created threads appear immediately when navigating back
       final existingConversations = _allConversations.toList();
       final mergedConversations = <ConversationModel>[];
-      
+
       // Add all conversations from API
       mergedConversations.addAll(conversations);
-      
+
       // Preserve conversations that:
       // 1. Are temp conversations (starting with 'temp_') that don't have a match in API
       // 2. Are real conversations (not temp) that don't appear in API yet (newly created)
       for (final existing in existingConversations) {
         // Check if this conversation exists in the API response
         // Match by ID or by senderId (for real conversations, not temp)
-        final existsInApi = conversations.any((c) => 
-          c.id == existing.id || 
-          (c.senderId == existing.senderId && !existing.id.startsWith('temp_'))
+        final existsInApi = conversations.any(
+          (c) =>
+              c.id == existing.id ||
+              (c.senderId == existing.senderId &&
+                  !existing.id.startsWith('temp_')),
         );
-        
+
         if (!existsInApi) {
           // Keep this conversation if it's not in the API response
           mergedConversations.add(existing);
           if (kDebugMode) {
-            print('📌 Preserving conversation not in API: ${existing.id} (${existing.senderName})');
+            print(
+              '📌 Preserving conversation not in API: ${existing.id} (${existing.senderName})',
+            );
           }
         } else {
           // If conversation exists in API, prefer API version (it has latest data)
           // But if existing is temp and API has real one, we'll use API version
           if (kDebugMode && existing.id.startsWith('temp_')) {
-            print('🔄 Replacing temp conversation with API version: ${existing.id}');
+            print(
+              '🔄 Replacing temp conversation with API version: ${existing.id}',
+            );
           }
         }
       }
-      
+
       // Remove duplicates - if same senderId appears multiple times, keep the one with real ID (not temp)
       final uniqueConversations = <String, ConversationModel>{};
       for (final conv in mergedConversations) {
@@ -1477,7 +1581,8 @@ class MessagesController extends GetxController {
           if (conv.id.startsWith('temp_') && !existing.id.startsWith('temp_')) {
             // Keep existing (real), skip temp
             continue;
-          } else if (!conv.id.startsWith('temp_') && existing.id.startsWith('temp_')) {
+          } else if (!conv.id.startsWith('temp_') &&
+              existing.id.startsWith('temp_')) {
             // Replace temp with real
             uniqueConversations[key] = conv;
           } else {
@@ -1488,24 +1593,28 @@ class MessagesController extends GetxController {
           }
         }
       }
-      
+
       final finalConversations = uniqueConversations.values.toList();
-      
+
       // Sort again after merging and deduplication
-      finalConversations.sort((a, b) => b.lastMessageTime.compareTo(a.lastMessageTime));
+      finalConversations.sort(
+        (a, b) => b.lastMessageTime.compareTo(a.lastMessageTime),
+      );
 
       // Update both lists - all conversations and filtered conversations
       _allConversations.value = finalConversations;
-      
+
       // Apply current search filter if any
       if (_searchQuery.value.trim().isNotEmpty) {
         searchConversations(_searchQuery.value);
       } else {
         _conversations.value = finalConversations;
       }
-      
+
       if (kDebugMode) {
-        print('✅ Silently refreshed ${finalConversations.length} conversations (${conversations.length} from API, ${finalConversations.length - conversations.length} preserved)');
+        print(
+          '✅ Silently refreshed ${finalConversations.length} conversations (${conversations.length} from API, ${finalConversations.length - conversations.length} preserved)',
+        );
       }
     } catch (e) {
       if (kDebugMode) {
@@ -1555,7 +1664,7 @@ class MessagesController extends GetxController {
         // Don't block chat if contact recording fails
       }
     }
-    
+
     // Record contact for loan officers
     if (otherUserRole == 'loan_officer' && otherUserId.isNotEmpty) {
       try {
@@ -1581,12 +1690,12 @@ class MessagesController extends GetxController {
     // 2. A real thread exists but hasn't appeared in API yet
     // 3. A thread was just created and is in the process of being updated
     ConversationModel? existingThread;
-    
+
     // First, check for exact match by senderId (most common case)
     existingThread = _allConversations.firstWhereOrNull(
       (conv) => conv.senderId == otherUserId,
     );
-    
+
     // If found, verify it's not a stale temp conversation that's being replaced
     if (existingThread != null) {
       // If it's a temp conversation, check if there's a real one being created
@@ -1594,32 +1703,37 @@ class MessagesController extends GetxController {
       if (existingThread.id.startsWith('temp_')) {
         // Check if there's a non-temp version (real thread was created)
         final realThread = _allConversations.firstWhereOrNull(
-          (conv) => conv.senderId == otherUserId && !conv.id.startsWith('temp_'),
+          (conv) =>
+              conv.senderId == otherUserId && !conv.id.startsWith('temp_'),
         );
         if (realThread != null) {
           existingThread = realThread;
         }
       }
-      
+
       if (kDebugMode) {
-        print('✅ Found existing thread: ${existingThread.id} (${existingThread.senderName})');
+        print(
+          '✅ Found existing thread: ${existingThread.id} (${existingThread.senderName})',
+        );
       }
-      
+
       // Thread exists, select it and navigate instantly
       selectConversation(existingThread);
       _navigateToMessages();
       return existingThread;
     }
-    
+
     // Also check if we're currently creating a thread for this user
     // by checking if there's a temp conversation being created
     final tempThread = _allConversations.firstWhereOrNull(
       (conv) => conv.senderId == otherUserId && conv.id.startsWith('temp_'),
     );
-    
+
     if (tempThread != null) {
       if (kDebugMode) {
-        print('⚠️ Temp thread already exists for this user, selecting it: ${tempThread.id}');
+        print(
+          '⚠️ Temp thread already exists for this user, selecting it: ${tempThread.id}',
+        );
       }
       selectConversation(tempThread);
       _navigateToMessages();
@@ -1644,18 +1758,18 @@ class MessagesController extends GetxController {
     final updatedAll = List<ConversationModel>.from(_allConversations);
     updatedAll.insert(0, tempConversation);
     _allConversations.value = updatedAll;
-    
+
     final updatedFiltered = List<ConversationModel>.from(_conversations);
     updatedFiltered.insert(0, tempConversation);
     _conversations.value = updatedFiltered;
-    
+
     if (kDebugMode) {
       print('✅ Added temp conversation instantly: ${tempConversation.id}');
       print('   Total conversations: ${_conversations.length}');
     }
-    
+
     selectConversation(tempConversation);
-    
+
     // Navigate instantly
     _navigateToMessages();
 
@@ -1683,16 +1797,17 @@ class MessagesController extends GetxController {
   }) async {
     try {
       print('📡 Creating thread in background...');
-      
+
       final threadData = await _chatService.createThread(
         userId1: userId1,
         userId2: userId2,
       );
 
-      final threadId = threadData['_id']?.toString() ?? 
-                      threadData['id']?.toString() ?? 
-                      threadData['threadId']?.toString() ?? 
-                      '';
+      final threadId =
+          threadData['_id']?.toString() ??
+          threadData['id']?.toString() ??
+          threadData['threadId']?.toString() ??
+          '';
 
       if (threadId.isEmpty) {
         throw Exception('Thread ID not found in API response');
@@ -1713,14 +1828,18 @@ class MessagesController extends GetxController {
       );
 
       // Replace temp conversation with real one in both lists
-      final allIndex = _allConversations.indexWhere((c) => c.id == tempConversation.id);
+      final allIndex = _allConversations.indexWhere(
+        (c) => c.id == tempConversation.id,
+      );
       if (allIndex != -1) {
         _allConversations[allIndex] = updatedConversation;
       } else {
         _allConversations.insert(0, updatedConversation);
       }
-      
-      final filteredIndex = _conversations.indexWhere((c) => c.id == tempConversation.id);
+
+      final filteredIndex = _conversations.indexWhere(
+        (c) => c.id == tempConversation.id,
+      );
       if (filteredIndex != -1) {
         _conversations[filteredIndex] = updatedConversation;
         if (kDebugMode) {
@@ -1753,9 +1872,11 @@ class MessagesController extends GetxController {
           }
         });
       });
-      
+
       if (kDebugMode) {
-        print('✅ Thread creation complete - conversation list updated instantly');
+        print(
+          '✅ Thread creation complete - conversation list updated instantly',
+        );
         print('   Thread ID: $threadId');
         print('   Will refresh threads in 2 seconds to sync with server');
       }
@@ -1767,28 +1888,37 @@ class MessagesController extends GetxController {
       if (_selectedConversation.value?.id == tempConversation.id) {
         _selectedConversation.value = null;
       }
-      SnackbarHelper.showError('Failed to create chat thread. Please try again.');
+      SnackbarHelper.showError(
+        'Failed to create chat thread. Please try again.',
+      );
     }
   }
 
   /// Navigates to messages screen
   void _navigateToMessages() {
     try {
-      // Navigate to main screen and switch to messages tab (index 2)
-      // Use offAllNamed to replace the entire navigation stack (removes contact screen)
-      Get.offAllNamed('/main');
-      
-      // Wait a frame to ensure navigation completes before changing tab
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (Get.isRegistered<MainNavigationController>()) {
+      // If main navigation exists (buyer flow), switch to messages tab.
+      // Otherwise, keep agent flow and just open /messages.
+      if (Get.isRegistered<MainNavigationController>()) {
+        // Navigate to main screen and switch to messages tab (index 2)
+        // Use offAllNamed to replace the entire navigation stack (removes contact screen)
+        Get.offAllNamed('/main');
+
+        // Wait a frame to ensure navigation completes before changing tab
+        WidgetsBinding.instance.addPostFrameCallback((_) {
           try {
             final mainNavController = Get.find<MainNavigationController>();
-            mainNavController.changeIndex(2); // Messages tab is at index 2 (0=Home, 1=Favorites, 2=Messages, 3=Profile)
+            // Messages tab is at index 2 (0=Home, 1=Favorites, 2=Messages, 3=Profile)
+            mainNavController.changeIndex(2);
           } catch (e) {
             print('⚠️ Error changing tab index: $e');
           }
+        });
+      } else {
+        if (Get.currentRoute != '/messages') {
+          Get.toNamed('/messages');
         }
-      });
+      }
     } catch (e) {
       print('⚠️ Error navigating to messages: $e');
       // Fallback: just navigate to messages route if available
@@ -1802,7 +1932,7 @@ class MessagesController extends GetxController {
     if (_selectedConversation.value != null && _socketService != null) {
       _socketService!.leaveRoom(_selectedConversation.value!.id);
     }
-    
+
     // Dispose scroll controller
     _messagesScrollController.dispose();
     messageController.dispose();

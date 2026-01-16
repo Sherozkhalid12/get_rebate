@@ -6,7 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:getrebate/app/modules/listing_detail/controllers/listing_detail_controller.dart';
-import 'package:getrebate/app/modules/buyer/controllers/buyer_controller.dart';
+import 'package:getrebate/app/modules/buyer_v2/controllers/buyer_v2_controller.dart';
 import 'package:getrebate/app/models/agent_model.dart';
 import 'package:getrebate/app/models/listing.dart';
 import 'package:getrebate/app/utils/rebate.dart';
@@ -537,7 +537,7 @@ class ListingDetailView extends GetView<ListingDetailController> {
 
                   // Selected Buyer Agent Info (if they have one)
                   Obx(() {
-                    final buyerController = Get.find<BuyerController>();
+                    final buyerController = Get.find<BuyerV2Controller>();
                     if (buyerController.hasSelectedAgent) {
                       return Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -583,7 +583,7 @@ class ListingDetailView extends GetView<ListingDetailController> {
                         // Secondary Action Button - Contact Listing Agent
                         // Only show if buyer doesn't have a selected agent, or show with warning
                         Obx(() {
-                          final buyerController = Get.find<BuyerController>();
+                          final buyerController = Get.find<BuyerV2Controller>();
                           final hasSelectedAgent = buyerController.hasSelectedAgent;
 
                           if (hasSelectedAgent) {

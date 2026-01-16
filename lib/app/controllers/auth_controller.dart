@@ -1,5 +1,5 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart' hide FormData, MultipartFile;
 import 'package:get_storage/get_storage.dart';
 import 'package:dio/dio.dart';
@@ -21,11 +21,13 @@ class AuthController extends GetxController {
   final _isLoading = false.obs;
   final _currentUser = Rxn<UserModel>();
   final _isLoggedIn = false.obs;
+  bool _isLoadingLoanOfficerProfile = false; // Guard to prevent multiple simultaneous loads
 
   // Getters
   bool get isLoading => _isLoading.value;
   UserModel? get currentUser => _currentUser.value;
   bool get isLoggedIn => _isLoggedIn.value;
+  String? get token => _storage.read('auth_token');
 
   @override
   void onInit() {
@@ -42,9 +44,9 @@ class AuthController extends GetxController {
       // Check if ID is a generated one (starts with "user_")
       final isGeneratedId = user.id.startsWith('user_');
       // MongoDB ObjectIds are exactly 24 hex characters
-      final isValidMongoId = user.id.length == 24 && 
-                            RegExp(r'^[0-9a-fA-F]{24}$').hasMatch(user.id);
-      
+      final isValidMongoId = user.id.length == 24 &&
+          RegExp(r'^[0-9a-fA-F]{24}$').hasMatch(user.id);
+
       if (isGeneratedId || (!isValidMongoId && user.id.isNotEmpty)) {
         print('⚠️ CRITICAL: Invalid user ID detected after init: ${user.id}');
         print('   Clearing invalid user data. User must log in again.');
@@ -77,27 +79,28 @@ class AuthController extends GetxController {
 
     if (userData != null) {
       final user = UserModel.fromJson(userData);
-      
+
       // Validate user ID - MongoDB ObjectIds are 24 hex characters
       // If it starts with "user_" it's a generated ID from old code, clear it
       // Also check if it's empty or doesn't look like a valid MongoDB ID
-      final isValidMongoId = user.id.length == 24 && 
-                            RegExp(r'^[0-9a-fA-F]{24}$').hasMatch(user.id);
+      final isValidMongoId = user.id.length == 24 &&
+          RegExp(r'^[0-9a-fA-F]{24}$').hasMatch(user.id);
       final isGeneratedId = user.id.startsWith('user_');
-      
+
       if (isGeneratedId || (!isValidMongoId && user.id.isNotEmpty)) {
         print('⚠️ WARNING: Detected invalid/generated user ID in storage: ${user.id}');
         print('   Valid MongoDB IDs are 24 hex characters. Clearing invalid user data.');
         _clearInvalidUserData();
-        print('  Please log in again to get the correct user ID from the API.');
+        print('   Please log in again to get the correct user ID from the API.');
         return;
       }
+
       if (user.id.isEmpty) {
         print('⚠️ WARNING: User ID is empty in storage. Clearing invalid user data.');
         _clearInvalidUserData();
         return;
       }
-      
+
       _currentUser.value = user;
       _isLoggedIn.value = true;
 
@@ -112,31 +115,76 @@ class AuthController extends GetxController {
       print('   Role: ${_currentUser.value?.role}');
 
       // If this is a loan officer, eagerly load their full profile
-      if (_currentUser.value?.role == UserRole.loanOfficer) {
-        try {
-          final loanOfficerId = _currentUser.value!.id;
-          print('📡 AuthController._checkAuthStatus: Detected loan officer session.');
-          print('   Loan officer ID to load: $loanOfficerId');
-
-          final currentLoanOfficerController =
-              Get.isRegistered<CurrentLoanOfficerController>()
-                  ? Get.find<CurrentLoanOfficerController>()
-                  : Get.put(CurrentLoanOfficerController(), permanent: true);
-
-          currentLoanOfficerController
-              .fetchCurrentLoanOfficer(loanOfficerId)
-              .then((_) {
-            print('✅ AuthController._checkAuthStatus: Current loan officer profile loaded after session restore.');
-          }).catchError((e) {
-            print('❌ AuthController._checkAuthStatus: Failed to load current loan officer profile: $e');
-          });
-        } catch (e) {
-          print('⚠️ AuthController._checkAuthStatus: Error initializing CurrentLoanOfficerController: $e');
-        }
+      // Only load if not already loading to prevent infinite loops
+      if (_currentUser.value?.role == UserRole.loanOfficer && !_isLoadingLoanOfficerProfile) {
+        _loadLoanOfficerProfile();
       }
     } else {
       print('ℹ️ No saved user session found');
       _isLoggedIn.value = false;
+    }
+  }
+
+  /// Loads the loan officer profile asynchronously
+  /// Prevents multiple simultaneous calls with a guard flag
+  Future<void> _loadLoanOfficerProfile() async {
+    // Guard: Prevent multiple simultaneous calls
+    if (_isLoadingLoanOfficerProfile) {
+      if (kDebugMode) {
+        print('⚠️ AuthController._loadLoanOfficerProfile: Already loading, skipping duplicate call.');
+      }
+      return;
+    }
+
+    // Guard: Check if data already exists
+    try {
+      if (Get.isRegistered<CurrentLoanOfficerController>()) {
+        final currentLoanOfficerController = Get.find<CurrentLoanOfficerController>();
+        if (currentLoanOfficerController.currentLoanOfficer.value != null &&
+            currentLoanOfficerController.currentLoanOfficer.value!.id == _currentUser.value?.id) {
+          if (kDebugMode) {
+            print('✅ AuthController._loadLoanOfficerProfile: Loan officer data already loaded, skipping.');
+          }
+          return;
+        }
+      }
+    } catch (e) {
+      // Continue if controller not registered yet
+    }
+
+    _isLoadingLoanOfficerProfile = true;
+
+    try {
+      final loanOfficerId = _currentUser.value!.id;
+      if (kDebugMode) {
+        print('📡 AuthController._loadLoanOfficerProfile: Detected loan officer session.');
+        print('   Loan officer ID to load: $loanOfficerId');
+      }
+
+      final currentLoanOfficerController =
+      Get.isRegistered<CurrentLoanOfficerController>()
+          ? Get.find<CurrentLoanOfficerController>()
+          : Get.put(CurrentLoanOfficerController(), permanent: true);
+
+      await currentLoanOfficerController.fetchCurrentLoanOfficer(loanOfficerId);
+
+      // Only log success if we actually have loan officer data
+      if (currentLoanOfficerController.currentLoanOfficer.value != null) {
+        if (kDebugMode) {
+          print('✅ AuthController._loadLoanOfficerProfile: Current loan officer profile loaded after session restore.');
+        }
+      } else {
+        if (kDebugMode) {
+          print('⚠️ AuthController._loadLoanOfficerProfile: fetchCurrentLoanOfficer completed but loan officer is still null.');
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ AuthController._loadLoanOfficerProfile: Failed to load current loan officer profile: $e');
+      }
+      // Don't block the app - user can still use it, just without full profile data
+    } finally {
+      _isLoadingLoanOfficerProfile = false;
     }
   }
 
@@ -187,20 +235,17 @@ class AuthController extends GetxController {
           }
 
           print('✅ Extracted User ID from login: $userId');
-          // Normalize profile image URL
-          final profileImageRaw = userData['profilePic']?.toString() ??
-                userData['profileImage']?.toString();
-          final profileImage = ApiConstants.getImageUrl(profileImageRaw);
-          
           // Map API response to UserModel
           final user = UserModel(
             id: userId,
             email: userData['email'] ?? email,
             name:
-                userData['fullname'] ?? userData['name'] ?? email.split('@')[0],
+            userData['fullname'] ?? userData['name'] ?? email.split('@')[0],
             phone: userData['phone']?.toString(),
             role: _mapApiRoleToUserRole(userData['role']?.toString()),
-            profileImage: profileImage,
+            profileImage:
+            userData['profilePic']?.toString() ??
+                userData['profileImage']?.toString(),
             licensedStates: List<String>.from(
               userData['LisencedStates'] ?? userData['licensedStates'] ?? [],
             ),
@@ -212,15 +257,15 @@ class AuthController extends GetxController {
             additionalData: {
               // Basic fields
               'CompanyName':
-                  userData['CompanyName'] ??
+              userData['CompanyName'] ??
                   userData['brokerage'] ??
                   userData['company'],
               'liscenceNumber':
-                  userData['liscenceNumber'] ?? userData['licenseNumber'],
+              userData['liscenceNumber'] ?? userData['licenseNumber'],
               'dualAgencyState': userData['dualAgencyState'],
               'dualAgencySBrokerage': userData['dualAgencySBrokerage'],
               'verificationStatement':
-                  userData['verificationStatement'] ??
+              userData['verificationStatement'] ??
                   userData['verificationAgreed'],
               'bio': userData['bio'],
               'description': userData['description'],
@@ -228,18 +273,18 @@ class AuthController extends GetxController {
               'companyLogo': userData['companyLogo'],
               // Arrays
               'serviceAreas':
-                  userData['serviceAreas'] ?? userData['serviceZipCodes'],
+              userData['serviceAreas'] ?? userData['serviceZipCodes'],
               'areasOfExpertise':
-                  userData['areasOfExpertise'] ?? userData['expertise'],
+              userData['areasOfExpertise'] ?? userData['expertise'],
               'specialtyProducts': userData['specialtyProducts'],
               // Links
               'website_link':
-                  userData['website_link'] ?? userData['websiteUrl'],
+              userData['website_link'] ?? userData['websiteUrl'],
               'google_reviews_link':
-                  userData['google_reviews_link'] ??
+              userData['google_reviews_link'] ??
                   userData['googleReviewsUrl'],
               'thirdPartReviewLink':
-                  userData['thirdPartReviewLink'] ??
+              userData['thirdPartReviewLink'] ??
                   userData['client_reviews_link'] ??
                   userData['thirdPartyReviewsUrl'],
               'mortgageApplicationUrl': userData['mortgageApplicationUrl'],
@@ -293,12 +338,12 @@ class AuthController extends GetxController {
       if (e.response != null) {
         final statusCode = e.response?.statusCode;
         final responseData = e.response?.data;
-        
+
         // Handle 500 server errors
         if (statusCode == 500) {
           // Check if response contains MongoDB error
           final responseString = responseData?.toString() ?? '';
-          if (responseString.contains('MongooseError') || 
+          if (responseString.contains('MongooseError') ||
               responseString.contains('buffering timed out')) {
             errorMessage = 'Server database connection error. Please try again in a moment.';
           } else {
@@ -316,7 +361,7 @@ class AuthController extends GetxController {
       } else if (e.type == DioExceptionType.connectionTimeout ||
           e.type == DioExceptionType.receiveTimeout) {
         errorMessage =
-            'Connection timeout. Please check your internet connection.';
+        'Connection timeout. Please check your internet connection.';
       } else if (e.type == DioExceptionType.connectionError) {
         errorMessage = 'No internet connection. Please check your network.';
       }
@@ -369,12 +414,10 @@ class AuthController extends GetxController {
       ]);
 
       // Add licensed states if provided (as JSON array string)
-      // Convert state codes to full state names for API
       if (licensedStates != null && licensedStates.isNotEmpty) {
-        final stateNames = licensedStates
-            .map((code) => _getStateNameFromCode(code))
-            .toList();
-        formData.fields.add(MapEntry('licensedStates', jsonEncode(stateNames)));
+        formData.fields.add(
+          MapEntry('licensedStates', jsonEncode(licensedStates)),
+        );
       }
 
       // Add agent-specific fields
@@ -399,7 +442,7 @@ class AuthController extends GetxController {
         // Dual agency fields
         final dualAgencyState = additionalData['isDualAgencyAllowedInState'];
         final dualAgencyBrokerage =
-            additionalData['isDualAgencyAllowedAtBrokerage'];
+        additionalData['isDualAgencyAllowedAtBrokerage'];
 
         if (dualAgencyState != null) {
           formData.fields.add(
@@ -608,10 +651,7 @@ class AuthController extends GetxController {
       print('  - phone: ${phone ?? "not provided"}');
       print('  - role: ${_mapRoleToApiFormat(role)}');
       if (licensedStates != null && licensedStates.isNotEmpty) {
-        final stateNames = licensedStates
-            .map((code) => _getStateNameFromCode(code))
-            .toList();
-        print('  - licensedStates: ${jsonEncode(stateNames)}');
+        print('  - licensedStates: ${licensedStates.join(", ")}');
       }
       if (companyLogo != null) {
         print('  - companyLogo: ${companyLogo.path.split("/").last}');
@@ -743,7 +783,7 @@ class AuthController extends GetxController {
           phone: userData['phone']?.toString() ?? phone,
           role: role,
           profileImage:
-              userData['profilePic']?.toString() ??
+          userData['profilePic']?.toString() ??
               userData['profileImage']?.toString(),
           licensedStates: userData['licensedStates'] != null
               ? List<String>.from(userData['licensedStates'])
@@ -756,64 +796,64 @@ class AuthController extends GetxController {
           additionalData: {
             // Basic fields from API response
             'CompanyName':
-                userData['CompanyName'] ??
+            userData['CompanyName'] ??
                 userData['brokerage'] ??
                 userData['company'] ??
                 additionalData?['brokerage'] ??
                 additionalData?['company'],
             'liscenceNumber':
-                userData['liscenceNumber'] ??
+            userData['liscenceNumber'] ??
                 userData['licenseNumber'] ??
                 additionalData?['licenseNumber'],
             'dualAgencyState':
-                userData['dualAgencyState'] ??
+            userData['dualAgencyState'] ??
                 additionalData?['isDualAgencyAllowedInState'],
             'dualAgencySBrokerage':
-                userData['dualAgencySBrokerage'] ??
+            userData['dualAgencySBrokerage'] ??
                 additionalData?['isDualAgencyAllowedAtBrokerage'],
             'verificationStatement':
-                userData['verificationStatement'] ??
+            userData['verificationStatement'] ??
                 userData['verificationAgreed'] ??
                 additionalData?['verificationAgreed'],
             'bio': userData['bio'] ?? additionalData?['bio'],
             'description':
-                userData['description'] ?? additionalData?['description'],
+            userData['description'] ?? additionalData?['description'],
             'video':
-                userData['video'] ??
+            userData['video'] ??
                 userData['videoUrl'] ??
                 additionalData?['videoUrl'],
             'companyLogo': userData['companyLogo'],
             // Arrays from API response
             'serviceAreas':
-                userData['serviceAreas'] ??
+            userData['serviceAreas'] ??
                 userData['serviceZipCodes'] ??
                 additionalData?['serviceZipCodes'],
             'areasOfExpertise':
-                userData['areasOfExpertise'] ??
+            userData['areasOfExpertise'] ??
                 userData['expertise'] ??
                 additionalData?['expertise'],
             'specialtyProducts':
-                userData['specialtyProducts'] ??
+            userData['specialtyProducts'] ??
                 additionalData?['specialtyProducts'],
             // Links from API response
             'website_link':
-                userData['website_link'] ??
+            userData['website_link'] ??
                 userData['websiteUrl'] ??
                 additionalData?['websiteUrl'],
             'google_reviews_link':
-                userData['google_reviews_link'] ??
+            userData['google_reviews_link'] ??
                 userData['googleReviewsUrl'] ??
                 additionalData?['googleReviewsUrl'],
             'client_reviews_link': userData['client_reviews_link'],
             'thirdPartReviewLink':
-                userData['thirdPartReviewLink'] ??
+            userData['thirdPartReviewLink'] ??
                 userData['thirdPartyReviewsUrl'] ??
                 additionalData?['thirdPartyReviewsUrl'],
             'mortgageApplicationUrl':
-                userData['mortgageApplicationUrl'] ??
+            userData['mortgageApplicationUrl'] ??
                 additionalData?['mortgageApplicationUrl'],
             'externalReviewsUrl':
-                userData['externalReviewsUrl'] ??
+            userData['externalReviewsUrl'] ??
                 additionalData?['externalReviewsUrl'],
             // Stats
             'ratings': userData['ratings'],
@@ -865,7 +905,7 @@ class AuthController extends GetxController {
       } else if (e.type == DioExceptionType.connectionTimeout ||
           e.type == DioExceptionType.receiveTimeout) {
         errorMessage =
-            'Connection timeout. Please check your internet connection.';
+        'Connection timeout. Please check your internet connection.';
       } else if (e.type == DioExceptionType.connectionError) {
         errorMessage = 'No internet connection. Please check your network.';
       }
@@ -909,6 +949,9 @@ class AuthController extends GetxController {
     File? profilePic,
     File? companyLogo,
     File? video,
+    int? yearsOfExperience,
+    List<String>? languagesSpoken,
+    String? discountsOffered,
   }) async {
     try {
       _isLoading.value = true;
@@ -959,12 +1002,25 @@ class AuthController extends GetxController {
           MapEntry('areasOfExpertise', jsonEncode(areasOfExpertise)),
         );
       }
-      // Convert state codes to full state names for API
       if (licensedStates != null && licensedStates.isNotEmpty) {
-        final stateNames = licensedStates
-            .map((code) => _getStateNameFromCode(code))
-            .toList();
-        formData.fields.add(MapEntry('licensedStates', jsonEncode(stateNames)));
+        formData.fields.add(
+          MapEntry('licensedStates', jsonEncode(licensedStates)),
+        );
+      }
+      if (yearsOfExperience != null) {
+        formData.fields.add(
+          MapEntry('yearsOfExperience', yearsOfExperience.toString()),
+        );
+      }
+      if (languagesSpoken != null && languagesSpoken.isNotEmpty) {
+        formData.fields.add(
+          MapEntry('languagesSpoken', jsonEncode(languagesSpoken)),
+        );
+      }
+      if (discountsOffered != null && discountsOffered.isNotEmpty) {
+        formData.fields.add(
+          MapEntry('discountsOffered', discountsOffered),
+        );
       }
 
       // Add boolean fields
@@ -1048,33 +1104,18 @@ class AuthController extends GetxController {
           // Update user ID if API returns a new one (should use _id from response)
           final updatedUserId =
               userData['_id']?.toString() ??
-              userData['id']?.toString() ??
-              _currentUser.value!.id;
+                  userData['id']?.toString() ??
+                  _currentUser.value!.id;
 
-          // Normalize profile image URL
-          final profileImageRaw = userData['profilePic']?.toString() ??
-                userData['profileImage']?.toString();
-          
-          if (kDebugMode) {
-            print('🔐 AuthController.updateUserProfile:');
-            print('   Raw profilePic from API response: "$profileImageRaw"');
-            print('   Base URL: ${ApiConstants.baseUrl}');
-          }
-          
-          final profileImage = profileImageRaw != null
-              ? ApiConstants.getImageUrl(profileImageRaw)
-              : _currentUser.value!.profileImage;
-          
-          if (kDebugMode) {
-            print('   Normalized profileImage: "$profileImage"');
-          }
-          
           final updatedUser = _currentUser.value!.copyWith(
             id: updatedUserId, // Ensure we use the correct ID from API
             name: userData['fullname'] ?? _currentUser.value!.name,
             email: userData['email'] ?? _currentUser.value!.email,
             phone: userData['phone']?.toString() ?? _currentUser.value!.phone,
-            profileImage: profileImage,
+            profileImage:
+            userData['profilePic'] ??
+                userData['profileImage'] ??
+                _currentUser.value!.profileImage,
             licensedStates: userData['licensedStates'] != null
                 ? List<String>.from(userData['licensedStates'])
                 : _currentUser.value!.licensedStates,
@@ -1085,19 +1126,22 @@ class AuthController extends GetxController {
               'description': userData['description'] ?? description,
               'website_link': userData['website_link'] ?? websiteLink,
               'google_reviews_link':
-                  userData['google_reviews_link'] ?? googleReviewsLink,
+              userData['google_reviews_link'] ?? googleReviewsLink,
               'client_reviews_link':
-                  userData['client_reviews_link'] ?? clientReviewsLink,
+              userData['client_reviews_link'] ?? clientReviewsLink,
               'thirdPartReviewLink':
-                  userData['thirdPartReviewLink'] ?? thirdPartReviewLink,
+              userData['thirdPartReviewLink'] ?? thirdPartReviewLink,
               'serviceAreas': userData['serviceAreas'] ?? serviceAreas,
               'areasOfExpertise':
-                  userData['areasOfExpertise'] ?? areasOfExpertise,
+              userData['areasOfExpertise'] ?? areasOfExpertise,
               'dualAgencyState': userData['dualAgencyState'] ?? dualAgencyState,
               'dualAgencySBrokerage':
-                  userData['dualAgencySBrokerage'] ?? dualAgencySBrokerage,
+              userData['dualAgencySBrokerage'] ?? dualAgencySBrokerage,
               'companyLogo': userData['companyLogo'],
               'video': userData['video'] ?? userData['videoUrl'],
+              'yearsOfExperience': userData['yearsOfExperience'] ?? yearsOfExperience,
+              'languagesSpoken': userData['languagesSpoken'] ?? languagesSpoken,
+              'discountsOffered': userData['discountsOffered'] ?? discountsOffered,
             },
           );
 
@@ -1111,41 +1155,26 @@ class AuthController extends GetxController {
         }
 
         // Show success message after updating user data
-        // Use safe snackbar showing to avoid overlay errors
-        try {
-          if (Get.isSnackbarOpen == false) {
-            Get.snackbar(
-              'Success',
-              'Profile updated successfully!',
-              backgroundColor: Colors.white.withOpacity(0.0),
-              colorText: Colors.black,
-              snackPosition: SnackPosition.TOP,
-              duration: const Duration(seconds: 2),
-              isDismissible: true,
-            );
-          }
-        } catch (e) {
-          // Ignore snackbar errors - navigation will handle user feedback
-          print('Could not show snackbar: $e');
-        }
+        Get.snackbar(
+          'Success',
+          'Profile updated successfully!',
+          backgroundColor: Colors.white.withOpacity(0.0),
+          colorText: Colors.black,
+          snackPosition: SnackPosition.TOP,
+          duration: const Duration(seconds: 2),
+          isDismissible: true,
+        );
       } else {
         // If status code is not 200/201, still show success if we got a response
-        try {
-          if (Get.isSnackbarOpen == false) {
-            Get.snackbar(
-              'Success',
-              'Profile updated successfully!',
-              backgroundColor: Colors.white.withOpacity(0.0),
-              colorText: Colors.black,
-              snackPosition: SnackPosition.TOP,
-              duration: const Duration(seconds: 2),
-              isDismissible: true,
-            );
-          }
-        } catch (e) {
-          // Ignore snackbar errors - navigation will handle user feedback
-          print('Could not show snackbar: $e');
-        }
+        Get.snackbar(
+          'Success',
+          'Profile updated successfully!',
+          backgroundColor: Colors.white.withOpacity(0.0),
+          colorText: Colors.black,
+          snackPosition: SnackPosition.TOP,
+          duration: const Duration(seconds: 2),
+          isDismissible: true,
+        );
       }
     } on DioException catch (e) {
       // Handle Dio errors
@@ -1166,7 +1195,7 @@ class AuthController extends GetxController {
       } else if (e.type == DioExceptionType.connectionTimeout ||
           e.type == DioExceptionType.receiveTimeout) {
         errorMessage =
-            'Connection timeout. Please check your internet connection.';
+        'Connection timeout. Please check your internet connection.';
       } else if (e.type == DioExceptionType.connectionError) {
         errorMessage = 'No internet connection. Please check your network.';
       }
@@ -1194,13 +1223,13 @@ class AuthController extends GetxController {
       // TODO: Implement actual social login API call
       // For now, throw error - we MUST get user ID from backend
       throw Exception(
-        'Social login not implemented. Must call backend API to get user ID.'
+          'Social login not implemented. Must call backend API to get user ID.'
       );
 
       // When implemented, the API should return user data with _id:
       // final response = await _dio.post('/auth/social-login', data: {...});
       // final responseData = response.data;
-      // final userId = responseData['user']['_id']?.toString() ?? 
+      // final userId = responseData['user']['_id']?.toString() ??
       //                responseData['user']['id']?.toString() ?? '';
       // if (userId.isEmpty) {
       //   throw Exception('User ID not found in social login response');
@@ -1237,25 +1266,9 @@ class AuthController extends GetxController {
     print('   User ID: $userId');
 
     // If loan officer, ensure we trigger loading of full loan officer profile
-    if (role == UserRole.loanOfficer && userId != null && userId.isNotEmpty) {
-      try {
-        print('📡 AuthController._navigateToRoleBasedScreen: Loading current loan officer profile before navigation...');
-        final currentLoanOfficerController =
-            Get.isRegistered<CurrentLoanOfficerController>()
-                ? Get.find<CurrentLoanOfficerController>()
-                : Get.put(CurrentLoanOfficerController(), permanent: true);
-
-        currentLoanOfficerController
-            .fetchCurrentLoanOfficer(userId)
-            .then((_) {
-          print('✅ AuthController._navigateToRoleBasedScreen: Loan officer profile loaded.');
-        }).catchError((e) {
-          print('❌ AuthController._navigateToRoleBasedScreen: Failed to load loan officer profile: $e');
-        });
-      } catch (e) {
-        print('⚠️ AuthController._navigateToRoleBasedScreen: Error initializing CurrentLoanOfficerController: $e');
-      }
-    }
+    // Load in background - don't block navigation
+    // Note: _loadLoanOfficerProfile already called in _checkAuthStatus, so skip here to avoid duplicate
+    // The profile will be loaded automatically when session is restored
 
     switch (role) {
       case UserRole.buyerSeller:
@@ -1270,63 +1283,6 @@ class AuthController extends GetxController {
       default:
         Get.offAllNamed(AppPages.ONBOARDING);
     }
-  }
-
-  /// Converts state code (e.g., "CA") to full state name (e.g., "California")
-  String _getStateNameFromCode(String code) {
-    const stateMap = {
-      'AL': 'Alabama',
-      'AK': 'Alaska',
-      'AZ': 'Arizona',
-      'AR': 'Arkansas',
-      'CA': 'California',
-      'CO': 'Colorado',
-      'CT': 'Connecticut',
-      'DE': 'Delaware',
-      'FL': 'Florida',
-      'GA': 'Georgia',
-      'HI': 'Hawaii',
-      'ID': 'Idaho',
-      'IL': 'Illinois',
-      'IN': 'Indiana',
-      'IA': 'Iowa',
-      'KS': 'Kansas',
-      'KY': 'Kentucky',
-      'LA': 'Louisiana',
-      'ME': 'Maine',
-      'MD': 'Maryland',
-      'MA': 'Massachusetts',
-      'MI': 'Michigan',
-      'MN': 'Minnesota',
-      'MS': 'Mississippi',
-      'MO': 'Missouri',
-      'MT': 'Montana',
-      'NE': 'Nebraska',
-      'NV': 'Nevada',
-      'NH': 'New Hampshire',
-      'NJ': 'New Jersey',
-      'NM': 'New Mexico',
-      'NY': 'New York',
-      'NC': 'North Carolina',
-      'ND': 'North Dakota',
-      'OH': 'Ohio',
-      'OK': 'Oklahoma',
-      'OR': 'Oregon',
-      'PA': 'Pennsylvania',
-      'RI': 'Rhode Island',
-      'SC': 'South Carolina',
-      'SD': 'South Dakota',
-      'TN': 'Tennessee',
-      'TX': 'Texas',
-      'UT': 'Utah',
-      'VT': 'Vermont',
-      'VA': 'Virginia',
-      'WA': 'Washington',
-      'WV': 'West Virginia',
-      'WI': 'Wisconsin',
-      'WY': 'Wyoming',
-    };
-    return stateMap[code.toUpperCase()] ?? code;
   }
 
   UserRole _mapApiRoleToUserRole(String? apiRole) {

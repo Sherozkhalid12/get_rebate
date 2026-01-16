@@ -1324,14 +1324,22 @@ class ProposalsView extends GetView<ProposalController> {
                                       reviewText.value.trim().isEmpty
                                   ? null
                                   : () async {
-                                      Get.back();
-                                      await controller.submitReview(
+                                      // Close dialog first using Navigator.pop() for better control
+                                      Navigator.of(context).pop();
+                                      // Wait a moment for dialog to close before submitting
+                                      await Future.delayed(const Duration(milliseconds: 200));
+                                      // Submit review (snackbar will be shown by controller)
+                                      final success = await controller.submitReview(
                                         proposalId: proposal.id,
                                         professionalId: proposal.professionalId,
                                         professionalType: proposal.professionalType,
                                         rating: ratingController.value,
                                         review: reviewText.value.trim(),
                                       );
+                                      // Ensure snackbar shows after dialog is fully closed
+                                      if (success) {
+                                        await Future.delayed(const Duration(milliseconds: 300));
+                                      }
                                     },
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: AppTheme.primaryBlue,

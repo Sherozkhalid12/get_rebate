@@ -19,8 +19,8 @@ import 'package:getrebate/app/modules/agent_edit_profile/bindings/agent_edit_pro
 import 'package:getrebate/app/modules/agent_edit_profile/views/agent_edit_profile_view.dart';
 import 'package:getrebate/app/modules/loan_officer_profile/bindings/loan_officer_profile_binding.dart';
 import 'package:getrebate/app/modules/loan_officer_profile/views/loan_officer_profile_view.dart';
-import 'package:getrebate/app/modules/buyer_lead_form/bindings/buyer_lead_form_binding.dart';
-import 'package:getrebate/app/modules/buyer_lead_form/views/buyer_lead_form_view.dart';
+import 'package:getrebate/app/modules/buyer_lead_form_v2/bindings/buyer_lead_form_v2_binding.dart';
+import 'package:getrebate/app/modules/buyer_lead_form_v2/views/buyer_lead_form_v2_view.dart';
 import 'package:getrebate/app/modules/seller_lead_form/bindings/seller_lead_form_binding.dart';
 import 'package:getrebate/app/modules/seller_lead_form/views/seller_lead_form_view.dart';
 import 'package:getrebate/app/modules/property_detail/bindings/property_detail_binding.dart';
@@ -155,8 +155,8 @@ class AppPages {
     ),
     GetPage(
       name: BUYER_LEAD_FORM,
-      page: () => const BuyerLeadFormView(),
-      binding: BuyerLeadFormBinding(),
+      page: () => const BuyerLeadFormV2View(),
+      binding: BuyerLeadFormV2Binding(),
     ),
     GetPage(
       name: SELLER_LEAD_FORM,

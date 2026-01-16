@@ -7,7 +7,7 @@ import 'package:getrebate/app/models/listing.dart';
 import 'package:getrebate/app/models/open_house_model.dart';
 import 'package:getrebate/app/services/loan_officer_service.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart';
-import 'package:getrebate/app/modules/buyer/controllers/buyer_controller.dart';
+import 'package:getrebate/app/modules/buyer_v2/controllers/buyer_v2_controller.dart';
 
 class FavoritesController extends GetxController {
   // Data
@@ -77,7 +77,7 @@ class FavoritesController extends GetxController {
       
       // Try to get agents and loan officers from buyer_controller
       try {
-        final buyerController = Get.find<BuyerController>();
+        final buyerController = Get.find<BuyerV2Controller>();
         
         final agents = buyerController.agents;
         final loanOfficers = buyerController.loanOfficers;
@@ -277,9 +277,9 @@ class FavoritesController extends GetxController {
           print('✅ Loaded ${favoritedAgents.length} favorite agents, ${favoritedLoanOfficers.length} favorite loan officers, ${favoritedListings.length} favorite listings (Houses for Sale), and ${favoritedOpenHouses.length} favorite open houses');
         }
       } catch (e) {
-        // BuyerController might not be available (e.g., if user is a seller)
+        // BuyerV2Controller might not be available (e.g., if user is a seller)
         if (kDebugMode) {
-          print('⚠️ BuyerController not available: $e');
+          print('⚠️ BuyerV2Controller not available: $e');
         }
         // Fallback: clear favorites if buyer controller is not available
         _favoriteAgents.clear();
@@ -364,7 +364,7 @@ class FavoritesController extends GetxController {
       if (isFromOpenHousesTab) {
         // Liked from Open Houses tab - add to Open Houses in favorites
         try {
-          final buyerController = Get.find<BuyerController>();
+          final buyerController = Get.find<BuyerV2Controller>();
           final openHouses = buyerController.openHouses;
           final openHouse = openHouses.firstWhere((oh) => oh.listingId == listing.id);
           _favoriteOpenHouses.insert(0, openHouse);
@@ -413,7 +413,7 @@ class FavoritesController extends GetxController {
   /// Also ensures agents/loan officers are loaded if needed
   Future<void> refreshFavorites() async {
     try {
-      final buyerController = Get.find<BuyerController>();
+      final buyerController = Get.find<BuyerV2Controller>();
       
       // Check if we need to wait for agents/loan officers/listings/open houses to load
       // Wait if any list is empty (they load independently)
@@ -552,7 +552,7 @@ class FavoritesController extends GetxController {
     
     // Try to call the API to unlike (via buyer controller if available)
     try {
-      final buyerController = Get.find<BuyerController>();
+      final buyerController = Get.find<BuyerV2Controller>();
       buyerController.toggleFavoriteAgent(agentId);
     } catch (e) {
       if (kDebugMode) {
@@ -574,7 +574,7 @@ class FavoritesController extends GetxController {
     
     // Try to call the API to unlike (via buyer controller if available)
     try {
-      final buyerController = Get.find<BuyerController>();
+      final buyerController = Get.find<BuyerV2Controller>();
       buyerController.toggleFavoriteLoanOfficer(loanOfficerId);
     } catch (e) {
       if (kDebugMode) {
@@ -637,7 +637,7 @@ class FavoritesController extends GetxController {
 
   void viewOpenHouse(OpenHouseModel openHouse) {
     try {
-      final buyerController = Get.find<BuyerController>();
+      final buyerController = Get.find<BuyerV2Controller>();
       final listing = buyerController.getListingForOpenHouse(openHouse);
       if (listing != null) {
         Get.toNamed('/listing-detail', arguments: {'listing': listing});
@@ -656,7 +656,7 @@ class FavoritesController extends GetxController {
     
     // Try to call the API to unlike (via buyer controller if available)
     try {
-      final buyerController = Get.find<BuyerController>();
+      final buyerController = Get.find<BuyerV2Controller>();
       buyerController.toggleFavoriteListing(listingId);
     } catch (e) {
       if (kDebugMode) {
@@ -683,7 +683,7 @@ class FavoritesController extends GetxController {
               
               // Unlike all agents and loan officers via API
               try {
-                final buyerController = Get.find<BuyerController>();
+                final buyerController = Get.find<BuyerV2Controller>();
                 
                 // Unlike all favorite agents
                 for (final agent in _favoriteAgents) {

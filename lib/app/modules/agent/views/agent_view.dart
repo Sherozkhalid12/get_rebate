@@ -1,5 +1,5 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -10,11 +10,13 @@ import 'package:getrebate/app/controllers/auth_controller.dart' as global;
 import 'package:getrebate/app/models/zip_code_model.dart';
 import 'package:getrebate/app/models/agent_listing_model.dart';
 import 'package:getrebate/app/models/lead_model.dart';
-import 'package:getrebate/app/utils/api_constants.dart';
+import 'package:getrebate/app/utils/image_url_helper.dart';
 import 'package:getrebate/app/widgets/custom_button.dart';
 import 'package:getrebate/app/widgets/custom_text_field.dart';
 import 'package:getrebate/app/widgets/gradient_card.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
 
 class AgentView extends GetView<AgentController> {
   const AgentView({super.key});
@@ -417,7 +419,7 @@ class AgentView extends GetView<AgentController> {
                 child: CustomButton(
                   text: 'Compliance Tutorial',
                   onPressed: () {
-                    SnackbarHelper.showInfo('Compliance tutorial coming soon!');
+                    Get.toNamed('/compliance-tutorial');
                   },
                   icon: Icons.school,
                   isOutlined: true,
@@ -1297,43 +1299,14 @@ class AgentView extends GetView<AgentController> {
             ),
             child: Stack(
               children: [
-                // Property image
-                if (listing.photoUrls.isNotEmpty)
-                  ClipRRect(
-                    borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(20),
-                      topRight: Radius.circular(20),
-                    ),
-                    child: CachedNetworkImage(
-                      imageUrl: listing.photoUrls.first,
-                      width: double.infinity,
-                      height: 120,
-                      fit: BoxFit.cover,
-                      cacheKey: listing.photoUrls.first,
-                      memCacheWidth: 400,
-                      memCacheHeight: 240,
-                      maxWidthDiskCache: 800,
-                      maxHeightDiskCache: 480,
-                      fadeInDuration: Duration.zero,
-                      placeholder: (context, url) => Container(
-                        width: double.infinity,
-                        height: 120,
-                        color: AppTheme.lightGray,
-                      ),
-                      errorWidget: (context, url, error) {
-                        return Container(
-                          color: AppTheme.lightGray,
-                          child: Center(
-                            child: Icon(
-                              Icons.broken_image,
-                              size: 40,
-                              color: AppTheme.mediumGray,
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  )
+                // Property image carousel
+                if (listing.photoUrls.isNotEmpty) ...[
+                  _ListingImageCarousel(
+                    listingId: listing.id,
+                    listingTitle: listing.title,
+                    photoUrls: listing.photoUrls,
+                  ),
+                ]
                 else
                   Center(
                     child: Column(
@@ -2002,16 +1975,830 @@ class AgentView extends GetView<AgentController> {
   }
 
   void _showEditListingDialog(BuildContext context, AgentListingModel listing) {
+    // Create controllers with existing values
+    final titleController = TextEditingController(text: listing.title);
+    final descriptionController = TextEditingController(text: listing.description);
+    final priceController = TextEditingController(text: (listing.priceCents / 100).toStringAsFixed(0));
+    final addressController = TextEditingController(text: listing.address);
+    final cityController = TextEditingController(text: listing.city);
+    final stateController = TextEditingController(text: listing.state);
+    final zipCodeController = TextEditingController(text: listing.zipCode);
+    final bacPercentController = TextEditingController(text: listing.bacPercent.toString());
+    
+    final isListingAgent = listing.isListingAgent.obs;
+    final dualAgencyAllowed = listing.dualAgencyAllowed.obs;
+    final isLoading = false.obs;
+    // Image management
+    final currentImages = listing.photoUrls.toList().obs;
+    final newImages = <File>[].obs;
+    final ImagePicker imagePicker = ImagePicker();
+    bool isDisposed = false;
+
+    void disposeControllers() {
+      if (!isDisposed) {
+        isDisposed = true;
+        titleController.dispose();
+        descriptionController.dispose();
+        priceController.dispose();
+        addressController.dispose();
+        cityController.dispose();
+        stateController.dispose();
+        zipCodeController.dispose();
+        bacPercentController.dispose();
+      }
+    }
+
     Get.dialog(
-      AlertDialog(
-        title: const Text('Edit Listing'),
-        content: const Text(
-          'This feature will be implemented in the next update.',
+      barrierDismissible: false,
+      Dialog(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        child: Container(
+          constraints: BoxConstraints(
+            maxWidth: 700.w,
+            maxHeight: Get.height * 0.92,
+          ),
+          decoration: BoxDecoration(
+            color: AppTheme.white,
+            borderRadius: BorderRadius.circular(28.r),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.15),
+                blurRadius: 30,
+                offset: const Offset(0, 10),
+                spreadRadius: 5,
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Premium Header
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 28.w, vertical: 24.h),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: AppTheme.primaryGradient,
+                  ),
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(28.r),
+                    topRight: Radius.circular(28.r),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: EdgeInsets.all(12.w),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(12.r),
+                      ),
+                      child: Icon(
+                        Icons.edit_rounded,
+                        color: AppTheme.white,
+                        size: 24.sp,
+                      ),
+                    ),
+                    SizedBox(width: 16.w),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Edit Listing',
+                            style: TextStyle(
+                              color: AppTheme.white,
+                              fontSize: 26.sp,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.8,
+                            ),
+                          ),
+                          SizedBox(height: 4.h),
+                          Text(
+                            'Update your property details',
+                            style: TextStyle(
+                              color: AppTheme.white.withOpacity(0.9),
+                              fontSize: 13.sp,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () {
+                          Get.back();
+                        },
+                        borderRadius: BorderRadius.circular(12.r),
+                        child: Container(
+                          padding: EdgeInsets.all(8.w),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(12.r),
+                          ),
+                          child: Icon(
+                            Icons.close_rounded,
+                            color: AppTheme.white,
+                            size: 20.sp,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Scrollable form content
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: EdgeInsets.all(28.w),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Basic Information Card
+                      _buildEditSectionCard(
+                        context,
+                        icon: Icons.info_outline_rounded,
+                        title: 'Basic Information',
+                        children: [
+                          SizedBox(height: 8.h),
+                          CustomTextField(
+                            controller: titleController,
+                            labelText: 'Property Title',
+                            hintText: 'e.g., Beautiful 3BR Condo',
+                            prefixIcon: Icons.title_rounded,
+                          ),
+                          SizedBox(height: 20.h),
+                          CustomTextField(
+                            controller: descriptionController,
+                            labelText: 'Description',
+                            hintText: 'Describe your property in detail...',
+                            maxLines: 5,
+                            prefixIcon: Icons.description_rounded,
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 20.h),
+                      
+                      // Property Images Card
+                      _buildEditSectionCard(
+                        context,
+                        icon: Icons.photo_library_rounded,
+                        title: 'Property Images',
+                        children: [
+                          SizedBox(height: 8.h),
+                          Obx(() => _buildImageManagementSection(
+                            context,
+                            currentImages,
+                            newImages,
+                            imagePicker,
+                          )),
+                        ],
+                      ),
+                      SizedBox(height: 20.h),
+                      
+                      // Price Information Card
+                      _buildEditSectionCard(
+                        context,
+                        icon: Icons.attach_money_rounded,
+                        title: 'Pricing Details',
+                        children: [
+                          SizedBox(height: 8.h),
+                          Row(
+                            children: [
+                              Expanded(
+                                flex: 2,
+                                child: CustomTextField(
+                                  controller: priceController,
+                                  labelText: 'Price',
+                                  hintText: 'e.g., 1250000',
+                                  keyboardType: TextInputType.number,
+                                  prefixIcon: Icons.attach_money_rounded,
+                                ),
+                              ),
+                              SizedBox(width: 16.w),
+                              Expanded(
+                                child: CustomTextField(
+                                  controller: bacPercentController,
+                                  labelText: 'BAC %',
+                                  hintText: '2.5',
+                                  keyboardType: TextInputType.number,
+                                  prefixIcon: Icons.percent_rounded,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 20.h),
+                      
+                      // Address Information Card
+                      _buildEditSectionCard(
+                        context,
+                        icon: Icons.location_on_rounded,
+                        title: 'Property Address',
+                        children: [
+                          SizedBox(height: 8.h),
+                          CustomTextField(
+                            controller: addressController,
+                            labelText: 'Street Address',
+                            hintText: 'e.g., 123 Main Street',
+                            prefixIcon: Icons.home_rounded,
+                          ),
+                          SizedBox(height: 20.h),
+                          Row(
+                            children: [
+                              Expanded(
+                                flex: 2,
+                                child: CustomTextField(
+                                  controller: cityController,
+                                  labelText: 'City',
+                                  hintText: 'e.g., Los Angeles',
+                                  prefixIcon: Icons.location_city_rounded,
+                                ),
+                              ),
+                              SizedBox(width: 12.w),
+                              Expanded(
+                                child: CustomTextField(
+                                  controller: stateController,
+                                  labelText: 'State',
+                                  hintText: 'CA',
+                                  prefixIcon: Icons.map_rounded,
+                                ),
+                              ),
+                              SizedBox(width: 12.w),
+                              Expanded(
+                                child: CustomTextField(
+                                  controller: zipCodeController,
+                                  labelText: 'ZIP Code',
+                                  hintText: '90001',
+                                  keyboardType: TextInputType.number,
+                                  prefixIcon: Icons.pin_rounded,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 20.h),
+                      
+                      // Settings Card
+                      _buildEditSectionCard(
+                        context,
+                        icon: Icons.settings_rounded,
+                        title: 'Listing Settings',
+                        children: [
+                          SizedBox(height: 8.h),
+                          Obx(() => _buildToggleSwitch(
+                            context,
+                            title: 'I am the Listing Agent',
+                            subtitle: 'You are the listing agent for this property',
+                            value: isListingAgent.value,
+                            onChanged: (value) => isListingAgent.value = value,
+                          )),
+                          SizedBox(height: 16.h),
+                          Obx(() => _buildToggleSwitch(
+                            context,
+                            title: 'Dual Agency Allowed',
+                            subtitle: 'Allow representing both buyer and seller',
+                            value: dualAgencyAllowed.value,
+                            onChanged: (value) => dualAgencyAllowed.value = value,
+                          )),
+                        ],
+                      ),
+                      SizedBox(height: 8.h),
+                    ],
+                  ),
+                ),
+              ),
+              // Premium Footer
+              Container(
+                padding: EdgeInsets.all(28.w),
+                decoration: BoxDecoration(
+                  color: AppTheme.lightGray.withOpacity(0.5),
+                  borderRadius: BorderRadius.only(
+                    bottomLeft: Radius.circular(28.r),
+                    bottomRight: Radius.circular(28.r),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () {
+                          Get.back();
+                        },
+                        style: OutlinedButton.styleFrom(
+                          padding: EdgeInsets.symmetric(vertical: 18.h),
+                          side: BorderSide(color: AppTheme.mediumGray, width: 1.5),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16.r),
+                          ),
+                        ),
+                        child: Text(
+                          'Cancel',
+                          style: TextStyle(
+                            color: AppTheme.darkGray,
+                            fontSize: 16.sp,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                      ),
+                    ),
+                    SizedBox(width: 16.w),
+                    Expanded(
+                      flex: 2,
+                      child: Obx(() => Container(
+                        decoration: BoxDecoration(
+                          gradient: isLoading.value
+                              ? null
+                              : LinearGradient(
+                                  colors: AppTheme.primaryGradient,
+                                ),
+                          borderRadius: BorderRadius.circular(16.r),
+                          boxShadow: isLoading.value
+                              ? null
+                              : [
+                                  BoxShadow(
+                                    color: AppTheme.primaryBlue.withOpacity(0.4),
+                                    blurRadius: 12,
+                                    offset: const Offset(0, 6),
+                                  ),
+                                ],
+                        ),
+                        child: ElevatedButton(
+                          onPressed: isLoading.value
+                              ? null
+                              : () async {
+                                  // Validate fields
+                                  if (titleController.text.trim().isEmpty) {
+                                    SnackbarHelper.showError('Please enter a property title');
+                                    return;
+                                  }
+                                  if (descriptionController.text.trim().isEmpty) {
+                                    SnackbarHelper.showError('Please enter a description');
+                                    return;
+                                  }
+                                  if (priceController.text.trim().isEmpty) {
+                                    SnackbarHelper.showError('Please enter a price');
+                                    return;
+                                  }
+                                  if (addressController.text.trim().isEmpty) {
+                                    SnackbarHelper.showError('Please enter a street address');
+                                    return;
+                                  }
+                                  if (cityController.text.trim().isEmpty) {
+                                    SnackbarHelper.showError('Please enter a city');
+                                    return;
+                                  }
+                                  if (stateController.text.trim().isEmpty) {
+                                    SnackbarHelper.showError('Please enter a state');
+                                    return;
+                                  }
+                                  if (zipCodeController.text.trim().isEmpty) {
+                                    SnackbarHelper.showError('Please enter a ZIP code');
+                                    return;
+                                  }
+
+                                  isLoading.value = true;
+                                  
+                                  try {
+                                    await controller.updateListingViaAPI(
+                                      listing.id,
+                                      titleController.text.trim(),
+                                      descriptionController.text.trim(),
+                                      priceController.text.trim(),
+                                      addressController.text.trim(),
+                                      cityController.text.trim(),
+                                      stateController.text.trim(),
+                                      zipCodeController.text.trim(),
+                                      bacPercentController.text.trim(),
+                                      isListingAgent.value,
+                                      dualAgencyAllowed.value,
+                                      remainingImageUrls: currentImages.toList(),
+                                      newImageFiles: newImages.toList(),
+                                    );
+                                    
+                                    Get.back();
+                                    
+                                    // Wait for dialog to fully close before showing success
+                                    await Future.delayed(const Duration(milliseconds: 300));
+                                    
+                                    SnackbarHelper.showSuccess('Listing updated successfully!');
+                                  } catch (e) {
+                                    SnackbarHelper.showError('Failed to update listing: ${e.toString()}');
+                                  } finally {
+                                    isLoading.value = false;
+                                  }
+                                },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: isLoading.value
+                                ? AppTheme.primaryBlue.withOpacity(0.6)
+                                : Colors.transparent,
+                            foregroundColor: Colors.white,
+                            padding: EdgeInsets.symmetric(vertical: 18.h),
+                            elevation: 0,
+                            shadowColor: Colors.transparent,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16.r),
+                            ),
+                          ),
+                          child: isLoading.value
+                              ? SizedBox(
+                                  height: 22.h,
+                                  width: 22.w,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.5,
+                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                  ),
+                                )
+                              : Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.check_circle_outline_rounded, size: 20.sp),
+                                    SizedBox(width: 8.w),
+                                    Text(
+                                      'Update Listing',
+                                      style: TextStyle(
+                                        fontSize: 16.sp,
+                                        fontWeight: FontWeight.w700,
+                                        letterSpacing: 0.3,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                        ),
+                      )),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK')),
+      ),
+    ).then((_) {
+      // Dispose controllers after dialog is fully closed
+      Future.delayed(const Duration(milliseconds: 300), () {
+        disposeControllers();
+      });
+    });
+  }
+
+  Widget _buildEditSectionCard(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required List<Widget> children,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppTheme.white,
+        borderRadius: BorderRadius.circular(20.r),
+        border: Border.all(
+          color: AppTheme.lightGray.withOpacity(0.8),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
         ],
       ),
+      child: Padding(
+        padding: EdgeInsets.all(24.w),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: EdgeInsets.all(10.w),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: AppTheme.primaryGradient,
+                    ),
+                    borderRadius: BorderRadius.circular(12.r),
+                  ),
+                  child: Icon(
+                    icon,
+                    color: AppTheme.white,
+                    size: 20.sp,
+                  ),
+                ),
+                SizedBox(width: 12.w),
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 18.sp,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.darkGray,
+                    letterSpacing: -0.5,
+                  ),
+                ),
+              ],
+            ),
+            ...children,
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildToggleSwitch(
+    BuildContext context, {
+    required String title,
+    required String subtitle,
+    required bool value,
+    required Function(bool) onChanged,
+  }) {
+    return Container(
+      padding: EdgeInsets.all(16.w),
+      decoration: BoxDecoration(
+        color: AppTheme.lightGray.withOpacity(0.5),
+        borderRadius: BorderRadius.circular(16.r),
+        border: Border.all(
+          color: value ? AppTheme.primaryBlue.withOpacity(0.3) : AppTheme.lightGray,
+          width: 1.5,
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 15.sp,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.darkGray,
+                  ),
+                ),
+                SizedBox(height: 4.h),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    fontSize: 12.sp,
+                    color: AppTheme.mediumGray,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Transform.scale(
+            scale: 1.1,
+            child: Switch(
+              value: value,
+              onChanged: onChanged,
+              activeColor: AppTheme.primaryBlue,
+              activeTrackColor: AppTheme.primaryBlue.withOpacity(0.5),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildImageManagementSection(
+    BuildContext context,
+    RxList<String> currentImages,
+    RxList<File> newImages,
+    ImagePicker imagePicker,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Current Images Grid
+        if (currentImages.isNotEmpty || newImages.isNotEmpty) ...[
+          Text(
+            'Current Images (${currentImages.length + newImages.length})',
+            style: TextStyle(
+              fontSize: 14.sp,
+              fontWeight: FontWeight.w600,
+              color: AppTheme.darkGray,
+            ),
+          ),
+          SizedBox(height: 12.h),
+          SizedBox(
+            height: 120.h,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: currentImages.length + newImages.length,
+              itemBuilder: (context, index) {
+                if (index < currentImages.length) {
+                  // Existing image from URL
+                  final imageUrl = currentImages[index];
+                  final processedUrl = ImageUrlHelper.buildImageUrl(imageUrl) ?? imageUrl;
+                  
+                  return Container(
+                    width: 120.w,
+                    margin: EdgeInsets.only(right: 12.w),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12.r),
+                      border: Border.all(
+                        color: AppTheme.lightGray,
+                        width: 1.5,
+                      ),
+                    ),
+                    child: Stack(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(12.r),
+                          child: Image.network(
+                            processedUrl,
+                            width: double.infinity,
+                            height: double.infinity,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Container(
+                                color: AppTheme.lightGray,
+                                child: Icon(
+                                  Icons.broken_image,
+                                  color: AppTheme.mediumGray,
+                                ),
+                              );
+                            },
+                            loadingBuilder: (context, child, loadingProgress) {
+                              if (loadingProgress == null) return child;
+                              return Container(
+                                color: AppTheme.lightGray,
+                                child: Center(
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    value: loadingProgress.expectedTotalBytes != null
+                                        ? loadingProgress.cumulativeBytesLoaded /
+                                            loadingProgress.expectedTotalBytes!
+                                        : null,
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                        Positioned(
+                          top: 4,
+                          right: 4,
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: () {
+                                currentImages.removeAt(index);
+                              },
+                              borderRadius: BorderRadius.circular(20),
+                              child: Container(
+                                padding: EdgeInsets.all(6.w),
+                                decoration: BoxDecoration(
+                                  color: Colors.red.withOpacity(0.9),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  Icons.close,
+                                  color: Colors.white,
+                                  size: 16.sp,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                } else {
+                  // New image from file
+                  final fileIndex = index - currentImages.length;
+                  final imageFile = newImages[fileIndex];
+                  
+                  return Container(
+                    width: 120.w,
+                    margin: EdgeInsets.only(right: 12.w),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12.r),
+                      border: Border.all(
+                        color: AppTheme.lightGreen,
+                        width: 1.5,
+                      ),
+                    ),
+                    child: Stack(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(12.r),
+                          child: Image.file(
+                            imageFile,
+                            width: double.infinity,
+                            height: double.infinity,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                        Positioned(
+                          top: 4,
+                          left: 4,
+                          child: Container(
+                            padding: EdgeInsets.symmetric(horizontal: 6.w, vertical: 2.h),
+                            decoration: BoxDecoration(
+                              color: AppTheme.lightGreen,
+                              borderRadius: BorderRadius.circular(8.r),
+                            ),
+                            child: Text(
+                              'New',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 10.sp,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          top: 4,
+                          right: 4,
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: () {
+                                newImages.removeAt(fileIndex);
+                              },
+                              borderRadius: BorderRadius.circular(20),
+                              child: Container(
+                                padding: EdgeInsets.all(6.w),
+                                decoration: BoxDecoration(
+                                  color: Colors.red.withOpacity(0.9),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  Icons.close,
+                                  color: Colors.white,
+                                  size: 16.sp,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+              },
+            ),
+          ),
+          SizedBox(height: 16.h),
+        ],
+        
+        // Add Image Button
+        OutlinedButton.icon(
+          onPressed: () async {
+            try {
+              final XFile? image = await imagePicker.pickImage(
+                source: ImageSource.gallery,
+                imageQuality: 85,
+              );
+              
+              if (image != null) {
+                newImages.add(File(image.path));
+              }
+            } catch (e) {
+              SnackbarHelper.showError('Failed to pick image: ${e.toString()}');
+            }
+          },
+          icon: Icon(Icons.add_photo_alternate_rounded, size: 20.sp),
+          label: Text(
+            'Add Image',
+            style: TextStyle(
+              fontSize: 14.sp,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          style: OutlinedButton.styleFrom(
+            padding: EdgeInsets.symmetric(vertical: 14.h, horizontal: 20.w),
+            side: BorderSide(
+              color: AppTheme.primaryBlue,
+              width: 1.5,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12.r),
+            ),
+          ),
+        ),
+        
+        if (currentImages.isEmpty && newImages.isEmpty) ...[
+          SizedBox(height: 8.h),
+          Text(
+            'No images added yet. Tap "Add Image" to upload property photos.',
+            style: TextStyle(
+              fontSize: 12.sp,
+              color: AppTheme.mediumGray,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ],
+      ],
     );
   }
 
@@ -2082,7 +2869,7 @@ class AgentView extends GetView<AgentController> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Current Subscription
+          // Subscription Summary
           Obx(
             () => Card(
               child: Padding(
@@ -2091,7 +2878,7 @@ class AgentView extends GetView<AgentController> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Current Subscription',
+                      'Subscription Summary',
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         color: AppTheme.black,
                         fontWeight: FontWeight.w600,
@@ -2193,203 +2980,198 @@ class AgentView extends GetView<AgentController> {
                         ),
                       ],
                     ),
+                  ],
+                ),
+              ),
+            ),
+          ),
 
-                    // Cancellation Status
-                    if (controller.isCancelled)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 12),
-                        child: Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.orange.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(
-                                Icons.info_outline,
-                                color: Colors.orange,
-                                size: 20,
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  'Subscription will be cancelled in ${controller.daysUntilCancellation} days',
-                                  style: Theme.of(context).textTheme.bodySmall
-                                      ?.copyWith(color: Colors.orange.shade700),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
+          const SizedBox(height: 20),
+
+          // Active Subscriptions List
+          Text(
+            'Active Subscriptions',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              color: AppTheme.black,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          Obx(() {
+            final activeSubs = controller.activeSubscriptions;
+            
+            if (activeSubs.isEmpty) {
+              return Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(
+                  'No active subscriptions',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppTheme.mediumGray,
+                  ),
+                ),
+              );
+            }
+
+            return Column(
+              children: activeSubs.map((subscription) {
+                return _buildActiveSubscriptionCard(context, subscription);
+              }).toList(),
+            );
+          }),
+
+          const SizedBox(height: 20),
+
+          // Promo Code Input Section
+          Obx(
+            () => Card(
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (!controller.hasActivePromo) ...[
+                      Text(
+                        'Have a promo code?',
+                        style: Theme.of(context).textTheme.bodyLarge
+                            ?.copyWith(
+                              color: AppTheme.black,
+                              fontWeight: FontWeight.w500,
+                            ),
                       ),
-
-                    const SizedBox(height: 16),
-
-                    // Promo Code Input Section
-                    if (!controller.hasActivePromo)
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      const SizedBox(height: 8),
+                      Row(
                         children: [
-                          Text(
-                            'Have a promo code?',
-                            style: Theme.of(context).textTheme.bodyLarge
-                                ?.copyWith(
-                                  color: AppTheme.black,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: TextField(
-                                  onChanged: (value) =>
-                                      controller.setPromoCodeInput(value),
-                                  decoration: InputDecoration(
-                                    hintText: 'Enter promo code',
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 12,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              CustomButton(
-                                text: 'Apply',
-                                onPressed: () {
-                                  if (controller.promoCodeInput.isEmpty) {
-                                    SnackbarHelper.showError('Please enter a promo code');
-                                    return;
-                                  }
-                                  controller.applyPromoCode(
-                                    controller.promoCodeInput,
-                                  );
-                                },
-                                width: 80,
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'If you have a promo code, please enter it above',
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(color: AppTheme.mediumGray),
-                          ),
-                          const SizedBox(height: 16),
-                        ],
-                      ),
-
-                    // Generate Promo Code for Loan Officers
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Share with Loan Officers',
-                          style: Theme.of(context).textTheme.bodyLarge
-                              ?.copyWith(
-                                color: AppTheme.black,
-                                fontWeight: FontWeight.w500,
-                              ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Generate a promo code to share with loan officers. They\'ll get 6 months free!',
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(color: AppTheme.mediumGray),
-                        ),
-                        const SizedBox(height: 8),
-                        CustomButton(
-                          text: 'Generate Promo Code',
-                          onPressed: () =>
-                              controller.generatePromoCodeForLoanOfficer(),
-                          isOutlined: true,
-                          width: double.infinity,
-                        ),
-
-                        // Display Generated Codes
-                        if (controller.generatedPromoCodes.isNotEmpty) ...[
-                          const SizedBox(height: 12),
-                          Text(
-                            'Your Generated Codes:',
-                            style: Theme.of(context).textTheme.bodyMedium
-                                ?.copyWith(
-                                  color: AppTheme.darkGray,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                          ),
-                          const SizedBox(height: 8),
-                          ...controller.generatedPromoCodes.map(
-                            (promo) => Padding(
-                              padding: const EdgeInsets.only(bottom: 8),
-                              child: Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: AppTheme.lightGray,
+                          Expanded(
+                            child: TextField(
+                              onChanged: (value) =>
+                                  controller.setPromoCodeInput(value),
+                              decoration: InputDecoration(
+                                hintText: 'Enter promo code',
+                                border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(8),
                                 ),
-                                child: Row(
-                                  children: [
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            promo.code,
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .bodyLarge
-                                                ?.copyWith(
-                                                  fontWeight: FontWeight.bold,
-                                                  color: AppTheme.primaryBlue,
-                                                ),
-                                          ),
-                                          Text(
-                                            promo.description ??
-                                                '6 Months Free',
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .bodySmall
-                                                ?.copyWith(
-                                                  color: AppTheme.mediumGray,
-                                                ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    IconButton(
-                                      icon: const Icon(Icons.copy),
-                                      onPressed: () {
-                                        // Copy to clipboard
-                                        // Clipboard.setData(ClipboardData(text: promo.code));
-                                        SnackbarHelper.showSuccess('Promo code copied to clipboard', title: 'Copied');
-                                      },
-                                    ),
-                                  ],
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 12,
                                 ),
                               ),
                             ),
                           ),
+                          const SizedBox(width: 8),
+                          CustomButton(
+                            text: 'Apply',
+                            onPressed: () {
+                              if (controller.promoCodeInput.isEmpty) {
+                                SnackbarHelper.showError('Please enter a promo code');
+                                return;
+                              }
+                              controller.applyPromoCode(
+                                controller.promoCodeInput,
+                              );
+                            },
+                            width: 80,
+                          ),
                         ],
-                        const SizedBox(height: 16),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'If you have a promo code, please enter it above',
+                        style: Theme.of(context).textTheme.bodySmall
+                            ?.copyWith(color: AppTheme.mediumGray),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
 
+                    // Generate Promo Code for Loan Officers
+                    Text(
+                      'Share with Loan Officers',
+                      style: Theme.of(context).textTheme.bodyLarge
+                          ?.copyWith(
+                            color: AppTheme.black,
+                            fontWeight: FontWeight.w500,
+                          ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Generate a promo code to share with loan officers. They\'ll get 6 months free!',
+                      style: Theme.of(context).textTheme.bodySmall
+                          ?.copyWith(color: AppTheme.mediumGray),
+                    ),
+                    const SizedBox(height: 8),
                     CustomButton(
-                      text: controller.isCancelled
-                          ? 'Cancellation Scheduled'
-                          : 'Cancel Subscription',
-                      onPressed: controller.isCancelled
-                          ? null
-                          : () => _showCancelConfirmation(context),
+                      text: 'Generate Promo Code',
+                      onPressed: () =>
+                          controller.generatePromoCodeForLoanOfficer(),
                       isOutlined: true,
                       width: double.infinity,
                     ),
+
+                    // Display Generated Codes
+                    if (controller.generatedPromoCodes.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        'Your Generated Codes:',
+                        style: Theme.of(context).textTheme.bodyMedium
+                            ?.copyWith(
+                              color: AppTheme.darkGray,
+                              fontWeight: FontWeight.w500,
+                            ),
+                      ),
+                      const SizedBox(height: 8),
+                      ...controller.generatedPromoCodes.map(
+                        (promo) => Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: AppTheme.lightGray,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        promo.code,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodyLarge
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.bold,
+                                              color: AppTheme.primaryBlue,
+                                            ),
+                                      ),
+                                      Text(
+                                        promo.description ??
+                                            '6 Months Free',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall
+                                            ?.copyWith(
+                                              color: AppTheme.mediumGray,
+                                            ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.copy),
+                                  onPressed: () {
+                                    // Copy to clipboard
+                                    // Clipboard.setData(ClipboardData(text: promo.code));
+                                    SnackbarHelper.showSuccess('Promo code copied to clipboard', title: 'Copied');
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -2408,15 +3190,179 @@ class AgentView extends GetView<AgentController> {
           ),
           const SizedBox(height: 12),
 
-          _buildPaymentItem(context, 'December 2024', '\$549.98', 'Paid'),
-          _buildPaymentItem(context, 'November 2024', '\$549.98', 'Paid'),
-          _buildPaymentItem(context, 'October 2024', '\$399.99', 'Paid'),
+          // Display subscriptions from API
+          Obx(() {
+            if (controller.subscriptions.isEmpty) {
+              return Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(
+                  'No payment history available',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppTheme.mediumGray,
+                  ),
+                ),
+              );
+            }
+
+            return Column(
+              children: controller.subscriptions.map((subscription) {
+                // Format date from createdAt or subscriptionStart
+                final dateStr = subscription['createdAt']?.toString() ??
+                    subscription['subscriptionStart']?.toString() ??
+                    '';
+                final date = DateTime.tryParse(dateStr);
+                final monthYear = date != null
+                    ? '${_getMonthName(date.month)} ${date.year}'
+                    : 'Unknown Date';
+
+                // Format amount
+                final amount = subscription['amountPaid'] as double? ?? 0.0;
+                final amountStr = '\$${amount.toStringAsFixed(2)}';
+
+                // Format status
+                final status = subscription['subscriptionStatus']?.toString() ?? '';
+                final displayStatus = _formatSubscriptionStatus(status);
+
+                // Payment History only shows payment records, no cancel buttons
+                return _buildPaymentItem(
+                  context,
+                  monthYear,
+                  amountStr,
+                  displayStatus,
+                );
+              }).toList(),
+            );
+          }),
         ],
       ),
     );
   }
 
-  void _showCancelConfirmation(BuildContext context) {
+  Widget _buildActiveSubscriptionCard(
+    BuildContext context,
+    Map<String, dynamic> subscription,
+  ) {
+    // Format date from createdAt or subscriptionStart
+    final dateStr = subscription['createdAt']?.toString() ??
+        subscription['subscriptionStart']?.toString() ??
+        '';
+    final date = DateTime.tryParse(dateStr);
+    final monthYear = date != null
+        ? '${_getMonthName(date.month)} ${date.year}'
+        : 'Unknown Date';
+
+    // Format amount
+    final amount = subscription['amountPaid'] as double? ?? 0.0;
+    final amountStr = '\$${amount.toStringAsFixed(2)}';
+
+    // Format status
+    final status = subscription['subscriptionStatus']?.toString() ?? '';
+    final displayStatus = _formatSubscriptionStatus(status);
+
+    // Get stripe customer ID for cancellation
+    final stripeCustomerId = subscription['stripeCustomerId']?.toString();
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Subscription',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.black,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        monthYear,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: AppTheme.darkGray,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      amountStr,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.primaryBlue,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: displayStatus == 'Paid' || displayStatus == 'Active'
+                            ? Colors.green.withOpacity(0.1)
+                            : Colors.orange.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        displayStatus,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: displayStatus == 'Paid' || displayStatus == 'Active'
+                              ? Colors.green.shade700
+                              : Colors.orange.shade700,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            if (stripeCustomerId != null && stripeCustomerId.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: () => _showCancelConfirmationForSubscription(
+                    context,
+                    stripeCustomerId,
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(color: Colors.red.shade400),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  child: Text(
+                    'Cancel Subscription',
+                    style: TextStyle(
+                      color: Colors.red.shade600,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showCancelConfirmationForSubscription(
+    BuildContext context,
+    String stripeCustomerId,
+  ) {
     Get.dialog(
       AlertDialog(
         title: const Text('Cancel Subscription'),
@@ -2425,7 +3371,7 @@ class AgentView extends GetView<AgentController> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Are you sure you want to cancel your subscription?',
+              'Are you sure you want to cancel this subscription?',
               style: TextStyle(fontSize: 16),
             ),
             const SizedBox(height: 12),
@@ -2461,7 +3407,7 @@ class AgentView extends GetView<AgentController> {
           TextButton(
             onPressed: () {
               Navigator.pop(context);
-              controller.cancelSubscription();
+              controller.cancelSubscription(stripeCustomerId);
             },
             style: TextButton.styleFrom(foregroundColor: Colors.red),
             child: const Text('Cancel Subscription'),
@@ -2471,234 +3417,438 @@ class AgentView extends GetView<AgentController> {
     );
   }
 
+  void _showCancelConfirmation(BuildContext context) {
+    // Use the active subscription's stripeCustomerId if available
+    final activeSub = controller.activeSubscriptionFromAPI;
+    final stripeCustomerId = activeSub?['stripeCustomerId']?.toString();
+    
+    if (stripeCustomerId != null && stripeCustomerId.isNotEmpty) {
+      _showCancelConfirmationForSubscription(context, stripeCustomerId);
+    } else {
+      // Fallback to old method if no stripeCustomerId
+      Get.dialog(
+        AlertDialog(
+          title: const Text('Cancel Subscription'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Are you sure you want to cancel your subscription?',
+                style: TextStyle(fontSize: 16),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.orange, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Your subscription will remain active for 30 days from today. You can cancel anytime with 30 days\' notice.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.orange.shade700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Keep Subscription'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                controller.cancelSubscription();
+              },
+              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              child: const Text('Cancel Subscription'),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
+
   Widget _buildPaymentItem(
     BuildContext context,
     String month,
     String amount,
-    String status,
-  ) {
+    String status, {
+    bool canCancel = false,
+    VoidCallback? onCancel,
+  }) {
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  month,
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: AppTheme.darkGray,
-                    fontWeight: FontWeight.w500,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        month,
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          color: AppTheme.darkGray,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        status,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: AppTheme.mediumGray,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 Text(
-                  status,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyMedium?.copyWith(color: AppTheme.mediumGray),
+                  amount,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: AppTheme.primaryBlue,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ],
             ),
-            Text(
-              amount,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: AppTheme.primaryBlue,
-                fontWeight: FontWeight.w600,
+            if (canCancel && onCancel != null) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: onCancel,
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(color: Colors.red.shade400),
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                  ),
+                  child: Text(
+                    'Cancel Subscription',
+                    style: TextStyle(
+                      color: Colors.red.shade600,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
               ),
-            ),
+            ],
           ],
         ),
       ),
     );
   }
 
+  /// Helper method to get month name from month number
+  String _getMonthName(int month) {
+    const months = [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ];
+    if (month >= 1 && month <= 12) {
+      return months[month - 1];
+    }
+    return 'Unknown';
+  }
+
+  /// Helper method to format subscription status for display
+  String _formatSubscriptionStatus(String status) {
+    final lowerStatus = status.toLowerCase();
+    if (lowerStatus == 'active' || lowerStatus == 'paid') {
+      return 'Paid';
+    } else if (lowerStatus == 'canceled' || lowerStatus == 'cancelled') {
+      return 'Canceled';
+    } else if (lowerStatus == 'past_due' || lowerStatus == 'pastdue') {
+      return 'Past Due';
+    } else if (lowerStatus == 'unpaid') {
+      return 'Unpaid';
+    } else if (lowerStatus == 'trialing') {
+      return 'Trialing';
+    }
+    // Capitalize first letter for unknown statuses
+    if (status.isEmpty) return 'Unknown';
+    return status[0].toUpperCase() + status.substring(1).toLowerCase();
+  }
+
   Widget _buildStats(BuildContext context) {
-    // Dummy data
-    final monthlyLeads = [45, 62, 58, 71, 85, 92, 88];
-    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul'];
-    final salesData = [12000, 18000, 15000, 22000, 28000, 32000, 29000];
+    return Obx(() {
+      // Ensure leads are loaded for stats
+      if (controller.leads.isEmpty && !controller.isLoadingLeads) {
+        Future.microtask(() => controller.fetchLeads());
+      }
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Performance Analytics',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              color: AppTheme.black,
-              fontWeight: FontWeight.w600,
+      // Get dynamic data from controller
+      final totalLeads = controller.totalLeads;
+      final conversions = controller.conversions;
+      final closeRate = controller.closeRate;
+      
+      // Calculate month-over-month changes
+      final leadsChange = controller.calculateMonthOverMonthChange('leads');
+      final conversionsChange = controller.calculateMonthOverMonthChange('conversions');
+      final closeRateChange = controller.calculateMonthOverMonthChange('closeRate');
+      
+      // Get monthly data
+      final monthlyLeadsData = controller.getMonthlyLeadsData();
+      final monthlyLeads = monthlyLeadsData['values'] as List<int>;
+      final months = monthlyLeadsData['labels'] as List<String>;
+      final monthsCount = monthlyLeadsData['count'] as int;
+      final screenWidth = MediaQuery.of(context).size.width;
+      final cardWidth = (screenWidth - 40 - 12) / 2;
+      final now = DateTime.now();
+      final monthLabel = _getMonthName(now.month);
+      
+      // Get activity breakdown
+      final activityData = controller.getActivityBreakdown();
+
+      return SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Performance Analytics',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                color: AppTheme.black,
+                fontWeight: FontWeight.w700,
+              ),
             ),
-          ),
-          const SizedBox(height: 20),
-
-          // Summary Stats
-          Row(
-            children: [
-              Expanded(
-                child: _buildStatsCard(
-                  context,
-                  'Total Leads',
-                  '501',
-                  Icons.people,
-                  AppTheme.primaryBlue,
-                  '+12% from last month',
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildStatsCard(
-                  context,
-                  'Conversions',
-                  '48',
-                  Icons.trending_up,
-                  AppTheme.lightGreen,
-                  '+8% from last month',
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _buildStatsCard(
-                  context,
-                  'Revenue',
-                  '\$125K',
-                  Icons.attach_money,
-                  Colors.deepPurple,
-                  '+15% from last month',
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildStatsCard(
-                  context,
-                  'Close Rate',
-                  '9.6%',
-                  Icons.check_circle,
-                  Colors.orange,
-                  '+2% from last month',
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-
-          // Monthly Leads Chart
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Monthly Leads',
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w600),
-                      ),
-                      Text(
-                        '7 months',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppTheme.mediumGray,
-                        ),
-                      ),
-                    ],
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Text(
+                  'Snapshot for $monthLabel ${now.year}',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppTheme.mediumGray,
+                    fontWeight: FontWeight.w500,
                   ),
-                  const SizedBox(height: 20),
-                  _buildBarChart(monthlyLeads, months),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // Revenue Chart
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Monthly Revenue',
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w600),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppTheme.lightGreen.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          '+15%',
-                          style: TextStyle(
-                            color: AppTheme.lightGreen,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ],
+                ),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: AppTheme.primaryBlue.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(20),
                   ),
-                  const SizedBox(height: 20),
-                  _buildLineChart(salesData),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // Activity Breakdown
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Activity Breakdown',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  child: Text(
+                    'Last 30 days',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppTheme.primaryBlue,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  const SizedBox(height: 20),
-                  _buildStatsActivityItem(
-                    'Property Views',
-                    345,
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+
+            // Summary Stats
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                SizedBox(
+                  width: cardWidth,
+                  child: _buildStatsCard(
+                    context,
+                    'Total Leads',
+                    totalLeads.toString(),
+                    Icons.people,
                     AppTheme.primaryBlue,
+                    '$leadsChange vs last month',
                   ),
-                  const SizedBox(height: 12),
-                  _buildStatsActivityItem(
-                    'Inquiries',
-                    128,
+                ),
+                SizedBox(
+                  width: cardWidth,
+                  child: _buildStatsCard(
+                    context,
+                    'Conversions',
+                    conversions.toString(),
+                    Icons.trending_up,
                     AppTheme.lightGreen,
+                    '$conversionsChange vs last month',
                   ),
-                  const SizedBox(height: 12),
-                  _buildStatsActivityItem('Showings', 67, Colors.orange),
-                  const SizedBox(height: 12),
-                  _buildStatsActivityItem('Offers', 23, Colors.deepPurple),
-                ],
+                ),
+                SizedBox(
+                  width: cardWidth,
+                  child: _buildStatsCard(
+                    context,
+                    'Close Rate',
+                    '${closeRate.toStringAsFixed(1)}%',
+                    Icons.check_circle,
+                    Colors.orange,
+                    '$closeRateChange vs last month',
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // Portfolio Snapshot
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Portfolio Snapshot',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildMiniStatCard(
+                            context,
+                            'Active Listings',
+                            controller.currentListingCount.toString(),
+                            Icons.home_work_outlined,
+                            AppTheme.primaryBlue,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildMiniStatCard(
+                            context,
+                            'Claimed ZIPs',
+                            controller.claimedZipCodes.length.toString(),
+                            Icons.place_outlined,
+                            AppTheme.lightGreen,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    _buildMiniStatCard(
+                      context,
+                      'Active Subscriptions',
+                      controller.activeSubscriptions.length.toString(),
+                      Icons.credit_card,
+                      Colors.orange,
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
-      ),
-    );
+            const SizedBox(height: 16),
+
+            // Monthly Leads Chart
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Monthly Leads',
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w600),
+                        ),
+                        Text(
+                          '$monthsCount months',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: AppTheme.mediumGray,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    if (monthlyLeads.isNotEmpty)
+                      _buildBarChart(monthlyLeads, months)
+                    else
+                      Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(20),
+                          child: Text(
+                            'No leads data available',
+                            style: TextStyle(color: AppTheme.mediumGray),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          const SizedBox(height: 16),
+
+            // Activity Breakdown
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Activity Breakdown',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    _buildStatsActivityItem(
+                      'Property Views',
+                      activityData['Property Views'] ?? 0,
+                      AppTheme.primaryBlue,
+                    ),
+                    const SizedBox(height: 12),
+                    _buildStatsActivityItem(
+                      'Inquiries',
+                      activityData['Inquiries'] ?? 0,
+                      AppTheme.lightGreen,
+                    ),
+                    const SizedBox(height: 12),
+                    _buildStatsActivityItem(
+                      'Showings',
+                      activityData['Showings'] ?? 0,
+                      Colors.orange,
+                    ),
+                    const SizedBox(height: 12),
+                    _buildStatsActivityItem(
+                      'Offers',
+                      activityData['Offers'] ?? 0,
+                      Colors.deepPurple,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    });
   }
 
   Widget _buildStatsCard(
@@ -2709,43 +3859,196 @@ class AgentView extends GetView<AgentController> {
     Color color,
     String subtitle,
   ) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, color: color, size: 24),
-            const SizedBox(height: 12),
-            Text(
-              value,
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: AppTheme.black,
+    final trimmedSubtitle = subtitle.trim();
+    final isNegative = trimmedSubtitle.startsWith('-');
+    final trendColor = isNegative ? Colors.redAccent : color;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.lightGray.withOpacity(0.6)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: color, size: 18),
               ),
+              if (trimmedSubtitle.isNotEmpty)
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 140),
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: trendColor.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      trimmedSubtitle,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: trendColor,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 11,
+                          ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Text(
+            value,
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: AppTheme.black,
             ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: AppTheme.mediumGray),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: AppTheme.mediumGray,
+                  fontWeight: FontWeight.w500,
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMiniStatCard(
+    BuildContext context,
+    String label,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppTheme.lightGray.withOpacity(0.6)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(10),
             ),
-            const SizedBox(height: 8),
-            Text(
-              subtitle,
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: color, fontSize: 11),
+            child: Icon(icon, color: color, size: 18),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppTheme.mediumGray,
+                        fontWeight: FontWeight.w500,
+                      ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: AppTheme.black,
+                      ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildBarChart(List<int> data, List<String> labels) {
+    if (data.isEmpty) {
+      return const SizedBox(height: 200);
+    }
+    
     final maxValue = data.reduce((a, b) => a > b ? a : b);
+    
+    // Prevent division by zero
+    if (maxValue == 0) {
+      return SizedBox(
+        height: 200,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: List.generate(data.length, (index) {
+            return Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 2),
+                    height: 4.0, // Minimum height for visibility
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.bottomCenter,
+                        end: Alignment.topCenter,
+                        colors: [
+                          AppTheme.primaryBlue.withOpacity(0.3),
+                          AppTheme.primaryBlue.withOpacity(0.1),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    labels[index],
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: AppTheme.mediumGray,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    data[index].toString(),
+                    style: TextStyle(
+                      fontSize: 9,
+                      color: AppTheme.darkGray,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ),
+      );
+    }
 
     return Column(
       children: [
@@ -2756,7 +4059,7 @@ class AgentView extends GetView<AgentController> {
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: List.generate(data.length, (index) {
               final value = data[index];
-              final height = (value / maxValue) * 150;
+              final height = ((value / maxValue) * 150).clamp(4.0, 150.0); // Clamp to prevent NaN and ensure minimum height
 
               return Expanded(
                 child: Column(
@@ -2803,39 +4106,6 @@ class AgentView extends GetView<AgentController> {
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildLineChart(List<int> data) {
-    return Container(
-      height: 150,
-      child: Stack(
-        children: [
-          // Dotted grid lines
-          Column(
-            children: List.generate(4, (index) {
-              return Expanded(
-                child: Container(
-                  decoration: BoxDecoration(
-                    border: Border(
-                      bottom: BorderSide(
-                        color: AppTheme.lightGray,
-                        width: 0.5,
-                        style: BorderStyle.solid,
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            }),
-          ),
-          // Data line
-          CustomPaint(
-            size: Size.infinite,
-            painter: LineChartPainter(data: data),
-          ),
-        ],
-      ),
     );
   }
 
@@ -3116,22 +4386,29 @@ class AgentView extends GetView<AgentController> {
         : [AppTheme.lightGreen, Color(0xFF34D399), Color(0xFF6EE7B7)];
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 20),
+      margin: const EdgeInsets.only(bottom: 24),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
             color: (isBuying ? AppTheme.primaryBlue : AppTheme.lightGreen)
-                .withOpacity(0.15),
-            blurRadius: 20,
+                .withOpacity(0.12),
+            blurRadius: 24,
             offset: const Offset(0, 8),
-            spreadRadius: 2,
+            spreadRadius: 0,
           ),
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 16,
             offset: const Offset(0, 4),
+            spreadRadius: 0,
+          ),
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+            spreadRadius: 0,
           ),
         ],
       ),
@@ -3140,7 +4417,7 @@ class AgentView extends GetView<AgentController> {
         children: [
           // Enhanced Header with gradient
           Container(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: gradientColors,
@@ -3148,21 +4425,39 @@ class AgentView extends GetView<AgentController> {
                 end: Alignment.bottomRight,
               ),
               borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(20),
-                topRight: Radius.circular(20),
+                topLeft: Radius.circular(24),
+                topRight: Radius.circular(24),
               ),
+              boxShadow: [
+                BoxShadow(
+                  color: (isBuying ? AppTheme.primaryBlue : AppTheme.lightGreen)
+                      .withOpacity(0.2),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
             child: Row(
               children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                // Buying/Selling Lead Badge
+                Flexible(
+                  flex: 2,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.3),
-                    borderRadius: BorderRadius.circular(25),
+                      color: Colors.white.withOpacity(0.25),
+                      borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                      color: Colors.white.withOpacity(0.5),
-                      width: 1,
-                    ),
+                        color: Colors.white.withOpacity(0.4),
+                        width: 1.5,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -3170,46 +4465,123 @@ class AgentView extends GetView<AgentController> {
                       Icon(
                         isBuying ? Icons.shopping_bag_rounded : Icons.sell_rounded,
                         color: Colors.white,
-                        size: 18,
+                          size: 16,
                       ),
-                      const SizedBox(width: 8),
-                      Text(
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Text(
                         isBuying ? 'Buying Lead' : 'Selling Lead',
                         style: const TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.w700,
-                          fontSize: 13,
-                          letterSpacing: 0.5,
+                              fontSize: 12,
+                              letterSpacing: 0.3,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
                         ),
                       ),
                     ],
                   ),
                 ),
-                const Spacer(),
-                Container(
+                ),
+                const SizedBox(width: 8),
+                // Lead Status Badge
+                if (lead.leadStatus != null && lead.leadStatus!.isNotEmpty) ...[
+                  Flexible(
+                    flex: 2,
+                    child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(12),
+                        color: lead.isCompleted
+                            ? AppTheme.primaryBlue.withOpacity(0.95)
+                            : lead.isAccepted 
+                                ? AppTheme.lightGreen.withOpacity(0.95)
+                                : Colors.white.withOpacity(0.25),
+                        borderRadius: BorderRadius.circular(16),
+                        border: (lead.isCompleted || lead.isAccepted)
+                            ? Border.all(color: Colors.white, width: 1.5)
+                            : null,
+                        boxShadow: [
+                          BoxShadow(
+                            color: (lead.isCompleted || lead.isAccepted)
+                                ? Colors.black.withOpacity(0.15)
+                                : Colors.transparent,
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(
-                        Icons.access_time_rounded,
+                            lead.isCompleted 
+                                ? Icons.check_circle_outline
+                                : lead.isAccepted 
+                                    ? Icons.check_circle 
+                                    : Icons.pending,
                         color: Colors.white,
-                        size: 14,
+                            size: 13,
+                          ),
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: Text(
+                              lead.isCompleted 
+                                  ? 'COMPLETED'
+                                  : lead.leadStatus!.toUpperCase(),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.3,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 1,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                       ),
                       const SizedBox(width: 6),
-                      Text(
+                ],
+                // Date Badge
+                Flexible(
+                  flex: 1,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.25),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: Colors.white.withOpacity(0.3),
+                        width: 1,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.access_time_rounded,
+                          color: Colors.white,
+                          size: 12,
+                        ),
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: Text(
                         lead.formattedDate,
                         style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 12,
+                              fontSize: 10,
                           fontWeight: FontWeight.w600,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
                         ),
                       ),
                     ],
+                    ),
                   ),
                 ),
               ],
@@ -3222,6 +4594,67 @@ class AgentView extends GetView<AgentController> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Lead Status Container (if accepted or completed)
+                if (lead.isAccepted || lead.isCompleted) ...[
+                  Container(
+                    width: double.infinity,
+                    padding: EdgeInsets.all(16.w),
+                    decoration: BoxDecoration(
+                      color: lead.isCompleted
+                          ? AppTheme.primaryBlue.withOpacity(0.1)
+                          : AppTheme.lightGreen.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12.r),
+                      border: Border.all(
+                        color: lead.isCompleted
+                            ? AppTheme.primaryBlue
+                            : AppTheme.lightGreen,
+                        width: 2,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          lead.isCompleted
+                              ? Icons.check_circle_outline
+                              : Icons.check_circle,
+                          color: lead.isCompleted
+                              ? AppTheme.primaryBlue
+                              : AppTheme.lightGreen,
+                          size: 24.sp,
+                        ),
+                        SizedBox(width: 12.w),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                lead.isCompleted ? 'Lead Completed' : 'Lead Accepted',
+                                style: TextStyle(
+                                  fontSize: 16.sp,
+                                  fontWeight: FontWeight.w700,
+                                  color: lead.isCompleted
+                                      ? AppTheme.primaryBlue
+                                      : AppTheme.lightGreen,
+                                ),
+                              ),
+                              if (lead.agentResponseNote != null && !lead.isCompleted) ...[
+                                SizedBox(height: 4.h),
+                                Text(
+                                  lead.agentResponseNote!,
+                                  style: TextStyle(
+                                    fontSize: 14.sp,
+                                    color: AppTheme.mediumGray,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(height: 16.h),
+                ],
                 // Enhanced Buyer Info Section
                 if (buyerInfo != null) ...[
                   Container(
@@ -3263,13 +4696,8 @@ class AgentView extends GetView<AgentController> {
                           child: CircleAvatar(
                             radius: 32,
                             backgroundColor: Colors.transparent,
-                            backgroundImage: buyerInfo.profilePic != null &&
-                                    buyerInfo.profilePic!.isNotEmpty
-                                ? NetworkImage(
-                                    buyerInfo.profilePic!.startsWith('http')
-                                        ? buyerInfo.profilePic!
-                                        : '${ApiConstants.baseUrl}/${buyerInfo.profilePic}',
-                                  )
+                            backgroundImage: ImageUrlHelper.buildImageUrl(buyerInfo.profilePic) != null
+                                ? NetworkImage(ImageUrlHelper.buildImageUrl(buyerInfo.profilePic)!)
                                 : null,
                             child: buyerInfo.profilePic == null ||
                                     buyerInfo.profilePic!.isEmpty
@@ -3419,14 +4847,28 @@ class AgentView extends GetView<AgentController> {
                     (lead.preferredContact != null &&
                         lead.preferredContact!.isNotEmpty)) ...[
                   Container(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(18),
                     decoration: BoxDecoration(
-                      color: AppTheme.lightGray.withOpacity(0.3),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: AppTheme.primaryBlue.withOpacity(0.1),
-                        width: 1,
+                      gradient: LinearGradient(
+                        colors: [
+                          AppTheme.primaryBlue.withOpacity(0.04),
+                          AppTheme.lightGray.withOpacity(0.2),
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
                       ),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: AppTheme.primaryBlue.withOpacity(0.12),
+                        width: 1.5,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppTheme.primaryBlue.withOpacity(0.05),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
                     ),
                     child: Column(
                       children: [
@@ -3511,8 +4953,12 @@ class AgentView extends GetView<AgentController> {
                   const SizedBox(height: 20),
                 ],
 
-                // Enhanced Action Button
-                Container(
+                // Action Buttons Row
+                Row(
+                  children: [
+                    // Contact/Open Chat Button
+                    Expanded(
+                      child: Container(
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: gradientColors,
@@ -3552,17 +4998,20 @@ class AgentView extends GetView<AgentController> {
                               ),
                             ),
                             const SizedBox(width: 12),
-                            const Text(
-                              'Contact Buyer',
-                              style: TextStyle(
+                                  Flexible(
+                                    child: Text(
+                                      lead.isAccepted ? 'Open Chat' : 'Contact Buyer',
+                                      style: const TextStyle(
                                 color: Colors.white,
                                 fontWeight: FontWeight.w700,
                                 fontSize: 17,
                                 letterSpacing: 0.5,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
                               ),
                             ),
                             const SizedBox(width: 8),
-                            Icon(
+                                  const Icon(
                               Icons.arrow_forward_rounded,
                               color: Colors.white,
                               size: 20,
@@ -3572,6 +5021,75 @@ class AgentView extends GetView<AgentController> {
                       ),
                     ),
                   ),
+                ),
+                    ),
+                    // Complete Button (only show if lead is accepted but not completed)
+                    if (lead.isAccepted && !lead.isCompleted) ...[
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                AppTheme.lightGreen,
+                                AppTheme.lightGreen.withOpacity(0.8),
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppTheme.lightGreen.withOpacity(0.4),
+                                blurRadius: 12,
+                                offset: const Offset(0, 6),
+                              ),
+                            ],
+                          ),
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: () => controller.markLeadComplete(lead),
+                              borderRadius: BorderRadius.circular(16),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withOpacity(0.2),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: const Icon(
+                                        Icons.check_circle_outline_rounded,
+                                        color: Colors.white,
+                                        size: 22,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    const Flexible(
+                                      child: Text(
+                                        'Complete',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 17,
+                                          letterSpacing: 0.5,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ],
             ),
@@ -3637,38 +5155,60 @@ class AgentView extends GetView<AgentController> {
     Color accentColor,
   ) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            accentColor.withOpacity(0.05),
+            accentColor.withOpacity(0.08),
+            accentColor.withOpacity(0.03),
             Colors.white,
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: accentColor.withOpacity(0.2),
-          width: 1,
+          color: accentColor.withOpacity(0.15),
+          width: 1.5,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: accentColor.withOpacity(0.08),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            padding: const EdgeInsets.all(10),
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  accentColor.withOpacity(0.2),
+                  accentColor.withOpacity(0.1),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
               color: accentColor.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(10),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
             child: Icon(
               icon,
-              size: 20,
+              size: 22,
               color: accentColor,
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -3679,14 +5219,17 @@ class AgentView extends GetView<AgentController> {
                         color: AppTheme.mediumGray,
                         fontWeight: FontWeight.w600,
                         letterSpacing: 0.5,
+                        fontSize: 12,
                       ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 6),
                 Text(
                   value,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: AppTheme.darkGray,
-                        fontWeight: FontWeight.w500,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 15,
+                        letterSpacing: -0.2,
                       ),
                   overflow: TextOverflow.ellipsis,
                   maxLines: 2,
@@ -3706,30 +5249,53 @@ class AgentView extends GetView<AgentController> {
     String value,
   ) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: AppTheme.lightGray,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: AppTheme.primaryBlue.withOpacity(0.1),
-          width: 1,
+        gradient: LinearGradient(
+          colors: [
+            AppTheme.primaryBlue.withOpacity(0.06),
+            AppTheme.lightGray.withOpacity(0.3),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: AppTheme.primaryBlue.withOpacity(0.15),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.primaryBlue.withOpacity(0.05),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: AppTheme.primaryBlue.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(
             icon,
             size: 16,
             color: AppTheme.primaryBlue,
           ),
-          const SizedBox(width: 8),
+          ),
+          const SizedBox(width: 10),
           Flexible(
             child: Text(
               '$label: $value',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: AppTheme.darkGray,
                     fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                    letterSpacing: -0.2,
                   ),
               overflow: TextOverflow.ellipsis,
               maxLines: 1,
@@ -3742,43 +5308,166 @@ class AgentView extends GetView<AgentController> {
 }
 
 // Custom painter for line chart
-class LineChartPainter extends CustomPainter {
-  final List<int> data;
+// Image Carousel Widget for Listing Images
+class _ListingImageCarousel extends StatefulWidget {
+  final String listingId;
+  final String listingTitle;
+  final List<String> photoUrls;
 
-  LineChartPainter({required this.data});
+  const _ListingImageCarousel({
+    required this.listingId,
+    required this.listingTitle,
+    required this.photoUrls,
+  });
 
   @override
-  void paint(Canvas canvas, Size size) {
-    if (data.isEmpty) return;
+  State<_ListingImageCarousel> createState() => _ListingImageCarouselState();
+}
 
-    final maxValue = data.reduce((a, b) => a > b ? a : b);
-    final paint = Paint()
-      ..color = AppTheme.primaryBlue
-      ..strokeWidth = 3
-      ..style = PaintingStyle.stroke;
+class _ListingImageCarouselState extends State<_ListingImageCarousel> {
+  late PageController _pageController;
+  int _currentPage = 0;
 
-    final path = Path();
-    final pointPaint = Paint()
-      ..color = AppTheme.primaryBlue
-      ..style = PaintingStyle.fill;
-
-    for (int i = 0; i < data.length; i++) {
-      final x = (size.width / (data.length - 1)) * i;
-      final y = size.height - (data[i] / maxValue) * size.height;
-
-      if (i == 0) {
-        path.moveTo(x, y);
-      } else {
-        path.lineTo(x, y);
-      }
-
-      // Draw points
-      canvas.drawCircle(Offset(x, y), 4, pointPaint);
-    }
-
-    canvas.drawPath(path, paint);
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController();
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final totalImages = widget.photoUrls.length;
+    
+    // Print image URLs for debugging
+    if (kDebugMode && _currentPage == 0) {
+      print('🖼️ ========== LISTING IMAGE NETWORK URL ==========');
+      print('📋 Listing ID: ${widget.listingId}');
+      print('📋 Listing Title: ${widget.listingTitle}');
+      print('📊 Total Photos: $totalImages');
+      print('📸 All Photo URLs:');
+      for (int i = 0; i < widget.photoUrls.length; i++) {
+        final url = widget.photoUrls[i];
+        final processed = ImageUrlHelper.buildImageUrl(url) ?? url;
+        print('   [$i] Original: $url');
+        print('   [$i] Network URL: $processed');
+      }
+      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    }
+
+    return ClipRRect(
+      borderRadius: const BorderRadius.only(
+        topLeft: Radius.circular(20),
+        topRight: Radius.circular(20),
+      ),
+      child: Stack(
+        children: [
+          // Image Carousel
+          PageView.builder(
+            controller: _pageController,
+            itemCount: totalImages,
+            onPageChanged: (index) {
+              setState(() {
+                _currentPage = index;
+              });
+            },
+            itemBuilder: (context, index) {
+              final originalUrl = widget.photoUrls[index];
+              final processedUrl = ImageUrlHelper.buildImageUrl(originalUrl) ?? originalUrl;
+              
+              // Print current image URL when displayed
+              if (kDebugMode) {
+                print('🌐 Image [$index/$totalImages] in Image.network: $processedUrl');
+              }
+              
+              return Image.network(
+                processedUrl,
+                width: double.infinity,
+                height: 120,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(
+                    color: AppTheme.lightGray,
+                    child: Center(
+                      child: Icon(
+                        Icons.broken_image,
+                        size: 40,
+                        color: AppTheme.mediumGray,
+                      ),
+                    ),
+                  );
+                },
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) return child;
+                  return Container(
+                    color: AppTheme.lightGray,
+                    child: Center(
+                      child: SpinKitFadingCircle(
+                        color: AppTheme.primaryBlue,
+                        size: 24,
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+          
+          // Image Counter (e.g., "1/10")
+          if (totalImages > 1)
+            Positioned(
+              top: 8,
+              left: 12,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.6),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  '${_currentPage + 1}/$totalImages',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 12.sp,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          
+          // Page Indicators (dots)
+          if (totalImages > 1)
+            Positioned(
+              bottom: 8,
+              left: 0,
+              right: 0,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(
+                  totalImages,
+                  (index) => Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 3),
+                    width: _currentPage == index ? 8 : 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: _currentPage == index
+                          ? Colors.white
+                          : Colors.white.withOpacity(0.5),
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 }
+
+

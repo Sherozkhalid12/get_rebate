@@ -5,9 +5,10 @@ class LoanOfficerEditProfileBinding extends Bindings {
   @override
   void dependencies() {
     Get.lazyPut<LoanOfficerEditProfileController>(
-      () => LoanOfficerEditProfileController(),
+          () => LoanOfficerEditProfileController(),
     );
   }
 }
+
 
 

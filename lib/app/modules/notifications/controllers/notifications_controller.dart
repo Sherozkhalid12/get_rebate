@@ -570,13 +570,19 @@ class NotificationsController extends GetxController {
                         color: Colors.transparent,
                         child: InkWell(
                           onTap: () {
-                            Get.back();
-                            if (leadId != null) {
-                              Get.toNamed(AppPages.PROPOSALS, arguments: {
-                                'leadId': leadId.id,
-                                'showReview': true,
-                              });
+                            // Close bottom sheet first before navigation
+                            if (Get.isBottomSheetOpen == true) {
+                              Get.back();
                             }
+                            // Wait a moment for bottom sheet to close, then navigate
+                            Future.delayed(const Duration(milliseconds: 300), () {
+                              if (leadId != null) {
+                                Get.toNamed(AppPages.PROPOSALS, arguments: {
+                                  'leadId': leadId.id,
+                                  'showReview': true,
+                                });
+                              }
+                            });
                           },
                           borderRadius: BorderRadius.circular(12.r),
                           child: Container(
@@ -631,13 +637,19 @@ class NotificationsController extends GetxController {
                         color: Colors.transparent,
                         child: InkWell(
                           onTap: () {
-                            Get.back();
-                            if (leadId != null) {
-                              Get.toNamed(AppPages.PROPOSALS, arguments: {
-                                'leadId': leadId.id,
-                                'showReport': true,
-                              });
+                            // Close bottom sheet first before navigation
+                            if (Get.isBottomSheetOpen == true) {
+                              Get.back();
                             }
+                            // Wait a moment for bottom sheet to close, then navigate
+                            Future.delayed(const Duration(milliseconds: 300), () {
+                              if (leadId != null) {
+                                Get.toNamed(AppPages.PROPOSALS, arguments: {
+                                  'leadId': leadId.id,
+                                  'showReport': true,
+                                });
+                              }
+                            });
                           },
                           borderRadius: BorderRadius.circular(12.r),
                           child: Container(

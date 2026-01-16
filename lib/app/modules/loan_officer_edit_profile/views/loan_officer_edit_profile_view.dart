@@ -66,9 +66,9 @@ class LoanOfficerEditProfileView extends GetView<LoanOfficerEditProfileControlle
                     Text(
                       'Basic Information',
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            color: AppTheme.black,
-                            fontWeight: FontWeight.w600,
-                          ),
+                        color: AppTheme.black,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                     const SizedBox(height: 20),
 
@@ -133,9 +133,9 @@ class LoanOfficerEditProfileView extends GetView<LoanOfficerEditProfileControlle
                     Text(
                       'About',
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            color: AppTheme.black,
-                            fontWeight: FontWeight.w600,
-                          ),
+                        color: AppTheme.black,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                     const SizedBox(height: 20),
 
@@ -178,6 +178,14 @@ class LoanOfficerEditProfileView extends GetView<LoanOfficerEditProfileControlle
 
               const SizedBox(height: 24),
 
+              // Why Pick Me Section
+              _buildWhyPickMeSection(context)
+                  .animate()
+                  .fadeIn(duration: 300.ms, delay: 250.ms)
+                  .slideY(begin: -0.1, duration: 300.ms, delay: 250.ms),
+
+              const SizedBox(height: 24),
+
               // Licensed States
               _buildLicensedStatesSection(context)
                   .animate()
@@ -188,7 +196,7 @@ class LoanOfficerEditProfileView extends GetView<LoanOfficerEditProfileControlle
 
               // Save Button
               Obx(
-                () => CustomButton(
+                    () => CustomButton(
                   text: 'Save Changes',
                   onPressed: controller.isLoading
                       ? null
@@ -217,9 +225,9 @@ class LoanOfficerEditProfileView extends GetView<LoanOfficerEditProfileControlle
           Text(
             'Profile Picture',
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  color: AppTheme.black,
-                  fontWeight: FontWeight.w600,
-                ),
+              color: AppTheme.black,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           const SizedBox(height: 20),
           GestureDetector(
@@ -231,7 +239,7 @@ class LoanOfficerEditProfileView extends GetView<LoanOfficerEditProfileControlle
                   // This ensures proper reactivity when currentLoanOfficer changes
                   final selectedPic = controller.selectedProfilePic;
                   final imageUrl = controller.getProfilePictureUrl();
-                  
+
                   // Show selected file if available
                   if (selectedPic != null) {
                     return CircleAvatar(
@@ -253,14 +261,8 @@ class LoanOfficerEditProfileView extends GetView<LoanOfficerEditProfileControlle
                           width: 120,
                           height: 120,
                           fit: BoxFit.cover,
-                          cacheKey: imageUrl,
-                          memCacheWidth: 240,
-                          memCacheHeight: 240,
-                          maxWidthDiskCache: 500,
-                          maxHeightDiskCache: 500,
-                          fadeInDuration: Duration.zero,
-                          placeholder: (context, url) => Container(
-                            color: AppTheme.primaryBlue.withOpacity(0.1),
+                          placeholder: (context, url) => const Center(
+                            child: CircularProgressIndicator(),
                           ),
                           errorWidget: (context, url, error) => const Icon(
                             Icons.person,
@@ -288,7 +290,7 @@ class LoanOfficerEditProfileView extends GetView<LoanOfficerEditProfileControlle
           ),
           const SizedBox(height: 12),
           Obx(
-            () {
+                () {
               // Access reactive variables to ensure GetX tracks them
               final selectedPic = controller.selectedProfilePic;
               final imageUrl = controller.getProfilePictureUrl();
@@ -317,9 +319,9 @@ class LoanOfficerEditProfileView extends GetView<LoanOfficerEditProfileControlle
           Text(
             'Company Logo',
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  color: AppTheme.black,
-                  fontWeight: FontWeight.w600,
-                ),
+              color: AppTheme.black,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           const SizedBox(height: 20),
           GestureDetector(
@@ -331,7 +333,7 @@ class LoanOfficerEditProfileView extends GetView<LoanOfficerEditProfileControlle
                   // This ensures proper reactivity when currentLoanOfficer changes
                   final selectedLogo = controller.selectedCompanyLogo;
                   final imageUrl = controller.getCompanyLogoUrl();
-                  
+
                   // Show selected file if available
                   if (selectedLogo != null) {
                     return Container(
@@ -364,14 +366,8 @@ class LoanOfficerEditProfileView extends GetView<LoanOfficerEditProfileControlle
                           width: 120,
                           height: 120,
                           fit: BoxFit.contain,
-                          cacheKey: imageUrl,
-                          memCacheWidth: 240,
-                          memCacheHeight: 240,
-                          maxWidthDiskCache: 500,
-                          maxHeightDiskCache: 500,
-                          fadeInDuration: Duration.zero,
-                          placeholder: (context, url) => Container(
-                            color: AppTheme.primaryBlue.withOpacity(0.1),
+                          placeholder: (context, url) => const Center(
+                            child: CircularProgressIndicator(),
                           ),
                           errorWidget: (context, url, error) => const Icon(
                             Icons.business,
@@ -403,7 +399,7 @@ class LoanOfficerEditProfileView extends GetView<LoanOfficerEditProfileControlle
           ),
           const SizedBox(height: 12),
           Obx(
-            () {
+                () {
               // Access reactive variables to ensure GetX tracks them
               final selectedLogo = controller.selectedCompanyLogo;
               final imageUrl = controller.getCompanyLogoUrl();
@@ -441,20 +437,20 @@ class LoanOfficerEditProfileView extends GetView<LoanOfficerEditProfileControlle
           Text(
             'Licensed States',
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  color: AppTheme.black,
-                  fontWeight: FontWeight.w600,
-                ),
+              color: AppTheme.black,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           const SizedBox(height: 8),
           Text(
             'Select all states where you are licensed to practice.',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppTheme.mediumGray,
-                ),
+              color: AppTheme.mediumGray,
+            ),
           ),
           const SizedBox(height: 16),
           Obx(
-            () {
+                () {
               // Access the reactive variable directly to ensure GetX tracks it
               final licensedStates = controller.licensedStates;
               return Wrap(
@@ -485,11 +481,11 @@ class LoanOfficerEditProfileView extends GetView<LoanOfficerEditProfileControlle
                       child: Text(
                         state,
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: isSelected
-                                  ? AppTheme.white
-                                  : AppTheme.darkGray,
-                              fontWeight: FontWeight.w600,
-                            ),
+                          color: isSelected
+                              ? AppTheme.white
+                              : AppTheme.darkGray,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   );
@@ -511,16 +507,16 @@ class LoanOfficerEditProfileView extends GetView<LoanOfficerEditProfileControlle
           Text(
             'Service Areas',
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  color: AppTheme.black,
-                  fontWeight: FontWeight.w600,
-                ),
+              color: AppTheme.black,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           const SizedBox(height: 8),
           Text(
             'Enter ZIP codes or service areas separated by commas (e.g., 90210, 90211, Los Angeles)',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppTheme.mediumGray,
-                ),
+              color: AppTheme.mediumGray,
+            ),
           ),
           const SizedBox(height: 16),
           CustomTextField(
@@ -545,23 +541,23 @@ class LoanOfficerEditProfileView extends GetView<LoanOfficerEditProfileControlle
           Text(
             'Specialty Products',
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  color: AppTheme.black,
-                  fontWeight: FontWeight.w600,
-                ),
+              color: AppTheme.black,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           const SizedBox(height: 8),
           Text(
             'Select the mortgage loan types you specialize in.',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppTheme.mediumGray,
-                ),
+              color: AppTheme.mediumGray,
+            ),
           ),
           const SizedBox(height: 16),
           Obx(
-            () {
+                () {
               // Access the reactive variable directly to ensure GetX tracks it
               final specialtyProducts = controller.specialtyProducts;
-              
+
               // Build the list of widgets directly in Obx instead of using itemBuilder
               // This ensures GetX can properly track the reactive variable
               return Column(
@@ -595,9 +591,9 @@ class LoanOfficerEditProfileView extends GetView<LoanOfficerEditProfileControlle
                                         .textTheme
                                         .titleSmall
                                         ?.copyWith(
-                                          color: AppTheme.black,
-                                          fontWeight: FontWeight.w600,
-                                        ),
+                                      color: AppTheme.black,
+                                      fontWeight: FontWeight.w600,
+                                    ),
                                   ),
                                   if (description != null) ...[
                                     const SizedBox(height: 4),
@@ -607,8 +603,8 @@ class LoanOfficerEditProfileView extends GetView<LoanOfficerEditProfileControlle
                                           .textTheme
                                           .bodySmall
                                           ?.copyWith(
-                                            color: AppTheme.mediumGray,
-                                          ),
+                                        color: AppTheme.mediumGray,
+                                      ),
                                     ),
                                   ],
                                 ],
@@ -637,9 +633,9 @@ class LoanOfficerEditProfileView extends GetView<LoanOfficerEditProfileControlle
           Text(
             'Professional Links',
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  color: AppTheme.black,
-                  fontWeight: FontWeight.w600,
-                ),
+              color: AppTheme.black,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           const SizedBox(height: 20),
 
@@ -656,6 +652,109 @@ class LoanOfficerEditProfileView extends GetView<LoanOfficerEditProfileControlle
             labelText: 'External Reviews URL (Google, Zillow, etc.)',
             prefixIcon: Icons.star_outline,
             hintText: 'https://example.com/reviews',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWhyPickMeSection(BuildContext context) {
+    return GradientCard(
+      gradientColors: AppTheme.cardGradient,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.star,
+                color: AppTheme.lightGreen,
+                size: 24,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Why Pick Me',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    color: AppTheme.black,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Help buyers understand why they should choose you. This information will be displayed on your profile.',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: AppTheme.mediumGray,
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          CustomTextField(
+            controller: controller.yearsOfExperienceController,
+            labelText: 'Years of Experience',
+            keyboardType: TextInputType.number,
+            prefixIcon: Icons.calendar_today_outlined,
+            hintText: 'e.g., 10',
+          ),
+          const SizedBox(height: 16),
+
+          CustomTextField(
+            controller: controller.languagesSpokenController,
+            labelText: 'Languages Spoken',
+            prefixIcon: Icons.language_outlined,
+            hintText: 'e.g., English, Spanish, French',
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Separate multiple languages with commas',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: AppTheme.mediumGray,
+              fontSize: 12,
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          CustomTextField(
+            controller: controller.discountsOfferedController,
+            labelText: 'Discounts & Special Offers',
+            prefixIcon: Icons.local_offer_outlined,
+            maxLines: 3,
+            hintText: 'e.g., Discounted appraisal, Reduced lender fees, Special first-time buyer programs',
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppTheme.lightGreen.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: AppTheme.lightGreen.withOpacity(0.3),
+                width: 1,
+              ),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.info_outline,
+                  color: AppTheme.lightGreen,
+                  size: 18,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'These are marketing statements only and are not enforced by the platform. Make sure all offers comply with your lender\'s policies.',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppTheme.darkGray,
+                      fontSize: 11,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),

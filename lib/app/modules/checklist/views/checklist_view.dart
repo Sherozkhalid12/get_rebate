@@ -4,7 +4,7 @@ import 'package:get/get.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/modules/checklist/controllers/checklist_controller.dart';
 import 'package:getrebate/app/routes/app_pages.dart';
-import 'package:getrebate/app/modules/buyer/controllers/buyer_controller.dart';
+import 'package:getrebate/app/modules/buyer_v2/controllers/buyer_v2_controller.dart';
 import 'package:getrebate/app/controllers/main_navigation_controller.dart';
 
 class ChecklistView extends GetView<ChecklistController> {
@@ -311,12 +311,12 @@ class ChecklistView extends GetView<ChecklistController> {
     Future.delayed(const Duration(milliseconds: 300), () {
       try {
         final mainNavController = Get.find<MainNavigationController>();
-        mainNavController.changeIndex(0); // Switch to home tab (BuyerView)
+        mainNavController.changeIndex(0); // Switch to home tab (BuyerV2View)
         
-        // Then switch to loan officers tab within BuyerView
+        // Then switch to loan officers tab within BuyerV2View
         Future.delayed(const Duration(milliseconds: 200), () {
           try {
-            final buyerController = Get.find<BuyerController>();
+            final buyerController = Get.find<BuyerV2Controller>();
             buyerController.setSelectedTab(3); // Loan Officers tab
           } catch (e) {
             // If controller not found, navigate directly
@@ -335,11 +335,11 @@ class ChecklistView extends GetView<ChecklistController> {
     Future.delayed(const Duration(milliseconds: 300), () {
       try {
         final mainNavController = Get.find<MainNavigationController>();
-        mainNavController.changeIndex(0); // Switch to home tab (BuyerView)
+        mainNavController.changeIndex(0); // Switch to home tab (BuyerV2View)
         
         Future.delayed(const Duration(milliseconds: 200), () {
           try {
-            final buyerController = Get.find<BuyerController>();
+            final buyerController = Get.find<BuyerV2Controller>();
             buyerController.setSelectedTab(0); // Agents tab
           } catch (e) {
             Get.toNamed(AppPages.MAIN);
@@ -357,11 +357,11 @@ class ChecklistView extends GetView<ChecklistController> {
     Future.delayed(const Duration(milliseconds: 300), () {
       try {
         final mainNavController = Get.find<MainNavigationController>();
-        mainNavController.changeIndex(0); // Switch to home tab (BuyerView)
+        mainNavController.changeIndex(0); // Switch to home tab (BuyerV2View)
         
         Future.delayed(const Duration(milliseconds: 200), () {
           try {
-            final buyerController = Get.find<BuyerController>();
+            final buyerController = Get.find<BuyerV2Controller>();
             buyerController.setSelectedTab(1); // Homes for Sale tab
           } catch (e) {
             Get.toNamed(AppPages.MAIN);

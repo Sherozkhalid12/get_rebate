@@ -6,7 +6,7 @@ import 'package:dio/dio.dart';
 import 'package:getrebate/app/models/agent_model.dart';
 import 'package:getrebate/app/controllers/main_navigation_controller.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart';
-import 'package:getrebate/app/modules/buyer/controllers/buyer_controller.dart';
+import 'package:getrebate/app/modules/buyer_v2/controllers/buyer_v2_controller.dart';
 import 'package:getrebate/app/modules/messages/controllers/messages_controller.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
@@ -692,11 +692,11 @@ class AgentProfileController extends GetxController {
     if (_agent.value == null) return;
 
     try {
-      final buyerController = Get.find<BuyerController>();
+      final buyerController = Get.find<BuyerV2Controller>();
       buyerController.selectBuyerAgent(_agent.value!);
       Navigator.pop(Get.context!); // Go back to previous screen after selection
     } catch (e) {
-      // BuyerController might not be available if user is not a buyer
+      // BuyerV2Controller might not be available if user is not a buyer
       Get.snackbar(
         'Selection Complete',
         'You are now working with ${_agent.value!.name}. They will represent you in all property transactions.',

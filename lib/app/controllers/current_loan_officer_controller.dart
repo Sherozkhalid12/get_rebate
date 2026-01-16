@@ -28,10 +28,27 @@ class CurrentLoanOfficerController extends GetxController {
   /// Fetches the current loan officer by ID and updates [currentLoanOfficer].
   ///
   /// Typically called after login, using the authenticated user's ID.
+  /// Prevents multiple simultaneous fetches with a guard.
   Future<void> fetchCurrentLoanOfficer(String id) async {
     if (id.isEmpty) {
       if (kDebugMode) {
         print('⚠️ CurrentLoanOfficerController: Provided ID is empty, aborting fetch.');
+      }
+      return;
+    }
+
+    // Guard: Prevent multiple simultaneous fetches
+    if (isLoading.value) {
+      if (kDebugMode) {
+        print('⚠️ CurrentLoanOfficerController: Already loading, skipping duplicate fetch for ID: $id');
+      }
+      return;
+    }
+
+    // Guard: If data already exists for this ID, skip fetch
+    if (currentLoanOfficer.value != null && currentLoanOfficer.value!.id == id) {
+      if (kDebugMode) {
+        print('✅ CurrentLoanOfficerController: Loan officer data already loaded for ID: $id, skipping fetch.');
       }
       return;
     }
@@ -49,7 +66,10 @@ class CurrentLoanOfficerController extends GetxController {
       currentLoanOfficer.refresh();
 
       if (kDebugMode) {
-        print('✅ CurrentLoanOfficerController: Loan officer loaded: ${officer.id}');
+        print('✅ CurrentLoanOfficerController: Loan officer loaded successfully');
+        print('   ID: ${officer.id}');
+        print('   Name: ${officer.name}');
+        print('   Profile Image: ${officer.profileImage ?? "Not set"}');
       }
     } on LoanOfficerServiceException catch (e) {
       if (kDebugMode) {
@@ -111,6 +131,7 @@ class CurrentLoanOfficerController extends GetxController {
     }
   }
 }
+
 
 
 
