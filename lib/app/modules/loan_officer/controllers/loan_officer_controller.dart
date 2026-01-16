@@ -1,31 +1,52 @@
+import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
+import 'package:get_storage/get_storage.dart';
 import 'package:getrebate/app/models/zip_code_model.dart';
 import 'package:getrebate/app/models/loan_model.dart';
+import 'package:getrebate/app/models/loan_officer_model.dart';
 import 'package:getrebate/app/models/subscription_model.dart';
 import 'package:getrebate/app/models/promo_code_model.dart';
 import 'package:getrebate/app/services/zip_code_pricing_service.dart';
-import 'package:getrebate/app/services/zip_codes_service.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart' as global;
+import 'package:getrebate/app/controllers/current_loan_officer_controller.dart';
 import 'package:getrebate/app/modules/messages/controllers/messages_controller.dart';
-import 'package:getrebate/app/utils/network_error_handler.dart';
+
+import '../../../zipcodeservice.dart';
 
 class LoanOfficerController extends GetxController {
+  // Services
+  final ZipCodeService _zipCodeService;
+  final GetStorage _storage;
+
+  // Storage keys
+  static const String _zipCodesCacheKeyPrefix = 'zip_codes_cache_';
+  static const String _lastStateKey = 'zip_codes_last_state';
+
+  LoanOfficerController({
+    ZipCodeService? zipCodeService,
+    GetStorage? storage,
+  })  : _zipCodeService = zipCodeService ?? ZipCodeService(),
+        _storage = storage ?? GetStorage();
+
   // Data
   final _claimedZipCodes = <ZipCodeModel>[].obs;
   final _availableZipCodes = <ZipCodeModel>[].obs;
+  final _allZipCodes = <ZipCodeModel>[].obs; // All zip codes from API
+  final _filteredAvailableZipCodes = <ZipCodeModel>[].obs; // Filtered available zip codes for search
+  final _filteredClaimedZipCodes = <ZipCodeModel>[].obs; // Filtered claimed zip codes for search
+  final _searchQuery = ''.obs; // Current search query
   final _loans = <LoanModel>[].obs;
   final _isLoading = false.obs;
-  final _selectedTab = 0
-      .obs; // 0: Dashboard, 1: Messages, 2: ZIP Management, 3: Billing, 4: Checklists, 5: Stats
-  
-  // State and ZIP code management
-  final _selectedState = Rxn<String>();
   final _isLoadingZipCodes = false.obs;
-  
-  // Services
-  final _zipCodesService = ZipCodesService();
+  final _hasLoadedZipCodes = false.obs; // Cache flag to prevent reloading
+  final _loadingZipCodeIds = <String>{}.obs; // Track which zip codes are being processed
+  final _currentState = ''.obs; // Track current state for cache invalidation
+  final _selectedState = Rxn<String>(); // Selected state for ZIP code filtering
+  final _selectedTab = 0
+      .obs; // 0: Dashboard, 1: Messages, 2: ZIP Management, 3: Billing
 
   // Stats
   final _searchesAppearedIn = 0.obs;
@@ -36,7 +57,7 @@ class LoanOfficerController extends GetxController {
   // Subscription & Promo Code
   final _subscription = Rxn<SubscriptionModel>();
   final _promoCodeInput = ''.obs;
-  
+
   // Standard pricing (deprecated - now using zip code population-based pricing)
   // Kept for backward compatibility, but pricing is now calculated from zip codes
   @Deprecated('Use ZipCodePricingService instead')
@@ -45,17 +66,22 @@ class LoanOfficerController extends GetxController {
   // Getters
   List<ZipCodeModel> get claimedZipCodes => _claimedZipCodes;
   List<ZipCodeModel> get availableZipCodes => _availableZipCodes;
+  List<ZipCodeModel> get filteredClaimedZipCodes => _filteredClaimedZipCodes;
+  List<ZipCodeModel> get filteredAvailableZipCodes => _filteredAvailableZipCodes;
   List<LoanModel> get loans => _loans;
   bool get isLoading => _isLoading.value;
+  bool get isLoadingZipCodes => _isLoadingZipCodes.value;
+  bool get hasLoadedZipCodes => _hasLoadedZipCodes.value;
+  String get searchQuery => _searchQuery.value;
+
+  /// Check if a specific zip code is being processed
+  bool isZipCodeLoading(String zipCode) => _loadingZipCodeIds.contains(zipCode);
+  String? get selectedState => _selectedState.value;
   int get selectedTab => _selectedTab.value;
   int get searchesAppearedIn => _searchesAppearedIn.value;
   int get profileViews => _profileViews.value;
   int get contacts => _contacts.value;
   double get totalRevenue => _totalRevenue.value;
-  
-  // State and ZIP code getters
-  String? get selectedState => _selectedState.value;
-  bool get isLoadingZipCodes => _isLoadingZipCodes.value;
 
   // Subscription & Promo Code Getters
   SubscriptionModel? get subscription => _subscription.value;
@@ -71,12 +97,786 @@ class LoanOfficerController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    _loadMockData();
+    // IMPORTANT: Clear any existing data first to prevent stale/mock data
+    _claimedZipCodes.clear();
+    _availableZipCodes.clear();
+    _pendingClaimedZipCodes.clear();
+    _pendingReleasedZipCodes.clear();
+
     _initializeSubscription();
     checkPromoExpiration(); // Check if free period has ended
-    
+
     // Preload chat threads for instant access when loan officer opens messages
     _preloadThreads();
+
+    // Listen to loan officer changes to sync ZIP codes
+    _setupLoanOfficerListener();
+
+    // IMPORTANT: Load claimed zip codes FIRST from backend to prevent mock data interference
+    // This will also fetch fresh data from backend to ensure sync
+    _loadInitialClaimedZipCodes().then((_) {
+      // Only load mock data AFTER we've loaded real data
+      // This ensures mock data doesn't interfere with real claimed zip codes
+      _loadMockData();
+    });
+
+    // Load zip codes AFTER page renders (deferred for instant page load)
+    // Use Future.delayed to ensure page renders first, then loads data
+    Future.delayed(const Duration(milliseconds: 100), () {
+      _loadZipCodes();
+    });
+  }
+
+  /// Loads initial claimed zip codes from current loan officer if available
+  /// Also fetches fresh data from backend to ensure sync
+  Future<void> _loadInitialClaimedZipCodes() async {
+    try {
+      // IMPORTANT: Clear lists FIRST to prevent any mock data from showing
+      _claimedZipCodes.clear();
+      _availableZipCodes.clear();
+      _pendingClaimedZipCodes.clear();
+      _pendingReleasedZipCodes.clear();
+
+      final currentLoanOfficerController = Get.isRegistered<CurrentLoanOfficerController>()
+          ? Get.find<CurrentLoanOfficerController>()
+          : null;
+
+      if (currentLoanOfficerController == null) {
+        if (kDebugMode) {
+          print('⚠️ CurrentLoanOfficerController not available');
+        }
+        return;
+      }
+
+      // First, try to get existing data
+      var officer = currentLoanOfficerController.currentLoanOfficer.value;
+
+      // If we have an ID but no data, or if we want to ensure fresh data, fetch from backend
+      final authController = Get.isRegistered<global.AuthController>()
+          ? Get.find<global.AuthController>()
+          : null;
+
+      final userId = authController?.currentUser?.id ?? officer?.id;
+
+      if (userId != null && userId.isNotEmpty) {
+        if (kDebugMode) {
+          print('📡 Fetching fresh loan officer data from backend to sync claimed zip codes...');
+        }
+
+        try {
+          // IMPORTANT: Force refresh to always get latest data from backend
+          await currentLoanOfficerController.refreshData(userId, true);
+          officer = currentLoanOfficerController.currentLoanOfficer.value;
+
+          if (kDebugMode && officer != null) {
+            print('✅ Fetched loan officer data from backend');
+            print('   Claimed ZIP codes from backend: ${officer.claimedZipCodes}');
+          }
+        } catch (e) {
+          if (kDebugMode) {
+            print('⚠️ Failed to fetch fresh loan officer data: $e');
+            print('   Using existing cached data if available');
+          }
+        }
+      }
+
+      // Now sync with the model (whether from fresh fetch or cached)
+      if (officer != null) {
+        if (kDebugMode) {
+          print('📦 Syncing claimed zip codes with backend data');
+          print('   Claimed ZIP codes: ${officer.claimedZipCodes}');
+        }
+        _syncZipCodesFromBackend(officer);
+      } else {
+        if (kDebugMode) {
+          print('ℹ️ No loan officer data available yet');
+        }
+        // IMPORTANT: If no officer data, ensure lists stay empty (no mock data)
+        _claimedZipCodes.clear();
+        _availableZipCodes.clear();
+        _pendingClaimedZipCodes.clear();
+        _pendingReleasedZipCodes.clear();
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('⚠️ Failed to load initial claimed zip codes: $e');
+      }
+      // On error, ensure lists are cleared to prevent showing stale/mock data
+      _claimedZipCodes.clear();
+      _availableZipCodes.clear();
+      _pendingClaimedZipCodes.clear();
+      _pendingReleasedZipCodes.clear();
+    }
+  }
+
+  /// Sets up a listener to sync ZIP codes when loan officer data changes
+  void _setupLoanOfficerListener() {
+    try {
+      final currentLoanOfficerController = Get.isRegistered<CurrentLoanOfficerController>()
+          ? Get.find<CurrentLoanOfficerController>()
+          : null;
+
+      if (currentLoanOfficerController != null) {
+        // Listen to changes in currentLoanOfficer and update ZIP code lists
+        ever(currentLoanOfficerController.currentLoanOfficer, (LoanOfficerModel? officer) {
+          if (officer != null) {
+            if (kDebugMode) {
+              print('🔄 Loan officer data updated, syncing ZIP codes...');
+              print('   Claimed ZIP codes from model: ${officer.claimedZipCodes}');
+            }
+            // IMPORTANT: Only sync from backend - never use mock data
+            // Load claimed zip codes immediately from the model
+            _syncZipCodesFromBackend(officer);
+            // Update ZIP code lists to reflect claimed ZIP codes from the model
+            if (_allZipCodes.isNotEmpty) {
+              _updateZipCodeLists();
+            }
+          } else {
+            // IMPORTANT: If officer is null, clear lists to prevent showing mock data
+            _claimedZipCodes.clear();
+            _availableZipCodes.clear();
+          }
+        });
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('⚠️ Failed to setup loan officer listener: $e');
+      }
+    }
+  }
+
+  @override
+  void onClose() {
+    // Cancel search debounce timer to prevent memory leaks
+    _searchDebounceTimer?.cancel();
+    super.onClose();
+  }
+
+  /// Gets the cache key for zip codes based on country and state
+  String _getCacheKey(String country, String state) {
+    return '$_zipCodesCacheKeyPrefix${country}_$state';
+  }
+
+  /// Loads zip codes from cache or API
+  /// ALWAYS checks GetStorage first, only fetches from API if cache is empty or invalid
+  /// Uses GetX reactive state management for optimal performance
+  Future<void> _loadZipCodes({bool forceRefresh = false}) async {
+    // Prevent multiple simultaneous loads
+    if (_isLoadingZipCodes.value && !forceRefresh) {
+      if (kDebugMode) {
+        print('⏳ Zip codes already loading, skipping duplicate request');
+      }
+      return;
+    }
+
+    try {
+      // Get current loan officer to determine state
+      final currentLoanOfficerController = Get.isRegistered<CurrentLoanOfficerController>()
+          ? Get.find<CurrentLoanOfficerController>()
+          : null;
+
+      final loanOfficer = currentLoanOfficerController?.currentLoanOfficer.value;
+
+      // Country is always US, only state changes
+      const country = 'US';
+      final state = (loanOfficer?.licensedStates.isNotEmpty == true)
+          ? loanOfficer!.licensedStates.first
+          : 'CA'; // Default to CA if no licensed states
+
+      final stateKey = '${country}_$state';
+      final cacheKey = _getCacheKey(country, state);
+
+      // ALWAYS check memory cache first (fastest)
+      if (!forceRefresh && _hasLoadedZipCodes.value && _currentState.value == stateKey) {
+        if (_allZipCodes.isNotEmpty) {
+          if (kDebugMode) {
+            print('📦 Zip codes already loaded in memory, using cached data');
+          }
+          return;
+        }
+      }
+
+      // ALWAYS check GetStorage cache second (before API)
+      if (!forceRefresh) {
+        try {
+          final cachedData = _storage.read<String>(cacheKey);
+          if (cachedData != null && cachedData.isNotEmpty) {
+            try {
+              final List<dynamic> jsonList = jsonDecode(cachedData);
+              if (jsonList.isNotEmpty) {
+                final cachedZipCodes = jsonList
+                    .map((json) {
+                  try {
+                    return ZipCodeModel.fromJson(json as Map<String, dynamic>);
+                  } catch (e) {
+                    if (kDebugMode) {
+                      print('⚠️ Failed to parse zip code item: $e');
+                    }
+                    return null;
+                  }
+                })
+                    .whereType<ZipCodeModel>()
+                    .toList();
+
+                if (cachedZipCodes.isNotEmpty) {
+                  // Update reactive state using GetX
+                  _allZipCodes.value = cachedZipCodes;
+                  _currentState.value = stateKey;
+                  _updateZipCodeLists();
+                  _hasLoadedZipCodes.value = true;
+
+                  if (kDebugMode) {
+                    print('✅ Loaded ${cachedZipCodes.length} zip codes from GetStorage');
+                    print('   State: $state');
+                  }
+
+                  // Skip background refresh if data is fresh (prevent unnecessary API calls)
+                  // Only refresh if cache is older than 1 hour
+                  try {
+                    final lastCacheTimeStr = _storage.read<String>('${cacheKey}_timestamp');
+                    DateTime? lastCacheTime;
+                    if (lastCacheTimeStr != null) {
+                      lastCacheTime = DateTime.tryParse(lastCacheTimeStr);
+                    }
+                    final shouldRefresh = lastCacheTime == null ||
+                        DateTime.now().difference(lastCacheTime).inHours >= 1;
+
+                    if (shouldRefresh) {
+                      // Refresh cache in background (non-blocking, delayed to avoid conflicts)
+                      Future.delayed(const Duration(seconds: 5), () {
+                        _refreshCacheInBackground(country, state).catchError((e) {
+                          if (kDebugMode) {
+                            print('⚠️ Background refresh failed: $e');
+                          }
+                        });
+                      });
+                    }
+                  } catch (e) {
+                    if (kDebugMode) {
+                      print('⚠️ Error checking cache timestamp: $e');
+                    }
+                  }
+                  return;
+                }
+              }
+            } catch (e) {
+              if (kDebugMode) {
+                print('⚠️ Failed to parse cached zip codes: $e');
+              }
+              // Clear invalid cache
+              _storage.remove(cacheKey);
+            }
+          }
+        } catch (e) {
+          if (kDebugMode) {
+            print('⚠️ Error reading from GetStorage: $e');
+          }
+        }
+      }
+
+      // Only fetch from API if cache is empty or force refresh
+      _isLoadingZipCodes.value = true;
+
+      if (kDebugMode) {
+        print('📡 Loading zip codes from API');
+        print('   Country: $country');
+        print('   State: $state');
+        print('   Force refresh: $forceRefresh');
+      }
+
+      final zipCodes = await _zipCodeService.getZipCodes(country, state);
+
+      if (zipCodes.isEmpty) {
+        if (kDebugMode) {
+          print('⚠️ API returned empty zip codes list');
+        }
+        _isLoadingZipCodes.value = false;
+        return;
+      }
+
+      // Update reactive state using GetX
+      _allZipCodes.value = zipCodes;
+      _currentState.value = stateKey;
+
+      // Save to GetStorage (persistent cache) - do this in background to avoid blocking
+      Future.microtask(() {
+        _saveZipCodesToCache(cacheKey, zipCodes, stateKey);
+      });
+
+      // Separate claimed and available zip codes
+      _updateZipCodeLists();
+
+      // Mark as loaded
+      _hasLoadedZipCodes.value = true;
+
+      if (kDebugMode) {
+        print('✅ Loaded ${zipCodes.length} zip codes from API');
+        print('   Claimed: ${_claimedZipCodes.length}');
+        print('   Available: ${_availableZipCodes.length}');
+      }
+    } catch (e, stackTrace) {
+      if (kDebugMode) {
+        print('❌ Failed to load zip codes: $e');
+        print('   Stack trace: $stackTrace');
+      }
+
+      // Show error only if no cached data available
+      if (_allZipCodes.isEmpty) {
+        Get.snackbar(
+          'Error',
+          'Failed to load zip codes. Please check your connection.',
+          snackPosition: SnackPosition.TOP,
+          duration: const Duration(seconds: 3),
+        );
+      }
+    } finally {
+      _isLoadingZipCodes.value = false;
+    }
+  }
+
+  /// Saves zip codes to GetStorage cache with error handling
+  /// Optimized for large datasets with chunked processing
+  void _saveZipCodesToCache(String cacheKey, List<ZipCodeModel> zipCodes, String stateKey) {
+    if (zipCodes.isEmpty) {
+      if (kDebugMode) {
+        print('⚠️ Cannot save empty zip codes list to cache');
+      }
+      return;
+    }
+
+    try {
+      // For very large datasets (1864+ items), use efficient JSON encoding
+      // Direct mapping is more efficient than chunking for GetStorage
+      final jsonList = zipCodes.map((zip) => zip.toJson()).toList();
+      final jsonString = jsonEncode(jsonList);
+
+      // Write to storage with error handling
+      // GetStorage handles large strings efficiently
+      _storage.write(cacheKey, jsonString);
+      _storage.write(_lastStateKey, stateKey);
+      _storage.write('${cacheKey}_timestamp', DateTime.now().toIso8601String()); // Cache timestamp as string
+
+      if (kDebugMode) {
+        final sizeKB = (jsonString.length / 1024).toStringAsFixed(2);
+        print('💾 Saved ${zipCodes.length} zip codes to GetStorage ($sizeKB KB)');
+      }
+    } catch (e, stackTrace) {
+      if (kDebugMode) {
+        print('⚠️ Failed to save zip codes to cache: $e');
+        print('   Stack trace: $stackTrace');
+      }
+      // Don't throw - cache failure shouldn't break the app
+      // Try to save a smaller subset if full save fails (fallback)
+      try {
+        if (zipCodes.length > 1000) {
+          final subset = zipCodes.take(1000).toList();
+          final jsonList = subset.map((zip) => zip.toJson()).toList();
+          final jsonString = jsonEncode(jsonList);
+          _storage.write(cacheKey, jsonString);
+          _storage.write(_lastStateKey, stateKey);
+          if (kDebugMode) {
+            print('💾 Saved subset (${subset.length} zip codes) to cache as fallback');
+          }
+        }
+      } catch (e2) {
+        if (kDebugMode) {
+          print('⚠️ Fallback cache save also failed: $e2');
+        }
+      }
+    }
+  }
+
+  /// Refreshes cache in background without blocking UI
+  /// Uses GetX reactive updates only when state matches
+  /// Prevents multiple simultaneous background refreshes
+  static bool _isBackgroundRefreshRunning = false;
+
+  Future<void> _refreshCacheInBackground(String country, String state) async {
+    // Prevent multiple simultaneous background refreshes
+    if (_isBackgroundRefreshRunning || _isLoadingZipCodes.value) {
+      if (kDebugMode) {
+        print('⏸️ Background refresh already running, skipping');
+      }
+      return;
+    }
+
+    _isBackgroundRefreshRunning = true;
+
+    try {
+      // Add delay to avoid conflicts with initial load
+      await Future.delayed(const Duration(seconds: 3));
+
+      // Check again after delay
+      if (_isLoadingZipCodes.value) {
+        return;
+      }
+
+      final zipCodes = await _zipCodeService.getZipCodes(country, state);
+
+      if (zipCodes.isEmpty) {
+        return;
+      }
+
+      final cacheKey = _getCacheKey(country, state);
+      final stateKey = '${country}_$state';
+
+      // Only update if state hasn't changed (prevent race conditions)
+      if (_currentState.value == stateKey && !_isLoadingZipCodes.value) {
+        // Update cache without updating UI (silent update to avoid blocking)
+        _saveZipCodesToCache(cacheKey, zipCodes, stateKey);
+
+        // Only update UI if user is on zip codes tab and data changed significantly
+        if (_selectedTab.value == 2 && zipCodes.length != _allZipCodes.length) {
+          _allZipCodes.value = zipCodes;
+          _updateZipCodeLists();
+        }
+
+        if (kDebugMode) {
+          print('🔄 Background cache refresh completed');
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('⚠️ Background cache refresh failed: $e');
+      }
+      // Silently fail - user already has cached data
+    } finally {
+      _isBackgroundRefreshRunning = false;
+    }
+  }
+
+  /// Syncs zip codes from backend model - alias for _loadClaimedZipCodesFromModel
+  void _syncZipCodesFromBackend(LoanOfficerModel officer) {
+    _loadClaimedZipCodesFromModel(officer);
+  }
+
+  /// Loads claimed zip codes directly from the loan officer model
+  /// This ensures claimed zip codes are shown immediately even before state selection
+  /// IMPORTANT: Only loads from backend model - never adds mock data
+  void _loadClaimedZipCodesFromModel(LoanOfficerModel officer) {
+    try {
+      final claimedZipCodesFromModel = officer.claimedZipCodes;
+
+      // IMPORTANT: If model has no claimed zip codes, clear ALL claimed zip codes immediately
+      if (claimedZipCodesFromModel.isEmpty) {
+        if (kDebugMode) {
+          print('ℹ️ No claimed zip codes in loan officer model - clearing ALL claimed zip codes');
+        }
+        // Clear ALL claimed zip codes (not just for this officer, in case of data inconsistency)
+        _claimedZipCodes.clear();
+        return;
+      }
+
+      if (kDebugMode) {
+        print('📦 Loading ${claimedZipCodesFromModel.length} claimed zip codes from model');
+      }
+
+      // Create ZipCodeModel objects for claimed zip codes
+      final claimedZips = <ZipCodeModel>[];
+      final existingClaimedCodes = _claimedZipCodes.map((z) => z.zipCode).toSet();
+
+      for (final zipCodeString in claimedZipCodesFromModel) {
+        // Skip if already in claimed list
+        if (existingClaimedCodes.contains(zipCodeString)) {
+          continue;
+        }
+
+        // Try to find in _allZipCodes first
+        final existingZipIndex = _allZipCodes.indexWhere((zip) => zip.zipCode == zipCodeString);
+
+        if (existingZipIndex != -1) {
+          // If found in _allZipCodes, use it but mark as claimed
+          final existingZip = _allZipCodes[existingZipIndex];
+          final updatedZip = existingZip.copyWith(
+            claimedByLoanOfficer: officer.id,
+            isAvailable: false,
+          );
+          _allZipCodes[existingZipIndex] = updatedZip;
+          claimedZips.add(updatedZip);
+        } else {
+          // Create new ZipCodeModel for claimed zip code not in current state
+          final newZip = ZipCodeModel(
+            zipCode: zipCodeString,
+            state: officer.licensedStates.isNotEmpty
+                ? officer.licensedStates.first
+                : 'CA',
+            population: 0,
+            claimedByLoanOfficer: officer.id,
+            claimedAt: DateTime.now(),
+            isAvailable: false,
+            createdAt: DateTime.now(),
+            price: null,
+          );
+          claimedZips.add(newZip);
+        }
+      }
+
+      // IMPORTANT: Remove any claimed zip codes that are NOT in the model's claimedZipCodes array
+      // This prevents showing stale/incorrect claimed zip codes
+      final modelClaimedSet = claimedZipCodesFromModel.toSet();
+      _claimedZipCodes.removeWhere((zip) =>
+      zip.claimedByLoanOfficer == officer.id &&
+          !modelClaimedSet.contains(zip.zipCode)
+      );
+
+      // Add to claimed list (avoid duplicates)
+      for (final zip in claimedZips) {
+        if (!_claimedZipCodes.any((z) => z.zipCode == zip.zipCode)) {
+          _claimedZipCodes.add(zip);
+        }
+      }
+
+      if (kDebugMode) {
+        print('✅ Loaded ${claimedZips.length} claimed zip codes from model');
+        print('   Total claimed: ${_claimedZipCodes.length} (model has ${claimedZipCodesFromModel.length})');
+      }
+    } catch (e, stackTrace) {
+      if (kDebugMode) {
+        print('❌ Error loading claimed zip codes from model: $e');
+        print('   Stack trace: $stackTrace');
+      }
+    }
+  }
+
+  // Track pending claims/releases to preserve instant updates
+  final _pendingClaimedZipCodes = <String>{};
+  final _pendingReleasedZipCodes = <String>{};
+
+  /// Updates the claimed and available zip code lists based on all zip codes
+  /// Uses GetX reactive state management for optimal performance
+  /// Also includes claimed zip codes from the loan officer model that may not be in _allZipCodes
+  /// IMPORTANT: Uses backend model as source of truth, but preserves pending claims/releases
+  void _updateZipCodeLists() {
+    try {
+      final currentLoanOfficerController = Get.isRegistered<CurrentLoanOfficerController>()
+          ? Get.find<CurrentLoanOfficerController>()
+          : null;
+
+      final loanOfficerId = currentLoanOfficerController?.currentLoanOfficer.value?.id;
+
+      if (loanOfficerId == null || loanOfficerId.isEmpty) {
+        // If no loan officer, treat all as available
+        // IMPORTANT: Clear lists first to prevent stale/mock data
+        _claimedZipCodes.clear();
+        _availableZipCodes.clear();
+        _availableZipCodes.addAll(_allZipCodes);
+        _applySearchFilter(); // Apply search if active
+        return;
+      }
+
+      // Get the loan officer's claimedZipCodes array from the model
+      final loanOfficer = currentLoanOfficerController?.currentLoanOfficer.value;
+      final claimedZipCodesFromModel = loanOfficer?.claimedZipCodes ?? <String>[];
+
+      // IMPORTANT: If model has 0 claimed zip codes, clear all claimed zip codes immediately
+      // BUT preserve pending claims (just claimed but not yet in backend)
+      if (claimedZipCodesFromModel.isEmpty && _pendingClaimedZipCodes.isEmpty) {
+        if (kDebugMode) {
+          print('🗑️ Model has 0 claimed zip codes - clearing all claimed zip codes');
+        }
+        _claimedZipCodes.clear();
+        _availableZipCodes.clear();
+        _availableZipCodes.addAll(_allZipCodes);
+        _applySearchFilter();
+        return;
+      }
+
+      // Create a set of all zip codes we have in _allZipCodes for quick lookup
+      final allZipCodesSet = _allZipCodes.map((z) => z.zipCode).toSet();
+
+      // Separate claimed and available zip codes efficiently
+      final claimed = <ZipCodeModel>[];
+      final available = <ZipCodeModel>[];
+
+      // First, process all zip codes from _allZipCodes
+      for (final zip in _allZipCodes) {
+        // Check if this zip code is claimed by the current loan officer
+        // Check both: 1) claimedByLoanOfficer field, 2) claimedZipCodes array from loan officer model
+        final isClaimedByField = zip.claimedByLoanOfficer != null && zip.claimedByLoanOfficer == loanOfficerId;
+        final isClaimedInModel = claimedZipCodesFromModel.contains(zip.zipCode);
+
+        if (isClaimedByField || isClaimedInModel) {
+          // If claimed in model but not in field, update the zip code model
+          if (!isClaimedByField && isClaimedInModel) {
+            final updatedZip = zip.copyWith(
+              claimedByLoanOfficer: loanOfficerId,
+              isAvailable: false,
+            );
+            final index = _allZipCodes.indexWhere((z) => z.zipCode == zip.zipCode);
+            if (index != -1) {
+              _allZipCodes[index] = updatedZip;
+            }
+            claimed.add(updatedZip);
+          } else {
+            claimed.add(zip);
+          }
+        } else {
+          // Available if not claimed or claimed by someone else
+          available.add(zip);
+        }
+      }
+
+      // Now, add any claimed zip codes from the model that are not in _allZipCodes
+      // This ensures we show all claimed zip codes even if they're not in the current state's list
+      for (final claimedZipCodeString in claimedZipCodesFromModel) {
+        // Only add if not already in our claimed list
+        final alreadyInClaimed = claimed.any((z) => z.zipCode == claimedZipCodeString);
+        if (!alreadyInClaimed && !allZipCodesSet.contains(claimedZipCodeString)) {
+          // Create a basic ZipCodeModel for this claimed zip code
+          // We'll use default values since we don't have full data from API
+          try {
+            final claimedZip = ZipCodeModel(
+              zipCode: claimedZipCodeString,
+              state: loanOfficer?.licensedStates.isNotEmpty == true
+                  ? loanOfficer!.licensedStates.first
+                  : 'CA', // Default state
+              population: 0, // Will be updated when full data is loaded
+              claimedByLoanOfficer: loanOfficerId,
+              claimedAt: DateTime.now(),
+              isAvailable: false,
+              createdAt: DateTime.now(),
+              price: null, // Will be calculated
+            );
+            claimed.add(claimedZip);
+
+            if (kDebugMode) {
+              print('📦 Added claimed ZIP code from model: $claimedZipCodeString');
+            }
+          } catch (e) {
+            if (kDebugMode) {
+              print('⚠️ Failed to create ZipCodeModel for claimed zip: $claimedZipCodeString, error: $e');
+            }
+          }
+        }
+      }
+
+      // IMPORTANT: Use backend claimedZipCodes as the source of truth
+      // BUT preserve pending claims/releases for instant UI updates
+
+      // Add pending claimed zip codes that aren't in backend yet (just claimed)
+      for (final pendingZip in _pendingClaimedZipCodes) {
+        if (!claimedZipCodesFromModel.contains(pendingZip)) {
+          // Find in _allZipCodes or available list
+          final pendingZipModel = _allZipCodes.firstWhere(
+                (z) => z.zipCode == pendingZip,
+            orElse: () => available.firstWhere(
+                  (z) => z.zipCode == pendingZip,
+              orElse: () => ZipCodeModel(
+                zipCode: pendingZip,
+                state: loanOfficer?.licensedStates.isNotEmpty == true
+                    ? loanOfficer!.licensedStates.first
+                    : 'CA',
+                population: 0,
+                claimedByLoanOfficer: loanOfficerId,
+                claimedAt: DateTime.now(),
+                isAvailable: false,
+                createdAt: DateTime.now(),
+                price: null,
+              ),
+            ),
+          );
+
+          // Mark as claimed
+          final claimedPending = pendingZipModel.copyWith(
+            claimedByLoanOfficer: loanOfficerId,
+            isAvailable: false,
+          );
+
+          // Remove from available if there
+          available.removeWhere((z) => z.zipCode == pendingZip);
+          // Add to claimed if not already there
+          if (!claimed.any((z) => z.zipCode == pendingZip)) {
+            claimed.add(claimedPending);
+          }
+        }
+      }
+
+      // Remove pending released zip codes from claimed (just released)
+      for (final pendingZip in _pendingReleasedZipCodes) {
+        if (claimedZipCodesFromModel.contains(pendingZip)) {
+          // Backend still has it, but we just released it - remove from claimed
+          claimed.removeWhere((z) => z.zipCode == pendingZip);
+          // Find and add to available
+          final releasedZip = _allZipCodes.firstWhere(
+                (z) => z.zipCode == pendingZip,
+            orElse: () => ZipCodeModel(
+              zipCode: pendingZip,
+              state: loanOfficer?.licensedStates.isNotEmpty == true
+                  ? loanOfficer!.licensedStates.first
+                  : 'CA',
+              population: 0,
+              claimedByLoanOfficer: null,
+              claimedAt: null,
+              isAvailable: true,
+              createdAt: DateTime.now(),
+              price: null,
+            ),
+          );
+
+          final availableReleased = releasedZip.copyWith(
+            claimedByLoanOfficer: null,
+            claimedAt: null,
+            isAvailable: true,
+          );
+
+          if (!available.any((z) => z.zipCode == pendingZip)) {
+            available.add(availableReleased);
+          }
+        }
+      }
+
+      // IMPORTANT: Clear lists and rebuild ONLY from backend model + pending changes
+      _claimedZipCodes.clear();
+      _availableZipCodes.clear();
+
+      // Update reactive state using GetX - add items to trigger reactivity
+      _claimedZipCodes.addAll(claimed);
+      _availableZipCodes.addAll(available);
+
+      if (kDebugMode) {
+        print('📊 Updated zip code lists from backend:');
+        print('   Claimed: ${_claimedZipCodes.length} (backend model has ${claimedZipCodesFromModel.length}, pending: ${_pendingClaimedZipCodes.length})');
+        print('   Available: ${_availableZipCodes.length}');
+        print('   Backend claimed ZIP codes: $claimedZipCodesFromModel');
+        print('   Pending claimed: $_pendingClaimedZipCodes');
+        print('   Pending released: $_pendingReleasedZipCodes');
+      }
+
+      // Apply search filter if active
+      _applySearchFilter();
+    } catch (e, stackTrace) {
+      if (kDebugMode) {
+        print('❌ Error updating zip code lists: $e');
+        print('   Stack trace: $stackTrace');
+      }
+      // Fallback to empty lists to prevent crashes
+      _claimedZipCodes.clear();
+      _availableZipCodes.clear();
+      _availableZipCodes.addAll(_allZipCodes);
+    }
+  }
+
+  /// Applies search filter to the lists
+  void _applySearchFilter() {
+    if (_searchQuery.value.isEmpty) {
+      _filteredClaimedZipCodes.value = [];
+      _filteredAvailableZipCodes.value = [];
+      return;
+    }
+
+    final query = _searchQuery.value.toLowerCase();
+
+    _filteredClaimedZipCodes.value = _claimedZipCodes
+        .where((zip) =>
+    zip.zipCode.contains(query) ||
+        zip.state.toLowerCase().contains(query))
+        .toList();
+
+    _filteredAvailableZipCodes.value = _availableZipCodes
+        .where((zip) =>
+    zip.zipCode.contains(query) ||
+        zip.state.toLowerCase().contains(query))
+        .toList();
   }
 
   /// Preloads chat threads for instant access when loan officer opens messages
@@ -93,10 +893,10 @@ class LoanOfficerController extends GetxController {
           }
         }
         final messagesController = Get.find<MessagesController>();
-        
+
         // Load threads in background - don't wait for it
         messagesController.refreshThreads();
-        
+
         // Ensure socket is connected for real-time message reception
         // The socket should be initialized in MessagesController.onInit()
         // which is called when the controller is created above
@@ -117,10 +917,10 @@ class LoanOfficerController extends GetxController {
     // Base price will be calculated from claimed zip codes
     final authController = Get.find<global.AuthController>();
     final userId = authController.currentUser?.id ?? 'loan_1';
-    
+
     // Calculate base price from claimed zip codes using population-based pricing
     final basePrice = ZipCodePricingService.calculateTotalMonthlyPrice(_claimedZipCodes);
-    
+
     _subscription.value = SubscriptionModel(
       id: 'sub_${userId}',
       userId: userId,
@@ -136,77 +936,38 @@ class LoanOfficerController extends GetxController {
   void setSelectedTab(int index) {
     _selectedTab.value = index;
   }
-  
-  // State and ZIP code methods
-  Future<void> selectStateAndFetchZipCodes(String state) async {
-    if (state.isEmpty) {
-      _selectedState.value = null;
-      _availableZipCodes.value = [];
-      return;
-    }
-    
-    _selectedState.value = state;
-    await _fetchZipCodesByState(state);
-  }
-  
-  Future<void> _fetchZipCodesByState(String state) async {
-    try {
-      _isLoadingZipCodes.value = true;
-      
-      final zipCodes = await _zipCodesService.getZipCodesByState(state: state);
-      
-      // Update available ZIP codes, filtering out already claimed ones
-      final claimedZipCodesSet = _claimedZipCodes.map((z) => z.zipCode).toSet();
-      _availableZipCodes.value = zipCodes
-          .where((zip) => !claimedZipCodesSet.contains(zip.zipCode))
-          .toList();
-    } catch (e) {
-      NetworkErrorHandler.handleError(
-        e,
-        defaultMessage: 'Unable to fetch ZIP codes. Please check your internet connection and try again.',
-      );
-    } finally {
-      _isLoadingZipCodes.value = false;
-    }
-  }
 
   void _loadMockData() {
-    // Mock claimed ZIP codes
-    _claimedZipCodes.value = [
-      ZipCodeModel(
-        zipCode: '10001',
-        state: 'NY',
-        population: 50000,
-        claimedByLoanOfficer: 'loan_1',
-        claimedAt: DateTime.now().subtract(const Duration(days: 30)),
-        price: 199.99,
-        isAvailable: false,
-        createdAt: DateTime.now().subtract(const Duration(days: 30)),
-        searchCount: 67,
-      ),
-    ];
+    // Only load mock data if we don't have real data from API
+    // This prevents mock data from interfering with real claimed zip codes
+    try {
+      final currentLoanOfficerController = Get.isRegistered<CurrentLoanOfficerController>()
+          ? Get.find<CurrentLoanOfficerController>()
+          : null;
 
-    // Mock available ZIP codes
-    _availableZipCodes.value = [
-      ZipCodeModel(
-        zipCode: '10002',
-        state: 'NY',
-        population: 45000,
-        price: 179.99,
-        isAvailable: true,
-        createdAt: DateTime.now(),
-        searchCount: 0,
-      ),
-      ZipCodeModel(
-        zipCode: '10003',
-        state: 'NY',
-        population: 40000,
-        price: 159.99,
-        isAvailable: true,
-        createdAt: DateTime.now(),
-        searchCount: 0,
-      ),
-    ];
+      final officer = currentLoanOfficerController?.currentLoanOfficer.value;
+
+      // IMPORTANT: NEVER load mock ZIP codes - only load mock loans and stats
+      // ZIP codes should ONLY come from backend API
+      if (officer != null) {
+        if (kDebugMode) {
+          print('ℹ️ Skipping mock ZIP code data - real loan officer data exists (${officer.claimedZipCodes.length} claimed zip codes)');
+        }
+        // Don't load mock ZIP codes, but still load mock loans and stats below
+      } else {
+        // Only load mock data if no real data exists at all
+        if (kDebugMode) {
+          print('ℹ️ Loading mock data - no real loan officer data found');
+        }
+      }
+
+      // IMPORTANT: NEVER add mock ZIP codes to _claimedZipCodes or _availableZipCodes
+      // These lists should ONLY be populated from backend API
+    } catch (e) {
+      if (kDebugMode) {
+        print('⚠️ Error in _loadMockData: $e');
+      }
+    }
 
     // Mock loans
     _loans.value = [
@@ -268,117 +1029,520 @@ class LoanOfficerController extends GetxController {
   }
 
   Future<void> claimZipCode(ZipCodeModel zipCode) async {
+    // Prevent multiple simultaneous claims of the same zip code
+    if (_loadingZipCodeIds.contains(zipCode.zipCode)) {
+      return;
+    }
+
     try {
-      _isLoading.value = true;
+      // Add to loading set for this specific zip code
+      _loadingZipCodeIds.add(zipCode.zipCode);
 
       // Check if loan officer can claim more ZIP codes (max 6)
       if (_claimedZipCodes.length >= 6) {
-        Get.snackbar('Error', 'You can only claim up to 6 ZIP codes');
+        Get.snackbar('Error', 'You can only claim up to 6 ZIP codes', snackPosition: SnackPosition.TOP);
         return;
       }
 
-      // Simulate API call
-      await Future.delayed(const Duration(seconds: 2));
+      // Get current loan officer ID
+      final currentLoanOfficerController = Get.isRegistered<CurrentLoanOfficerController>()
+          ? Get.find<CurrentLoanOfficerController>()
+          : null;
 
-      // Add to claimed ZIP codes
+      final loanOfficerId = currentLoanOfficerController?.currentLoanOfficer.value?.id;
+
+      if (loanOfficerId == null) {
+        Get.snackbar('Error', 'Loan officer information not available', snackPosition: SnackPosition.TOP);
+        return;
+      }
+
+      // Prepare claim API body with all required fields
+      // Required: id, zipcode, price, state, population
+      final price = (zipCode.price ?? 0.0).toString();
+      final population = zipCode.population.toString();
+      final state = zipCode.state;
+
+      // Call API to claim zip code with all required fields
+      await _zipCodeService.claimZipCode(
+        loanOfficerId,
+        zipCode.zipCode,
+        price,
+        state,
+        population,
+      );
+
+      // IMPORTANT: Mark as pending claim to preserve instant update
+      _pendingClaimedZipCodes.add(zipCode.zipCode);
+      _pendingReleasedZipCodes.remove(zipCode.zipCode); // Remove from pending releases if there
+
+      // Update local state IMMEDIATELY for instant UI update
       final claimedZip = zipCode.copyWith(
-        claimedByLoanOfficer: 'loan_1',
+        claimedByLoanOfficer: loanOfficerId,
         claimedAt: DateTime.now(),
         isAvailable: false,
       );
 
-      _claimedZipCodes.add(claimedZip);
+      // INSTANTLY move from available to claimed (reactive update)
       _availableZipCodes.removeWhere((zip) => zip.zipCode == zipCode.zipCode);
+      if (!_claimedZipCodes.any((z) => z.zipCode == zipCode.zipCode)) {
+        _claimedZipCodes.add(claimedZip);
+      }
+
+      // Update the zip code in all zip codes list efficiently
+      final index = _allZipCodes.indexWhere((zip) => zip.zipCode == zipCode.zipCode);
+      if (index != -1) {
+        _allZipCodes[index] = claimedZip;
+      }
+
+      // Reapply search filter if active
+      _applySearchFilter();
+
+      // Update cache with new data (only if state is valid)
+      if (_currentState.value.isNotEmpty && _allZipCodes.isNotEmpty) {
+        try {
+          final parts = _currentState.value.split('_');
+          if (parts.length == 2) {
+            final cacheKey = _getCacheKey(parts[0], parts[1]);
+            _saveZipCodesToCache(cacheKey, _allZipCodes, _currentState.value);
+          }
+        } catch (e) {
+          if (kDebugMode) {
+            print('⚠️ Failed to update cache after claim: $e');
+          }
+        }
+      }
 
       // Update subscription price based on new zip code
       _updateSubscriptionPrice();
 
+      // IMPORTANT: Force refresh loan officer data to get updated claimedZipCodes from backend
+      // Use force refresh to ensure we get the latest data, not cached data
+      // The pending claim will be preserved in _updateZipCodeLists()
+      if (currentLoanOfficerController != null && loanOfficerId.isNotEmpty) {
+        // Don't await - let it run in background so UI stays responsive
+        // But use force refresh to ensure we get latest data
+        currentLoanOfficerController.refreshData(loanOfficerId, true).then((_) {
+          // Sync with backend - pending claim will be preserved if not in backend yet
+          final refreshedOfficer = currentLoanOfficerController.currentLoanOfficer.value;
+          if (refreshedOfficer != null) {
+            final refreshedClaimed = refreshedOfficer.claimedZipCodes;
+            // If backend confirmed the claim, remove from pending
+            if (refreshedClaimed.contains(zipCode.zipCode)) {
+              if (kDebugMode) {
+                print('✅ Backend confirmed claimed zip code: ${zipCode.zipCode}');
+              }
+              _pendingClaimedZipCodes.remove(zipCode.zipCode);
+            } else {
+              if (kDebugMode) {
+                print('⚠️ Backend does not have claimed zip code yet: ${zipCode.zipCode} - keeping as pending');
+              }
+              // Keep as pending - backend might have a delay
+            }
+            // Update lists - pending claims will be preserved
+            _updateZipCodeLists();
+          }
+        }).catchError((e) {
+          if (kDebugMode) {
+            print('⚠️ Failed to refresh loan officer data after claim: $e');
+          }
+          // Even if refresh fails, the zip code is already in the list, so UI is correct
+        });
+      }
+
       Get.snackbar(
         'Success',
         'ZIP code ${zipCode.zipCode} claimed successfully!',
+        snackPosition: SnackPosition.TOP,
+      );
+    } on ZipCodeServiceException catch (e) {
+      Get.snackbar(
+        'Error',
+        e.message,
+        snackPosition: SnackPosition.TOP,
       );
     } catch (e) {
-      NetworkErrorHandler.handleError(
-        e,
-        defaultMessage: 'Unable to claim ZIP code. Please check your internet connection and try again.',
+      Get.snackbar(
+        'Error',
+        'Failed to claim ZIP code: ${e.toString()}',
+        snackPosition: SnackPosition.TOP,
       );
     } finally {
-      _isLoading.value = false;
+      // Remove from loading set
+      _loadingZipCodeIds.remove(zipCode.zipCode);
     }
   }
 
   Future<void> releaseZipCode(ZipCodeModel zipCode) async {
+    // Prevent multiple simultaneous releases of the same zip code
+    if (_loadingZipCodeIds.contains(zipCode.zipCode)) {
+      return;
+    }
+
+    // Declare variables outside try block so they're accessible in catch block
+    final currentLoanOfficerController = Get.isRegistered<CurrentLoanOfficerController>()
+        ? Get.find<CurrentLoanOfficerController>()
+        : null;
+
+    final loanOfficerId = currentLoanOfficerController?.currentLoanOfficer.value?.id;
+
     try {
-      _isLoading.value = true;
+      // Add to loading set for this specific zip code
+      _loadingZipCodeIds.add(zipCode.zipCode);
 
-      // Simulate API call
-      await Future.delayed(const Duration(seconds: 1));
+      if (loanOfficerId == null) {
+        Get.snackbar('Error', 'Loan officer information not available', snackPosition: SnackPosition.TOP);
+        return;
+      }
 
-      // Remove from claimed ZIP codes
-      _claimedZipCodes.removeWhere((zip) => zip.zipCode == zipCode.zipCode);
+      // IMPORTANT: Verify zip code is actually claimed before attempting release
+      // Check both local state and backend state
+      final isClaimedLocally = _claimedZipCodes.any((z) => z.zipCode == zipCode.zipCode);
+      final loanOfficer = currentLoanOfficerController?.currentLoanOfficer.value;
+      final isClaimedOnBackend = loanOfficer?.claimedZipCodes.contains(zipCode.zipCode) ?? false;
 
-      // Add back to available ZIP codes
-      final availableZip = zipCode.copyWith(
-        claimedByLoanOfficer: null,
-        claimedAt: null,
+      if (!isClaimedOnBackend && !isClaimedLocally) {
+        // Not claimed anywhere, just remove from local state if it's there
+        _claimedZipCodes.removeWhere((zip) => zip.zipCode == zipCode.zipCode);
+        Get.snackbar(
+          'Info',
+          'ZIP code ${zipCode.zipCode} is not claimed',
+          snackPosition: SnackPosition.TOP,
+        );
+        return;
+      }
+
+      // Call API to release zip code
+      await _zipCodeService.releaseZipCode(loanOfficerId, zipCode.zipCode);
+
+      // IMPORTANT: Mark as pending release to preserve instant update
+      _pendingReleasedZipCodes.add(zipCode.zipCode);
+      _pendingClaimedZipCodes.remove(zipCode.zipCode); // Remove from pending claims if there
+
+      // Update local state - mark as available and remove claim
+      // Create new instance directly to properly set nullable fields to null
+      final availableZip = ZipCodeModel(
+        zipCode: zipCode.zipCode,
+        state: zipCode.state,
+        population: zipCode.population,
+        claimedByAgent: zipCode.claimedByAgent,
+        claimedByLoanOfficer: null, // Explicitly set to null
+        claimedAt: null, // Explicitly set to null
+        price: zipCode.price,
         isAvailable: true,
+        createdAt: zipCode.createdAt,
+        lastSearchedAt: zipCode.lastSearchedAt,
+        searchCount: zipCode.searchCount,
       );
 
-      _availableZipCodes.add(availableZip);
+      // INSTANTLY move from claimed to available (reactive update)
+      _claimedZipCodes.removeWhere((zip) => zip.zipCode == zipCode.zipCode);
+      if (!_availableZipCodes.any((z) => z.zipCode == zipCode.zipCode)) {
+        _availableZipCodes.add(availableZip);
+      }
+
+      // Update the zip code in all zip codes list efficiently
+      final index = _allZipCodes.indexWhere((zip) => zip.zipCode == zipCode.zipCode);
+      if (index != -1) {
+        _allZipCodes[index] = availableZip;
+      }
+
+      // Reapply search filter if active
+      _applySearchFilter();
+
+      if (kDebugMode) {
+        print('📊 After release update:');
+        print('   Claimed: ${_claimedZipCodes.length}');
+        print('   Available: ${_availableZipCodes.length}');
+      }
+
+      // Update cache with new data (only if state is valid)
+      if (_currentState.value.isNotEmpty && _allZipCodes.isNotEmpty) {
+        try {
+          final parts = _currentState.value.split('_');
+          if (parts.length == 2) {
+            final cacheKey = _getCacheKey(parts[0], parts[1]);
+            _saveZipCodesToCache(cacheKey, _allZipCodes, _currentState.value);
+          }
+        } catch (e) {
+          if (kDebugMode) {
+            print('⚠️ Failed to update cache after release: $e');
+          }
+        }
+      }
 
       // Update subscription price after releasing zip code
       _updateSubscriptionPrice();
 
+      // Refresh the current loan officer data to get updated claimedZipCodes from backend (in background)
+      if (currentLoanOfficerController != null && loanOfficerId.isNotEmpty) {
+        // Don't await - let it run in background so UI stays responsive
+        currentLoanOfficerController.refreshData(loanOfficerId, true).then((_) {
+          // Sync with backend - pending release will be preserved
+          final refreshedOfficer = currentLoanOfficerController.currentLoanOfficer.value;
+          if (refreshedOfficer != null) {
+            final refreshedClaimed = refreshedOfficer.claimedZipCodes;
+            // If backend confirmed the release (not in claimed list), remove from pending
+            if (!refreshedClaimed.contains(zipCode.zipCode)) {
+              if (kDebugMode) {
+                print('✅ Backend confirmed released zip code: ${zipCode.zipCode}');
+              }
+              _pendingReleasedZipCodes.remove(zipCode.zipCode);
+            } else {
+              if (kDebugMode) {
+                print('⚠️ Backend still has released zip code: ${zipCode.zipCode} - keeping as pending');
+              }
+              // Keep as pending - backend might have a delay
+            }
+            // Update lists - pending releases will be preserved
+            _updateZipCodeLists();
+          }
+        }).catchError((e) {
+          if (kDebugMode) {
+            print('⚠️ Failed to refresh loan officer data after release: $e');
+          }
+        });
+      }
+
       Get.snackbar(
         'Success',
         'ZIP code ${zipCode.zipCode} released successfully!',
+        snackPosition: SnackPosition.TOP,
       );
+    } on ZipCodeServiceException catch (e) {
+      // If backend says zip code is not claimed, sync local state with backend
+      if (e.message.contains('not claimed') || e.message.contains('You have not claimed')) {
+        if (kDebugMode) {
+          print('🔄 Backend says zip code is not claimed - syncing local state');
+        }
+
+        // Remove from local claimed list
+        _claimedZipCodes.removeWhere((zip) => zip.zipCode == zipCode.zipCode);
+
+        // IMPORTANT: Force refresh loan officer data to get accurate state from backend
+        // Clear all claimed zip codes first, then refresh
+        _claimedZipCodes.clear();
+
+        if (currentLoanOfficerController != null && loanOfficerId != null && loanOfficerId.isNotEmpty) {
+          // Force refresh to bypass cache and get latest data
+          currentLoanOfficerController.refreshData(loanOfficerId, true).then((_) {
+            // Update zip code lists with fresh data from backend
+            _updateZipCodeLists();
+          }).catchError((refreshError) {
+            if (kDebugMode) {
+              print('⚠️ Failed to refresh after release error: $refreshError');
+            }
+            // Even if refresh fails, update lists to reflect cleared state
+            _updateZipCodeLists();
+          });
+        } else {
+          // If no controller, just update lists to reflect cleared state
+          _updateZipCodeLists();
+        }
+
+        Get.snackbar(
+          'Info',
+          'ZIP code ${zipCode.zipCode} is not claimed on the server. Local state has been updated.',
+          snackPosition: SnackPosition.TOP,
+        );
+      } else {
+        Get.snackbar(
+          'Error',
+          e.message,
+          snackPosition: SnackPosition.TOP,
+        );
+      }
     } catch (e) {
-      NetworkErrorHandler.handleError(
-        e,
-        defaultMessage: 'Unable to release ZIP code. Please check your internet connection and try again.',
+      Get.snackbar(
+        'Error',
+        'Failed to release ZIP code: ${e.toString()}',
+        snackPosition: SnackPosition.TOP,
       );
     } finally {
-      _isLoading.value = false;
+      // Remove from loading set
+      _loadingZipCodeIds.remove(zipCode.zipCode);
     }
   }
 
-  Future<void> searchZipCodes(String query) async {
+  // Debounce timer for search optimization
+  Timer? _searchDebounceTimer;
+
+  /// Searches zip codes with debouncing for optimal performance
+  /// Debounces search input to avoid excessive filtering operations
+  void searchZipCodes(String query) {
+    _searchQuery.value = query;
+
+    // Cancel previous timer
+    _searchDebounceTimer?.cancel();
+
+    // Debounce search filtering by 300ms for better performance
+    _searchDebounceTimer = Timer(const Duration(milliseconds: 300), () {
+      _applySearchFilter();
+    });
+  }
+
+  /// Refreshes zip codes from the API (forces reload)
+  /// IMPORTANT: Clears lists first to prevent showing mock/stale data
+  Future<void> refreshZipCodes() async {
+    // IMPORTANT: Clear pending claims/releases on manual refresh
+    // This ensures we get fresh state from backend
+    _pendingClaimedZipCodes.clear();
+    _pendingReleasedZipCodes.clear();
+
+    // Clear lists first to prevent showing stale data
+    _claimedZipCodes.clear();
+    _availableZipCodes.clear();
+
+    // Force refresh from API
+    await _loadZipCodes(forceRefresh: true);
+  }
+
+  /// Sets the selected state and fetches ZIP codes for that state
+  /// [stateName] can be either full state name (e.g., "Alabama") or state code (e.g., "AL")
+  Future<void> selectStateAndFetchZipCodes(String stateName) async {
+    if (stateName.isEmpty) {
+      _selectedState.value = null;
+      _availableZipCodes.clear();
+      return;
+    }
+
+    // Only fetch if state actually changed
+    if (_selectedState.value == stateName) {
+      // State hasn't changed, don't refetch (will use cache if available)
+      return;
+    }
+
+    _selectedState.value = stateName;
+
+    // Load zip codes for the selected state
+    // The _loadZipCodes method will use the first licensed state if available
+    // We need to modify it to use the selected state instead
+    await _loadZipCodesForState(stateName, forceRefresh: false);
+  }
+
+  /// Loads zip codes for a specific state
+  Future<void> _loadZipCodesForState(String stateName, {bool forceRefresh = false}) async {
+    // Prevent multiple simultaneous loads
+    if (_isLoadingZipCodes.value && !forceRefresh) {
+      if (kDebugMode) {
+        print('⏳ Zip codes already loading, skipping duplicate request');
+      }
+      return;
+    }
+
     try {
-      _isLoading.value = true;
+      // Country is always US, only state changes
+      const country = 'US';
+      final state = stateName;
 
-      // Simulate API call
-      await Future.delayed(const Duration(milliseconds: 500));
+      final stateKey = '${country}_$state';
+      final cacheKey = _getCacheKey(country, state);
 
-      // Filter available ZIP codes by query
-      final filteredZips = _availableZipCodes
-          .where(
-            (zip) =>
-                zip.zipCode.contains(query) ||
-                zip.state.toLowerCase().contains(query.toLowerCase()),
-          )
-          .toList();
+      // ALWAYS check memory cache first (fastest)
+      if (!forceRefresh && _hasLoadedZipCodes.value && _currentState.value == stateKey) {
+        if (_allZipCodes.isNotEmpty) {
+          if (kDebugMode) {
+            print('📦 Zip codes already loaded in memory, using cached data');
+          }
+          _updateZipCodeLists();
+          return;
+        }
+      }
 
-      _availableZipCodes.value = filteredZips;
-    } catch (e) {
-      NetworkErrorHandler.handleError(
-        e,
-        defaultMessage: 'Unable to search ZIP codes. Please check your internet connection and try again.',
-      );
+      // ALWAYS check GetStorage cache second (before API)
+      if (!forceRefresh) {
+        try {
+          final cachedData = _storage.read(cacheKey);
+          if (cachedData != null) {
+            try {
+              final List<dynamic> cachedList = cachedData is List ? cachedData : [];
+              if (cachedList.isNotEmpty) {
+                final cachedZipCodes = cachedList
+                    .map((json) => ZipCodeModel.fromJson(json as Map<String, dynamic>))
+                    .toList();
+
+                _allZipCodes.value = cachedZipCodes;
+                _currentState.value = stateKey;
+                _updateZipCodeLists();
+                _hasLoadedZipCodes.value = true;
+
+                if (kDebugMode) {
+                  print('📦 Loaded ${cachedZipCodes.length} zip codes from cache');
+                }
+              }
+            } catch (e) {
+              if (kDebugMode) {
+                print('⚠️ Failed to parse cached zip codes: $e');
+              }
+              _storage.remove(cacheKey);
+            }
+          }
+        } catch (e) {
+          if (kDebugMode) {
+            print('⚠️ Error reading from GetStorage: $e');
+          }
+        }
+      }
+
+      // Only fetch from API if cache is empty or force refresh
+      _isLoadingZipCodes.value = true;
+
+      if (kDebugMode) {
+        print('📡 Loading zip codes from API');
+        print('   Country: $country');
+        print('   State: $state');
+        print('   Force refresh: $forceRefresh');
+      }
+
+      final zipCodes = await _zipCodeService.getZipCodes(country, state);
+
+      if (zipCodes.isEmpty) {
+        if (kDebugMode) {
+          print('⚠️ API returned empty zip codes list');
+        }
+        _isLoadingZipCodes.value = false;
+        return;
+      }
+
+      // Update reactive state using GetX
+      _allZipCodes.value = zipCodes;
+      _currentState.value = stateKey;
+
+      // Save to GetStorage (persistent cache) - do this in background to avoid blocking
+      Future.microtask(() {
+        _saveZipCodesToCache(cacheKey, zipCodes, stateKey);
+      });
+
+      // Separate claimed and available zip codes
+      _updateZipCodeLists();
+
+      // Mark as loaded
+      _hasLoadedZipCodes.value = true;
+
+      if (kDebugMode) {
+        print('✅ Loaded ${zipCodes.length} zip codes from API');
+        print('   Claimed: ${_claimedZipCodes.length}');
+        print('   Available: ${_availableZipCodes.length}');
+      }
+    } catch (e, stackTrace) {
+      if (kDebugMode) {
+        print('❌ Error loading zip codes: $e');
+        print('   Stack trace: $stackTrace');
+      }
+      _isLoadingZipCodes.value = false;
     } finally {
-      _isLoading.value = false;
+      _isLoadingZipCodes.value = false;
     }
   }
 
   double calculateMonthlyCost() {
     // Calculate base cost from ZIP codes using population-based pricing tiers
     final zipCodeCost = ZipCodePricingService.calculateTotalMonthlyPrice(_claimedZipCodes);
-    
+
     // If in free period, return 0
     if (_subscription.value?.isInFreePeriod == true) {
       return 0.0;
     }
-    
+
     return zipCodeCost;
   }
 
@@ -392,7 +1556,7 @@ class LoanOfficerController extends GetxController {
 
     // Calculate new base price from claimed zip codes using population-based pricing
     final newBasePrice = ZipCodePricingService.calculateTotalMonthlyPrice(_claimedZipCodes);
-    
+
     // If no zip codes claimed, use fallback price
     final basePrice = newBasePrice > 0 ? newBasePrice : standardMonthlyPrice;
 
@@ -413,42 +1577,42 @@ class LoanOfficerController extends GetxController {
   Future<void> applyPromoCode(String code) async {
     try {
       _isLoading.value = true;
-      
+
       // Validate promo code
       final promoCode = await _validatePromoCode(code);
-      
+
       if (promoCode == null) {
-        Get.snackbar('Error', 'Invalid or expired promo code');
+        Get.snackbar('Error', 'Invalid or expired promo code', snackPosition: SnackPosition.TOP);
         return;
       }
-      
+
       if (promoCode.type != PromoCodeType.loanOfficer6MonthsFree) {
-        Get.snackbar('Error', 'This promo code is not valid for loan officers');
+        Get.snackbar('Error', 'This promo code is not valid for loan officers', snackPosition: SnackPosition.TOP);
         return;
       }
-      
+
       // Check if promo is still valid
       if (!promoCode.isValid) {
-        Get.snackbar('Error', 'This promo code has expired or reached its usage limit');
+        Get.snackbar('Error', 'This promo code has expired or reached its usage limit', snackPosition: SnackPosition.TOP);
         return;
       }
-      
+
       // Check if already has active promo
       if (_subscription.value?.isInFreePeriod == true) {
-        Get.snackbar('Info', 'You already have an active promotion');
+        Get.snackbar('Info', 'You already have an active promotion', snackPosition: SnackPosition.TOP);
         return;
       }
-      
+
       // Calculate free period end date (6 months from now)
       final freePeriodEndsAt = DateTime.now().add(const Duration(days: 180)); // 6 months
-      
+
       // Apply promo to subscription
       final currentSub = _subscription.value!;
-      
+
       // Ensure base price is up to date before applying promo
       final basePrice = ZipCodePricingService.calculateTotalMonthlyPrice(_claimedZipCodes);
       final finalBasePrice = basePrice > 0 ? basePrice : standardMonthlyPrice;
-      
+
       _subscription.value = currentSub.copyWith(
         status: SubscriptionStatus.promo,
         activePromoCode: promoCode,
@@ -459,7 +1623,7 @@ class LoanOfficerController extends GetxController {
         currentMonthlyPrice: 0.0, // Free during promo period
         updatedAt: DateTime.now(),
       );
-      
+
       // Mark promo code as used
       // TODO: Save to backend
       // await _dio.post('/subscription/apply-promo', data: {
@@ -467,21 +1631,19 @@ class LoanOfficerController extends GetxController {
       //   'userId': currentSub.userId,
       //   'usedAt': DateTime.now().toIso8601String(),
       // });
-      
+
       _promoCodeInput.value = '';
-      
+
       Get.snackbar(
         'Success',
         'Promo code applied! You now have 6 months free. After that, you can continue at the normal subscription rate.',
         duration: const Duration(seconds: 5),
         backgroundColor: Colors.green,
         colorText: Colors.white,
+        snackPosition: SnackPosition.TOP,
       );
     } catch (e) {
-      NetworkErrorHandler.handleError(
-        e,
-        defaultMessage: 'Unable to apply promo code. Please check your internet connection and try again.',
-      );
+      Get.snackbar('Error', 'Failed to apply promo code: ${e.toString()}', snackPosition: SnackPosition.TOP);
     } finally {
       _isLoading.value = false;
     }
@@ -490,11 +1652,11 @@ class LoanOfficerController extends GetxController {
   Future<PromoCodeModel?> _validatePromoCode(String code) async {
     // Simulate API call - in production, this would validate against backend
     await Future.delayed(const Duration(milliseconds: 500));
-    
+
     // Mock validation - check if code matches format and is valid
     // In production, this would be an API call
     if (code.isEmpty) return null;
-    
+
     // Accept codes starting with "LO" (Loan Officer promo codes from agents)
     // In production, this would check against database
     if (code.toUpperCase().startsWith('LO')) {
@@ -511,48 +1673,49 @@ class LoanOfficerController extends GetxController {
         description: '6 Months Free for Loan Officers',
       );
     }
-    
+
     return null;
   }
 
   Future<void> cancelSubscription() async {
     try {
       _isLoading.value = true;
-      
+
       final currentSub = _subscription.value;
       if (currentSub == null) {
-        Get.snackbar('Error', 'No active subscription found');
+        Get.snackbar('Error', 'No active subscription found', snackPosition: SnackPosition.TOP);
         return;
       }
-      
+
       if (currentSub.isCancelled) {
-        Get.snackbar('Info', 'Subscription is already cancelled');
+        Get.snackbar('Info', 'Subscription is already cancelled', snackPosition: SnackPosition.TOP);
         return;
       }
-      
+
       // Calculate cancellation effective date (30 days from now)
       final cancellationDate = DateTime.now();
       final effectiveDate = cancellationDate.add(const Duration(days: 30));
-      
+
       _subscription.value = currentSub.copyWith(
         status: SubscriptionStatus.cancelled,
         cancellationDate: cancellationDate,
         cancellationEffectiveDate: effectiveDate,
         updatedAt: DateTime.now(),
       );
-      
+
       // TODO: Save to backend
       // await _dio.post('/subscription/cancel', data: {...});
-      
+
       Get.snackbar(
         'Success',
         'Subscription will be cancelled on ${effectiveDate.toString().split(' ')[0]}. You will continue to have access until then.',
         duration: const Duration(seconds: 4),
         backgroundColor: Colors.orange,
         colorText: Colors.white,
+        snackPosition: SnackPosition.TOP,
       );
     } catch (e) {
-      Get.snackbar('Error', 'Failed to cancel subscription: ${e.toString()}');
+      Get.snackbar('Error', 'Failed to cancel subscription: ${e.toString()}', snackPosition: SnackPosition.TOP);
     } finally {
       _isLoading.value = false;
     }
@@ -577,11 +1740,12 @@ class LoanOfficerController extends GetxController {
           freePeriodEndsAt: null,
           updatedAt: DateTime.now(),
         );
-        
+
         Get.snackbar(
           'Info',
           'Your free period has ended. You are now on the normal subscription rate.',
           duration: const Duration(seconds: 4),
+          snackPosition: SnackPosition.TOP,
         );
       }
     }
@@ -606,9 +1770,9 @@ class LoanOfficerController extends GetxController {
       // Simulate API call
       await Future.delayed(const Duration(seconds: 1));
       _loans.insert(0, loan);
-      Get.snackbar('Success', 'Loan added successfully!');
+      Get.snackbar('Success', 'Loan added successfully!', snackPosition: SnackPosition.TOP);
     } catch (e) {
-      Get.snackbar('Error', 'Failed to add loan: ${e.toString()}');
+      Get.snackbar('Error', 'Failed to add loan: ${e.toString()}', snackPosition: SnackPosition.TOP);
     } finally {
       _isLoading.value = false;
     }
@@ -623,9 +1787,9 @@ class LoanOfficerController extends GetxController {
       if (index != -1) {
         _loans[index] = updatedLoan.copyWith(updatedAt: DateTime.now());
       }
-      Get.snackbar('Success', 'Loan updated successfully!');
+      Get.snackbar('Success', 'Loan updated successfully!', snackPosition: SnackPosition.TOP);
     } catch (e) {
-      Get.snackbar('Error', 'Failed to update loan: ${e.toString()}');
+      Get.snackbar('Error', 'Failed to update loan: ${e.toString()}', snackPosition: SnackPosition.TOP);
     } finally {
       _isLoading.value = false;
     }
@@ -637,9 +1801,9 @@ class LoanOfficerController extends GetxController {
       // Simulate API call
       await Future.delayed(const Duration(seconds: 1));
       _loans.removeWhere((loan) => loan.id == loanId);
-      Get.snackbar('Success', 'Loan deleted successfully!');
+      Get.snackbar('Success', 'Loan deleted successfully!', snackPosition: SnackPosition.TOP);
     } catch (e) {
-      Get.snackbar('Error', 'Failed to delete loan: ${e.toString()}');
+      Get.snackbar('Error', 'Failed to delete loan: ${e.toString()}', snackPosition: SnackPosition.TOP);
     } finally {
       _isLoading.value = false;
     }
