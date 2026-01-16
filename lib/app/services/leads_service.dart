@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import 'package:get_storage/get_storage.dart';
 import 'package:getrebate/app/models/lead_model.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
 
@@ -26,7 +27,7 @@ class LeadsService {
   LeadsService() {
     _dio = Dio(
       BaseOptions(
-        baseUrl: ApiConstants.baseUrl, // Use baseUrl which is http://98.93.16.113:3001
+        baseUrl: ApiConstants.baseUrl,
         connectTimeout: const Duration(seconds: 30),
         receiveTimeout: const Duration(seconds: 30),
         sendTimeout: const Duration(seconds: 30),
@@ -48,6 +49,13 @@ class LeadsService {
     );
   }
 
+  String _buildFullUrl(String endpoint) {
+    if (endpoint.startsWith('http://') || endpoint.startsWith('https://')) {
+      return endpoint;
+    }
+    return '${ApiConstants.baseUrl}$endpoint';
+  }
+
   /// Handles Dio errors and converts them to LeadsServiceException
   void _handleError(DioException error) {
     if (kDebugMode) {
@@ -60,7 +68,7 @@ class LeadsService {
   }
 
   /// Fetches leads for a given agent ID
-  /// 
+  ///
   /// Throws [LeadsServiceException] if the request fails
   Future<LeadsResponse> getLeadsByAgentId(String agentId) async {
     if (agentId.isEmpty) {
@@ -71,17 +79,16 @@ class LeadsService {
     }
 
     try {
-      // Get endpoint path (relative to baseUrl)
-      // apiBaseUrl is "baseUrl/api/v1", so we need "/api/v1/agent/getLeadsByAgentId/$agentId"
-      final endpoint = '/api/v1/agent/getLeadsByAgentId/$agentId';
-      
+      final endpoint = ApiConstants.getLeadsByAgentIdEndpoint(agentId);
+      final fullUrl = _buildFullUrl(endpoint);
+
       if (kDebugMode) {
         print('📡 Fetching leads for agentId: $agentId');
-        print('   Endpoint path: $endpoint');
-        print('   Dio Base URL: ${_dio.options.baseUrl}');
-        print('   Full URL: ${_dio.options.baseUrl}$endpoint');
+        print('   Endpoint: $endpoint');
+        print('   Base URL: ${ApiConstants.baseUrl}');
+        print('   Full URL: $fullUrl');
       }
-      
+
       final response = await _dio.get(
         endpoint,
         options: Options(
@@ -100,7 +107,7 @@ class LeadsService {
 
       if (response.statusCode == 200) {
         final data = response.data;
-        
+
         if (data is Map<String, dynamic>) {
           return LeadsResponse.fromJson(data);
         } else {
@@ -125,13 +132,14 @@ class LeadsService {
         print('   Request baseUrl: ${e.requestOptions.baseUrl}');
         print('   Full URL: ${e.requestOptions.uri}');
       }
-      
+
       if (e.response != null) {
         final statusCode = e.response!.statusCode;
-        final errorMessage = e.response!.data?['message']?.toString() ?? 
-                            e.response!.data?['error']?.toString() ?? 
-                            'Failed to fetch leads';
-        
+        final errorMessage =
+            e.response!.data?['message']?.toString() ??
+            e.response!.data?['error']?.toString() ??
+            'Failed to fetch leads';
+
         throw LeadsServiceException(
           message: errorMessage,
           statusCode: statusCode,
@@ -141,7 +149,8 @@ class LeadsService {
         // Handle different DioException types
         String errorMsg = 'Network error';
         if (e.type == DioExceptionType.connectionTimeout) {
-          errorMsg = 'Connection timeout. Please check your internet connection.';
+          errorMsg =
+              'Connection timeout. Please check your internet connection.';
         } else if (e.type == DioExceptionType.receiveTimeout) {
           errorMsg = 'Request timeout. Please try again.';
         } else if (e.type == DioExceptionType.connectionError) {
@@ -151,11 +160,8 @@ class LeadsService {
         } else if (e.error != null) {
           errorMsg = 'Network error: ${e.error}';
         }
-        
-        throw LeadsServiceException(
-          message: errorMsg,
-          originalError: e,
-        );
+
+        throw LeadsServiceException(message: errorMsg, originalError: e);
       }
     } catch (e) {
       if (e is LeadsServiceException) {
@@ -168,8 +174,8 @@ class LeadsService {
     }
   }
 
-  /// Fetches leads created by a buyer (user)
-  /// 
+  /// Fetches leads for a given buyer/user ID
+  ///
   /// Throws [LeadsServiceException] if the request fails
   Future<LeadsResponse> getLeadsByBuyerId(String buyerId) async {
     if (buyerId.isEmpty) {
@@ -180,17 +186,16 @@ class LeadsService {
     }
 
     try {
-      // Get endpoint path (relative to baseUrl)
-      // apiBaseUrl is "baseUrl/api/v1", so we need "/api/v1/buyer/getLeadsByAgentId/$buyerId"
-      final endpoint = '/api/v1/buyer/getLeadsByAgentId/$buyerId';
-      
+      final endpoint = ApiConstants.getLeadsByBuyerIdEndpoint(buyerId);
+      final fullUrl = _buildFullUrl(endpoint);
+
       if (kDebugMode) {
         print('📡 Fetching leads for buyerId: $buyerId');
-        print('   Endpoint path: $endpoint');
-        print('   Dio Base URL: ${_dio.options.baseUrl}');
-        print('   Full URL: ${_dio.options.baseUrl}$endpoint');
+        print('   Endpoint: $endpoint');
+        print('   Base URL: ${ApiConstants.baseUrl}');
+        print('   Full URL: $fullUrl');
       }
-      
+
       final response = await _dio.get(
         endpoint,
         options: Options(
@@ -203,14 +208,13 @@ class LeadsService {
       );
 
       if (kDebugMode) {
-        print('✅ Buyer leads response received');
+        print('✅ Leads response received');
         print('   Status Code: ${response.statusCode}');
-        print('   Response data: ${response.data}');
       }
 
       if (response.statusCode == 200) {
         final data = response.data;
-        
+
         if (data is Map<String, dynamic>) {
           return LeadsResponse.fromJson(data);
         } else {
@@ -235,23 +239,24 @@ class LeadsService {
         print('   Request baseUrl: ${e.requestOptions.baseUrl}');
         print('   Full URL: ${e.requestOptions.uri}');
       }
-      
+
       if (e.response != null) {
         final statusCode = e.response!.statusCode;
-        final errorMessage = e.response!.data?['message']?.toString() ?? 
-                            e.response!.data?['error']?.toString() ?? 
-                            'Failed to fetch leads';
-        
+        final errorMessage =
+            e.response!.data?['message']?.toString() ??
+            e.response!.data?['error']?.toString() ??
+            'Failed to fetch leads';
+
         throw LeadsServiceException(
           message: errorMessage,
           statusCode: statusCode,
           originalError: e,
         );
       } else {
-        // Handle different DioException types
         String errorMsg = 'Network error';
         if (e.type == DioExceptionType.connectionTimeout) {
-          errorMsg = 'Connection timeout. Please check your internet connection.';
+          errorMsg =
+              'Connection timeout. Please check your internet connection.';
         } else if (e.type == DioExceptionType.receiveTimeout) {
           errorMsg = 'Request timeout. Please try again.';
         } else if (e.type == DioExceptionType.connectionError) {
@@ -261,11 +266,316 @@ class LeadsService {
         } else if (e.error != null) {
           errorMsg = 'Network error: ${e.error}';
         }
-        
+
+        throw LeadsServiceException(message: errorMsg, originalError: e);
+      }
+    } catch (e) {
+      if (e is LeadsServiceException) {
+        rethrow;
+      }
+      throw LeadsServiceException(
+        message: 'Unexpected error: ${e.toString()}',
+        originalError: e,
+      );
+    }
+  }
+
+  /// Responds to a lead (agent contacts buyer)
+  ///
+  /// [leadId] - The ID of the lead to respond to
+  /// [agentId] - The ID of the agent responding to the lead
+  /// [action] - The action to take: "accept" or "reject"
+  /// [note] - Optional note/message from the agent
+  ///
+  /// Throws [LeadsServiceException] if the request fails
+  Future<void> respondToLead(
+    String leadId,
+    String agentId, {
+    String action = 'accept',
+    String? note,
+  }) async {
+    if (leadId.isEmpty) {
+      throw LeadsServiceException(
+        message: 'Lead ID cannot be empty',
+        statusCode: 400,
+      );
+    }
+
+    if (agentId.isEmpty) {
+      throw LeadsServiceException(
+        message: 'Agent ID cannot be empty',
+        statusCode: 400,
+      );
+    }
+
+    if (action != 'accept' && action != 'reject') {
+      throw LeadsServiceException(
+        message: 'Action must be "accept" or "reject"',
+        statusCode: 400,
+      );
+    }
+
+    try {
+      final endpoint = ApiConstants.getRespondToLeadEndpoint(leadId);
+      final fullUrl = _buildFullUrl(endpoint);
+
+      if (kDebugMode) {
+        print('📡 Responding to lead: $leadId');
+        print('   Agent ID: $agentId');
+        print('   Action: $action');
+        print('   Note: ${note ?? "Not provided"}');
+        print('   Endpoint: $endpoint');
+        print('   Base URL: ${ApiConstants.baseUrl}');
+        print('   Full URL: $fullUrl');
+      }
+
+      // Get auth token from storage
+      final storage = GetStorage();
+      final authToken = storage.read('auth_token');
+
+      if (kDebugMode) {
+        if (authToken != null && authToken.isNotEmpty) {
+          final tokenPreview = authToken.length > 20
+              ? '${authToken.substring(0, 20)}...'
+              : authToken;
+          print('   Auth Token: Present ($tokenPreview)');
+        } else {
+          print('   Auth Token: Missing');
+        }
+      }
+
+      // Send request body with action, agentId, and optional note
+      final requestBody = <String, dynamic>{
+        'action': action,
+        'agentId': agentId,
+      };
+
+      // Add note if provided
+      if (note != null && note.isNotEmpty) {
+        requestBody['note'] = note;
+      }
+
+      if (kDebugMode) {
+        print('   Request Body: $requestBody');
+      }
+
+      // Build headers with Bearer token
+      final headers = <String, String>{
+        ...ApiConstants.ngrokHeaders,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      };
+
+      // Add Authorization header with Bearer token
+      if (authToken != null && authToken.isNotEmpty) {
+        headers['Authorization'] = 'Bearer $authToken';
+      }
+
+      if (kDebugMode) {
+        print('   Headers: ${headers.keys.toList()}');
+        print(
+          '   Authorization: ${headers.containsKey('Authorization') ? "Present" : "Missing"}',
+        );
+      }
+
+      final response = await _dio.post(
+        endpoint,
+        data: requestBody,
+        options: Options(headers: headers),
+      );
+
+      if (kDebugMode) {
+        print('✅ Respond to lead response received');
+        print('   Status Code: ${response.statusCode}');
+        print('   Response: ${response.data}');
+      }
+
+      if (response.statusCode != 200 && response.statusCode != 201) {
         throw LeadsServiceException(
-          message: errorMsg,
+          message: 'Failed to respond to lead: ${response.statusCode}',
+          statusCode: response.statusCode,
+        );
+      }
+    } on DioException catch (e) {
+      if (kDebugMode) {
+        print('❌ DioException in respondToLead:');
+        print('   Type: ${e.type}');
+        print('   Message: ${e.message}');
+        print('   Response: ${e.response?.data}');
+        print('   Status Code: ${e.response?.statusCode}');
+      }
+
+      if (e.response != null) {
+        final statusCode = e.response!.statusCode;
+        final errorMessage =
+            e.response!.data?['message']?.toString() ??
+            e.response!.data?['error']?.toString() ??
+            'Failed to respond to lead';
+
+        throw LeadsServiceException(
+          message: errorMessage,
+          statusCode: statusCode,
           originalError: e,
         );
+      } else {
+        String errorMsg = 'Network error';
+        if (e.type == DioExceptionType.connectionTimeout) {
+          errorMsg =
+              'Connection timeout. Please check your internet connection.';
+        } else if (e.type == DioExceptionType.receiveTimeout) {
+          errorMsg = 'Request timeout. Please try again.';
+        } else if (e.type == DioExceptionType.connectionError) {
+          errorMsg = 'No internet connection. Please check your network.';
+        } else if (e.message != null && e.message!.isNotEmpty) {
+          errorMsg = 'Network error: ${e.message}';
+        }
+
+        throw LeadsServiceException(message: errorMsg, originalError: e);
+      }
+    } catch (e) {
+      if (e is LeadsServiceException) {
+        rethrow;
+      }
+      throw LeadsServiceException(
+        message: 'Unexpected error: ${e.toString()}',
+        originalError: e,
+      );
+    }
+  }
+
+  /// Marks a lead as complete
+  ///
+  /// [leadId] - The ID of the lead to mark as complete
+  /// [userId] - The ID of the user (buyer/seller)
+  /// [role] - The role of the user ("buyer/seller" or "user")
+  ///
+  /// Throws [LeadsServiceException] if the request fails
+  Future<void> markLeadComplete(
+    String leadId,
+    String userId,
+    String role,
+  ) async {
+    if (leadId.isEmpty) {
+      throw LeadsServiceException(
+        message: 'Lead ID cannot be empty',
+        statusCode: 400,
+      );
+    }
+
+    if (userId.isEmpty) {
+      throw LeadsServiceException(
+        message: 'User ID cannot be empty',
+        statusCode: 400,
+      );
+    }
+
+    try {
+      final endpoint = ApiConstants.getMarkLeadCompleteEndpoint(leadId);
+      final fullUrl = _buildFullUrl(endpoint);
+
+      if (kDebugMode) {
+        print('📡 Marking lead as complete: $leadId');
+        print('   User ID: $userId');
+        print('   Role: $role');
+        print('   Endpoint: $endpoint');
+        print('   Base URL: ${ApiConstants.baseUrl}');
+        print('   Full URL: $fullUrl');
+      }
+
+      // Get auth token from storage
+      final storage = GetStorage();
+      final authToken = storage.read('auth_token');
+
+      if (kDebugMode) {
+        if (authToken != null && authToken.isNotEmpty) {
+          final tokenPreview = authToken.length > 20
+              ? '${authToken.substring(0, 20)}...'
+              : authToken;
+          print('   Auth Token: Present ($tokenPreview)');
+        } else {
+          print('   Auth Token: Missing');
+        }
+      }
+
+      // Send request body with userId and role
+      final requestBody = <String, dynamic>{'userId': userId, 'role': role};
+
+      if (kDebugMode) {
+        print('   Request Body: $requestBody');
+      }
+
+      // Build headers with Bearer token
+      final headers = <String, String>{
+        ...ApiConstants.ngrokHeaders,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      };
+
+      // Add Authorization header with Bearer token
+      if (authToken != null && authToken.isNotEmpty) {
+        headers['Authorization'] = 'Bearer $authToken';
+      }
+
+      if (kDebugMode) {
+        print('   Headers: ${headers.keys.toList()}');
+        print(
+          '   Authorization: ${headers.containsKey('Authorization') ? "Present" : "Missing"}',
+        );
+      }
+
+      final response = await _dio.post(
+        endpoint,
+        data: requestBody,
+        options: Options(headers: headers),
+      );
+
+      if (kDebugMode) {
+        print('✅ Mark lead complete response received');
+        print('   Status Code: ${response.statusCode}');
+        print('   Response: ${response.data}');
+      }
+
+      if (response.statusCode != 200 && response.statusCode != 201) {
+        throw LeadsServiceException(
+          message: 'Failed to mark lead as complete: ${response.statusCode}',
+          statusCode: response.statusCode,
+        );
+      }
+    } on DioException catch (e) {
+      if (kDebugMode) {
+        print('❌ DioException in markLeadComplete:');
+        print('   Type: ${e.type}');
+        print('   Message: ${e.message}');
+        print('   Response: ${e.response?.data}');
+        print('   Status Code: ${e.response?.statusCode}');
+      }
+
+      if (e.response != null) {
+        final statusCode = e.response!.statusCode;
+        final errorMessage =
+            e.response!.data?['message']?.toString() ??
+            e.response!.data?['error']?.toString() ??
+            'Failed to mark lead as complete';
+
+        throw LeadsServiceException(
+          message: errorMessage,
+          statusCode: statusCode,
+          originalError: e,
+        );
+      } else {
+        String errorMsg = 'Network error';
+        if (e.type == DioExceptionType.connectionTimeout) {
+          errorMsg =
+              'Connection timeout. Please check your internet connection.';
+        } else if (e.type == DioExceptionType.receiveTimeout) {
+          errorMsg = 'Request timeout. Please try again.';
+        } else if (e.type == DioExceptionType.connectionError) {
+          errorMsg = 'No internet connection. Please check your network.';
+        } else if (e.message != null && e.message!.isNotEmpty) {
+          errorMsg = 'Network error: ${e.message}';
+        }
+
+        throw LeadsServiceException(message: errorMsg, originalError: e);
       }
     } catch (e) {
       if (e is LeadsServiceException) {
@@ -278,4 +588,3 @@ class LeadsService {
     }
   }
 }
-

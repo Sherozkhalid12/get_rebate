@@ -1,7 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/modules/messages/controllers/messages_controller.dart';
 import 'package:getrebate/app/widgets/custom_text_field.dart';
@@ -66,17 +65,27 @@ class MessagesView extends GetView<MessagesController> {
   }
 
   Widget _buildConversationsList(BuildContext context) {
+    if (!Get.isRegistered<MainNavigationController>()) {
+      // Standalone messages route (no bottom nav controller registered)
+      return Column(
+        children: [
+          _buildHeader(context),
+          _buildSearch(context),
+          Expanded(child: _buildConversationsListView(context)),
+        ],
+      );
+    }
+
     return Obx(() {
       // Check if navbar is visible - use Obx to reactively update
-      final isNavBarVisible = Get.isRegistered<MainNavigationController>()
-          ? Get.find<MainNavigationController>().isNavBarVisible
-          : true;
-      
+      final isNavBarVisible =
+          Get.find<MainNavigationController>().isNavBarVisible;
+
       return Column(
         children: [
           // Header with back button - only show when navbar is NOT visible (hidden)
           if (!isNavBarVisible) _buildHeader(context),
-          
+
           // Search
           _buildSearch(context),
 
@@ -837,7 +846,7 @@ class MessagesView extends GetView<MessagesController> {
         backgroundColor: _getSenderColor(senderType).withOpacity(0.1),
         child: ClipOval(
           child: CachedNetworkImage(
-            imageUrl: normalizedUrl!,
+            imageUrl: normalizedUrl,
             width: size,
             height: size,
             fit: BoxFit.cover,
