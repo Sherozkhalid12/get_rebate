@@ -75,7 +75,7 @@ class SplashController extends GetxController {
         }
       }
       
-      // Note: BuyerController will be initialized when main screen loads via bindings
+      // Note: BuyerV2Controller will be initialized when main screen loads via bindings
       // This ensures data loads in parallel with navigation
       print('🚀 Splash: Data preload initiated');
     } catch (e) {

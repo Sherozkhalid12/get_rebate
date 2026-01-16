@@ -1,9 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
-import 'package:get/get.dart';
 import 'package:getrebate/app/models/loan_officer_model.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
-import 'package:getrebate/app/controllers/auth_controller.dart';
 
 /// Custom exception for loan officer service errors
 class LoanOfficerServiceException implements Exception {
@@ -24,14 +22,25 @@ class LoanOfficerServiceException implements Exception {
 /// Service for handling loan officer-related API calls
 class LoanOfficerService {
   late final Dio _dio;
+  
+  // Cache to prevent duplicate API calls within a short time window
+  final Map<String, DateTime> _searchCallCache = {};
+  final Map<String, DateTime> _profileViewCallCache = {};
+  final Map<String, DateTime> _contactCallCache = {};
+  static const Duration _cacheDuration = Duration(minutes: 5); // Cache for 5 minutes
+  
+  // Track 404 errors to reduce logging noise
+  static bool _hasLogged404ForSearch = false;
+  static bool _hasLogged404ForProfileView = false;
+  static bool _hasLogged404ForContact = false;
 
   LoanOfficerService() {
     _dio = Dio(
       BaseOptions(
         baseUrl: ApiConstants.baseUrl,
-        connectTimeout: const Duration(seconds: 30),
-        receiveTimeout: const Duration(seconds: 30),
-        sendTimeout: const Duration(seconds: 30),
+        connectTimeout: const Duration(seconds: 10), // Reduced from 30 to 10
+        receiveTimeout: const Duration(seconds: 10), // Reduced from 30 to 10
+        sendTimeout: const Duration(seconds: 10), // Reduced from 30 to 10
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
@@ -39,33 +48,9 @@ class LoanOfficerService {
       ),
     );
 
-    // Add interceptors for error handling and auth token
+    // Add interceptors for error handling
     _dio.interceptors.add(
       InterceptorsWrapper(
-        onRequest: (options, handler) {
-          // Automatically add auth token to all requests
-          try {
-            if (Get.isRegistered<AuthController>()) {
-              final authController = Get.find<AuthController>();
-              final token = authController.token;
-              if (token != null && token.isNotEmpty) {
-                options.headers['Authorization'] = 'Bearer $token';
-                if (kDebugMode) {
-                  print('🔑 LoanOfficerService: Added auth token to request');
-                }
-              }
-            }
-          } catch (e) {
-            if (kDebugMode) {
-              print('⚠️ LoanOfficerService: Could not add auth token: $e');
-            }
-          }
-          
-          // Add ngrok headers if needed
-          options.headers.addAll(ApiConstants.ngrokHeaders);
-          
-          handler.next(options);
-        },
         onError: (error, handler) {
           _handleError(error);
           handler.next(error);
@@ -76,16 +61,24 @@ class LoanOfficerService {
 
   /// Handles Dio errors
   void _handleError(DioException error) {
+    // Suppress 404 errors for tracking endpoints (they're expected if endpoints don't exist)
+    final path = error.requestOptions.path.toLowerCase();
+    final isTrackingEndpoint = path.contains('addsearch') || 
+                               path.contains('addprofileview') || 
+                               path.contains('addcontact');
+    
+    if (error.response?.statusCode == 404 && isTrackingEndpoint) {
+      // Suppress 404s for tracking endpoints - they're already handled in individual methods
+      return;
+    }
+    
     if (kDebugMode) {
       print('❌ Loan Officer Service Error:');
       print('   Type: ${error.type}');
       print('   Message: ${error.message}');
-      print('   Request URL: ${error.requestOptions.uri}');
-      print('   Request Headers: ${error.requestOptions.headers}');
       print('   Response: ${error.response?.data}');
       print('   Status Code: ${error.response?.statusCode}');
-      print('   Error: ${error.error}');
-      print('   Stack Trace: ${error.stackTrace}');
+      print('   Path: ${error.requestOptions.path}');
     }
   }
 
@@ -96,6 +89,9 @@ class LoanOfficerService {
     try {
       final response = await _dio.get(
         ApiConstants.allLoanOfficersEndpoint,
+        options: Options(
+          headers: ApiConstants.ngrokHeaders,
+        ),
       );
 
       if (kDebugMode) {
@@ -217,33 +213,18 @@ class LoanOfficerService {
   /// Throws [LoanOfficerServiceException] if the request fails.
   Future<LoanOfficerModel> getCurrentLoanOfficer(String loanOfficerId) async {
     try {
-      final endpoint = ApiConstants.getLoanOfficerByIdEndpoint(loanOfficerId);
-      
       if (kDebugMode) {
         print('📡 Fetching current loan officer from API...');
         print('   ID: $loanOfficerId');
-        print('   Endpoint: $endpoint');
-        print('   Base URL: ${_dio.options.baseUrl}');
-        
-        // Check if auth token is available
-        try {
-          if (Get.isRegistered<AuthController>()) {
-            final authController = Get.find<AuthController>();
-            final token = authController.token;
-            if (token != null && token.isNotEmpty) {
-              print('   Auth Token: Present (${token.substring(0, 10)}...)');
-            } else {
-              print('   ⚠️ Auth Token: Missing or empty');
-            }
-          } else {
-            print('   ⚠️ AuthController: Not registered');
-          }
-        } catch (e) {
-          print('   ⚠️ Could not check auth token: $e');
-        }
+        print('   URL: ${ApiConstants.getLoanOfficerByIdEndpoint(loanOfficerId)}');
       }
 
-      final response = await _dio.get(endpoint);
+      final response = await _dio.get(
+        ApiConstants.getLoanOfficerByIdEndpoint(loanOfficerId),
+        options: Options(
+          headers: ApiConstants.ngrokHeaders,
+        ),
+      );
 
       if (kDebugMode) {
         print('✅ Current loan officer response received');
@@ -277,16 +258,11 @@ class LoanOfficerService {
         final loanOfficer =
             LoanOfficerModel.fromJson(loanOfficerJson as Map<String, dynamic>);
 
-        // Build full URLs for profile picture and company logo
-        final loanOfficerWithUrls = _buildImageUrls(loanOfficer);
-
         if (kDebugMode) {
-          print('✅ Successfully parsed current loan officer: ${loanOfficerWithUrls.id}');
-          print('   Profile Image URL: ${loanOfficerWithUrls.profileImage ?? "Not set"}');
-          print('   Company Logo URL: ${loanOfficerWithUrls.companyLogoUrl ?? "Not set"}');
+          print('✅ Successfully parsed current loan officer: ${loanOfficer.id}');
         }
 
-        return loanOfficerWithUrls;
+        return loanOfficer;
       } catch (e) {
         if (kDebugMode) {
           print('⚠️ Error parsing current loan officer: $e');
@@ -361,89 +337,27 @@ class LoanOfficerService {
     }
   }
 
-  /// Builds full URLs for profile images
-  LoanOfficerModel _buildImageUrls(LoanOfficerModel loanOfficer) {
-    String? profileImage = loanOfficer.profileImage;
-    if (profileImage != null && profileImage.isNotEmpty) {
-      if (!profileImage.startsWith('http://') && !profileImage.startsWith('https://')) {
-        // Build full URL with base URL
-        final baseUrl = ApiConstants.baseUrl;
-        profileImage = profileImage.startsWith('/') 
-            ? '$baseUrl$profileImage'
-            : '$baseUrl/$profileImage';
-      }
-    }
-
-    String? companyLogoUrl = loanOfficer.companyLogoUrl;
-    if (companyLogoUrl != null && companyLogoUrl.isNotEmpty) {
-      if (!companyLogoUrl.startsWith('http://') && !companyLogoUrl.startsWith('https://')) {
-        // Build full URL with base URL
-        final baseUrl = ApiConstants.baseUrl;
-        companyLogoUrl = companyLogoUrl.startsWith('/')
-            ? '$baseUrl$companyLogoUrl'
-            : '$baseUrl/$companyLogoUrl';
-      }
-    }
-
-    return loanOfficer.copyWith(
-      profileImage: profileImage,
-      companyLogoUrl: companyLogoUrl,
-    );
-  }
-
-  // Cache to prevent duplicate API calls within a short time window
-  final Map<String, DateTime> _searchCallCache = {};
-  final Map<String, DateTime> _profileViewCallCache = {};
-  final Map<String, DateTime> _contactCallCache = {};
-  static const Duration _cacheDuration = Duration(minutes: 5); // Cache for 5 minutes
-  
-  // Track 404 errors to reduce logging noise
-  static bool _hasLogged404ForSearch = false;
-  static bool _hasLogged404ForProfileView = false;
-  static bool _hasLogged404ForContact = false;
-
-  /// Records a search appearance for a loan officer
+  /// Records a search for a loan officer
   /// Returns the response data
   Future<Map<String, dynamic>?> recordSearch(String loanOfficerId, {String? loanOfficerName}) async {
-    if (loanOfficerId.isEmpty) {
-      return null;
+    if (kDebugMode) {
+      print('📊 recordSearch called with:');
+      print('   Loan Officer ID: $loanOfficerId');
+      print('   Loan Officer Name: $loanOfficerName');
     }
 
-    // Get loan officer name - use provided name or fetch by ID
-    String? name = loanOfficerName?.trim();
-    if (kDebugMode) {
-      print('📊 LoanOfficerService.recordSearch called with:');
-      print('   Loan Officer ID: $loanOfficerId');
-      print('   Loan Officer Name provided: ${loanOfficerName ?? "null"}');
+    // Get loan officer name if not provided
+    String? name = loanOfficerName;
+    if (name == null || name.isEmpty) {
+      // Try to get name from cached loan officers if available
+      // For now, we'll require the name to be passed
+      if (kDebugMode) {
+        print('⚠️ Loan officer name not provided, cannot record search');
+      }
+      return null;
     }
     
-    if (name == null || name.isEmpty) {
-      if (kDebugMode) {
-        print('📊 Loan officer name not provided, fetching by ID: $loanOfficerId');
-      }
-      try {
-        // Try to get loan officer by ID to get the name
-        final loanOfficer = await getCurrentLoanOfficer(loanOfficerId);
-        name = loanOfficer.name.trim();
-        if (kDebugMode) {
-          if (name.isNotEmpty) {
-            print('✅ Fetched loan officer name: "$name" for ID: $loanOfficerId');
-          } else {
-            print('⚠️ Loan officer found but name is empty for ID: $loanOfficerId');
-          }
-        }
-      } catch (e) {
-        if (kDebugMode) {
-          print('❌ Could not fetch loan officer name for ID: $loanOfficerId - $e');
-        }
-      }
-    } else {
-      if (kDebugMode) {
-        print('✅ Using provided loan officer name: "$name" for ID: $loanOfficerId');
-      }
-    }
-    
-    if (name == null || name.isEmpty) {
+    if (name.isEmpty) {
       if (kDebugMode) {
         print('❌ Cannot record search: Loan officer name not available for ID: $loanOfficerId');
         print('   Skipping search recording - API requires loan officer name, not ID');
@@ -474,10 +388,11 @@ class LoanOfficerService {
       }
     }
 
-    // Use loan officer name in the endpoint (following agent pattern)
+    // Use loan officer name in the endpoint instead of ID
     // URL encode the name to handle spaces and special characters
+    // Use the same agent endpoint for loan officers
     final encodedName = Uri.encodeComponent(name);
-    final endpoint = '${ApiConstants.apiBaseUrl}/loan-officers/addSearch/$encodedName';
+    final endpoint = ApiConstants.getAddSearchEndpoint(encodedName);
     
     if (kDebugMode) {
       print('📊 Recording search for loan officer: "$name" (ID: $loanOfficerId)');
@@ -562,7 +477,8 @@ class LoanOfficerService {
     // Update cache
     _contactCallCache[loanOfficerId] = now;
 
-    final endpoint = '${ApiConstants.apiBaseUrl}/loan-officers/addContact/$loanOfficerId';
+    // Use the same agent endpoint for loan officers
+    final endpoint = ApiConstants.getAddContactEndpoint(loanOfficerId);
     
     if (kDebugMode && !_hasLogged404ForContact) {
       print('📞 Recording contact for loan officer: $loanOfficerId');
@@ -570,7 +486,7 @@ class LoanOfficerService {
     }
 
     try {
-      // API expects GET request, not POST (following agent pattern)
+      // API expects GET request, not POST
       final response = await _dio.get(
         endpoint,
         options: Options(
@@ -644,7 +560,8 @@ class LoanOfficerService {
     // Update cache
     _profileViewCallCache[loanOfficerId] = now;
 
-    final endpoint = '${ApiConstants.apiBaseUrl}/loan-officers/addProfileView/$loanOfficerId';
+    // Use the same agent endpoint for loan officers
+    final endpoint = ApiConstants.getAddProfileViewEndpoint(loanOfficerId);
     
     if (kDebugMode && !_hasLogged404ForProfileView) {
       print('👁️ Recording profile view for loan officer: $loanOfficerId');
@@ -656,7 +573,10 @@ class LoanOfficerService {
         endpoint,
         options: Options(
           headers: ApiConstants.ngrokHeaders,
-          validateStatus: (status) => true,
+          validateStatus: (status) {
+            // Accept all status codes to handle them manually
+            return true;
+          },
         ),
       );
 
@@ -710,6 +630,8 @@ class LoanOfficerService {
     _dio.close();
   }
 }
+
+
 
 
 

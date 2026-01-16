@@ -22,9 +22,6 @@ class LoanOfficerEditProfileController extends GetxController {
   final mortgageApplicationUrlController = TextEditingController();
   final externalReviewsUrlController = TextEditingController();
   final serviceAreasController = TextEditingController();
-  final yearsOfExperienceController = TextEditingController();
-  final languagesSpokenController = TextEditingController();
-  final discountsOfferedController = TextEditingController();
 
   // Observable variables
   final _isLoading = false.obs;
@@ -32,7 +29,7 @@ class LoanOfficerEditProfileController extends GetxController {
   final _selectedCompanyLogo = Rxn<File>();
   final _licensedStates = <String>[].obs;
   final _specialtyProducts = <String>[].obs;
-
+  
   // Flag to track if controllers are disposed
   bool _isDisposed = false;
 
@@ -241,7 +238,7 @@ class LoanOfficerEditProfileController extends GetxController {
       }
       return;
     }
-
+    
     if (!_validateForm()) return;
 
     try {
@@ -267,7 +264,7 @@ class LoanOfficerEditProfileController extends GetxController {
       // Wrap controller access in try-catch to handle disposal during async operations
       String fullname, email, phone, bio, companyName, websiteLink, thirdPartReviewLink;
       List<String>? serviceAreasList;
-
+      
       try {
         // Access controllers - will throw if disposed
         fullname = fullNameController.text.trim();
@@ -287,7 +284,7 @@ class LoanOfficerEditProfileController extends GetxController {
         thirdPartReviewLink = externalReviewsUrlController.text.trim().isNotEmpty
             ? externalReviewsUrlController.text.trim()
             : '';
-
+        
         // Prepare service areas list
         if (serviceAreasController.text.trim().isNotEmpty) {
           serviceAreasList = serviceAreasController.text
@@ -366,7 +363,7 @@ class LoanOfficerEditProfileController extends GetxController {
       }
       return false;
     }
-
+    
     try {
       if (fullNameController.text.trim().isEmpty) {
         Get.snackbar('Error', 'Please enter your full name');
@@ -406,7 +403,7 @@ class LoanOfficerEditProfileController extends GetxController {
   void onClose() {
     // Set disposed flag first to prevent any further access
     _isDisposed = true;
-
+    
     // Dispose controllers safely
     try {
       fullNameController.dispose();
@@ -423,19 +420,7 @@ class LoanOfficerEditProfileController extends GetxController {
         print('⚠️ Error disposing controllers: $e');
       }
     }
-
-    fullNameController.dispose();
-    emailController.dispose();
-    phoneController.dispose();
-    bioController.dispose();
-    licenseNumberController.dispose();
-    companyNameController.dispose();
-    mortgageApplicationUrlController.dispose();
-    externalReviewsUrlController.dispose();
-    serviceAreasController.dispose();
-    yearsOfExperienceController.dispose();
-    languagesSpokenController.dispose();
-    discountsOfferedController.dispose();
+    
     super.onClose();
   }
 }

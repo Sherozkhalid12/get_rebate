@@ -1,6 +1,5 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:get/get.dart' hide FormData, MultipartFile;
 import 'package:get_storage/get_storage.dart';
 import 'package:dio/dio.dart';
@@ -22,13 +21,11 @@ class AuthController extends GetxController {
   final _isLoading = false.obs;
   final _currentUser = Rxn<UserModel>();
   final _isLoggedIn = false.obs;
-  bool _isLoadingLoanOfficerProfile = false; // Guard to prevent multiple simultaneous loads
 
   // Getters
   bool get isLoading => _isLoading.value;
   UserModel? get currentUser => _currentUser.value;
   bool get isLoggedIn => _isLoggedIn.value;
-  String? get token => _storage.read('auth_token');
 
   @override
   void onInit() {
@@ -115,76 +112,31 @@ class AuthController extends GetxController {
       print('   Role: ${_currentUser.value?.role}');
 
       // If this is a loan officer, eagerly load their full profile
-      // Only load if not already loading to prevent infinite loops
-      if (_currentUser.value?.role == UserRole.loanOfficer && !_isLoadingLoanOfficerProfile) {
-        _loadLoanOfficerProfile();
+      if (_currentUser.value?.role == UserRole.loanOfficer) {
+        try {
+          final loanOfficerId = _currentUser.value!.id;
+          print('📡 AuthController._checkAuthStatus: Detected loan officer session.');
+          print('   Loan officer ID to load: $loanOfficerId');
+
+          final currentLoanOfficerController =
+              Get.isRegistered<CurrentLoanOfficerController>()
+                  ? Get.find<CurrentLoanOfficerController>()
+                  : Get.put(CurrentLoanOfficerController(), permanent: true);
+
+          currentLoanOfficerController
+              .fetchCurrentLoanOfficer(loanOfficerId)
+              .then((_) {
+            print('✅ AuthController._checkAuthStatus: Current loan officer profile loaded after session restore.');
+          }).catchError((e) {
+            print('❌ AuthController._checkAuthStatus: Failed to load current loan officer profile: $e');
+          });
+        } catch (e) {
+          print('⚠️ AuthController._checkAuthStatus: Error initializing CurrentLoanOfficerController: $e');
+        }
       }
     } else {
       print('ℹ️ No saved user session found');
       _isLoggedIn.value = false;
-    }
-  }
-
-  /// Loads the loan officer profile asynchronously
-  /// Prevents multiple simultaneous calls with a guard flag
-  Future<void> _loadLoanOfficerProfile() async {
-    // Guard: Prevent multiple simultaneous calls
-    if (_isLoadingLoanOfficerProfile) {
-      if (kDebugMode) {
-        print('⚠️ AuthController._loadLoanOfficerProfile: Already loading, skipping duplicate call.');
-      }
-      return;
-    }
-
-    // Guard: Check if data already exists
-    try {
-      if (Get.isRegistered<CurrentLoanOfficerController>()) {
-        final currentLoanOfficerController = Get.find<CurrentLoanOfficerController>();
-        if (currentLoanOfficerController.currentLoanOfficer.value != null &&
-            currentLoanOfficerController.currentLoanOfficer.value!.id == _currentUser.value?.id) {
-          if (kDebugMode) {
-            print('✅ AuthController._loadLoanOfficerProfile: Loan officer data already loaded, skipping.');
-          }
-          return;
-        }
-      }
-    } catch (e) {
-      // Continue if controller not registered yet
-    }
-
-    _isLoadingLoanOfficerProfile = true;
-
-    try {
-      final loanOfficerId = _currentUser.value!.id;
-      if (kDebugMode) {
-        print('📡 AuthController._loadLoanOfficerProfile: Detected loan officer session.');
-        print('   Loan officer ID to load: $loanOfficerId');
-      }
-
-      final currentLoanOfficerController =
-          Get.isRegistered<CurrentLoanOfficerController>()
-              ? Get.find<CurrentLoanOfficerController>()
-              : Get.put(CurrentLoanOfficerController(), permanent: true);
-
-      await currentLoanOfficerController.fetchCurrentLoanOfficer(loanOfficerId);
-      
-      // Only log success if we actually have loan officer data
-      if (currentLoanOfficerController.currentLoanOfficer.value != null) {
-        if (kDebugMode) {
-          print('✅ AuthController._loadLoanOfficerProfile: Current loan officer profile loaded after session restore.');
-        }
-      } else {
-        if (kDebugMode) {
-          print('⚠️ AuthController._loadLoanOfficerProfile: fetchCurrentLoanOfficer completed but loan officer is still null.');
-        }
-      }
-    } catch (e) {
-      if (kDebugMode) {
-        print('❌ AuthController._loadLoanOfficerProfile: Failed to load current loan officer profile: $e');
-      }
-      // Don't block the app - user can still use it, just without full profile data
-    } finally {
-      _isLoadingLoanOfficerProfile = false;
     }
   }
 
@@ -957,9 +909,6 @@ class AuthController extends GetxController {
     File? profilePic,
     File? companyLogo,
     File? video,
-    int? yearsOfExperience,
-    List<String>? languagesSpoken,
-    String? discountsOffered,
   }) async {
     try {
       _isLoading.value = true;
@@ -1016,21 +965,6 @@ class AuthController extends GetxController {
             .map((code) => _getStateNameFromCode(code))
             .toList();
         formData.fields.add(MapEntry('licensedStates', jsonEncode(stateNames)));
-      }
-      if (yearsOfExperience != null) {
-        formData.fields.add(
-          MapEntry('yearsOfExperience', yearsOfExperience.toString()),
-        );
-      }
-      if (languagesSpoken != null && languagesSpoken.isNotEmpty) {
-        formData.fields.add(
-          MapEntry('languagesSpoken', jsonEncode(languagesSpoken)),
-        );
-      }
-      if (discountsOffered != null && discountsOffered.isNotEmpty) {
-        formData.fields.add(
-          MapEntry('discountsOffered', discountsOffered),
-        );
       }
 
       // Add boolean fields
@@ -1164,9 +1098,6 @@ class AuthController extends GetxController {
                   userData['dualAgencySBrokerage'] ?? dualAgencySBrokerage,
               'companyLogo': userData['companyLogo'],
               'video': userData['video'] ?? userData['videoUrl'],
-              'yearsOfExperience': userData['yearsOfExperience'] ?? yearsOfExperience,
-              'languagesSpoken': userData['languagesSpoken'] ?? languagesSpoken,
-              'discountsOffered': userData['discountsOffered'] ?? discountsOffered,
             },
           );
 
@@ -1306,9 +1237,25 @@ class AuthController extends GetxController {
     print('   User ID: $userId');
 
     // If loan officer, ensure we trigger loading of full loan officer profile
-    // Load in background - don't block navigation
-    // Note: _loadLoanOfficerProfile already called in _checkAuthStatus, so skip here to avoid duplicate
-    // The profile will be loaded automatically when session is restored
+    if (role == UserRole.loanOfficer && userId != null && userId.isNotEmpty) {
+      try {
+        print('📡 AuthController._navigateToRoleBasedScreen: Loading current loan officer profile before navigation...');
+        final currentLoanOfficerController =
+            Get.isRegistered<CurrentLoanOfficerController>()
+                ? Get.find<CurrentLoanOfficerController>()
+                : Get.put(CurrentLoanOfficerController(), permanent: true);
+
+        currentLoanOfficerController
+            .fetchCurrentLoanOfficer(userId)
+            .then((_) {
+          print('✅ AuthController._navigateToRoleBasedScreen: Loan officer profile loaded.');
+        }).catchError((e) {
+          print('❌ AuthController._navigateToRoleBasedScreen: Failed to load loan officer profile: $e');
+        });
+      } catch (e) {
+        print('⚠️ AuthController._navigateToRoleBasedScreen: Error initializing CurrentLoanOfficerController: $e');
+      }
+    }
 
     switch (role) {
       case UserRole.buyerSeller:

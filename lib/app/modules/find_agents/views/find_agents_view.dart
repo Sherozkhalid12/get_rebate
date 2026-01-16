@@ -122,9 +122,10 @@ class FindAgentsView extends GetView<FindAgentsController> {
       }
 
       // Access reactive RxInt values DIRECTLY inside Obx - this is critical for GetX to track them
-      // Force GetX to track by accessing .value property
+      // Force GetX to track by accessing .value property directly
       final currentPage = controller.currentPage.value;
       final totalPages = controller.totalPages.value;
+      final totalAgents = controller.totalAgents.value;
       final canLoadMore = currentPage < totalPages;
       
       if (kDebugMode) {
@@ -132,13 +133,19 @@ class FindAgentsView extends GetView<FindAgentsController> {
         print('   Agents count: ${controller.agents.length}');
         print('   Current page: $currentPage');
         print('   Total pages: $totalPages');
+        print('   Total agents: $totalAgents');
         print('   Can load more: $canLoadMore');
         print('   ItemCount will be: ${controller.agents.length + (canLoadMore ? 1 : 0)}');
       }
       
-      // Show button if we have agents AND (can load more OR totalPages > 1)
-      // This ensures button shows even if there's a timing issue
-      final shouldShowButton = controller.agents.isNotEmpty && (canLoadMore || totalPages > 1);
+      // Show button if we have agents AND there are more pages available
+      // Check both the calculated value and the getter to ensure we catch all cases
+      final shouldShowButton = controller.agents.isNotEmpty && canLoadMore;
+      
+      if (kDebugMode && controller.agents.isNotEmpty) {
+        print('   Should show button: $shouldShowButton');
+        print('   Condition check: agents.isNotEmpty=${controller.agents.isNotEmpty}, canLoadMore=$canLoadMore');
+      }
       
       return ListView.builder(
         padding: const EdgeInsets.all(20),
@@ -164,15 +171,25 @@ class FindAgentsView extends GetView<FindAgentsController> {
   
   Widget _buildLoadMoreButton(BuildContext context) {
     return Obx(() {
-      // Access reactive values to track loading state
+      // Access reactive values to track loading state and pagination
       final isLoadingMore = controller.isLoadingMore;
       final currentPage = controller.currentPage.value;
       final totalPages = controller.totalPages.value;
+      final canLoadMore = currentPage < totalPages;
+      
+      // Hide button if there are no more pages to load
+      if (!canLoadMore) {
+        if (kDebugMode) {
+          print('🔘 Load More button hidden: No more pages (page $currentPage/$totalPages)');
+        }
+        return const SizedBox.shrink();
+      }
       
       if (kDebugMode) {
         print('🔘 Building Load More button:');
         print('   Current page: $currentPage');
         print('   Total pages: $totalPages');
+        print('   Can load more: $canLoadMore');
         print('   Is loading: $isLoadingMore');
       }
       

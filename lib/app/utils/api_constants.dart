@@ -7,38 +7,39 @@ class ApiConstants {
   // ============================================================================
   // BASE URL CONFIGURATION
   // ============================================================================
-  // 
+  //
   // OPTION 1: Using ngrok (for external access)
   //   - Get your ngrok URL from: https://dashboard.ngrok.com/
   //   - Update _ngrokUrl below with your current ngrok URL
   //   - Example: "https://a8b8ef09fa9a.ngrok-free.app"
-  // 
+  //
   // OPTION 2: Using local network IP (for same network devices)
-  //   - Find your computer's IP: 
+  //   - Find your computer's IP:
   //     Windows: Run 'ipconfig' in CMD → IPv4 Address
   //     Mac/Linux: Run 'ifconfig' or 'ip addr' → inet address
   //   - Update _localNetworkIp below with your IP
   //   - Example: "192.168.1.100"
   //   - Port should be 3001
-  // 
+  //
   // OPTION 3: Using localhost (for emulator/simulator only)
   //   - Android Emulator: Use "10.0.2.2"
   //   - iOS Simulator: Use "localhost"
-  // 
+  //
   // ============================================================================
 
   // Server URL
-  static const String _serverUrl = 'https://deshawn-astucious-martin.ngrok-free.dev';
+  static const String _serverUrl = 'http://98.93.16.113:3001';
 
   // Ngrok URL (update this when ngrok restarts)
-  static const String _ngrokUrl = 'https://deshawn-astucious-martin.ngrok-free.dev';
-
+  static const String _ngrokUrl = 'https://004db1f400ae.ngrok-free.app';
   // Local network IP (update with your computer's IP address)
   static const String _localNetworkIp = '192.168.1.100'; // TODO: Update this!
 
   // Choose which base URL to use
-  static const bool _useServerUrl = true; // Set to true to use server URL, false for ngrok/local
-  static const bool _useNgrok = false; // Set to true to use ngrok, false for server URL
+  static const bool _useServerUrl =
+      true; // Set to true to use server URL, false for ngrok/local
+  static const bool _useNgrok =
+      false; // Set to true to use ngrok, false for server URL
 
   // API version prefix
   static const String _apiVersion = '/api/v1';
@@ -84,7 +85,8 @@ class ApiConstants {
     return "${chatEndPoint}thread/$threadId/messages?userId=$userId";
   }
 
-  static String get markThreadAsReadEndpoint => "${chatEndPoint}thread/mark-read";
+  static String get markThreadAsReadEndpoint =>
+      "${chatEndPoint}thread/mark-read";
   static String get deleteChatEndpoint => "${chatEndPoint}deleteChat";
 
   // Agent specific endpoints
@@ -135,12 +137,21 @@ class ApiConstants {
 
   // Get leads by agent ID endpoint (for agents to see their leads)
   static String getLeadsByAgentIdEndpoint(String agentId) {
-    return "$apiBaseUrl/agent/getLeadsByAgentId/$agentId";
+    return "$apiBaseUrl/buyer/getLeadsByAgentId/$agentId";
   }
 
   // Get leads by buyer/user ID endpoint (for buyers to see their own leads)
   static String getLeadsByBuyerIdEndpoint(String buyerId) {
     return "$apiBaseUrl/buyer/getLeadsByAgentId/$buyerId";
+  }
+
+  // Agent lead response endpoints
+  static String getRespondToLeadEndpoint(String leadId) {
+    return "$apiBaseUrl/buyer/respondToLead/$leadId";
+  }
+
+  static String getMarkLeadCompleteEndpoint(String leadId) {
+    return "$apiBaseUrl/buyer/markLeadComplete/$leadId";
   }
 
   // Like/Unlike agent endpoint
@@ -154,6 +165,9 @@ class ApiConstants {
   static String getLikeLoanOfficerEndpoint(String loanOfficerId) {
     return "$apiBaseUrl/loan-officers/$loanOfficerId/like";
   }
+
+  // Like/Unlike listing endpoint
+  static String get likeListingEndpoint => "$apiBaseUrl/buyer/like";
 
   // Agent and Loan Officer tracking endpoints (shared)
   // Note: addSearch endpoint expects name, not ID
@@ -184,18 +198,12 @@ class ApiConstants {
     return "$apiBaseUrl/agent/getListingsByUserId/$userId";
   }
 
-
   // Rebate Calculator endpoints
   static String get rebateEstimateEndpoint => "$apiBaseUrl/rebate/estimate";
-  static String get rebateCalculateExactEndpoint => "$apiBaseUrl/rebate/calculate-exact";
-  static String get rebateCalculateSellerRateEndpoint => "$apiBaseUrl/rebate/calculate-seller-rate";
-
-  // Zip Code endpoints
-  static String getZipCodesEndpoint(String country, String state) {
-    return "$apiBaseUrl/zip-codes/$country/$state";
-  }
-  static String get zipCodeClaimEndpoint => "$apiBaseUrl/zip-codes/claim";
-  static String get zipCodeReleaseEndpoint => "$apiBaseUrl/zip-codes/release";
+  static String get rebateCalculateExactEndpoint =>
+      "$apiBaseUrl/rebate/calculate-exact";
+  static String get rebateCalculateSellerRateEndpoint =>
+      "$apiBaseUrl/rebate/calculate-seller-rate";
 
   // Notification endpoints
   static String getNotificationsEndpoint(String userId) {
@@ -245,25 +253,32 @@ class ApiConstants {
 
   // Proposal endpoints
   static String get createProposalEndpoint => "$apiBaseUrl/proposals/create";
-  static String getProposalEndpoint(String proposalId) => "$apiBaseUrl/proposals/$proposalId";
-  static String acceptProposalEndpoint(String proposalId) => "$apiBaseUrl/proposals/$proposalId/accept";
-  static String rejectProposalEndpoint(String proposalId) => "$apiBaseUrl/proposals/$proposalId/reject";
-  static String completeServiceEndpoint(String proposalId) => "$apiBaseUrl/proposals/$proposalId/complete";
-  static String getUserProposalsEndpoint(String userId) => "$apiBaseUrl/proposals/user/$userId";
-  static String getProfessionalProposalsEndpoint(String professionalId) => "$apiBaseUrl/proposals/professional/$professionalId";
+  static String getProposalEndpoint(String proposalId) =>
+      "$apiBaseUrl/proposals/$proposalId";
+  static String acceptProposalEndpoint(String proposalId) =>
+      "$apiBaseUrl/proposals/$proposalId/accept";
+  static String rejectProposalEndpoint(String proposalId) =>
+      "$apiBaseUrl/proposals/$proposalId/reject";
+  static String completeServiceEndpoint(String proposalId) =>
+      "$apiBaseUrl/proposals/$proposalId/complete";
+  static String getUserProposalsEndpoint(String userId) =>
+      "$apiBaseUrl/proposals/user/$userId";
+  static String getProfessionalProposalsEndpoint(String professionalId) =>
+      "$apiBaseUrl/proposals/professional/$professionalId";
 
   // Report endpoints
   static String get submitReportEndpoint => "$apiBaseUrl/reports";
 
   // Review endpoints
   static String get submitReviewEndpoint => "$apiBaseUrl/buyer/addReview";
-  static String submitLoanOfficerReviewEndpoint(String loanOfficerId) => "$apiBaseUrl/loan-officers/$loanOfficerId/reviews";
+  static String submitLoanOfficerReviewEndpoint(String loanOfficerId) =>
+      "$apiBaseUrl/loan-officers/$loanOfficerId/reviews";
 
   /// Normalizes an image URL by prepending the base URL if needed
   /// Returns null if the input is null or empty
   /// Returns the original URL if it's already a full HTTP/HTTPS URL
   /// Otherwise prepends the base URL
-  /// Get image URL - images are already coming with correct URLs, so just return as-is
+  /// Get image URL - properly encode URLs with spaces and special characters
   static String? getImageUrl(String? imagePath) {
     if (imagePath == null || imagePath.trim().isEmpty) {
       if (kDebugMode) {
@@ -278,8 +293,120 @@ class ApiConstants {
       print('🖼️ getImageUrl: Input path = "$trimmedPath"');
     }
 
-    // Images are already coming with correct URLs, so just return as-is
+    // If it's a full URL, encode it properly to handle spaces and special characters
+    if (trimmedPath.startsWith('http://') ||
+        trimmedPath.startsWith('https://')) {
+      try {
+        // Check if URL contains unencoded characters (spaces, parentheses, etc.)
+        // Check for spaces, parentheses, brackets that aren't already encoded
+        // Also check if URL is partially encoded (has %20 but still has unencoded parentheses)
+        final hasUnencodedChars =
+            (trimmedPath.contains(' ') && !trimmedPath.contains('%20')) ||
+            (trimmedPath.contains('(') && !trimmedPath.contains('%28')) ||
+            (trimmedPath.contains(')') && !trimmedPath.contains('%29')) ||
+            (trimmedPath.contains('[') && !trimmedPath.contains('%5B')) ||
+            (trimmedPath.contains(']') && !trimmedPath.contains('%5D'));
+
+        // Also check if URL is partially encoded (e.g., has %20 but still has unencoded parentheses)
+        final isPartiallyEncoded =
+            trimmedPath.contains('%20') &&
+            (trimmedPath.contains('(') || trimmedPath.contains(')'));
+
+        if (hasUnencodedChars || isPartiallyEncoded) {
+          // Manually parse and encode the URL to avoid Uri.parse() issues with spaces
+          final schemeEnd = trimmedPath.indexOf('://');
+          if (schemeEnd == -1) {
+            return trimmedPath; // Invalid URL format
+          }
+
+          final scheme = trimmedPath.substring(0, schemeEnd);
+          final afterScheme = trimmedPath.substring(schemeEnd + 3);
+
+          // Find the first '/' to separate host from path
+          final pathStart = afterScheme.indexOf('/');
+          if (pathStart == -1) {
+            // No path, just return as-is
+            return trimmedPath;
+          }
+
+          final host = afterScheme.substring(0, pathStart);
+          final pathAndQuery = afterScheme.substring(pathStart);
+
+          // Separate path from query/fragment
+          final queryStart = pathAndQuery.indexOf('?');
+          final fragmentStart = pathAndQuery.indexOf('#');
+
+          String path;
+          String? query;
+          String? fragment;
+
+          if (queryStart != -1) {
+            path = pathAndQuery.substring(0, queryStart);
+            final afterQuery = pathAndQuery.substring(queryStart + 1);
+            if (fragmentStart != -1 && fragmentStart > queryStart) {
+              final fragmentIndexInAfterQuery = fragmentStart - queryStart - 1;
+              query = afterQuery.substring(0, fragmentIndexInAfterQuery);
+              fragment = afterQuery.substring(fragmentIndexInAfterQuery + 1);
+            } else {
+              query = afterQuery;
+            }
+          } else if (fragmentStart != -1) {
+            path = pathAndQuery.substring(0, fragmentStart);
+            fragment = pathAndQuery.substring(fragmentStart + 1);
+          } else {
+            path = pathAndQuery;
+          }
+
+          // Encode path segments
+          final segments = path.split('/').where((s) => s.isNotEmpty).toList();
+          final encodedSegments = segments.map((segment) {
+            try {
+              // Decode first in case it's partially encoded
+              final decoded = Uri.decodeComponent(segment);
+              return Uri.encodeComponent(decoded);
+            } catch (e) {
+              // If decoding fails, just encode as-is
+              return Uri.encodeComponent(segment);
+            }
+          }).toList();
+
+          // Reconstruct the encoded path
+          final encodedPath = '/${encodedSegments.join('/')}';
+
+          // Reconstruct the full URL
+          String encodedUrl = '$scheme://$host$encodedPath';
+          if (query != null && query.isNotEmpty) {
+            encodedUrl += '?$query';
+          }
+          if (fragment != null && fragment.isNotEmpty) {
+            encodedUrl += '#$fragment';
+          }
+
+          if (kDebugMode) {
+            print('🖼️ getImageUrl: Encoded URL');
+            print('   Original: "$trimmedPath"');
+            print('   Encoded:  "$encodedUrl"');
+          }
+          return encodedUrl;
+        } else {
+          // Already properly encoded or no special characters
+          if (kDebugMode) {
+            print(
+              '🖼️ getImageUrl: URL appears properly encoded, returning as-is',
+            );
+          }
+          return trimmedPath;
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          print('⚠️ getImageUrl: Error encoding URL: $e');
+        }
+        // Fallback: return original
+        return trimmedPath;
+      }
+    }
+
+    // Not a full URL, return as-is
     return trimmedPath;
   }
 }
-

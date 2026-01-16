@@ -19,8 +19,8 @@ import 'package:getrebate/app/modules/agent_edit_profile/bindings/agent_edit_pro
 import 'package:getrebate/app/modules/agent_edit_profile/views/agent_edit_profile_view.dart';
 import 'package:getrebate/app/modules/loan_officer_profile/bindings/loan_officer_profile_binding.dart';
 import 'package:getrebate/app/modules/loan_officer_profile/views/loan_officer_profile_view.dart';
-import 'package:getrebate/app/modules/buyer_lead_form/bindings/buyer_lead_form_binding.dart';
-import 'package:getrebate/app/modules/buyer_lead_form/views/buyer_lead_form_view.dart';
+import 'package:getrebate/app/modules/buyer_lead_form_v2/bindings/buyer_lead_form_v2_binding.dart';
+import 'package:getrebate/app/modules/buyer_lead_form_v2/views/buyer_lead_form_v2_view.dart';
 import 'package:getrebate/app/modules/seller_lead_form/bindings/seller_lead_form_binding.dart';
 import 'package:getrebate/app/modules/seller_lead_form/views/seller_lead_form_view.dart';
 import 'package:getrebate/app/modules/property_detail/bindings/property_detail_binding.dart';
@@ -61,10 +61,6 @@ import 'package:getrebate/app/modules/help_support/views/help_support_view.dart'
 import 'package:getrebate/app/modules/help_support/bindings/help_support_binding.dart';
 import 'package:getrebate/app/modules/terms_of_service/views/terms_of_service_view.dart';
 import 'package:getrebate/app/modules/terms_of_service/bindings/terms_of_service_binding.dart';
-import 'package:getrebate/app/modules/loan_officer_buyer_connections/views/loan_officer_buyer_connections_view.dart';
-import 'package:getrebate/app/modules/loan_officer_buyer_connections/bindings/loan_officer_buyer_connections_binding.dart';
-import 'package:getrebate/app/modules/loan_officer_buyer_detail/views/loan_officer_buyer_detail_view.dart';
-import 'package:getrebate/app/modules/loan_officer_buyer_detail/bindings/loan_officer_buyer_detail_binding.dart';
 import 'package:getrebate/app/modules/notifications/views/notifications_view.dart';
 import 'package:getrebate/app/modules/notifications/bindings/notifications_binding.dart';
 import 'package:getrebate/app/modules/proposals/views/proposals_view.dart';
@@ -104,8 +100,6 @@ class AppPages {
   static const PRIVACY_POLICY = '/privacy-policy';
   static const HELP_SUPPORT = '/help-support';
   static const TERMS_OF_SERVICE = '/terms-of-service';
-  static const LOAN_OFFICER_BUYER_CONNECTIONS = '/loan-officer-buyer-connections';
-  static const LOAN_OFFICER_BUYER_DETAIL = '/loan-officer-buyer-detail';
   static const NOTIFICATIONS = '/notifications';
   static const PROPOSALS = '/proposals';
   static const LEAD_DETAIL = '/lead-detail';
@@ -161,8 +155,8 @@ class AppPages {
     ),
     GetPage(
       name: BUYER_LEAD_FORM,
-      page: () => const BuyerLeadFormView(),
-      binding: BuyerLeadFormBinding(),
+      page: () => const BuyerLeadFormV2View(),
+      binding: BuyerLeadFormV2Binding(),
     ),
     GetPage(
       name: SELLER_LEAD_FORM,
@@ -257,16 +251,6 @@ class AppPages {
       name: TERMS_OF_SERVICE,
       page: () => const TermsOfServiceView(),
       binding: TermsOfServiceBinding(),
-    ),
-    GetPage(
-      name: LOAN_OFFICER_BUYER_CONNECTIONS,
-      page: () => const LoanOfficerBuyerConnectionsView(),
-      binding: LoanOfficerBuyerConnectionsBinding(),
-    ),
-    GetPage(
-      name: LOAN_OFFICER_BUYER_DETAIL,
-      page: () => const LoanOfficerBuyerDetailView(),
-      binding: LoanOfficerBuyerDetailBinding(),
     ),
     GetPage(
       name: NOTIFICATIONS,

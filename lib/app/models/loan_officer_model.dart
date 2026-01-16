@@ -1,3 +1,5 @@
+import 'package:getrebate/app/utils/api_constants.dart';
+
 class LoanOfficerModel {
   final String id;
   final String name;
@@ -29,9 +31,6 @@ class LoanOfficerModel {
   final bool isActive;
   final List<LoanOfficerReview>? reviews; // Dynamic reviews from API
   final List<String>? likes; // Array of user IDs who liked this loan officer
-  final int? yearsOfExperience; // Years of experience
-  final List<String> languagesSpoken; // Languages spoken
-  final String? discountsOffered; // Discounts offered (marketing text)
 
   LoanOfficerModel({
     required this.id,
@@ -62,10 +61,18 @@ class LoanOfficerModel {
     this.isActive = true,
     this.reviews,
     this.likes,
-    this.yearsOfExperience,
-    this.languagesSpoken = const [],
-    this.discountsOffered,
   });
+
+  // Helper method to parse string field with multiple possible keys
+  static String? _parseStringField(Map<String, dynamic> json, List<String> keys) {
+    for (final key in keys) {
+      final value = json[key]?.toString();
+      if (value != null && value.trim().isNotEmpty) {
+        return value.trim();
+      }
+    }
+    return null;
+  }
 
   factory LoanOfficerModel.fromJson(Map<String, dynamic> json) {
     // Handle both API field names and model field names
@@ -74,29 +81,13 @@ class LoanOfficerModel {
     final email = json['email']?.toString() ?? '';
     final phone = json['phone']?.toString();
     
-    // Profile picture - handle Windows paths and build full URL
-    String? profileImage = json['profilePic']?.toString() ?? json['profileImage']?.toString();
-    if (profileImage != null && profileImage.isNotEmpty) {
-      profileImage = profileImage.replaceAll('\\', '/');
-      if (!profileImage.startsWith('http://') && !profileImage.startsWith('https://')) {
-        // Remove leading slash if present
-        if (profileImage.startsWith('/')) {
-          profileImage = profileImage.substring(1);
-        }
-        // Note: Full URL will be constructed in views/controllers using ApiConstants.baseUrl
-      }
-    }
+    // Profile picture - normalize URL with base URL prepended
+    final profileImageRaw = json['profilePic']?.toString() ?? json['profileImage']?.toString();
+    final profileImage = ApiConstants.getImageUrl(profileImageRaw);
     
-    // Company logo
-    String? companyLogoUrl = json['companyLogo']?.toString();
-    if (companyLogoUrl != null && companyLogoUrl.isNotEmpty) {
-      companyLogoUrl = companyLogoUrl.replaceAll('\\', '/');
-      if (!companyLogoUrl.startsWith('http://') && !companyLogoUrl.startsWith('https://')) {
-        if (companyLogoUrl.startsWith('/')) {
-          companyLogoUrl = companyLogoUrl.substring(1);
-        }
-      }
-    }
+    // Company logo - normalize URL with base URL prepended
+    final companyLogoRaw = json['companyLogo']?.toString();
+    final companyLogoUrl = ApiConstants.getImageUrl(companyLogoRaw);
     
     // Company name
     final company = json['CompanyName']?.toString() ?? 
@@ -115,25 +106,8 @@ class LoanOfficerModel {
     final licensedStates = List<String>.from(licensedStatesList);
     
     // Service areas/ZIP codes
-    // Handle both array of strings and array of objects with postalCode field
-    List<String> claimedZipCodes = [];
     final serviceAreasList = json['serviceAreas'] ?? json['claimedZipCodes'] ?? [];
-    
-    if (serviceAreasList is List) {
-      for (var item in serviceAreasList) {
-        if (item is String) {
-          claimedZipCodes.add(item);
-        } else if (item is Map) {
-          // Handle object format: { postalCode: "95814", price: 5254, state: "CA", population: 524943 }
-          final postalCode = item['postalCode']?.toString() ?? 
-                           item['zipCode']?.toString() ?? 
-                           item['zipcode']?.toString();
-          if (postalCode != null && postalCode.isNotEmpty) {
-            claimedZipCodes.add(postalCode);
-          }
-        }
-      }
-    }
+    final claimedZipCodes = List<String>.from(serviceAreasList);
     
     // Specialty products
     final specialtyList = json['specialtyProducts'] ?? [];
@@ -189,22 +163,6 @@ class LoanOfficerModel {
       likes = likesData.map((like) => like.toString()).toList();
     }
     
-    // Parse "Why Pick Me" fields
-    int? yearsOfExperience;
-    if (json['yearsOfExperience'] != null) {
-      yearsOfExperience = json['yearsOfExperience'] is int 
-          ? json['yearsOfExperience'] 
-          : (json['yearsOfExperience'] is num ? (json['yearsOfExperience'] as num).toInt() : null);
-    }
-    
-    List<String> languagesSpoken = [];
-    final languagesData = json['languagesSpoken'];
-    if (languagesData != null && languagesData is List) {
-      languagesSpoken = List<String>.from(languagesData);
-    }
-    
-    final discountsOffered = json['discountsOffered']?.toString();
-    
     return LoanOfficerModel(
       id: id,
       name: name,
@@ -224,11 +182,8 @@ class LoanOfficerModel {
       profileViews: json['views'] is int ? json['views'] : 0,
       contacts: json['contacts'] is int ? json['contacts'] : 0,
       allowsRebates: json['allowsRebates'] is bool ? json['allowsRebates'] : true,
-      mortgageApplicationUrl: json['mortgageApplicationUrl']?.toString() ?? 
-                             json['mortgage_application_url']?.toString() ??
-                             json['mortagelink']?.toString(), // Handle API typo
-      externalReviewsUrl: json['externalReviewsUrl']?.toString() ?? 
-                         json['external_reviews_link']?.toString(),
+      mortgageApplicationUrl: _parseStringField(json, ['mortagelink', 'mortgageApplicationUrl', 'mortgage_application_url']),
+      externalReviewsUrl: _parseStringField(json, ['externalReviewsUrl', 'external_reviews_link', 'thirdPartReviewLink']),
       platformRating: rating, // Use same rating
       platformReviewCount: reviewCount, // Use same review count
       createdAt: createdAt,
@@ -237,9 +192,6 @@ class LoanOfficerModel {
       isActive: true, // Assume active if in API response
       reviews: reviews,
       likes: likes,
-      yearsOfExperience: yearsOfExperience,
-      languagesSpoken: languagesSpoken,
-      discountsOffered: discountsOffered,
     );
   }
 
@@ -273,9 +225,6 @@ class LoanOfficerModel {
       'isActive': isActive,
       'reviews': reviews?.map((r) => r.toJson()).toList(),
       'likes': likes,
-      'yearsOfExperience': yearsOfExperience,
-      'languagesSpoken': languagesSpoken,
-      'discountsOffered': discountsOffered,
     };
   }
 
@@ -307,9 +256,6 @@ class LoanOfficerModel {
     bool? isVerified,
     bool? isActive,
     List<String>? likes,
-    int? yearsOfExperience,
-    List<String>? languagesSpoken,
-    String? discountsOffered,
   }) {
     return LoanOfficerModel(
       id: id ?? this.id,
@@ -341,9 +287,6 @@ class LoanOfficerModel {
       isActive: isActive ?? this.isActive,
       reviews: reviews ?? this.reviews,
       likes: likes ?? this.likes,
-      yearsOfExperience: yearsOfExperience ?? this.yearsOfExperience,
-      languagesSpoken: languagesSpoken ?? this.languagesSpoken,
-      discountsOffered: discountsOffered ?? this.discountsOffered,
     );
   }
 }
