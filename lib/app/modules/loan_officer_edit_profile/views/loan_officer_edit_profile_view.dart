@@ -9,6 +9,7 @@ import 'package:getrebate/app/widgets/custom_button.dart';
 import 'package:getrebate/app/widgets/custom_text_field.dart';
 import 'package:getrebate/app/widgets/gradient_card.dart';
 import 'package:getrebate/app/models/mortgage_types.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 
 class LoanOfficerEditProfileView extends GetView<LoanOfficerEditProfileController> {
   const LoanOfficerEditProfileView({super.key});
@@ -649,6 +650,41 @@ class LoanOfficerEditProfileView extends GetView<LoanOfficerEditProfileControlle
             prefixIcon: Icons.link_outlined,
             hintText: 'https://example.com/apply',
           ),
+          const SizedBox(height: 12),
+          CustomButton(
+            text: 'Open Mortgage Link',
+            isOutlined: true,
+            width: double.infinity,
+            icon: Icons.open_in_browser,
+            onPressed: () {
+              final rawUrl =
+                  controller.mortgageApplicationUrlController.text.trim();
+              if (rawUrl.isEmpty) {
+                Get.snackbar(
+                  'Error',
+                  'Please enter a mortgage application URL first.',
+                  snackPosition: SnackPosition.BOTTOM,
+                );
+                return;
+              }
+
+              final normalizedUrl = _normalizeUrl(rawUrl);
+              final uri = Uri.tryParse(normalizedUrl);
+              if (uri == null || !uri.isAbsolute) {
+                Get.snackbar(
+                  'Error',
+                  'Please enter a valid URL.',
+                  snackPosition: SnackPosition.BOTTOM,
+                );
+                return;
+              }
+
+              Get.to(
+                () => _MortgageWebView(url: normalizedUrl),
+                fullscreenDialog: true,
+              );
+            },
+          ),
           const SizedBox(height: 16),
 
           CustomTextField(
@@ -657,6 +693,59 @@ class LoanOfficerEditProfileView extends GetView<LoanOfficerEditProfileControlle
             prefixIcon: Icons.star_outline,
             hintText: 'https://example.com/reviews',
           ),
+        ],
+      ),
+    );
+  }
+}
+
+String _normalizeUrl(String url) {
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url;
+  }
+  return 'https://$url';
+}
+
+class _MortgageWebView extends StatefulWidget {
+  final String url;
+
+  const _MortgageWebView({required this.url});
+
+  @override
+  State<_MortgageWebView> createState() => _MortgageWebViewState();
+}
+
+class _MortgageWebViewState extends State<_MortgageWebView> {
+  late final WebViewController _controller;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setNavigationDelegate(
+        NavigationDelegate(
+          onPageStarted: (_) => setState(() => _isLoading = true),
+          onPageFinished: (_) => setState(() => _isLoading = false),
+        ),
+      )
+      ..loadRequest(Uri.parse(widget.url));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Mortgage Application'),
+      ),
+      body: Stack(
+        children: [
+          WebViewWidget(controller: _controller),
+          if (_isLoading)
+            const Center(
+              child: CircularProgressIndicator(),
+            ),
         ],
       ),
     );

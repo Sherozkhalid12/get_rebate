@@ -28,6 +28,12 @@ class ApiConstants {
   // ============================================================================
 
   // Server URL
+  static String get zipCodeClaimEndpoint => "$apiBaseUrl/zip-codes/claim";
+  static String get zipCodeReleaseEndpoint => "$apiBaseUrl/zip-codes/release";
+  static String getZipCodesEndpoint(String country, String state) {
+    return "$apiBaseUrl/zip-codes/$country/$state";
+  }
+
   static const String _serverUrl = 'http://98.93.16.113:3001';
 
   // Ngrok URL (update this when ngrok restarts)
