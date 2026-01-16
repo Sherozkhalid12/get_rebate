@@ -4,7 +4,6 @@ import 'package:dio/dio.dart';
 import 'package:getrebate/app/services/lead_service.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
-import 'package:getrebate/app/utils/network_error_handler.dart';
 import 'package:flutter/foundation.dart';
 
 class SellerLeadFormController extends GetxController {
@@ -481,10 +480,33 @@ class SellerLeadFormController extends GetxController {
         print('   Response: ${e.response?.data}');
       }
       
-      NetworkErrorHandler.handleError(
-        e,
-        defaultMessage: 'Unable to submit your request. Please check your internet connection and try again.',
-      );
+      String errorMessage = 'Failed to submit lead form. Please try again.';
+      
+      if (e.response?.statusCode == 400) {
+        errorMessage = 'Invalid form data. Please check all fields and try again.';
+      } else if (e.response?.statusCode == 401) {
+        errorMessage = 'Please log in to submit a lead.';
+      } else if (e.response?.statusCode == 404) {
+        errorMessage = 'Agent not found. Please try again.';
+      } else if (e.response?.statusCode == 500) {
+        errorMessage = 'Server error. Please try again later.';
+      } else if (e.response?.data != null) {
+        final errorData = e.response!.data;
+        if (errorData is Map<String, dynamic>) {
+          errorMessage = errorData['message']?.toString() ?? 
+                        errorData['error']?.toString() ?? 
+                        errorMessage;
+        } else if (errorData is String) {
+          errorMessage = errorData;
+        }
+      } else if (e.type == DioExceptionType.connectionTimeout || 
+                 e.type == DioExceptionType.receiveTimeout) {
+        errorMessage = 'Connection timeout. Please check your internet and try again.';
+      } else if (e.type == DioExceptionType.connectionError) {
+        errorMessage = 'No internet connection. Please check your network and try again.';
+      }
+      
+      SnackbarHelper.showError(errorMessage);
     } catch (e) {
       _isLoading.value = false;
       if (kDebugMode) {
@@ -492,10 +514,12 @@ class SellerLeadFormController extends GetxController {
         print('   Error type: ${e.runtimeType}');
       }
       
-      NetworkErrorHandler.handleError(
-        e,
-        defaultMessage: 'Unable to submit your request. Please check your internet connection and try again.',
-      );
+      String errorMessage = 'An unexpected error occurred. Please try again.';
+      if (e.toString().contains('Exception')) {
+        errorMessage = e.toString().replaceAll('Exception: ', '');
+      }
+      
+      SnackbarHelper.showError(errorMessage);
     }
   }
 

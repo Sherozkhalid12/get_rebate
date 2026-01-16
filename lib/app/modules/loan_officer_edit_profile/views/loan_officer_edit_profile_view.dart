@@ -253,8 +253,14 @@ class LoanOfficerEditProfileView extends GetView<LoanOfficerEditProfileControlle
                           width: 120,
                           height: 120,
                           fit: BoxFit.cover,
-                          placeholder: (context, url) => const Center(
-                            child: CircularProgressIndicator(),
+                          cacheKey: imageUrl,
+                          memCacheWidth: 240,
+                          memCacheHeight: 240,
+                          maxWidthDiskCache: 500,
+                          maxHeightDiskCache: 500,
+                          fadeInDuration: Duration.zero,
+                          placeholder: (context, url) => Container(
+                            color: AppTheme.primaryBlue.withOpacity(0.1),
                           ),
                           errorWidget: (context, url, error) => const Icon(
                             Icons.person,
@@ -358,8 +364,14 @@ class LoanOfficerEditProfileView extends GetView<LoanOfficerEditProfileControlle
                           width: 120,
                           height: 120,
                           fit: BoxFit.contain,
-                          placeholder: (context, url) => const Center(
-                            child: CircularProgressIndicator(),
+                          cacheKey: imageUrl,
+                          memCacheWidth: 240,
+                          memCacheHeight: 240,
+                          maxWidthDiskCache: 500,
+                          maxHeightDiskCache: 500,
+                          fadeInDuration: Duration.zero,
+                          placeholder: (context, url) => Container(
+                            color: AppTheme.primaryBlue.withOpacity(0.1),
                           ),
                           errorWidget: (context, url, error) => const Icon(
                             Icons.business,

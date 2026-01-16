@@ -1,3 +1,5 @@
+import 'package:getrebate/app/utils/api_constants.dart';
+
 class LoanOfficerModel {
   final String id;
   final String name;
@@ -9,9 +11,6 @@ class LoanOfficerModel {
   final String licenseNumber;
   final List<String> licensedStates;
   final List<String> claimedZipCodes;
-  final String? city; // City from backend
-  final String? state; // State from backend
-  final String? zipCode; // ZIP code from backend
   final List<String>
   specialtyProducts; // Areas of expertise and specialty products
   final String? bio;
@@ -44,9 +43,6 @@ class LoanOfficerModel {
     required this.licenseNumber,
     this.licensedStates = const [],
     this.claimedZipCodes = const [],
-    this.city,
-    this.state,
-    this.zipCode,
     this.specialtyProducts = const [],
     this.bio,
     this.rating = 0.0,
@@ -67,6 +63,17 @@ class LoanOfficerModel {
     this.likes,
   });
 
+  // Helper method to parse string field with multiple possible keys
+  static String? _parseStringField(Map<String, dynamic> json, List<String> keys) {
+    for (final key in keys) {
+      final value = json[key]?.toString();
+      if (value != null && value.trim().isNotEmpty) {
+        return value.trim();
+      }
+    }
+    return null;
+  }
+
   factory LoanOfficerModel.fromJson(Map<String, dynamic> json) {
     // Handle both API field names and model field names
     final id = json['_id']?.toString() ?? json['id']?.toString() ?? '';
@@ -74,28 +81,13 @@ class LoanOfficerModel {
     final email = json['email']?.toString() ?? '';
     final phone = json['phone']?.toString();
     
-    // Profile picture - handle Windows paths and build full URL
-    String? profileImage = json['profilePic']?.toString() ?? json['profileImage']?.toString();
-    if (profileImage != null && profileImage.isNotEmpty) {
-      profileImage = profileImage.replaceAll('\\', '/');
-      if (!profileImage.startsWith('http://') && !profileImage.startsWith('https://')) {
-        if (profileImage.startsWith('/')) {
-          profileImage = profileImage.substring(1);
-        }
-        // Will be built with base URL in the controller if needed
-      }
-    }
+    // Profile picture - normalize URL with base URL prepended
+    final profileImageRaw = json['profilePic']?.toString() ?? json['profileImage']?.toString();
+    final profileImage = ApiConstants.getImageUrl(profileImageRaw);
     
-    // Company logo
-    String? companyLogoUrl = json['companyLogo']?.toString();
-    if (companyLogoUrl != null && companyLogoUrl.isNotEmpty) {
-      companyLogoUrl = companyLogoUrl.replaceAll('\\', '/');
-      if (!companyLogoUrl.startsWith('http://') && !companyLogoUrl.startsWith('https://')) {
-        if (companyLogoUrl.startsWith('/')) {
-          companyLogoUrl = companyLogoUrl.substring(1);
-        }
-      }
-    }
+    // Company logo - normalize URL with base URL prepended
+    final companyLogoRaw = json['companyLogo']?.toString();
+    final companyLogoUrl = ApiConstants.getImageUrl(companyLogoRaw);
     
     // Company name
     final company = json['CompanyName']?.toString() ?? 
@@ -116,11 +108,6 @@ class LoanOfficerModel {
     // Service areas/ZIP codes
     final serviceAreasList = json['serviceAreas'] ?? json['claimedZipCodes'] ?? [];
     final claimedZipCodes = List<String>.from(serviceAreasList);
-    
-    // City, state, and zipCode from backend
-    final city = json['city']?.toString();
-    final state = json['state']?.toString();
-    final zipCode = json['zipCode']?.toString();
     
     // Specialty products
     final specialtyList = json['specialtyProducts'] ?? [];
@@ -187,9 +174,6 @@ class LoanOfficerModel {
       licenseNumber: licenseNumber,
       licensedStates: licensedStates,
       claimedZipCodes: claimedZipCodes,
-      city: city,
-      state: state,
-      zipCode: zipCode,
       specialtyProducts: specialtyProducts,
       bio: json['bio']?.toString() ?? json['description']?.toString(),
       rating: rating,
@@ -198,10 +182,8 @@ class LoanOfficerModel {
       profileViews: json['views'] is int ? json['views'] : 0,
       contacts: json['contacts'] is int ? json['contacts'] : 0,
       allowsRebates: json['allowsRebates'] is bool ? json['allowsRebates'] : true,
-      mortgageApplicationUrl: json['mortgageApplicationUrl']?.toString() ?? 
-                             json['mortgage_application_url']?.toString(),
-      externalReviewsUrl: json['externalReviewsUrl']?.toString() ?? 
-                         json['external_reviews_link']?.toString(),
+      mortgageApplicationUrl: _parseStringField(json, ['mortagelink', 'mortgageApplicationUrl', 'mortgage_application_url']),
+      externalReviewsUrl: _parseStringField(json, ['externalReviewsUrl', 'external_reviews_link', 'thirdPartReviewLink']),
       platformRating: rating, // Use same rating
       platformReviewCount: reviewCount, // Use same review count
       createdAt: createdAt,
@@ -225,9 +207,6 @@ class LoanOfficerModel {
       'licenseNumber': licenseNumber,
       'licensedStates': licensedStates,
       'claimedZipCodes': claimedZipCodes,
-      'city': city,
-      'state': state,
-      'zipCode': zipCode,
       'specialtyProducts': specialtyProducts,
       'bio': bio,
       'rating': rating,
@@ -260,9 +239,6 @@ class LoanOfficerModel {
     String? licenseNumber,
     List<String>? licensedStates,
     List<String>? claimedZipCodes,
-    String? city,
-    String? state,
-    String? zipCode,
     List<String>? specialtyProducts,
     String? bio,
     double? rating,
@@ -292,9 +268,6 @@ class LoanOfficerModel {
       licenseNumber: licenseNumber ?? this.licenseNumber,
       licensedStates: licensedStates ?? this.licensedStates,
       claimedZipCodes: claimedZipCodes ?? this.claimedZipCodes,
-      city: city ?? this.city,
-      state: state ?? this.state,
-      zipCode: zipCode ?? this.zipCode,
       specialtyProducts: specialtyProducts ?? this.specialtyProducts,
       bio: bio ?? this.bio,
       rating: rating ?? this.rating,

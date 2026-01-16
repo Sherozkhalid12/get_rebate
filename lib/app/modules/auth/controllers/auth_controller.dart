@@ -1,14 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:video_thumbnail/video_thumbnail.dart';
 import 'dart:io';
-import 'package:path_provider/path_provider.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart' as global;
 import 'package:getrebate/app/models/user_model.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
-import 'package:getrebate/app/utils/network_error_handler.dart';
-import 'package:flutter/foundation.dart';
 
 class AuthViewController extends GetxController {
   final global.AuthController _globalAuthController =
@@ -51,7 +47,6 @@ class AuthViewController extends GetxController {
   final Rxn<File> _selectedProfilePic = Rxn<File>();
   final Rxn<File> _selectedCompanyLogo = Rxn<File>();
   final Rxn<File> _selectedVideo = Rxn<File>();
-  final Rxn<File> _videoThumbnail = Rxn<File>();
   final _selectedExpertise =
       <String>[].obs; // List of selected expertise areas (agents)
   final _selectedSpecialtyProducts =
@@ -73,7 +68,6 @@ class AuthViewController extends GetxController {
   File? get selectedProfilePic => _selectedProfilePic.value;
   File? get selectedCompanyLogo => _selectedCompanyLogo.value;
   File? get selectedVideo => _selectedVideo.value;
-  File? get videoThumbnail => _videoThumbnail.value;
   List<String> get selectedExpertise => _selectedExpertise;
   List<String> get selectedSpecialtyProducts => _selectedSpecialtyProducts;
   List<String> get selectedLicensedStates => _selectedLicensedStates;
@@ -189,10 +183,7 @@ class AuthViewController extends GetxController {
         _selectedProfilePic.value = File(image.path);
       }
     } catch (e) {
-      NetworkErrorHandler.handleError(
-        e,
-        defaultMessage: 'Unable to access your photos. Please check app permissions and try again.',
-      );
+      Get.snackbar('Error', 'Failed to pick image: ${e.toString()}');
     }
   }
 
@@ -213,10 +204,7 @@ class AuthViewController extends GetxController {
         _selectedCompanyLogo.value = File(image.path);
       }
     } catch (e) {
-      NetworkErrorHandler.handleError(
-        e,
-        defaultMessage: 'Unable to access your photos. Please check app permissions and try again.',
-      );
+      SnackbarHelper.showError('Failed to pick company logo: ${e.toString()}');
     }
   }
 
@@ -225,87 +213,21 @@ class AuthViewController extends GetxController {
   }
 
   Future<void> pickVideo() async {
-    // This will be called from the view to show the dialog
-    // The actual picking is done in pickVideoFromSource
-  }
-
-  Future<void> pickVideoFromSource(ImageSource source) async {
     try {
       final XFile? video = await _imagePicker.pickVideo(
-        source: source,
+        source: ImageSource.gallery,
       );
 
       if (video != null) {
         _selectedVideo.value = File(video.path);
-        if (kDebugMode) {
-          print('✅ Video selected from ${source == ImageSource.gallery ? "Gallery" : "Camera"}');
-          print('   Path: ${video.path}');
-        }
-        
-        // Generate thumbnail for the selected video
-        await _generateVideoThumbnail(File(video.path));
       }
     } catch (e) {
-      if (kDebugMode) {
-        print('❌ Error picking video: $e');
-      }
-      NetworkErrorHandler.handleError(
-        e,
-        defaultMessage: source == ImageSource.gallery
-            ? 'Unable to access your videos. Please check app permissions and try again.'
-            : 'Unable to record video. Please check app permissions and try again.',
-      );
-    }
-  }
-
-  Future<void> _generateVideoThumbnail(File videoFile) async {
-    try {
-      if (kDebugMode) {
-        print('🎬 Generating video thumbnail...');
-      }
-      
-      // Try to generate thumbnail using video_thumbnail package
-      try {
-        final thumbnailPath = await VideoThumbnail.thumbnailFile(
-          video: videoFile.path,
-          thumbnailPath: (await getTemporaryDirectory()).path,
-          imageFormat: ImageFormat.JPEG,
-          maxWidth: 400,
-          quality: 85,
-        );
-
-        if (thumbnailPath != null) {
-          _videoThumbnail.value = File(thumbnailPath);
-          if (kDebugMode) {
-            print('✅ Video thumbnail generated: $thumbnailPath');
-          }
-          return;
-        }
-      } catch (pluginError) {
-        // If plugin is not available, continue without thumbnail
-        if (kDebugMode) {
-          print('⚠️ Video thumbnail plugin not available: $pluginError');
-          print('   Continuing without thumbnail - video will still be uploaded');
-        }
-      }
-      
-      // If thumbnail generation fails, set to null (UI will show fallback)
-      _videoThumbnail.value = null;
-      if (kDebugMode) {
-        print('⚠️ Video thumbnail not available - will show fallback UI');
-      }
-    } catch (e) {
-      if (kDebugMode) {
-        print('❌ Error generating video thumbnail: $e');
-        print('   Video will still be uploaded without thumbnail');
-      }
-      _videoThumbnail.value = null;
+      SnackbarHelper.showError('Failed to pick video: ${e.toString()}');
     }
   }
 
   void removeVideo() {
     _selectedVideo.value = null;
-    _videoThumbnail.value = null;
   }
 
   void _clearForm() {
@@ -318,7 +240,6 @@ class AuthViewController extends GetxController {
     _selectedProfilePic.value = null;
     _selectedCompanyLogo.value = null;
     _selectedVideo.value = null;
-    _videoThumbnail.value = null;
     // Clear agent-specific fields
     brokerageController.clear();
     agentLicenseNumberController.clear();
@@ -340,7 +261,6 @@ class AuthViewController extends GetxController {
     _selectedSpecialtyProducts.clear();
     // Clear video file
     _selectedVideo.value = null;
-    _videoThumbnail.value = null;
     // Clear licensed states
     _selectedLicensedStates.clear();
     // Clear verification agreements
@@ -375,7 +295,8 @@ class AuthViewController extends GetxController {
             // Agent profile fields
             if (bioController.text.trim().isNotEmpty)
               'bio': bioController.text.trim(),
-            // Video is now handled via file picker (_selectedVideo), not URL
+            if (videoUrlController.text.trim().isNotEmpty)
+              'videoUrl': videoUrlController.text.trim(),
             if (_selectedExpertise.isNotEmpty) 'expertise': _selectedExpertise,
             if (websiteUrlController.text.trim().isNotEmpty)
               'websiteUrl': websiteUrlController.text.trim(),
@@ -400,7 +321,8 @@ class AuthViewController extends GetxController {
             // Loan officer profile fields
             if (loanOfficerBioController.text.trim().isNotEmpty)
               'bio': loanOfficerBioController.text.trim(),
-            // Video is now handled via file picker (_selectedVideo), not URL
+            if (loanOfficerVideoUrlController.text.trim().isNotEmpty)
+              'videoUrl': loanOfficerVideoUrlController.text.trim(),
             if (_selectedSpecialtyProducts.isNotEmpty)
               'specialtyProducts': _selectedSpecialtyProducts,
             if (loanOfficerWebsiteUrlController.text.trim().isNotEmpty)

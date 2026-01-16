@@ -9,9 +9,7 @@ import 'package:getrebate/app/models/property_model.dart';
 import 'package:getrebate/app/routes/app_pages.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart' as global;
 import 'package:getrebate/app/utils/api_constants.dart';
-import 'package:getrebate/app/utils/image_url_helper.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
-import 'package:getrebate/app/utils/network_error_handler.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 
 class PropertyListingsController extends GetxController {
@@ -181,10 +179,7 @@ class PropertyListingsController extends GetxController {
           print('⚠️ Unexpected status code: ${response.statusCode}');
           print('   Response: ${response.data}');
         }
-        NetworkErrorHandler.handleError(
-          Exception('Server returned status ${response.statusCode}'),
-          defaultMessage: 'Unable to load listings. Please check your internet connection and try again.',
-        );
+        SnackbarHelper.showError('Failed to fetch listings. Status: ${response.statusCode}');
       }
     } on DioException catch (e) {
       _isLoading.value = false;
@@ -195,23 +190,39 @@ class PropertyListingsController extends GetxController {
         print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       }
 
-      // Handle 404 separately (no listings found is not an error)
-      if (e.response?.statusCode == 404) {
-        _properties.value = [];
-        if (kDebugMode) {
-          print('ℹ️ No listings found (404)');
+      String errorMessage = 'Failed to fetch listings. Please try again.';
+
+      if (e.response != null) {
+        final responseData = e.response?.data;
+        if (responseData is Map && responseData.containsKey('message')) {
+          errorMessage = responseData['message'].toString();
+        } else if (e.response?.statusCode == 401) {
+          errorMessage = 'Unauthorized. Please login again.';
+        } else if (e.response?.statusCode == 404) {
+          // 404 is okay - just means no listings found
+          _properties.value = [];
+          if (kDebugMode) {
+            print('ℹ️ No listings found (404)');
+          }
+          _isLoading.value = false;
+          return;
         }
-        _isLoading.value = false;
-        return;
+      } else if (e.type == DioExceptionType.connectionTimeout ||
+          e.type == DioExceptionType.receiveTimeout) {
+        errorMessage =
+            'Connection timeout. Please check your internet connection.';
+      } else if (e.type == DioExceptionType.connectionError) {
+        errorMessage = 'No internet connection. Please check your network.';
+        if (kDebugMode) {
+          print('🔌 Connection Error Details: ${e.message}');
+          print('   Error Type: ${e.type}');
+        }
       }
 
-      // Show professional error message
+      // Only show snackbar if we have a valid context
       try {
         if (Get.isSnackbarOpen == false) {
-          NetworkErrorHandler.handleError(
-            e,
-            defaultMessage: 'Unable to load listings. Please check your internet connection and try again.',
-          );
+          SnackbarHelper.showError(errorMessage);
         }
       } catch (snackbarError) {
         if (kDebugMode) {
@@ -229,10 +240,7 @@ class PropertyListingsController extends GetxController {
       // Only show snackbar if we have a valid context
       try {
         if (Get.isSnackbarOpen == false) {
-          NetworkErrorHandler.handleError(
-            e,
-            defaultMessage: 'Unable to load listings. Please check your internet connection and try again.',
-          );
+          SnackbarHelper.showError('Failed to fetch listings: ${e.toString()}');
         }
       } catch (snackbarError) {
         if (kDebugMode) {
@@ -343,7 +351,26 @@ class PropertyListingsController extends GetxController {
 
     // Parse propertyPhotos and build full URLs
     final propertyPhotos = json['propertyPhotos'] as List<dynamic>? ?? [];
-    final images = ImageUrlHelper.buildImageUrls(propertyPhotos);
+    final images = propertyPhotos
+        .map((photo) {
+          final photoPath = photo.toString();
+          if (photoPath.isEmpty) return null;
+
+          // If already a full URL, return as is
+          if (photoPath.startsWith('http://') || photoPath.startsWith('https://')) {
+            return photoPath;
+          }
+
+          // Otherwise, prepend base URL
+          String path = photoPath;
+          if (!path.startsWith('/')) {
+            path = '/$path';
+          }
+          return '$baseUrl$path';
+        })
+        .where((photo) => photo != null)
+        .cast<String>()
+        .toList();
 
     // Parse propertyFeatures as features map
     final propertyFeatures = json['propertyFeatures'] as List<dynamic>? ?? [];
@@ -690,20 +717,32 @@ class PropertyListingsController extends GetxController {
         print(e.response?.data ?? e.message);
       }
 
-      // Handle 404 separately (property already deleted)
-      if (e.response?.statusCode == 404) {
-        // Remove from local list anyway
-        _properties.removeWhere((property) => property.id == propertyId);
-        SnackbarHelper.showSuccess('Property deleted successfully');
-        return;
+      String errorMessage = 'Failed to delete property. Please try again.';
+
+      if (e.response != null) {
+        final responseData = e.response?.data;
+        if (responseData is Map && responseData.containsKey('message')) {
+          errorMessage = responseData['message'].toString();
+        } else if (e.response?.statusCode == 401) {
+          errorMessage = 'Unauthorized. Please login again.';
+        } else if (e.response?.statusCode == 404) {
+          errorMessage = 'Property not found. It may have already been deleted.';
+          // Remove from local list anyway
+          _properties.removeWhere((property) => property.id == propertyId);
+        } else if (e.response?.statusCode == 403) {
+          errorMessage = 'You do not have permission to delete this property.';
+        } else if (e.response?.statusCode == 500) {
+          errorMessage = 'Server error. Please try again later.';
+        }
+      } else if (e.type == DioExceptionType.connectionTimeout ||
+          e.type == DioExceptionType.receiveTimeout) {
+        errorMessage = 'Connection timeout. Please check your internet connection.';
+      } else if (e.type == DioExceptionType.connectionError) {
+        errorMessage = 'No internet connection. Please check your network.';
       }
 
-      // Show professional error message
       try {
-        NetworkErrorHandler.handleError(
-          e,
-          defaultMessage: 'Unable to delete property. Please check your internet connection and try again.',
-        );
+        SnackbarHelper.showError(errorMessage);
       } catch (snackbarError) {
         if (kDebugMode) print('⚠️ Could not show error snackbar: $snackbarError');
       }
@@ -713,9 +752,9 @@ class PropertyListingsController extends GetxController {
         print('❌ Unexpected Error: ${e.toString()}');
       }
       try {
-        NetworkErrorHandler.handleError(
-          e,
-          defaultMessage: 'Unable to delete property. Please check your internet connection and try again.',
+        SnackbarHelper.showError(
+          'Failed to delete property: ${e.toString()}',
+          duration: const Duration(seconds: 3),
         );
       } catch (snackbarError) {
         if (kDebugMode) print('⚠️ Could not show error snackbar: $snackbarError');

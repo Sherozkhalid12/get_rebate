@@ -182,7 +182,7 @@ class NotificationService {
         print('   URL: ${ApiConstants.getMarkNotificationReadEndpoint(notificationId)}');
       }
 
-      final response = await _dio.post(
+      final response = await _dio.put(
         ApiConstants.getMarkNotificationReadEndpoint(notificationId),
         options: Options(
           headers: ApiConstants.ngrokHeaders,
@@ -276,7 +276,7 @@ class NotificationService {
         print('   URL: ${ApiConstants.getMarkAllNotificationsReadEndpoint(userId)}');
       }
 
-      final response = await _dio.post(
+      final response = await _dio.put(
         ApiConstants.getMarkAllNotificationsReadEndpoint(userId),
         options: Options(
           headers: ApiConstants.ngrokHeaders,

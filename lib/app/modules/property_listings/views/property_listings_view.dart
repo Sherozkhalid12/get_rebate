@@ -132,7 +132,6 @@ class PropertyListingsView extends GetView<PropertyListingsController> {
 
           SizedBox(height: 16.h),
 
-          // Filter Chips
           Obx(
             () => SingleChildScrollView(
               scrollDirection: Axis.horizontal,
@@ -258,6 +257,7 @@ class PropertyListingsView extends GetView<PropertyListingsController> {
       padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
     );
   }
+
 
   Widget _buildDropdownFilter(
     BuildContext context,

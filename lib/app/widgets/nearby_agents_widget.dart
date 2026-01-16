@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:getrebate/app/models/listing.dart';
 import 'package:getrebate/app/services/nearby_agents_service.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
@@ -85,10 +84,7 @@ class _NearbyAgentsWidgetState extends State<NearbyAgentsWidget> {
             const Center(
               child: Padding(
                 padding: EdgeInsets.all(20),
-                child: SpinKitFadingCircle(
-                  color: AppTheme.primaryBlue,
-                  size: 40,
-                ),
+                child: CircularProgressIndicator(),
               ),
             )
           else if (_agents.isEmpty)

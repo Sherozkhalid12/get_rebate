@@ -3,7 +3,6 @@ import 'package:get/get.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/modules/agent_edit_profile/controllers/agent_edit_profile_controller.dart';
 import 'package:getrebate/app/widgets/custom_button.dart';
@@ -110,14 +109,6 @@ class AgentEditProfileView extends GetView<AgentEditProfileController> {
                   .animate()
                   .fadeIn(duration: 300.ms)
                   .slideY(begin: -0.1, duration: 300.ms),
-
-              const SizedBox(height: 24),
-
-              // Video Introduction Section
-              _buildVideoSection(context)
-                  .animate()
-                  .fadeIn(duration: 300.ms, delay: 100.ms)
-                  .slideY(begin: -0.1, duration: 300.ms, delay: 100.ms),
 
               const SizedBox(height: 24),
 
@@ -328,8 +319,14 @@ class AgentEditProfileView extends GetView<AgentEditProfileController> {
                             width: 120,
                             height: 120,
                             fit: BoxFit.cover,
-                            placeholder: (context, url) => const Center(
-                              child: CircularProgressIndicator(),
+                            cacheKey: imageUrl,
+                            memCacheWidth: 240,
+                            memCacheHeight: 240,
+                            maxWidthDiskCache: 500,
+                            maxHeightDiskCache: 500,
+                            fadeInDuration: Duration.zero,
+                            placeholder: (context, url) => Container(
+                              color: AppTheme.primaryBlue.withOpacity(0.1),
                             ),
                             errorWidget: (context, url, error) => const Icon(
                               Icons.person,
@@ -790,272 +787,6 @@ class AgentEditProfileView extends GetView<AgentEditProfileController> {
             prefixIcon: Icons.star_rate_outlined,
             keyboardType: TextInputType.url,
             hintText: 'https://realtor.com/reviews',
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildVideoSection(BuildContext context) {
-    return Obx(
-      () => GradientCard(
-        gradientColors: AppTheme.cardGradient,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Video Introduction',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                color: AppTheme.black,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Upload a video introduction to help buyers get to know you better.',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: AppTheme.mediumGray,
-              ),
-            ),
-            const SizedBox(height: 20),
-            GestureDetector(
-              onTap: () => _showVideoPickerDialog(context),
-              child: Container(
-                width: double.infinity,
-                height: 200,
-                decoration: BoxDecoration(
-                  color: AppTheme.lightGray,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: AppTheme.mediumGray.withOpacity(0.3),
-                    width: 1,
-                  ),
-                ),
-                child: controller.selectedVideo != null
-                    ? Stack(
-                        children: [
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(12),
-                            child: controller.videoThumbnail != null
-                                ? Stack(
-                                    children: [
-                                      // Video thumbnail image
-                                      Image.file(
-                                        controller.videoThumbnail!,
-                                        width: double.infinity,
-                                        height: double.infinity,
-                                        fit: BoxFit.cover,
-                                        errorBuilder: (context, error, stackTrace) {
-                                          // Fallback if thumbnail fails to load
-                                          return Container(
-                                            width: double.infinity,
-                                            height: double.infinity,
-                                            color: AppTheme.darkGray.withOpacity(0.1),
-                                            child: Column(
-                                              mainAxisAlignment: MainAxisAlignment.center,
-                                              children: [
-                                                Icon(
-                                                  Icons.videocam,
-                                                  color: AppTheme.primaryBlue,
-                                                  size: 48,
-                                                ),
-                                                const SizedBox(height: 8),
-                                                Text(
-                                                  'Video Selected',
-                                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                                    color: AppTheme.darkGray,
-                                                    fontWeight: FontWeight.w500,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          );
-                                        },
-                                      ),
-                                      // Play button overlay
-                                      Container(
-                                        width: double.infinity,
-                                        height: double.infinity,
-                                        decoration: BoxDecoration(
-                                          color: Colors.black.withOpacity(0.3),
-                                          borderRadius: BorderRadius.circular(12),
-                                        ),
-                                        child: Center(
-                                          child: Container(
-                                            padding: const EdgeInsets.all(16),
-                                            decoration: BoxDecoration(
-                                              color: AppTheme.primaryBlue.withOpacity(0.9),
-                                              shape: BoxShape.circle,
-                                            ),
-                                            child: Icon(
-                                              Icons.play_arrow,
-                                              color: AppTheme.white,
-                                              size: 40,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  )
-                                : Container(
-                                    // Loading or fallback when thumbnail is not ready
-                                    width: double.infinity,
-                                    height: double.infinity,
-                                    color: AppTheme.darkGray.withOpacity(0.1),
-                                    child: Column(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      children: [
-                                        Icon(
-                                          Icons.videocam,
-                                          color: AppTheme.primaryBlue,
-                                          size: 48,
-                                        ),
-                                        const SizedBox(height: 8),
-                                        Text(
-                                          'Video Selected',
-                                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                            color: AppTheme.darkGray,
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          'Generating thumbnail...',
-                                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                            color: AppTheme.mediumGray,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                          ),
-                          Positioned(
-                            top: 8,
-                            right: 8,
-                            child: GestureDetector(
-                              onTap: () => controller.removeVideo(),
-                              child: Container(
-                                padding: const EdgeInsets.all(6),
-                                decoration: BoxDecoration(
-                                  color: Colors.red,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Icon(
-                                  Icons.close,
-                                  color: AppTheme.white,
-                                  size: 18,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      )
-                    : Obx(() {
-                        // Show existing video URL if available
-                        final existingVideoUrl = controller.videoUrl;
-                        if (existingVideoUrl != null && existingVideoUrl.isNotEmpty) {
-                          return Stack(
-                            children: [
-                              Container(
-                                width: double.infinity,
-                                height: double.infinity,
-                                decoration: BoxDecoration(
-                                  color: AppTheme.darkGray.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(
-                                      Icons.videocam,
-                                      color: AppTheme.primaryBlue,
-                                      size: 48,
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      'Video Uploaded',
-                                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                        color: AppTheme.darkGray,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      'Tap to change',
-                                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                        color: AppTheme.mediumGray,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          );
-                        }
-                        
-                        // No video selected
-                        return Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.video_library_outlined,
-                              color: AppTheme.mediumGray,
-                              size: 48,
-                            ),
-                            const SizedBox(height: 12),
-                            Text(
-                              'Tap to select or record video',
-                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                color: AppTheme.mediumGray,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Gallery or Camera',
-                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: AppTheme.mediumGray,
-                              ),
-                            ),
-                          ],
-                        );
-                      }),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showVideoPickerDialog(BuildContext context) {
-    Get.dialog(
-      AlertDialog(
-        title: const Text('Select Video'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.video_library),
-              title: const Text('Choose from Gallery'),
-              onTap: () async {
-                Navigator.pop(context);
-                await controller.pickVideoFromSource(ImageSource.gallery);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.videocam),
-              title: const Text('Record Video'),
-              onTap: () async {
-                Navigator.pop(context);
-                await controller.pickVideoFromSource(ImageSource.camera);
-              },
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
           ),
         ],
       ),

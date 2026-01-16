@@ -1,5 +1,5 @@
-import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:get/get.dart' hide FormData, MultipartFile;
 import 'package:get_storage/get_storage.dart';
 import 'package:dio/dio.dart';
@@ -8,7 +8,6 @@ import 'dart:convert';
 import 'package:getrebate/app/models/user_model.dart';
 import 'package:getrebate/app/routes/app_pages.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
-import 'package:getrebate/app/utils/network_error_handler.dart';
 import 'package:getrebate/app/controllers/current_loan_officer_controller.dart';
 
 class AuthController extends GetxController {
@@ -188,6 +187,11 @@ class AuthController extends GetxController {
           }
 
           print('✅ Extracted User ID from login: $userId');
+          // Normalize profile image URL
+          final profileImageRaw = userData['profilePic']?.toString() ??
+                userData['profileImage']?.toString();
+          final profileImage = ApiConstants.getImageUrl(profileImageRaw);
+          
           // Map API response to UserModel
           final user = UserModel(
             id: userId,
@@ -196,9 +200,7 @@ class AuthController extends GetxController {
                 userData['fullname'] ?? userData['name'] ?? email.split('@')[0],
             phone: userData['phone']?.toString(),
             role: _mapApiRoleToUserRole(userData['role']?.toString()),
-            profileImage:
-                userData['profilePic']?.toString() ??
-                userData['profileImage']?.toString(),
+            profileImage: profileImage,
             licensedStates: List<String>.from(
               userData['LisencedStates'] ?? userData['licensedStates'] ?? [],
             ),
@@ -321,10 +323,7 @@ class AuthController extends GetxController {
 
       // Safely show snackbar - wrap in try-catch to prevent overlay errors
       try {
-        NetworkErrorHandler.handleError(
-          e,
-          defaultMessage: 'Unable to sign in. Please check your internet connection and try again.',
-        );
+        Get.snackbar('Error', errorMessage);
       } catch (overlayError) {
         print('⚠️ Could not show snackbar: $overlayError');
       }
@@ -333,10 +332,7 @@ class AuthController extends GetxController {
       print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       // Safely show snackbar - wrap in try-catch to prevent overlay errors
       try {
-        NetworkErrorHandler.handleError(
-          e,
-          defaultMessage: 'Unable to sign in. Please check your internet connection and try again.',
-        );
+        Get.snackbar('Error', 'Login failed: ${e.toString()}');
       } catch (overlayError) {
         print('⚠️ Could not show snackbar: $overlayError');
       }
@@ -595,82 +591,13 @@ class AuthController extends GetxController {
 
       // Add video file if provided (for agents and loan officers)
       if (video != null) {
-        // Verify file exists
-        if (!await video.exists()) {
-          if (kDebugMode) {
-            print('❌ Video file does not exist: ${video.path}');
-          }
-        } else {
-          try {
-            final fileName = video.path.split('/').last;
-            final fileSize = await video.length();
-            
-            if (kDebugMode) {
-              print('🎥 Preparing to upload video:');
-              print('   Filename: $fileName');
-              print('   Size: ${(fileSize / (1024 * 1024)).toStringAsFixed(2)} MB');
-              print('   Path: ${video.path}');
-            }
-            
-            // Read video file bytes to ensure file is accessible
-            final videoBytes = await video.readAsBytes();
-            
-            if (kDebugMode) {
-              print('   Video bytes read: ${videoBytes.length} bytes');
-            }
-            
-            // Determine content type from file extension
-            String contentType;
-            if (fileName.toLowerCase().endsWith('.mp4')) {
-              contentType = 'video/mp4';
-            } else if (fileName.toLowerCase().endsWith('.mov')) {
-              contentType = 'video/quicktime';
-            } else if (fileName.toLowerCase().endsWith('.avi')) {
-              contentType = 'video/x-msvideo';
-            } else {
-              contentType = 'video/mp4'; // Default
-            }
-            
-            // Create multipart file from bytes
-            // This ensures the video is sent as multipart/form-data
-            final multipartFile = MultipartFile.fromBytes(
-              videoBytes,
-              filename: fileName,
-            );
-            
-            formData.files.add(
-              MapEntry(
-                'video',
-                multipartFile,
-              ),
-            );
-            
-            if (kDebugMode) {
-              print('✅ Video added to formData as multipart file');
-              print('   Content-Type: $contentType');
-              print('   Length: ${multipartFile.length} bytes');
-            }
-          } catch (e) {
-            if (kDebugMode) {
-              print('❌ Error adding video: $e');
-              print('   Stack trace: ${StackTrace.current}');
-            }
-          }
-        }
-      }
-
-      // Log formData summary before sending
-      if (kDebugMode) {
-        print('📊 FormData Summary before sending:');
-        print('   Total fields: ${formData.fields.length}');
-        print('   Total files: ${formData.files.length}');
-        if (formData.files.isNotEmpty) {
-          print('   Files being sent:');
-          for (int i = 0; i < formData.files.length; i++) {
-            final entry = formData.files[i];
-            print('     [$i] key="${entry.key}", filename="${entry.value.filename}"');
-          }
-        }
+        final fileName = video.path.split('/').last;
+        formData.files.add(
+          MapEntry(
+            'video',
+            await MultipartFile.fromFile(video.path, filename: fileName),
+          ),
+        );
       }
 
       // Make API call
@@ -680,9 +607,6 @@ class AuthController extends GetxController {
       print('  - email: $email');
       print('  - phone: ${phone ?? "not provided"}');
       print('  - role: ${_mapRoleToApiFormat(role)}');
-      if (video != null) {
-        print('  - video: YES (multipart file)');
-      }
       if (licensedStates != null && licensedStates.isNotEmpty) {
         final stateNames = licensedStates
             .map((code) => _getStateNameFromCode(code))
@@ -777,19 +701,11 @@ class AuthController extends GetxController {
         print('  - profilePic: not provided');
       }
 
-      // Make API call with extended timeout for file uploads
-      // Create a new Dio instance with extended timeouts for this request
-      final uploadDio = Dio(_dio.options);
-      uploadDio.options.connectTimeout = const Duration(seconds: 60);
-      uploadDio.options.receiveTimeout = const Duration(seconds: 120);
-      uploadDio.options.sendTimeout = const Duration(seconds: 120);
-      
-      final response = await uploadDio.post(
+      // Make API call
+      final response = await _dio.post(
         '/auth/createUser',
         data: formData,
-        options: Options(
-          headers: {'ngrok-skip-browser-warning': 'true'},
-        ),
+        options: Options(headers: {'ngrok-skip-browser-warning': 'true'}),
       );
 
       // Handle successful response
@@ -952,38 +868,11 @@ class AuthController extends GetxController {
             'Connection timeout. Please check your internet connection.';
       } else if (e.type == DioExceptionType.connectionError) {
         errorMessage = 'No internet connection. Please check your network.';
-      } else if (e.type == DioExceptionType.sendTimeout) {
-        errorMessage = 'Upload timeout. The files are too large or connection is too slow. Please try again with smaller images or check your internet connection.';
       }
 
-      // Show error message using SnackbarHelper instead of NetworkErrorHandler to avoid duplicates
-      if (kDebugMode) {
-        print('❌ Sign up error: $errorMessage');
-      }
-      
-      Get.snackbar(
-        'Sign Up Failed',
-        errorMessage,
-        snackPosition: SnackPosition.BOTTOM,
-        duration: const Duration(seconds: 4),
-        backgroundColor: Colors.red.shade600,
-        colorText: Colors.white,
-        margin: const EdgeInsets.all(16),
-      );
+      Get.snackbar('Error', errorMessage);
     } catch (e) {
-      if (kDebugMode) {
-        print('❌ Unexpected error during sign up: $e');
-      }
-      
-      Get.snackbar(
-        'Sign Up Failed',
-        'Unable to create account. Please check your internet connection and try again.',
-        snackPosition: SnackPosition.BOTTOM,
-        duration: const Duration(seconds: 4),
-        backgroundColor: Colors.red.shade600,
-        colorText: Colors.white,
-        margin: const EdgeInsets.all(16),
-      );
+      Get.snackbar('Error', 'Sign up failed: ${e.toString()}');
     } finally {
       _isLoading.value = false;
     }
@@ -1112,68 +1001,13 @@ class AuthController extends GetxController {
       }
 
       if (video != null) {
-        // Verify file exists
-        if (!await video.exists()) {
-          if (kDebugMode) {
-            print('❌ Video file does not exist: ${video.path}');
-          }
-        } else {
-          try {
-            final fileName = video.path.split('/').last;
-            final fileSize = await video.length();
-            
-            if (kDebugMode) {
-              print('🎥 Preparing to upload video:');
-              print('   Filename: $fileName');
-              print('   Size: ${(fileSize / (1024 * 1024)).toStringAsFixed(2)} MB');
-              print('   Path: ${video.path}');
-            }
-            
-            // Read video file bytes to ensure file is accessible
-            final videoBytes = await video.readAsBytes();
-            
-            if (kDebugMode) {
-              print('   Video bytes read: ${videoBytes.length} bytes');
-            }
-            
-            // Determine content type from file extension
-            String contentType;
-            if (fileName.toLowerCase().endsWith('.mp4')) {
-              contentType = 'video/mp4';
-            } else if (fileName.toLowerCase().endsWith('.mov')) {
-              contentType = 'video/quicktime';
-            } else if (fileName.toLowerCase().endsWith('.avi')) {
-              contentType = 'video/x-msvideo';
-            } else {
-              contentType = 'video/mp4'; // Default
-            }
-            
-            // Create multipart file from bytes
-            // This ensures the video is sent as multipart/form-data
-            final multipartFile = MultipartFile.fromBytes(
-              videoBytes,
-              filename: fileName,
-            );
-            
-            formData.files.add(
-              MapEntry(
-                'video',
-                multipartFile,
-              ),
-            );
-            
-            if (kDebugMode) {
-              print('✅ Video added to formData as multipart file');
-              print('   Content-Type: $contentType');
-              print('   Length: ${multipartFile.length} bytes');
-            }
-          } catch (e) {
-            if (kDebugMode) {
-              print('❌ Error adding video: $e');
-              print('   Stack trace: ${StackTrace.current}');
-            }
-          }
-        }
+        final fileName = video.path.split('/').last;
+        formData.files.add(
+          MapEntry(
+            'video',
+            await MultipartFile.fromFile(video.path, filename: fileName),
+          ),
+        );
       }
 
       // Validate userId
@@ -1217,15 +1051,30 @@ class AuthController extends GetxController {
               userData['id']?.toString() ??
               _currentUser.value!.id;
 
+          // Normalize profile image URL
+          final profileImageRaw = userData['profilePic']?.toString() ??
+                userData['profileImage']?.toString();
+          
+          if (kDebugMode) {
+            print('🔐 AuthController.updateUserProfile:');
+            print('   Raw profilePic from API response: "$profileImageRaw"');
+            print('   Base URL: ${ApiConstants.baseUrl}');
+          }
+          
+          final profileImage = profileImageRaw != null
+              ? ApiConstants.getImageUrl(profileImageRaw)
+              : _currentUser.value!.profileImage;
+          
+          if (kDebugMode) {
+            print('   Normalized profileImage: "$profileImage"');
+          }
+          
           final updatedUser = _currentUser.value!.copyWith(
             id: updatedUserId, // Ensure we use the correct ID from API
             name: userData['fullname'] ?? _currentUser.value!.name,
             email: userData['email'] ?? _currentUser.value!.email,
             phone: userData['phone']?.toString() ?? _currentUser.value!.phone,
-            profileImage:
-                userData['profilePic'] ??
-                userData['profileImage'] ??
-                _currentUser.value!.profileImage,
+            profileImage: profileImage,
             licensedStates: userData['licensedStates'] != null
                 ? List<String>.from(userData['licensedStates'])
                 : _currentUser.value!.licensedStates,
@@ -1305,17 +1154,28 @@ class AuthController extends GetxController {
       print(e.response?.data ?? e.message);
       print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
-      NetworkErrorHandler.handleError(
-        e,
-        defaultMessage: 'Unable to update profile. Please check your internet connection and try again.',
-      );
+      String errorMessage = 'Failed to update profile. Please try again.';
+
+      if (e.response != null) {
+        final responseData = e.response?.data;
+        if (responseData is Map && responseData.containsKey('message')) {
+          errorMessage = responseData['message'].toString();
+        } else {
+          errorMessage = e.response?.statusMessage ?? errorMessage;
+        }
+      } else if (e.type == DioExceptionType.connectionTimeout ||
+          e.type == DioExceptionType.receiveTimeout) {
+        errorMessage =
+            'Connection timeout. Please check your internet connection.';
+      } else if (e.type == DioExceptionType.connectionError) {
+        errorMessage = 'No internet connection. Please check your network.';
+      }
+
+      Get.snackbar('Error', errorMessage);
       rethrow;
     } catch (e) {
       print('❌ Unexpected Error: ${e.toString()}');
-      NetworkErrorHandler.handleError(
-        e,
-        defaultMessage: 'Unable to update profile. Please check your internet connection and try again.',
-      );
+      Get.snackbar('Error', 'Failed to update profile: ${e.toString()}');
       rethrow;
     } finally {
       _isLoading.value = false;
@@ -1348,10 +1208,7 @@ class AuthController extends GetxController {
       // final user = UserModel(id: userId, ...);
     } catch (e) {
       print('❌ Social login error: $e');
-      NetworkErrorHandler.handleError(
-        e,
-        defaultMessage: 'Unable to sign in with social account. Please check your internet connection and try again.',
-      );
+      Get.snackbar('Error', 'Social login failed: ${e.toString()}');
     } finally {
       _isLoading.value = false;
     }

@@ -3,14 +3,19 @@ import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:getrebate/app/models/agent_model.dart';
 import 'package:getrebate/app/models/loan_officer_model.dart';
+import 'package:getrebate/app/models/listing.dart';
+import 'package:getrebate/app/models/open_house_model.dart';
+import 'package:getrebate/app/services/loan_officer_service.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart';
-import 'package:getrebate/app/modules/buyer/controllers/buyer_controller.dart';
+import 'package:getrebate/app/modules/buyer_v2/controllers/buyer_v2_controller.dart';
 
 class FavoritesController extends GetxController {
   // Data
   final _favoriteAgents = <AgentModel>[].obs;
   final _favoriteLoanOfficers = <LoanOfficerModel>[].obs;
-  final _selectedTab = 0.obs; // 0: Agents, 1: Loan Officers
+  final _favoriteListings = <Listing>[].obs; // Houses for Sale
+  final _favoriteOpenHouses = <OpenHouseModel>[].obs; // Open Houses
+  final _selectedTab = 0.obs; // 0: Agents, 1: Homes for Sale, 2: Open Houses, 3: Loan Officers
   final _isLoading = false.obs;
   
   // Track recently liked agents/loan officers to keep them at top
@@ -23,6 +28,8 @@ class FavoritesController extends GetxController {
   // Getters
   List<AgentModel> get favoriteAgents => _favoriteAgents;
   List<LoanOfficerModel> get favoriteLoanOfficers => _favoriteLoanOfficers;
+  List<Listing> get favoriteListings => _favoriteListings; // Houses for Sale
+  List<OpenHouseModel> get favoriteOpenHouses => _favoriteOpenHouses; // Open Houses
   int get selectedTab => _selectedTab.value;
   bool get isLoading => _isLoading.value;
 
@@ -70,7 +77,7 @@ class FavoritesController extends GetxController {
       
       // Try to get agents and loan officers from buyer_controller
       try {
-        final buyerController = Get.find<BuyerController>();
+        final buyerController = Get.find<BuyerV2Controller>();
         
         final agents = buyerController.agents;
         final loanOfficers = buyerController.loanOfficers;
@@ -202,20 +209,83 @@ class FavoritesController extends GetxController {
           now.difference(timestamp).inSeconds > 10
         );
         
-        _favoriteAgents.value = favoritedAgents;
-        _favoriteLoanOfficers.value = favoritedLoanOfficers;
+        // Load favorite listings - separate into "Houses for Sale" and "Open Houses"
+        final listings = buyerController.listings;
+        final openHouses = buyerController.openHouses;
+        final favoriteListingIds = buyerController.favoriteListings;
+        final favoritedListings = <Listing>[]; // Houses for Sale
+        final favoritedOpenHouses = <OpenHouseModel>[]; // Open Houses
+        
+        // Get all listing IDs that have open houses
+        final listingsWithOpenHouses = openHouses.map((oh) => oh.listingId).toSet();
         
         if (kDebugMode) {
-          print('✅ Loaded ${favoritedAgents.length} favorite agents and ${favoritedLoanOfficers.length} favorite loan officers');
+          print('   📋 Loading favorite listings:');
+          print('      Total listings: ${listings.length}');
+          print('      Total open houses: ${openHouses.length}');
+          print('      Favorite listing IDs: $favoriteListingIds');
+        }
+        
+        // Preserve manually added listings (those added via addFavoriteListingToTop)
+        // These take priority over auto-loaded favorites
+        final preservedListingIds = <String>{};
+        preservedListingIds.addAll(_favoriteListings.map((l) => l.id));
+        preservedListingIds.addAll(_favoriteOpenHouses.map((oh) => oh.listingId));
+        
+        // Add preserved listings first (maintains order and respects manual additions)
+        for (final listing in _favoriteListings) {
+          favoritedListings.add(listing);
+        }
+        for (final openHouse in _favoriteOpenHouses) {
+          favoritedOpenHouses.add(openHouse);
+        }
+        
+        // Then add other favorites from API that aren't already preserved
+        for (final listing in listings) {
+          if (favoriteListingIds.contains(listing.id) && !preservedListingIds.contains(listing.id)) {
+            // Check if this listing has an open house
+            if (listingsWithOpenHouses.contains(listing.id)) {
+              // Find the open house for this listing
+              final openHouse = openHouses.firstWhere(
+                (oh) => oh.listingId == listing.id,
+                orElse: () => openHouses.first,
+              );
+              if (openHouse.listingId == listing.id && !favoritedOpenHouses.any((oh) => oh.listingId == listing.id)) {
+                favoritedOpenHouses.add(openHouse);
+                if (kDebugMode) {
+                  print('      ✅ Found favorite open house: ${listing.id} - ${listing.address}');
+                }
+              }
+            } else {
+              // Regular listing (House for Sale)
+              if (!favoritedListings.any((l) => l.id == listing.id)) {
+                favoritedListings.add(listing);
+                if (kDebugMode) {
+                  print('      ✅ Found favorite listing: ${listing.id} - ${listing.address}');
+                }
+              }
+            }
+          }
+        }
+        
+        _favoriteAgents.value = favoritedAgents;
+        _favoriteLoanOfficers.value = favoritedLoanOfficers;
+        _favoriteListings.value = favoritedListings;
+        _favoriteOpenHouses.value = favoritedOpenHouses;
+        
+        if (kDebugMode) {
+          print('✅ Loaded ${favoritedAgents.length} favorite agents, ${favoritedLoanOfficers.length} favorite loan officers, ${favoritedListings.length} favorite listings (Houses for Sale), and ${favoritedOpenHouses.length} favorite open houses');
         }
       } catch (e) {
-        // BuyerController might not be available (e.g., if user is a seller)
+        // BuyerV2Controller might not be available (e.g., if user is a seller)
         if (kDebugMode) {
-          print('⚠️ BuyerController not available: $e');
+          print('⚠️ BuyerV2Controller not available: $e');
         }
         // Fallback: clear favorites if buyer controller is not available
         _favoriteAgents.clear();
         _favoriteLoanOfficers.clear();
+        _favoriteListings.clear();
+        _favoriteOpenHouses.clear();
       }
     } catch (e) {
       if (kDebugMode) {
@@ -223,6 +293,8 @@ class FavoritesController extends GetxController {
       }
       _favoriteAgents.clear();
       _favoriteLoanOfficers.clear();
+      _favoriteListings.clear();
+      _favoriteOpenHouses.clear();
     } finally {
       _isLoading.value = false;
     }
@@ -278,36 +350,98 @@ class FavoritesController extends GetxController {
     }
   }
 
+  /// Adds a newly liked listing to the top of favorites list immediately
+  void addFavoriteListingToTop(Listing listing, {bool isFromOpenHousesTab = false}) {
+    try {
+      final currentUser = _authController.currentUser;
+      if (currentUser == null || currentUser.id.isEmpty) return;
+      
+      // Remove from both lists first to avoid duplicates
+      _favoriteListings.removeWhere((l) => l.id == listing.id);
+      _favoriteOpenHouses.removeWhere((oh) => oh.listingId == listing.id);
+      
+      // Determine which list to add to based on the tab it was liked from
+      if (isFromOpenHousesTab) {
+        // Liked from Open Houses tab - add to Open Houses in favorites
+        try {
+          final buyerController = Get.find<BuyerV2Controller>();
+          final openHouses = buyerController.openHouses;
+          final openHouse = openHouses.firstWhere((oh) => oh.listingId == listing.id);
+          _favoriteOpenHouses.insert(0, openHouse);
+          
+          if (kDebugMode) {
+            print('✅ Added listing ${listing.id} to Open Houses in favorites (liked from Open Houses tab)');
+          }
+        } catch (e) {
+          // If open house not found, add to Houses for Sale as fallback
+          _favoriteListings.insert(0, listing);
+          if (kDebugMode) {
+            print('⚠️ Open house not found for listing ${listing.id}, added to Houses for Sale instead');
+          }
+        }
+      } else {
+        // Liked from Houses for Sale tab - add to Houses for Sale in favorites
+        _favoriteListings.insert(0, listing);
+        
+        if (kDebugMode) {
+          print('✅ Added listing ${listing.id} to Houses for Sale in favorites (liked from Houses for Sale tab)');
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('⚠️ Error adding listing to favorites: $e');
+      }
+    }
+  }
+
+  /// Removes a listing from favorites immediately
+  void removeFavoriteListingImmediately(String listingId) {
+    try {
+      _favoriteListings.removeWhere((l) => l.id == listingId);
+      _favoriteOpenHouses.removeWhere((oh) => oh.listingId == listingId);
+      if (kDebugMode) {
+        print('✅ Removed listing $listingId from favorites list');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('⚠️ Error removing listing from favorites: $e');
+      }
+    }
+  }
+
   /// Refreshes favorites from buyer controller
   /// Also ensures agents/loan officers are loaded if needed
   Future<void> refreshFavorites() async {
     try {
-      final buyerController = Get.find<BuyerController>();
+      final buyerController = Get.find<BuyerV2Controller>();
       
-      // Check if we need to wait for agents/loan officers to load
-      // Wait if either list is empty (they load independently)
+      // Check if we need to wait for agents/loan officers/listings/open houses to load
+      // Wait if any list is empty (they load independently)
       final agentsEmpty = buyerController.agents.isEmpty;
       final loanOfficersEmpty = buyerController.loanOfficers.isEmpty;
+      final listingsEmpty = buyerController.listings.isEmpty;
+      final openHousesEmpty = buyerController.openHouses.isEmpty;
       
-      if (agentsEmpty || loanOfficersEmpty) {
+      if (agentsEmpty || loanOfficersEmpty || listingsEmpty || openHousesEmpty) {
         if (kDebugMode) {
-          print('🔄 Waiting for data to load - Agents: ${agentsEmpty ? "empty" : "loaded"}, Loan Officers: ${loanOfficersEmpty ? "empty" : "loaded"}');
+          print('🔄 Waiting for data to load - Agents: ${agentsEmpty ? "empty" : "loaded"}, Loan Officers: ${loanOfficersEmpty ? "empty" : "loaded"}, Listings: ${listingsEmpty ? "empty" : "loaded"}, Open Houses: ${openHousesEmpty ? "empty" : "loaded"}');
         }
         
         // Wait and check multiple times for data to be loaded
-        // Continue waiting until both are loaded or timeout
-        for (int i = 0; i < 15; i++) {
+        // Continue waiting until all are loaded or timeout
+        for (int i = 0; i < 20; i++) {
           await Future.delayed(const Duration(milliseconds: 200));
           
           final agentsNowLoaded = buyerController.agents.isNotEmpty;
           final loanOfficersNowLoaded = buyerController.loanOfficers.isNotEmpty;
+          final listingsNowLoaded = buyerController.listings.isNotEmpty;
+          final openHousesNowLoaded = buyerController.openHouses.isNotEmpty;
           
-          // If both are now loaded (or at least we've waited enough), proceed
-          if ((agentsNowLoaded && loanOfficersNowLoaded) || 
-              (!agentsEmpty && agentsNowLoaded && !loanOfficersEmpty) ||
-              (!loanOfficersEmpty && loanOfficersNowLoaded && !agentsEmpty)) {
+          // If all are now loaded (or at least we've waited enough), proceed
+          if ((agentsNowLoaded && loanOfficersNowLoaded && listingsNowLoaded && openHousesNowLoaded) || 
+              (!agentsEmpty && agentsNowLoaded && !loanOfficersEmpty && loanOfficersNowLoaded && !listingsEmpty && listingsNowLoaded && !openHousesEmpty && openHousesNowLoaded)) {
             if (kDebugMode) {
-              print('✅ Data loaded after ${(i + 1) * 200}ms - Agents: ${agentsNowLoaded ? "loaded" : "still empty"}, Loan Officers: ${loanOfficersNowLoaded ? "loaded" : "still empty"}');
+              print('✅ Data loaded after ${(i + 1) * 200}ms - Agents: ${agentsNowLoaded ? "loaded" : "still empty"}, Loan Officers: ${loanOfficersNowLoaded ? "loaded" : "still empty"}, Listings: ${listingsNowLoaded ? "loaded" : "still empty"}, Open Houses: ${openHousesNowLoaded ? "loaded" : "still empty"}');
             }
             break;
           }
@@ -418,7 +552,7 @@ class FavoritesController extends GetxController {
     
     // Try to call the API to unlike (via buyer controller if available)
     try {
-      final buyerController = Get.find<BuyerController>();
+      final buyerController = Get.find<BuyerV2Controller>();
       buyerController.toggleFavoriteAgent(agentId);
     } catch (e) {
       if (kDebugMode) {
@@ -440,7 +574,7 @@ class FavoritesController extends GetxController {
     
     // Try to call the API to unlike (via buyer controller if available)
     try {
-      final buyerController = Get.find<BuyerController>();
+      final buyerController = Get.find<BuyerV2Controller>();
       buyerController.toggleFavoriteLoanOfficer(loanOfficerId);
     } catch (e) {
       if (kDebugMode) {
@@ -459,10 +593,31 @@ class FavoritesController extends GetxController {
   }
 
   void contactLoanOfficer(LoanOfficerModel loanOfficer) {
+    // Record contact
+    _recordLoanOfficerContact(loanOfficer.id);
+    
     Get.toNamed(
       '/contact-loan-officer',
       arguments: {'loanOfficer': loanOfficer},
     );
+  }
+  
+  /// Records a contact action for a loan officer
+  Future<void> _recordLoanOfficerContact(String loanOfficerId) async {
+    try {
+      final loanOfficerService = LoanOfficerService();
+      final response = await loanOfficerService.recordContact(loanOfficerId);
+      if (response != null && kDebugMode) {
+        print('📞 Contact Response for loan officer $loanOfficerId:');
+        print('   Message: ${response['message'] ?? 'N/A'}');
+        print('   Contacts: ${response['contacts'] ?? 'N/A'}');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('⚠️ Error recording loan officer contact: $e');
+      }
+      // Don't show error to user - tracking is silent
+    }
   }
 
   void viewAgentProfile(AgentModel agent) {
@@ -474,6 +629,45 @@ class FavoritesController extends GetxController {
       '/loan-officer-profile',
       arguments: {'loanOfficer': loanOfficer},
     );
+  }
+
+  void viewListing(Listing listing) {
+    Get.toNamed('/listing-detail', arguments: {'listing': listing});
+  }
+
+  void viewOpenHouse(OpenHouseModel openHouse) {
+    try {
+      final buyerController = Get.find<BuyerV2Controller>();
+      final listing = buyerController.getListingForOpenHouse(openHouse);
+      if (listing != null) {
+        Get.toNamed('/listing-detail', arguments: {'listing': listing});
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('⚠️ Could not view open house: $e');
+      }
+    }
+  }
+
+  void removeFavoriteListing(String listingId) {
+    // Remove from local lists
+    _favoriteListings.removeWhere((listing) => listing.id == listingId);
+    _favoriteOpenHouses.removeWhere((oh) => oh.listingId == listingId);
+    
+    // Try to call the API to unlike (via buyer controller if available)
+    try {
+      final buyerController = Get.find<BuyerV2Controller>();
+      buyerController.toggleFavoriteListing(listingId);
+    } catch (e) {
+      if (kDebugMode) {
+        print('⚠️ Could not toggle favorite via buyer controller: $e');
+      }
+    }
+    
+    // Refresh favorites after a short delay to get updated data
+    Future.delayed(const Duration(milliseconds: 500), () {
+      _loadFavorites();
+    });
   }
 
   void clearAllFavorites() {
@@ -489,7 +683,7 @@ class FavoritesController extends GetxController {
               
               // Unlike all agents and loan officers via API
               try {
-                final buyerController = Get.find<BuyerController>();
+                final buyerController = Get.find<BuyerV2Controller>();
                 
                 // Unlike all favorite agents
                 for (final agent in _favoriteAgents) {
@@ -513,6 +707,25 @@ class FavoritesController extends GetxController {
                   }
                 }
                 
+                // Unlike all favorite listings (this will handle both regular listings and open houses)
+                final allFavoriteListingIds = <String>{};
+                for (final listing in _favoriteListings) {
+                  allFavoriteListingIds.add(listing.id);
+                }
+                for (final openHouse in _favoriteOpenHouses) {
+                  allFavoriteListingIds.add(openHouse.listingId);
+                }
+                
+                for (final listingId in allFavoriteListingIds) {
+                  try {
+                    await buyerController.toggleFavoriteListing(listingId);
+                  } catch (e) {
+                    if (kDebugMode) {
+                      print('⚠️ Error unliking listing $listingId: $e');
+                    }
+                  }
+                }
+                
                 // Refresh favorites
                 Future.delayed(const Duration(milliseconds: 500), () {
                   _loadFavorites();
@@ -523,9 +736,11 @@ class FavoritesController extends GetxController {
                 if (kDebugMode) {
                   print('❌ Error clearing favorites: $e');
                 }
-                // Still clear local list
+                // Still clear local lists
                 _favoriteAgents.clear();
                 _favoriteLoanOfficers.clear();
+                _favoriteListings.clear();
+                _favoriteOpenHouses.clear();
                 Get.snackbar('Cleared', 'All favorites removed');
               }
             },

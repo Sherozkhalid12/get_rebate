@@ -2,7 +2,6 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:getrebate/app/models/chat_thread_model.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
-import 'package:getrebate/app/utils/network_error_handler.dart';
 
 /// Custom exception for chat service errors
 class ChatServiceException implements Exception {
@@ -156,10 +155,9 @@ class ChatService {
           } else if (statusCode == 500) {
             errorMessage = 'Server error. Please try again later.';
           } else {
-            errorMessage = NetworkErrorHandler.getUserFriendlyMessage(
-              e,
-              defaultMessage: 'Unable to load conversations. Please check your internet connection and try again.',
-            );
+            errorMessage = e.response?.data?['message']?.toString() ?? 
+                          e.response?.data?['error']?.toString() ?? 
+                          'Failed to fetch chat threads.';
           }
           break;
         case DioExceptionType.cancel:
@@ -281,10 +279,7 @@ class ChatService {
           } else {
             errorMessage = e.response?.data?['message']?.toString() ?? 
                           e.response?.data?['error']?.toString() ?? 
-                          NetworkErrorHandler.getUserFriendlyMessage(
-                            e,
-                            defaultMessage: 'Unable to start conversation. Please check your internet connection and try again.',
-                          );
+                          'Failed to create chat thread.';
           }
           break;
         case DioExceptionType.cancel:
@@ -410,10 +405,7 @@ class ChatService {
           } else {
             errorMessage = e.response?.data?['message']?.toString() ?? 
                           e.response?.data?['error']?.toString() ?? 
-                          NetworkErrorHandler.getUserFriendlyMessage(
-                            e,
-                            defaultMessage: 'Unable to load messages. Please check your internet connection and try again.',
-                          );
+                          'Failed to fetch messages.';
           }
           break;
         case DioExceptionType.cancel:
@@ -513,10 +505,7 @@ class ChatService {
           } else {
             errorMessage = e.response?.data?['message']?.toString() ?? 
                           e.response?.data?['error']?.toString() ?? 
-                          NetworkErrorHandler.getUserFriendlyMessage(
-                            e,
-                            defaultMessage: 'Unable to update conversation. Please check your internet connection and try again.',
-                          );
+                          'Failed to mark thread as read.';
           }
           break;
         case DioExceptionType.cancel:

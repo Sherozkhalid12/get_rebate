@@ -39,34 +39,26 @@ class UserData {
   });
 
   factory UserData.fromJson(Map<String, dynamic> json) {
+    // Normalize profile image URL using helper
+    final profilePicRaw = json['profilePic']?.toString() ?? 
+                  json['profileImage']?.toString() ??
+                  json['profile_pic']?.toString();
+    final profilePic = ApiConstants.getImageUrl(profilePicRaw);
+    
     return UserData(
       id: json['_id']?.toString() ?? json['id']?.toString() ?? '',
       fullname: json['fullname']?.toString() ?? json['name']?.toString(),
       email: json['email']?.toString(),
       phone: json['phone']?.toString(),
       bio: json['bio']?.toString(),
-      profilePic: json['profilePic']?.toString() ?? 
-                  json['profileImage']?.toString() ??
-                  json['profile_pic']?.toString(),
+      profilePic: profilePic,
       role: json['role']?.toString(),
     );
   }
 
-  /// Gets the full profile picture URL
+  /// Gets the full profile picture URL (already normalized from fromJson)
   String? getProfilePicUrl() {
-    if (profilePic == null || profilePic!.isEmpty) return null;
-    
-    // If already a full URL, return as is
-    if (profilePic!.startsWith('http://') || profilePic!.startsWith('https://')) {
-      return profilePic;
-    }
-    
-    // Otherwise, prepend base URL
-    String path = profilePic!;
-    if (!path.startsWith('/')) {
-      path = '/$path';
-    }
-    return '${ApiConstants.baseUrl}$path';
+    return profilePic; // Already normalized in fromJson
   }
 }
 

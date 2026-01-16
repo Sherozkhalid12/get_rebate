@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -5,6 +6,7 @@ import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/modules/loan_officer_profile/controllers/loan_officer_profile_controller.dart';
 import 'package:getrebate/app/widgets/custom_button.dart';
+import 'package:getrebate/app/utils/api_constants.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class LoanOfficerProfileView extends GetView<LoanOfficerProfileController> {
@@ -166,10 +168,19 @@ class LoanOfficerProfileView extends GetView<LoanOfficerProfileController> {
                       padding: const EdgeInsets.all(8),
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(8),
-                        child: Image.network(
-                          loanOfficer.companyLogoUrl!,
+                        child: CachedNetworkImage(
+                          imageUrl: loanOfficer.companyLogoUrl!,
                           fit: BoxFit.contain,
-                          errorBuilder: (_, __, ___) => const Icon(
+                          cacheKey: loanOfficer.companyLogoUrl,
+                          memCacheWidth: 200,
+                          memCacheHeight: 200,
+                          maxWidthDiskCache: 400,
+                          maxHeightDiskCache: 400,
+                          fadeInDuration: Duration.zero,
+                          placeholder: (context, url) => Container(
+                            color: AppTheme.white,
+                          ),
+                          errorWidget: (context, url, error) => const Icon(
                             Icons.account_balance,
                             color: AppTheme.lightGreen,
                           ),
@@ -278,25 +289,57 @@ class LoanOfficerProfileView extends GetView<LoanOfficerProfileController> {
             const SizedBox(height: 20),
 
             // Action Buttons
-            if (loanOfficer.mortgageApplicationUrl != null) ...[
+            if (loanOfficer.mortgageApplicationUrl != null && 
+                loanOfficer.mortgageApplicationUrl!.isNotEmpty) ...[
               CustomButton(
                 text: 'Apply for a Mortgage',
                 onPressed: () async {
-                  final url = Uri.parse(loanOfficer.mortgageApplicationUrl!);
-                  if (await canLaunchUrl(url)) {
-                    await launchUrl(url, mode: LaunchMode.externalApplication);
-                  } else {
+                  final mortgageLink = loanOfficer.mortgageApplicationUrl!;
+                  
+                  // Validate URL format
+                  if (mortgageLink.isEmpty) {
                     Get.snackbar(
                       'Error',
-                      'Unable to open mortgage application',
+                      'Mortgage application link is not available',
+                      snackPosition: SnackPosition.BOTTOM,
+                      backgroundColor: Colors.red,
+                      colorText: AppTheme.white,
+                    );
+                    return;
+                  }
+                  
+                  try {
+                    // Ensure URL has protocol
+                    String urlString = mortgageLink;
+                    if (!urlString.startsWith('http://') && 
+                        !urlString.startsWith('https://')) {
+                      urlString = 'https://$urlString';
+                    }
+                    
+                    final url = Uri.parse(urlString);
+                    if (await canLaunchUrl(url)) {
+                      await launchUrl(url, mode: LaunchMode.externalApplication);
+                    } else {
+                      Get.snackbar(
+                        'Error',
+                        'Unable to open mortgage application',
+                        snackPosition: SnackPosition.BOTTOM,
+                        backgroundColor: Colors.red,
+                        colorText: AppTheme.white,
+                      );
+                    }
+                  } catch (e) {
+                    Get.snackbar(
+                      'Error',
+                      'Invalid mortgage application link',
                       snackPosition: SnackPosition.BOTTOM,
                       backgroundColor: Colors.red,
                       colorText: AppTheme.white,
                     );
                   }
                 },
-                icon: Icons.description,
-                backgroundColor: AppTheme.lightGreen,
+                icon: Icons.link,
+                backgroundColor: AppTheme.lightGreen.withOpacity(0.8),
                 width: double.infinity,
               ),
               const SizedBox(height: 12),
@@ -716,8 +759,10 @@ class LoanOfficerProfileView extends GetView<LoanOfficerProfileController> {
     // Build full profile picture URL if available
     String? profilePicUrl = review['profilePic'];
     if (profilePicUrl != null && profilePicUrl.isNotEmpty && !profilePicUrl.startsWith('http')) {
-      // Use profile pic URL directly from API - don't prepend base URL
-      // The API should return full URLs or paths that work directly
+      final baseUrl = ApiConstants.baseUrl.endsWith('/') 
+          ? ApiConstants.baseUrl.substring(0, ApiConstants.baseUrl.length - 1)
+          : ApiConstants.baseUrl;
+      profilePicUrl = '$baseUrl/$profilePicUrl';
     }
 
     return Card(

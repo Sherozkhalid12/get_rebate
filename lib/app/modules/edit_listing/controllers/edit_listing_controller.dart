@@ -5,11 +5,10 @@ import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:getrebate/app/models/property_model.dart';
-import 'package:getrebate/app/models/agent_listing_model.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart' as global;
 import 'package:getrebate/app/utils/api_constants.dart';
 import 'package:getrebate/app/widgets/custom_snackbar.dart';
-import 'package:getrebate/app/utils/network_error_handler.dart';
+import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:get_storage/get_storage.dart';
 
 class EditListingController extends GetxController {
@@ -91,75 +90,14 @@ class EditListingController extends GetxController {
   }
 
   void _loadPropertyData() {
-    // Try to get PropertyModel first (for backward compatibility)
     final property = Get.arguments?['property'] as PropertyModel?;
     if (property != null) {
       _originalProperty = property;
       _populateForm(property);
-      return;
+    } else {
+      Navigator.pop(Get.context!);
+      Get.snackbar('Error', 'Property data not found');
     }
-    
-    // Try to get AgentListingModel
-    final listing = Get.arguments?['listing'] as AgentListingModel?;
-    if (listing != null) {
-      _populateFormFromListing(listing);
-      return;
-    }
-    
-    // No data found
-    Navigator.pop(Get.context!);
-    Get.snackbar('Error', 'Listing data not found');
-  }
-  
-  void _populateFormFromListing(AgentListingModel listing) {
-    _listingId = listing.id;
-    titleController.text = listing.title;
-    descriptionController.text = listing.description;
-    addressController.text = listing.address;
-    cityController.text = listing.city;
-    stateController.text = listing.state;
-    zipCodeController.text = listing.zipCode;
-    priceController.text = (listing.priceCents / 100).toStringAsFixed(0);
-    
-    // Set default values for fields not in AgentListingModel
-    bedroomsController.text = '';
-    bathroomsController.text = '';
-    squareFeetController.text = '';
-    
-    _selectedPropertyType.value = 'house'; // Default
-    _selectedStatus.value = listing.isActive ? 'active' : 'draft';
-    _existingImages.value = List.from(listing.photoUrls);
-    _newPhotos.value = [];
-    
-    // Set BAC percentage and other settings
-    _bacPercent.value = listing.bacPercent;
-    _dualAgencyAllowed.value = listing.dualAgencyAllowed;
-    _isListingAgent.value = listing.isListingAgent;
-    
-    // Clear features (not available in AgentListingModel)
-    _selectedFeatures.clear();
-    
-    // Create a dummy PropertyModel for _originalProperty (for backward compatibility)
-    _originalProperty = PropertyModel(
-      id: listing.id,
-      title: listing.title,
-      description: listing.description,
-      address: listing.address,
-      city: listing.city,
-      state: listing.state,
-      zipCode: listing.zipCode,
-      price: listing.priceCents / 100,
-      bedrooms: 0,
-      bathrooms: 0,
-      squareFeet: 0,
-      propertyType: 'house',
-      status: listing.isActive ? 'active' : 'draft',
-      images: listing.photoUrls,
-      createdAt: listing.createdAt,
-      updatedAt: listing.updatedAt ?? listing.createdAt,
-      ownerId: listing.agentId,
-      agentId: listing.agentId,
-    );
   }
 
   void _populateForm(PropertyModel property) {
@@ -499,20 +437,40 @@ class EditListingController extends GetxController {
         print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       }
 
-      NetworkErrorHandler.handleError(
-        e,
-        defaultMessage: 'Unable to update listing. Please check your internet connection and try again.',
-      );
+      String errorMessage = 'Failed to update listing. Please try again.';
+
+      if (e.response != null) {
+        final responseData = e.response?.data;
+        if (responseData is Map && responseData.containsKey('message')) {
+          errorMessage = responseData['message'].toString();
+        } else if (responseData is Map && responseData.containsKey('error')) {
+          errorMessage = responseData['error'].toString();
+        } else if (e.response?.statusCode == 401) {
+          errorMessage = 'Unauthorized. Please login again.';
+        } else if (e.response?.statusCode == 400) {
+          errorMessage = 'Invalid request. Please check your input.';
+        } else if (e.response?.statusCode == 404) {
+          errorMessage = 'Listing not found.';
+        } else if (e.response?.statusCode == 500) {
+          errorMessage = 'Server error. Please try again later.';
+        } else {
+          errorMessage = e.response?.statusMessage ?? errorMessage;
+        }
+      } else if (e.type == DioExceptionType.connectionTimeout ||
+          e.type == DioExceptionType.receiveTimeout) {
+        errorMessage = 'Connection timeout. Please check your internet connection.';
+      } else if (e.type == DioExceptionType.connectionError) {
+        errorMessage = 'No internet connection. Please check your network.';
+      }
+
+      CustomSnackbar.showError(errorMessage);
     } catch (e) {
       _isLoading.value = false;
       if (kDebugMode) {
         print('❌ Unexpected Error: ${e.toString()}');
         print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       }
-      NetworkErrorHandler.handleError(
-        e,
-        defaultMessage: 'Unable to update listing. Please check your internet connection and try again.',
-      );
+      CustomSnackbar.showError('Failed to update listing: ${e.toString()}');
     } finally {
       _isLoading.value = false;
     }

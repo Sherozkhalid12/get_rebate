@@ -1,13 +1,19 @@
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
+import 'package:carousel_slider/carousel_slider.dart';
 import 'package:getrebate/app/models/listing.dart';
 import 'package:getrebate/app/services/listing_service.dart';
 
 class ListingDetailController extends GetxController {
   final ListingService _listingService = InMemoryListingService();
   final Rxn<Listing> _listing = Rxn<Listing>();
+  final CarouselSliderController carouselController = CarouselSliderController();
+  final _currentImageIndex = 0.obs;
 
   Listing? get listing => _listing.value;
+  int get currentImageIndex => _currentImageIndex.value;
+  
+  List<String> get photoUrls => listing?.photoUrls ?? [];
 
   @override
   void onInit() {
@@ -53,5 +59,15 @@ class ListingDetailController extends GetxController {
         print('='*80 + '\n');
       }
     }
+  }
+
+  void onImageChanged(int index) {
+    _currentImageIndex.value = index;
+  }
+
+  @override
+  void onClose() {
+    // CarouselSliderController doesn't need disposal
+    super.onClose();
   }
 }

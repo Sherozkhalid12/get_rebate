@@ -6,13 +6,13 @@ import 'package:dio/dio.dart';
 import 'package:getrebate/app/models/agent_model.dart';
 import 'package:getrebate/app/controllers/main_navigation_controller.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart';
-import 'package:getrebate/app/modules/buyer/controllers/buyer_controller.dart';
+import 'package:getrebate/app/modules/buyer_v2/controllers/buyer_v2_controller.dart';
 import 'package:getrebate/app/modules/messages/controllers/messages_controller.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
-import 'package:getrebate/app/utils/image_url_helper.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/services/agent_service.dart';
+import 'package:getrebate/app/modules/proposals/controllers/proposal_controller.dart';
 
 class AgentProfileController extends GetxController {
   // Data
@@ -58,6 +58,7 @@ class AgentProfileController extends GetxController {
   void _loadAgentData() {
     final args = Get.arguments;
     if (args != null && args['agent'] != null) {
+      // Set agent immediately for instant UI display
       _agent.value = args['agent'] as AgentModel;
       
       if (kDebugMode) {
@@ -70,11 +71,11 @@ class AgentProfileController extends GetxController {
         print('   Review Count: ${_agent.value!.reviewCount}');
       }
       
-      // Load properties for this agent
-      _loadAgentProperties();
-      
-      // Record profile view
-      _recordProfileView();
+      // Load properties and record view asynchronously (non-blocking)
+      Future.microtask(() {
+        _loadAgentProperties();
+        _recordProfileView();
+      });
     } else {
       // Fallback to mock data
       _agent.value = AgentModel(
@@ -252,8 +253,15 @@ class AgentProfileController extends GetxController {
             return photoPath;
           }
           
-          // Build full URL using helper
-          final fullUrl = ImageUrlHelper.buildImageUrl(photoPath);
+          // Build full URL
+          String path = photoPath;
+          if (path.startsWith('/')) {
+            path = path.substring(1);
+          }
+          final baseUrl = ApiConstants.baseUrl.endsWith('/') 
+              ? ApiConstants.baseUrl.substring(0, ApiConstants.baseUrl.length - 1)
+              : ApiConstants.baseUrl;
+          final fullUrl = '$baseUrl/$path';
           
           if (kDebugMode) {
             print('   Built photo URL: $fullUrl');
@@ -684,11 +692,11 @@ class AgentProfileController extends GetxController {
     if (_agent.value == null) return;
 
     try {
-      final buyerController = Get.find<BuyerController>();
+      final buyerController = Get.find<BuyerV2Controller>();
       buyerController.selectBuyerAgent(_agent.value!);
       Navigator.pop(Get.context!); // Go back to previous screen after selection
     } catch (e) {
-      // BuyerController might not be available if user is not a buyer
+      // BuyerV2Controller might not be available if user is not a buyer
       Get.snackbar(
         'Selection Complete',
         'You are now working with ${_agent.value!.name}. They will represent you in all property transactions.',
@@ -1007,6 +1015,203 @@ ADDITIONAL TERMS
 8. The Listing Agent/Broker makes no guarantee that a lender will approve the rebate, if applicable.''';
   }
   
+  /// Create a proposal for this agent
+  Future<void> createProposal(BuildContext context) async {
+    if (_agent.value == null) {
+      SnackbarHelper.showError('Agent information not available');
+      return;
+    }
+
+    // Get or create proposal controller
+    if (!Get.isRegistered<ProposalController>()) {
+      Get.put(ProposalController(), permanent: true);
+    }
+    final proposalController = Get.find<ProposalController>();
+
+    // Show proposal creation dialog
+    _showCreateProposalDialog(context, proposalController);
+  }
+
+  void _showCreateProposalDialog(
+    BuildContext context,
+    ProposalController proposalController,
+  ) {
+    final messageController = TextEditingController();
+    final propertyAddressController = TextEditingController();
+    final propertyPriceController = TextEditingController();
+
+    Get.dialog(
+      Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 500, maxHeight: 600),
+          padding: const EdgeInsets.all(24),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header
+                Row(
+                  children: [
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: AppTheme.primaryBlue.withOpacity(0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.description_outlined,
+                        color: AppTheme.primaryBlue,
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Create Proposal',
+                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                          ),
+                          Text(
+                            'Send a proposal to ${_agent.value!.name}',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  color: AppTheme.mediumGray,
+                                ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Get.back(),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                // Message field
+                TextField(
+                  controller: messageController,
+                  maxLines: 4,
+                  decoration: InputDecoration(
+                    labelText: 'Message (Optional)',
+                    hintText: 'Add a message to your proposal...',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: AppTheme.primaryBlue, width: 2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                // Property address (optional)
+                TextField(
+                  controller: propertyAddressController,
+                  decoration: InputDecoration(
+                    labelText: 'Property Address (Optional)',
+                    hintText: 'e.g., 123 Main St, City, State',
+                    prefixIcon: const Icon(Icons.location_on),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: AppTheme.primaryBlue, width: 2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                // Property price (optional)
+                TextField(
+                  controller: propertyPriceController,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    labelText: 'Property Price (Optional)',
+                    hintText: 'e.g., 500000',
+                    prefixIcon: const Icon(Icons.attach_money),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: AppTheme.primaryBlue, width: 2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                // Action buttons
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () => Get.back(),
+                        child: const Text('Cancel'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Obx(() => ElevatedButton(
+                            onPressed: proposalController.isLoading
+                                ? null
+                                : () async {
+                                    Get.back();
+                                    final proposal = await proposalController.createProposal(
+                                      professionalId: _agent.value!.id,
+                                      professionalName: _agent.value!.name,
+                                      professionalType: 'agent',
+                                      message: messageController.text.trim().isEmpty
+                                          ? null
+                                          : messageController.text.trim(),
+                                      propertyAddress: propertyAddressController.text.trim().isEmpty
+                                          ? null
+                                          : propertyAddressController.text.trim(),
+                                      propertyPrice: propertyPriceController.text.trim().isEmpty
+                                          ? null
+                                          : propertyPriceController.text.trim(),
+                                    );
+                                    if (proposal != null) {
+                                      // Navigate to proposals view
+                                      Get.toNamed('/proposals');
+                                    }
+                                  },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppTheme.primaryBlue,
+                              foregroundColor: AppTheme.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: proposalController.isLoading
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: AppTheme.white,
+                                    ),
+                                  )
+                                : const Text('Send Proposal'),
+                          )),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      barrierDismissible: true,
+    );
+  }
+
   @override
   void onClose() {
     _dio.close();

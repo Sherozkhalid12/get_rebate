@@ -20,8 +20,26 @@ class FindAgentsController extends GetxController {
   // Store all loaded agents for filtering
   final List<AgentModel> _allLoadedAgents = [];
   
+  // Store filtered and sorted agents (before pagination)
+  final List<AgentModel> _filteredAndSortedAgents = [];
+  
+  // Server-side pagination (reactive) - MAKE THEM PUBLIC SO OBX CAN TRACK THEM
+  final RxInt currentPage = 1.obs;
+  final RxInt totalPages = 1.obs;
+  final RxInt totalAgents = 0.obs;
+  final RxBool _isLoadingMore = false.obs;
+  
   // Services
   final AgentService _agentService = AgentService();
+  
+  // Reactive total count
+  final RxInt _totalFilteredCount = 0.obs;
+  
+  // Computed reactive value for canLoadMore
+  bool get canLoadMore => currentPage.value < totalPages.value;
+  
+  bool get isLoadingMore => _isLoadingMore.value;
+  int get totalFilteredCount => _totalFilteredCount.value;
 
   @override
   void onInit() {
@@ -83,27 +101,47 @@ class FindAgentsController extends GetxController {
 
   Future<void> _loadAgents() async {
     isLoading.value = true;
+    currentPage.value = 1; // Reset to first page
 
     try {
       if (kDebugMode) {
-        print('📡 Fetching ALL agents from API...');
+        print('📡 Fetching agents from API (page ${currentPage.value})...');
       }
 
-      // Use getAllAgents endpoint to get ALL agents (no filtering)
-      final allAgents = await _agentService.getAllAgents();
+      // Use paginated endpoint to get first page of agents
+      final response = await _agentService.getAllAgentsPaginated(page: currentPage.value);
 
       if (kDebugMode) {
-        print('✅ Successfully fetched ${allAgents.length} agents from API');
-        print('   Showing all agents initially (no ZIP code filtering)');
+        print('✅ Successfully fetched ${response.agents.length} agents from API');
+        print('   Page: ${response.page}/${response.totalPages}');
+        print('   Total agents: ${response.totalAgents}');
+        print('   Can load more: ${response.page < response.totalPages}');
+      }
+
+      // Store pagination metadata (reactive) - USE PUBLIC OBSERVABLES
+      currentPage.value = response.page;
+      totalPages.value = response.totalPages;
+      totalAgents.value = response.totalAgents;
+      
+      if (kDebugMode) {
+        print('📊 After setting values:');
+        print('   currentPage.value: ${currentPage.value}');
+        print('   totalPages.value: ${totalPages.value}');
+        print('   canLoadMore: $canLoadMore');
+        print('   Agents in list: ${agents.length}');
+        print('   Should show button: ${canLoadMore && agents.isNotEmpty}');
       }
 
       // Store all agents without filtering
       _allLoadedAgents.clear();
-      _allLoadedAgents.addAll(allAgents);
+      _allLoadedAgents.addAll(response.agents);
+      
+      // Apply ZIP code filtering and sorting if ZIP code is provided
+      _applyZipCodeFilterAndSort();
       
       // Show all agents initially (no search query applied)
       if (searchQuery.value.isEmpty) {
-        agents.value = List.from(_allLoadedAgents);
+        _updateDisplayedAgents();
       } else {
         // If there's a search query, apply it
         searchAgents(searchQuery.value);
@@ -129,9 +167,12 @@ class FindAgentsController extends GetxController {
       _allLoadedAgents.clear();
       _allLoadedAgents.addAll(mockAgents);
       
+      // Apply ZIP code filtering and sorting if ZIP code is provided
+      _applyZipCodeFilterAndSort();
+      
       // Apply search if there's a query
       if (searchQuery.value.isEmpty) {
-        agents.value = List.from(_allLoadedAgents);
+        _updateDisplayedAgents();
       } else {
         searchAgents(searchQuery.value);
       }
@@ -151,9 +192,12 @@ class FindAgentsController extends GetxController {
       _allLoadedAgents.clear();
       _allLoadedAgents.addAll(mockAgents);
       
+      // Apply ZIP code filtering and sorting if ZIP code is provided
+      _applyZipCodeFilterAndSort();
+      
       // Apply search if there's a query
       if (searchQuery.value.isEmpty) {
-        agents.value = List.from(_allLoadedAgents);
+        _updateDisplayedAgents();
       } else {
         searchAgents(searchQuery.value);
       }
@@ -174,6 +218,169 @@ class FindAgentsController extends GetxController {
     searchController.clear();
     searchQuery.value = '';
     await _loadAgents();
+  }
+  
+  /// Load more agents from next page
+  Future<void> loadMoreAgents() async {
+    if (!canLoadMore || _isLoadingMore.value) {
+      return;
+    }
+
+    _isLoadingMore.value = true;
+    final nextPage = currentPage.value + 1;
+
+    try {
+      if (kDebugMode) {
+        print('📡 Loading more agents (page $nextPage)...');
+      }
+
+      // Fetch next page
+      final response = await _agentService.getAllAgentsPaginated(page: nextPage);
+
+      if (kDebugMode) {
+        print('✅ Successfully fetched ${response.agents.length} more agents');
+        print('   Page: ${response.page}/${response.totalPages}');
+      }
+
+      // Update pagination metadata (reactive) - DIRECTLY UPDATE PUBLIC OBSERVABLES
+      currentPage.value = response.page;
+      totalPages.value = response.totalPages;
+      totalAgents.value = response.totalAgents;
+
+      // Add new agents to the list
+      _allLoadedAgents.addAll(response.agents);
+      
+      // Apply ZIP code filtering and sorting if ZIP code is provided
+      _applyZipCodeFilterAndSort();
+      
+      // Update displayed agents
+      if (searchQuery.value.isEmpty) {
+        _updateDisplayedAgents();
+      } else {
+        // If there's a search query, apply it
+        searchAgents(searchQuery.value);
+      }
+      
+      // Record search for newly loaded agents
+      _recordSearchesForDisplayedAgents();
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Error loading more agents: $e');
+      }
+      SnackbarHelper.showError('Failed to load more agents. Please try again.');
+    } finally {
+      _isLoadingMore.value = false;
+    }
+  }
+  
+  /// Applies ZIP code filtering and proximity-based sorting
+  void _applyZipCodeFilterAndSort() {
+    if (selectedZipCode.value.isEmpty) {
+      // No ZIP code filter - show all agents
+      _filteredAndSortedAgents.clear();
+      _filteredAndSortedAgents.addAll(_allLoadedAgents);
+      _totalFilteredCount.value = _filteredAndSortedAgents.length;
+      return;
+    }
+    
+    final zipCode = selectedZipCode.value;
+    
+    // Filter agents that work in or near the ZIP code
+    final matchingAgents = _allLoadedAgents.where((agent) {
+      // Check 1: claimedZipCodes (agents who have claimed this ZIP)
+      final hasClaimedZip = agent.claimedZipCodes.contains(zipCode);
+      
+      // Check 2: serviceZipCodes (agents who serve this ZIP)
+      final hasServiceZip = agent.serviceZipCodes.contains(zipCode);
+      
+      // Check 3: serviceAreas (can contain ZIP codes)
+      final hasServiceArea = agent.serviceAreas?.contains(zipCode) ?? false;
+      
+      return hasClaimedZip || hasServiceZip || hasServiceArea;
+    }).toList();
+    
+    // Sort agents: local agents first, then by proximity
+    matchingAgents.sort((a, b) {
+      // Priority 1: Agents with ZIP in claimedZipCodes come first (local agents)
+      final aIsLocal = a.claimedZipCodes.contains(zipCode);
+      final bIsLocal = b.claimedZipCodes.contains(zipCode);
+      
+      if (aIsLocal && !bIsLocal) return -1;
+      if (!aIsLocal && bIsLocal) return 1;
+      
+      // Priority 2: If both are local or both are not, sort by proximity
+      final aProximity = _calculateZipCodeProximity(zipCode, a);
+      final bProximity = _calculateZipCodeProximity(zipCode, b);
+      
+      return aProximity.compareTo(bProximity);
+    });
+    
+    _filteredAndSortedAgents.clear();
+    _filteredAndSortedAgents.addAll(matchingAgents);
+    _totalFilteredCount.value = _filteredAndSortedAgents.length;
+    
+    if (kDebugMode) {
+      print('📍 Filtered by ZIP code: $zipCode');
+      print('   Total matching agents: ${_filteredAndSortedAgents.length}');
+      print('   Local agents (claimed ZIP): ${_filteredAndSortedAgents.where((a) => a.claimedZipCodes.contains(zipCode)).length}');
+    }
+  }
+  
+  /// Calculates proximity score between a ZIP code and an agent
+  /// Lower score = closer proximity
+  /// Uses numeric difference between ZIP codes as a proxy for distance
+  int _calculateZipCodeProximity(String targetZip, AgentModel agent) {
+    try {
+      final targetZipNum = int.tryParse(targetZip) ?? 0;
+      if (targetZipNum == 0) return 999999; // Invalid ZIP
+      
+      int minDistance = 999999;
+      
+      // Check claimed ZIP codes first (these are most important)
+      for (final zip in agent.claimedZipCodes) {
+        final zipNum = int.tryParse(zip) ?? 0;
+        if (zipNum > 0) {
+          final distance = (targetZipNum - zipNum).abs();
+          if (distance < minDistance) {
+            minDistance = distance;
+          }
+        }
+      }
+      
+      // Check service ZIP codes
+      for (final zip in agent.serviceZipCodes) {
+        final zipNum = int.tryParse(zip) ?? 0;
+        if (zipNum > 0) {
+          final distance = (targetZipNum - zipNum).abs();
+          if (distance < minDistance) {
+            minDistance = distance;
+          }
+        }
+      }
+      
+      return minDistance;
+    } catch (e) {
+      if (kDebugMode) {
+        print('⚠️ Error calculating ZIP proximity: $e');
+      }
+      return 999999; // Default to far away
+    }
+  }
+  
+  /// Updates the displayed agents list based on current filters
+  void _updateDisplayedAgents() {
+    // Show all filtered and sorted agents (server-side pagination handles the rest)
+    agents.value = List.from(_filteredAndSortedAgents);
+    
+    // Ensure total count is updated
+    _totalFilteredCount.value = _filteredAndSortedAgents.length;
+    
+    if (kDebugMode) {
+      print('📋 Updated displayed agents: ${agents.length}');
+      print('   canLoadMore: $canLoadMore');
+      print('   Current page: ${currentPage.value}/${totalPages.value}');
+      print('   Total agents: ${totalAgents.value}');
+    }
   }
 
   List<AgentModel> _getMockAgents() {
@@ -286,17 +493,22 @@ class FindAgentsController extends GetxController {
     final searchTerm = query.trim();
     final searchLower = searchTerm.toLowerCase();
     
+    // Start with ZIP-filtered agents (or all if no ZIP)
+    final baseAgents = selectedZipCode.value.isNotEmpty 
+        ? List<AgentModel>.from(_filteredAndSortedAgents)
+        : List<AgentModel>.from(_allLoadedAgents);
+    
     if (searchLower.isEmpty) {
-      // Show all loaded agents (no filtering)
-      agents.value = List.from(_allLoadedAgents);
+      // No search query - use ZIP-filtered and sorted agents
+      _updateDisplayedAgents();
       if (kDebugMode) {
-        print('🔍 Search cleared. Showing all ${_allLoadedAgents.length} agents');
+        print('🔍 Search cleared. Showing ${agents.length} agents');
       }
       // Record search for all displayed agents
       _recordSearchesForDisplayedAgents();
     } else {
-      // Filter all loaded agents by search query - search in multiple fields
-      final filteredAgents = _allLoadedAgents.where((agent) {
+      // Filter by search query - search in multiple fields
+      final filteredAgents = baseAgents.where((agent) {
         // Search in name
         final nameMatch = agent.name.toLowerCase().contains(searchLower);
         
@@ -335,13 +547,21 @@ class FindAgentsController extends GetxController {
                zipMatch;
       }).toList();
       
-      agents.value = filteredAgents;
+      // Update filtered and sorted list for search results
+      _filteredAndSortedAgents.clear();
+      _filteredAndSortedAgents.addAll(filteredAgents);
+      _totalFilteredCount.value = _filteredAndSortedAgents.length;
+      
+      // Reset displayed count when search changes
+      
+      // Update displayed agents
+      _updateDisplayedAgents();
       
       if (kDebugMode) {
         print('🔍 Search: "$query"');
-        print('   Found ${filteredAgents.length} matching agents out of ${_allLoadedAgents.length}');
+        print('   Found ${filteredAgents.length} matching agents');
         if (filteredAgents.isNotEmpty) {
-          print('   Matching agents: ${filteredAgents.map((a) => a.name).join(", ")}');
+          print('   Matching agents: ${filteredAgents.take(5).map((a) => a.name).join(", ")}${filteredAgents.length > 5 ? "..." : ""}');
         }
       }
       

@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -9,7 +10,6 @@ import 'package:getrebate/app/widgets/rebate_display_widget.dart';
 import 'package:getrebate/app/widgets/nearby_agents_widget.dart';
 import 'package:getrebate/app/models/listing.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
-import 'package:getrebate/app/utils/image_url_helper.dart';
 import 'package:intl/intl.dart';
 
 class PropertyDetailView extends GetView<PropertyDetailController> {
@@ -428,10 +428,19 @@ class PropertyDetailView extends GetView<PropertyDetailController> {
                 onPageChanged: controller.setCurrentImageIndex,
                 itemCount: images.length,
                 itemBuilder: (context, index) {
-                  return Image.network(
-                    ImageUrlHelper.buildImageUrl(images[index]) ?? images[index],
+                  return CachedNetworkImage(
+                    imageUrl: images[index],
                     fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
+                    cacheKey: images[index],
+                    memCacheWidth: 800,
+                    memCacheHeight: 600,
+                    maxWidthDiskCache: 1600,
+                    maxHeightDiskCache: 1200,
+                    fadeInDuration: Duration.zero,
+                    placeholder: (context, url) => Container(
+                      color: AppTheme.lightGray,
+                    ),
+                    errorWidget: (context, url, error) {
                       return Container(
                         color: AppTheme.lightGray,
                         child: const Icon(
@@ -604,8 +613,10 @@ class PropertyDetailView extends GetView<PropertyDetailController> {
     final agent = controller.property['agent'] as Map<String, dynamic>? ?? {};
     final agentName = agent['name']?.toString() ?? 'Agent Name';
     final agentCompany = agent['company']?.toString() ?? 'Real Estate Company';
-    final agentProfileImage = ImageUrlHelper.buildImageUrl(agent['profileImage']?.toString());
-    final hasValidImage = agentProfileImage != null && agentProfileImage.isNotEmpty;
+    final agentProfileImage = agent['profileImage']?.toString();
+    final hasValidImage = agentProfileImage != null && 
+                          agentProfileImage.isNotEmpty && 
+                          agentProfileImage.startsWith('http');
 
     return Container(
       padding: const EdgeInsets.all(16),

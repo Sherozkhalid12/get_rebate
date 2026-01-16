@@ -4,6 +4,6 @@ import 'package:getrebate/app/modules/buyer/controllers/buyer_controller.dart';
 class BuyerBinding extends Bindings {
   @override
   void dependencies() {
-    Get.lazyPut<BuyerController>(() => BuyerController());
+    Get.lazyPut<BuyerV2Controller>(() => BuyerV2Controller());
   }
 }

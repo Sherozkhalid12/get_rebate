@@ -3,8 +3,8 @@ import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
-import 'package:getrebate/app/modules/buyer/views/buyer_view.dart';
-import 'package:getrebate/app/modules/buyer/bindings/buyer_binding.dart';
+import 'package:getrebate/app/modules/buyer_v2/views/buyer_v2_view.dart';
+import 'package:getrebate/app/modules/buyer_v2/bindings/buyer_v2_binding.dart';
 // DISABLED: Seller/PropertyListings imports - buyers cannot create listings anymore
 // import 'package:getrebate/app/modules/seller/views/seller_view.dart';
 // import 'package:getrebate/app/modules/seller/bindings/seller_binding.dart';
@@ -15,6 +15,7 @@ import 'package:getrebate/app/modules/messages/bindings/messages_binding.dart';
 import 'package:getrebate/app/modules/profile/views/profile_view.dart';
 import 'package:getrebate/app/modules/profile/bindings/profile_binding.dart';
 import 'package:getrebate/app/modules/notifications/bindings/notifications_binding.dart';
+import 'package:getrebate/app/modules/notifications/controllers/notifications_controller.dart';
 // import 'package:getrebate/app/modules/property_listings/bindings/property_listings_binding.dart';
 import 'package:circle_nav_bar/circle_nav_bar.dart';
 
@@ -48,6 +49,11 @@ class MainNavigationController extends GetxController {
         print('   Pages array: [Home(0), Favorites(1), Messages(2), Profile(3)]');
         print('   Navbar visibility: true');
       }
+      
+      // Load notifications when navigating to home page (index 0)
+      if (validIndex == 0) {
+        _loadNotifications();
+      }
     } else {
       // Even if index hasn't changed, ensure navbar is visible
       if (!_isNavBarVisible.value) {
@@ -55,6 +61,32 @@ class MainNavigationController extends GetxController {
         if (kDebugMode) {
           print('🔄 Navbar visibility restored (index unchanged: $validIndex)');
         }
+      }
+      
+      // Also load notifications if already on home page and user taps home again
+      if (validIndex == 0) {
+        _loadNotifications();
+      }
+    }
+  }
+  
+  /// Loads notification data when navigating to home page
+  void _loadNotifications() {
+    try {
+      if (Get.isRegistered<NotificationsController>()) {
+        final notificationsController = Get.find<NotificationsController>();
+        notificationsController.fetchNotifications();
+        if (kDebugMode) {
+          print('📬 Loading notifications on home page navigation');
+        }
+      } else {
+        if (kDebugMode) {
+          print('⚠️ NotificationsController not registered yet');
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Error loading notifications: $e');
       }
     }
   }
@@ -68,14 +100,14 @@ class MainNavigationController extends GetxController {
   }
 
   List<Widget> get pages => [
-    const BuyerView(),        // Index 0: Home
+    const BuyerV2View(),        // Index 0: Home
     const FavoritesView(),    // Index 1: Favorites
     const MessagesView(),     // Index 2: Messages
     const ProfileView(),      // Index 3: Profile
   ];
   
   // Navigation mapping for reference:
-  // Index 0 -> Home (BuyerView)
+  // Index 0 -> Home (BuyerV2View)
   // Index 1 -> Favorites (FavoritesView)
   // Index 2 -> Messages (MessagesView)
   // Index 3 -> Profile (ProfileView)
@@ -84,7 +116,7 @@ class MainNavigationController extends GetxController {
   void onInit() {
     super.onInit();
     // Initialize bindings for all pages
-    BuyerBinding().dependencies();
+    BuyerV2Binding().dependencies();
     // DISABLED: Seller/PropertyListings bindings - buyers cannot create listings anymore
     // SellerBinding().dependencies();
     // PropertyListingsBinding().dependencies();
@@ -99,7 +131,7 @@ class MainNavigationController extends GetxController {
     return Obx(
       () {
         // Navigation mapping: Icon index -> Page index
-        // Icon 0 (Home) -> Page 0 (BuyerView)
+        // Icon 0 (Home) -> Page 0 (BuyerV2View)
         // Icon 1 (Favorites) -> Page 1 (FavoritesView)
         // Icon 2 (Messages) -> Page 2 (MessagesView)
         // Icon 3 (Profile) -> Page 3 (ProfileView)
@@ -173,7 +205,7 @@ class MainNavigationController extends GetxController {
   String _getPageName(int index) {
     switch (index) {
       case 0:
-        return 'Home (BuyerView)';
+        return 'Home (BuyerV2View)';
       case 1:
         return 'Favorites (FavoritesView)';
       case 2:

@@ -5,6 +5,8 @@ class NotificationModel {
   final String message;
   final String type;
   final LeadInfo? leadId;
+  final String? proposalId; // For proposal-related notifications
+  final AgentData? agentData; // Agent data for completed leads
   final bool isRead;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -16,6 +18,8 @@ class NotificationModel {
     required this.message,
     required this.type,
     this.leadId,
+    this.proposalId,
+    this.agentData,
     required this.isRead,
     required this.createdAt,
     required this.updatedAt,
@@ -32,6 +36,14 @@ class NotificationModel {
           ? LeadInfo.fromJson(
               json['leadId'] is Map<String, dynamic>
                   ? json['leadId'] as Map<String, dynamic>
+                  : {},
+            )
+          : null,
+      proposalId: json['proposalId']?.toString(),
+      agentData: json['agentData'] != null
+          ? AgentData.fromJson(
+              json['agentData'] is Map<String, dynamic>
+                  ? json['agentData'] as Map<String, dynamic>
                   : {},
             )
           : null,
@@ -53,6 +65,8 @@ class NotificationModel {
       'message': message,
       'type': type,
       'leadId': leadId?.toJson(),
+      if (proposalId != null) 'proposalId': proposalId,
+      if (agentData != null) 'agentData': agentData?.toJson(),
       'isRead': isRead,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
@@ -66,6 +80,8 @@ class NotificationModel {
     String? message,
     String? type,
     LeadInfo? leadId,
+    String? proposalId,
+    AgentData? agentData,
     bool? isRead,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -77,6 +93,8 @@ class NotificationModel {
       message: message ?? this.message,
       type: type ?? this.type,
       leadId: leadId ?? this.leadId,
+      proposalId: proposalId ?? this.proposalId,
+      agentData: agentData ?? this.agentData,
       isRead: isRead ?? this.isRead,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -108,6 +126,39 @@ class LeadInfo {
       '_id': id,
       'fullName': fullName,
       'email': email,
+    };
+  }
+}
+
+// Agent data model for notifications
+class AgentData {
+  final String id;
+  final String? fullname;
+  final String? email;
+  final String? phone;
+
+  AgentData({
+    required this.id,
+    this.fullname,
+    this.email,
+    this.phone,
+  });
+
+  factory AgentData.fromJson(Map<String, dynamic> json) {
+    return AgentData(
+      id: json['id']?.toString() ?? json['_id']?.toString() ?? '',
+      fullname: json['fullname']?.toString(),
+      email: json['email']?.toString(),
+      phone: json['phone']?.toString(),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      if (fullname != null) 'fullname': fullname,
+      if (email != null) 'email': email,
+      if (phone != null) 'phone': phone,
     };
   }
 }

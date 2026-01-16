@@ -47,9 +47,12 @@ class _CustomSearchFieldState extends State<CustomSearchField> {
     return TextField(
       controller: widget.controller,
       onChanged: widget.onChanged,
-      keyboardType: TextInputType.text, // Text keyboard for city, state, or ZIP code
-      // No maxLength restriction - allow city names, state codes, and ZIP codes
-      // No input formatters - allow all characters (letters, numbers, spaces, commas)
+      keyboardType: TextInputType.number, // Numeric keyboard for ZIP codes
+      maxLength: 5, // ZIP codes are 5 digits
+      inputFormatters: [
+        // Only allow digits
+        FilteringTextInputFormatter.digitsOnly,
+      ],
       style: Theme.of(
         context,
       ).textTheme.bodyMedium?.copyWith(color: AppTheme.darkGray),
