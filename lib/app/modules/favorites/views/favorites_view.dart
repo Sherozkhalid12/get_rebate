@@ -7,7 +7,7 @@ import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/modules/favorites/controllers/favorites_controller.dart';
-import 'package:getrebate/app/modules/buyer_v2/controllers/buyer_v2_controller.dart';
+import 'package:getrebate/app/modules/buyer/controllers/buyer_controller.dart';
 import 'package:getrebate/app/controllers/main_navigation_controller.dart';
 import 'package:getrebate/app/widgets/agent_card.dart';
 import 'package:getrebate/app/widgets/loan_officer_card.dart';
@@ -29,8 +29,8 @@ class FavoritesView extends GetView<FavoritesController> {
         }
         
         // Then set the buyer tab
-        if (Get.isRegistered<BuyerV2Controller>()) {
-          final buyerController = Get.find<BuyerV2Controller>();
+        if (Get.isRegistered<BuyerController>()) {
+          final buyerController = Get.find<BuyerController>();
           buyerController.setSelectedTab(tabIndex);
           if (kDebugMode) {
             print('✅ Successfully set buyer tab to $tabIndex');
@@ -38,7 +38,7 @@ class FavoritesView extends GetView<FavoritesController> {
         } else {
           // Retry if controller not registered yet
           if (kDebugMode) {
-            print('⚠️ BuyerV2Controller not registered yet, retrying... (${retries - 1} retries left)');
+            print('⚠️ BuyerController not registered yet, retrying... (${retries - 1} retries left)');
           }
           _setBuyerTabWithRetry(tabIndex, retries: retries - 1, delayMs: delayMs);
         }
@@ -429,7 +429,7 @@ class FavoritesView extends GetView<FavoritesController> {
       }
 
       final favoriteListings = controller.favoriteListings;
-      final buyerController = Get.find<BuyerV2Controller>();
+      final buyerController = Get.find<BuyerController>();
 
       return ListView.builder(
         padding: const EdgeInsets.all(20),
@@ -627,7 +627,7 @@ class FavoritesView extends GetView<FavoritesController> {
       }
 
       // Get buyer controller to access listings
-      final buyerController = Get.find<BuyerV2Controller>();
+      final buyerController = Get.find<BuyerController>();
       final favoriteOpenHouses = controller.favoriteOpenHouses;
 
       return ListView.builder(

@@ -3,8 +3,8 @@ import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
-import 'package:getrebate/app/modules/buyer_v2/views/buyer_v2_view.dart';
-import 'package:getrebate/app/modules/buyer_v2/bindings/buyer_v2_binding.dart';
+import 'package:getrebate/app/modules/buyer/views/buyer_view.dart';
+import 'package:getrebate/app/modules/buyer/bindings/buyer_binding.dart';
 // DISABLED: Seller/PropertyListings imports - buyers cannot create listings anymore
 // import 'package:getrebate/app/modules/seller/views/seller_view.dart';
 // import 'package:getrebate/app/modules/seller/bindings/seller_binding.dart';
@@ -100,14 +100,14 @@ class MainNavigationController extends GetxController {
   }
 
   List<Widget> get pages => [
-    const BuyerV2View(),        // Index 0: Home
+    const BuyerView(),        // Index 0: Home
     const FavoritesView(),    // Index 1: Favorites
     const MessagesView(),     // Index 2: Messages
     const ProfileView(),      // Index 3: Profile
   ];
   
   // Navigation mapping for reference:
-  // Index 0 -> Home (BuyerV2View)
+  // Index 0 -> Home (BuyerView)
   // Index 1 -> Favorites (FavoritesView)
   // Index 2 -> Messages (MessagesView)
   // Index 3 -> Profile (ProfileView)
@@ -116,7 +116,7 @@ class MainNavigationController extends GetxController {
   void onInit() {
     super.onInit();
     // Initialize bindings for all pages
-    BuyerV2Binding().dependencies();
+    BuyerBinding().dependencies();
     // DISABLED: Seller/PropertyListings bindings - buyers cannot create listings anymore
     // SellerBinding().dependencies();
     // PropertyListingsBinding().dependencies();
@@ -131,7 +131,7 @@ class MainNavigationController extends GetxController {
     return Obx(
       () {
         // Navigation mapping: Icon index -> Page index
-        // Icon 0 (Home) -> Page 0 (BuyerV2View)
+        // Icon 0 (Home) -> Page 0 (BuyerView)
         // Icon 1 (Favorites) -> Page 1 (FavoritesView)
         // Icon 2 (Messages) -> Page 2 (MessagesView)
         // Icon 3 (Profile) -> Page 3 (ProfileView)
@@ -205,7 +205,7 @@ class MainNavigationController extends GetxController {
   String _getPageName(int index) {
     switch (index) {
       case 0:
-        return 'Home (BuyerV2View)';
+        return 'Home (BuyerView)';
       case 1:
         return 'Favorites (FavoritesView)';
       case 2:

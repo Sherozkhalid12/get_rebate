@@ -7,7 +7,6 @@ import 'package:getrebate/app/modules/messages/controllers/messages_controller.d
 import 'package:getrebate/app/widgets/custom_text_field.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:getrebate/app/controllers/main_navigation_controller.dart';
-import 'package:getrebate/app/routes/app_pages.dart';
 
 class MessagesView extends GetView<MessagesController> {
   const MessagesView({super.key});
@@ -688,7 +687,7 @@ class MessagesView extends GetView<MessagesController> {
             ),
             const SizedBox(height: 32),
             ElevatedButton.icon(
-              onPressed: () => Get.toNamed(AppPages.MAIN),
+              onPressed: () => Get.toNamed('/buyer'),
               icon: const Icon(Icons.search),
               label: const Text('Find Professionals'),
               style: ElevatedButton.styleFrom(

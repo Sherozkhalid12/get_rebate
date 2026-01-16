@@ -22,7 +22,7 @@ import 'package:getrebate/app/utils/api_constants.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 
-class BuyerV2Controller extends GetxController {
+class BuyerController extends GetxController {
   final LocationController _locationController = Get.find<LocationController>();
   final AuthController _authController = Get.find<AuthController>();
 

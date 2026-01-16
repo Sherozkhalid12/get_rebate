@@ -15,7 +15,7 @@ import 'package:getrebate/app/widgets/notification_badge_icon.dart';
 import 'package:intl/intl.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart';
 
-class BuyerView extends GetView<BuyerV2Controller> {
+class BuyerView extends GetView<BuyerController> {
   const BuyerView({super.key});
 
   @override
