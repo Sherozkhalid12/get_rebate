@@ -469,6 +469,30 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                 ),
               ],
             ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: CustomButton(
+                    text: 'Compliance Tutorial',
+                    onPressed: () {
+                      Get.toNamed('/rebate-checklist');
+                    },
+                    icon: Icons.school,
+                    isOutlined: true,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: CustomButton(
+                    text: 'View Billing',
+                    onPressed: () => controller.setSelectedTab(3),
+                    icon: Icons.credit_card,
+                    isOutlined: true,
+                  ),
+                ),
+              ],
+            ),
             // COMMENTED OUT: Compliance Tutorial button row
             // const SizedBox(height: 12),
             // Row(
