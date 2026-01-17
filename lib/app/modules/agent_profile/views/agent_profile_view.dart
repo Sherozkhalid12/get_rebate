@@ -383,52 +383,12 @@ class AgentProfileView extends GetView<AgentProfileController> {
   }
 
   Widget _buildYouTubePlayer(BuildContext context, String videoId) {
-    final youtubeController = YoutubePlayerController(
-      initialVideoId: videoId,
-      flags: const YoutubePlayerFlags(
-        autoPlay: false,
-        mute: false,
-        enableCaption: true,
-        loop: false,
-        isLive: false,
-      ),
-    );
-
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: YoutubePlayer(
-          controller: youtubeController,
-          showVideoProgressIndicator: true,
-          progressIndicatorColor: AppTheme.primaryBlue,
-          progressColors: ProgressBarColors(
-            playedColor: AppTheme.primaryBlue,
-            handleColor: AppTheme.primaryBlue,
-            backgroundColor: AppTheme.mediumGray.withOpacity(0.3),
-            bufferedColor: AppTheme.mediumGray.withOpacity(0.5),
-          ),
-          onReady: () {
-            if (kDebugMode) {
-              print('✅ YouTube player ready');
-            }
-          },
-          onEnded: (metadata) {
-            if (kDebugMode) {
-              print('✅ YouTube video ended');
-            }
-          },
-        ),
-      ),
+    // Get YouTube thumbnail URL (high quality)
+    final thumbnailUrl = 'https://img.youtube.com/vi/$videoId/maxresdefault.jpg';
+    
+    return _YouTubePlayerWithThumbnail(
+      videoId: videoId,
+      thumbnailUrl: thumbnailUrl,
     );
   }
 
@@ -1500,6 +1460,153 @@ class AgentProfileView extends GetView<AgentProfileController> {
   }
 }
 
+/// YouTube player with thumbnail support - shows thumbnail until video loads
+class _YouTubePlayerWithThumbnail extends StatefulWidget {
+  final String videoId;
+  final String thumbnailUrl;
+
+  const _YouTubePlayerWithThumbnail({
+    required this.videoId,
+    required this.thumbnailUrl,
+  });
+
+  @override
+  State<_YouTubePlayerWithThumbnail> createState() => _YouTubePlayerWithThumbnailState();
+}
+
+class _YouTubePlayerWithThumbnailState extends State<_YouTubePlayerWithThumbnail> {
+  late YoutubePlayerController _youtubeController;
+  bool _isPlayerReady = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _youtubeController = YoutubePlayerController(
+      initialVideoId: widget.videoId,
+      flags: const YoutubePlayerFlags(
+        autoPlay: false,
+        mute: false,
+        enableCaption: true,
+        loop: false,
+        isLive: false,
+        hideControls: false,
+        controlsVisibleAtStart: false,
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _youtubeController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 200,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Stack(
+          children: [
+            // YouTube player (always rendered to initialize)
+            YoutubePlayer(
+              controller: _youtubeController,
+              showVideoProgressIndicator: true,
+              progressIndicatorColor: AppTheme.primaryBlue,
+              progressColors: ProgressBarColors(
+                playedColor: AppTheme.primaryBlue,
+                handleColor: AppTheme.primaryBlue,
+                backgroundColor: AppTheme.mediumGray.withOpacity(0.3),
+                bufferedColor: AppTheme.mediumGray.withOpacity(0.5),
+              ),
+              onReady: () {
+                if (mounted) {
+                  setState(() {
+                    _isPlayerReady = true;
+                  });
+                }
+                if (kDebugMode) {
+                  print('✅ YouTube player ready');
+                }
+              },
+              onEnded: (metadata) {
+                if (kDebugMode) {
+                  print('✅ YouTube video ended');
+                }
+              },
+            ),
+            // Thumbnail overlay (shown until player is ready)
+            if (!_isPlayerReady)
+              Container(
+                height: 200,
+                width: double.infinity,
+                color: Colors.black,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    // Thumbnail image - optimized with cache
+                    CachedNetworkImage(
+                      imageUrl: widget.thumbnailUrl,
+                      fit: BoxFit.cover,
+                      placeholder: (context, url) => Container(
+                        color: AppTheme.lightGray,
+                        child: Center(
+                          child: SpinKitFadingCircle(
+                            color: AppTheme.primaryBlue,
+                            size: 40,
+                          ),
+                        ),
+                      ),
+                      errorWidget: (context, url, error) => Container(
+                        color: Colors.black,
+                        child: Icon(
+                          Icons.video_library,
+                          color: AppTheme.mediumGray,
+                          size: 48,
+                        ),
+                      ),
+                      fadeInDuration: const Duration(milliseconds: 300),
+                      fadeOutDuration: const Duration(milliseconds: 100),
+                    ),
+                    // Play button overlay on thumbnail
+                    Container(
+                      color: Colors.black.withOpacity(0.3),
+                      child: Center(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.6),
+                            shape: BoxShape.circle,
+                          ),
+                          padding: const EdgeInsets.all(20),
+                          child: Icon(
+                            Icons.play_arrow,
+                            color: AppTheme.white,
+                            size: 56,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// Widget for playing direct video file URLs (non-YouTube videos)
 class _DirectVideoPlayerWidget extends StatefulWidget {
   final String videoUrl;
@@ -1622,6 +1729,7 @@ class _DirectVideoPlayerWidgetState extends State<_DirectVideoPlayerWidget> {
   }
 
   Widget _buildLoadingWidget(BuildContext context) {
+    // Show a video placeholder/thumbnail while loading
     return Container(
       height: 200,
       decoration: BoxDecoration(
@@ -1630,20 +1738,56 @@ class _DirectVideoPlayerWidgetState extends State<_DirectVideoPlayerWidget> {
         border: Border.all(
           color: AppTheme.mediumGray.withOpacity(0.3),
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Stack(
+          fit: StackFit.expand,
           children: [
-            SpinKitFadingCircle(
-              color: AppTheme.primaryBlue,
-              size: 40,
+            // Video thumbnail placeholder (using a generic video icon pattern)
+            Container(
+              color: Colors.black.withOpacity(0.8),
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.video_library,
+                      color: AppTheme.primaryBlue.withOpacity(0.7),
+                      size: 64,
+                    ),
+                    const SizedBox(height: 12),
+                    SpinKitFadingCircle(
+                      color: AppTheme.primaryBlue,
+                      size: 40,
+                    ),
+                  ],
+                ),
+              ),
             ),
-            const SizedBox(height: 12),
-            Text(
-              'Loading video...',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: AppTheme.mediumGray,
+            // Play button overlay
+            Container(
+              color: Colors.black.withOpacity(0.2),
+              child: Center(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.6),
+                    shape: BoxShape.circle,
+                  ),
+                  padding: const EdgeInsets.all(20),
+                  child: Icon(
+                    Icons.play_arrow,
+                    color: AppTheme.white,
+                    size: 48,
+                  ),
+                ),
               ),
             ),
           ],
