@@ -13,7 +13,9 @@ import 'package:getrebate/app/models/loan_officer_zip_code_model.dart';
 import 'package:getrebate/app/widgets/custom_button.dart';
 import 'package:getrebate/app/widgets/custom_text_field.dart';
 import 'package:getrebate/app/modules/checklist/controllers/checklist_controller.dart';
+import 'package:getrebate/app/modules/rebate_checklist/bindings/rebate_checklist_binding.dart';
 import 'package:getrebate/app/modules/rebate_checklist/controllers/rebate_checklist_controller.dart';
+import 'package:getrebate/app/modules/rebate_checklist/views/rebate_checklist_view.dart';
 import 'package:getrebate/app/routes/app_pages.dart';
 import 'package:getrebate/app/modules/messages/views/messages_view.dart';
 import 'package:getrebate/app/modules/messages/bindings/messages_binding.dart';
@@ -476,7 +478,10 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                   child: CustomButton(
                     text: 'Compliance Tutorial',
                     onPressed: () {
-                      Get.toNamed('/rebate-checklist');
+                      Get.to(
+                        () => const RebateChecklistView(),
+                        binding: RebateChecklistBinding(),
+                      );
                     },
                     icon: Icons.school,
                     isOutlined: true,
