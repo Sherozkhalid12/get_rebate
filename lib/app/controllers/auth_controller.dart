@@ -10,6 +10,12 @@ import 'package:getrebate/app/routes/app_pages.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
 import 'package:getrebate/app/controllers/current_loan_officer_controller.dart';
+import 'package:getrebate/app/controllers/main_navigation_controller.dart';
+import 'package:getrebate/app/modules/messages/controllers/messages_controller.dart';
+import 'package:getrebate/app/modules/favorites/controllers/favorites_controller.dart';
+import 'package:getrebate/app/modules/buyer_v2/controllers/buyer_v2_controller.dart';
+import 'package:getrebate/app/modules/agent/controllers/agent_controller.dart';
+import 'package:getrebate/app/modules/loan_officer/controllers/loan_officer_controller.dart';
 
 class AuthController extends GetxController {
   final _storage = GetStorage();
@@ -1249,6 +1255,57 @@ class AuthController extends GetxController {
     _isLoggedIn.value = false;
     _storage.remove('current_user');
     _storage.remove('auth_token');
+    
+    // Delete all GetX controllers to prevent data leakage between accounts
+    // This ensures fresh controllers with clean state when new user logs in
+    try {
+      // Delete MessagesController - removes all chat data and socket connections
+      if (Get.isRegistered<MessagesController>()) {
+        Get.delete<MessagesController>(force: true);
+        print('✅ Deleted MessagesController');
+      }
+      
+      // Delete FavoritesController - removes all favorites data
+      if (Get.isRegistered<FavoritesController>()) {
+        Get.delete<FavoritesController>(force: true);
+        print('✅ Deleted FavoritesController');
+      }
+      
+      // Delete MainNavigationController - ensures fresh navigation state
+      if (Get.isRegistered<MainNavigationController>()) {
+        Get.delete<MainNavigationController>(force: true);
+        print('✅ Deleted MainNavigationController');
+      }
+      
+      // Delete BuyerV2Controller - removes buyer-specific data
+      if (Get.isRegistered<BuyerV2Controller>()) {
+        Get.delete<BuyerV2Controller>(force: true);
+        print('✅ Deleted BuyerV2Controller');
+      }
+      
+      // Delete AgentController - removes agent-specific data
+      if (Get.isRegistered<AgentController>()) {
+        Get.delete<AgentController>(force: true);
+        print('✅ Deleted AgentController');
+      }
+      
+      // Delete LoanOfficerController - removes loan officer-specific data
+      if (Get.isRegistered<LoanOfficerController>()) {
+        Get.delete<LoanOfficerController>(force: true);
+        print('✅ Deleted LoanOfficerController');
+      }
+      
+      // Delete CurrentLoanOfficerController - removes current loan officer data
+      if (Get.isRegistered<CurrentLoanOfficerController>()) {
+        Get.delete<CurrentLoanOfficerController>(force: true);
+        print('✅ Deleted CurrentLoanOfficerController');
+      }
+      
+      print('✅ All controllers deleted - ready for clean login');
+    } catch (e) {
+      print('⚠️ Error deleting controllers: $e');
+    }
+    
     print('🔓 User logged out - cleared user data and token');
     Get.offAllNamed(AppPages.AUTH);
   }
