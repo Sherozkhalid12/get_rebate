@@ -392,7 +392,7 @@ class AuthViewController extends GetxController {
         );
       }
     } catch (e) {
-      Get.snackbar('Error', e.toString());
+      SnackbarHelper.showError(e.toString());
     } finally {
       _isLoading.value = false;
     }
