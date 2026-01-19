@@ -1256,62 +1256,27 @@ class AuthController extends GetxController {
     _storage.remove('current_user');
     _storage.remove('auth_token');
     
+    // Clear all controller data BEFORE navigation
+    // This ensures clean state without force-deleting controllers
+    try {
+      // Clear MessagesController data - removes all chat data and socket connections
+      if (Get.isRegistered<MessagesController>()) {
+        final messagesController = Get.find<MessagesController>();
+        messagesController.clearAllData();
+        print('✅ Cleared MessagesController data');
+      }
+      
+      // Note: Other controllers will be automatically disposed by GetX when routes are removed
+      // We don't need to manually delete them - Get.offAllNamed() handles cleanup
+      
+    } catch (e) {
+      print('⚠️ Error clearing controller data: $e');
+    }
+    
     print('🔓 User logged out - cleared user data and token');
     
-    // Navigate to auth screen first
+    // Navigate to auth screen - this will automatically dispose route-bound controllers
     Get.offAllNamed(AppPages.AUTH);
-    
-    // Delete controllers AFTER navigation to prevent UI errors
-    // Wait for navigation to complete, then clean up
-    Future.delayed(const Duration(milliseconds: 500), () {
-      try {
-        // Delete MessagesController - removes all chat data and socket connections
-        if (Get.isRegistered<MessagesController>()) {
-          Get.delete<MessagesController>(force: true);
-          print('✅ Deleted MessagesController');
-        }
-        
-        // Delete FavoritesController - removes all favorites data
-        if (Get.isRegistered<FavoritesController>()) {
-          Get.delete<FavoritesController>(force: true);
-          print('✅ Deleted FavoritesController');
-        }
-        
-        // Delete MainNavigationController - ensures fresh navigation state
-        if (Get.isRegistered<MainNavigationController>()) {
-          Get.delete<MainNavigationController>(force: true);
-          print('✅ Deleted MainNavigationController');
-        }
-        
-        // Delete BuyerV2Controller - removes buyer-specific data
-        if (Get.isRegistered<BuyerV2Controller>()) {
-          Get.delete<BuyerV2Controller>(force: true);
-          print('✅ Deleted BuyerV2Controller');
-        }
-        
-        // Delete AgentController - removes agent-specific data
-        if (Get.isRegistered<AgentController>()) {
-          Get.delete<AgentController>(force: true);
-          print('✅ Deleted AgentController');
-        }
-        
-        // Delete LoanOfficerController - removes loan officer-specific data
-        if (Get.isRegistered<LoanOfficerController>()) {
-          Get.delete<LoanOfficerController>(force: true);
-          print('✅ Deleted LoanOfficerController');
-        }
-        
-        // Delete CurrentLoanOfficerController - removes current loan officer data
-        if (Get.isRegistered<CurrentLoanOfficerController>()) {
-          Get.delete<CurrentLoanOfficerController>(force: true);
-          print('✅ Deleted CurrentLoanOfficerController');
-        }
-        
-        print('✅ All controllers deleted - ready for clean login');
-      } catch (e) {
-        print('⚠️ Error deleting controllers: $e');
-      }
-    });
   }
 
   void updateUser(UserModel user) {
