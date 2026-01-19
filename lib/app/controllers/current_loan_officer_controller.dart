@@ -18,9 +18,8 @@ class CurrentLoanOfficerController extends GetxController {
   /// Loading state for fetch/refresh operations
   final RxBool isLoading = false.obs;
 
-  CurrentLoanOfficerController({
-    LoanOfficerService? loanOfficerService,
-  }) : _loanOfficerService = loanOfficerService ?? LoanOfficerService();
+  CurrentLoanOfficerController({LoanOfficerService? loanOfficerService})
+      : _loanOfficerService = loanOfficerService ?? LoanOfficerService();
 
   /// Convenience getter
   LoanOfficerModel? get loanOfficer => currentLoanOfficer.value;
@@ -28,27 +27,12 @@ class CurrentLoanOfficerController extends GetxController {
   /// Fetches the current loan officer by ID and updates [currentLoanOfficer].
   ///
   /// Typically called after login, using the authenticated user's ID.
-  /// Prevents multiple simultaneous fetches with a guard.
   Future<void> fetchCurrentLoanOfficer(String id) async {
     if (id.isEmpty) {
       if (kDebugMode) {
-        print('⚠️ CurrentLoanOfficerController: Provided ID is empty, aborting fetch.');
-      }
-      return;
-    }
-
-    // Guard: Prevent multiple simultaneous fetches
-    if (isLoading.value) {
-      if (kDebugMode) {
-        print('⚠️ CurrentLoanOfficerController: Already loading, skipping duplicate fetch for ID: $id');
-      }
-      return;
-    }
-
-    // Guard: If data already exists for this ID, skip fetch
-    if (currentLoanOfficer.value != null && currentLoanOfficer.value!.id == id) {
-      if (kDebugMode) {
-        print('✅ CurrentLoanOfficerController: Loan officer data already loaded for ID: $id, skipping fetch.');
+        print(
+          '⚠️ CurrentLoanOfficerController: Provided ID is empty, aborting fetch.',
+        );
       }
       return;
     }
@@ -57,7 +41,9 @@ class CurrentLoanOfficerController extends GetxController {
 
     try {
       if (kDebugMode) {
-        print('📡 CurrentLoanOfficerController: Fetching current loan officer...');
+        print(
+          '📡 CurrentLoanOfficerController: Fetching current loan officer...',
+        );
         print('   ID: $id');
       }
 
@@ -66,22 +52,20 @@ class CurrentLoanOfficerController extends GetxController {
       currentLoanOfficer.refresh();
 
       if (kDebugMode) {
-        print('✅ CurrentLoanOfficerController: Loan officer loaded successfully');
-        print('   ID: ${officer.id}');
-        print('   Name: ${officer.name}');
-        print('   Profile Image: ${officer.profileImage ?? "Not set"}');
+        print(
+          '✅ CurrentLoanOfficerController: Loan officer loaded: ${officer.id}',
+        );
       }
     } on LoanOfficerServiceException catch (e) {
       if (kDebugMode) {
-        print('❌ CurrentLoanOfficerController: Service exception: ${e.message}');
+        print(
+          '❌ CurrentLoanOfficerController: Service exception: ${e.message}',
+        );
         print('   Status Code: ${e.statusCode}');
       }
 
       // Show user-friendly message, but keep existing data if any
-      _safeShowSnackbar(
-        'Error',
-        e.message,
-      );
+      _safeShowSnackbar('Error', e.message);
     } catch (e) {
       if (kDebugMode) {
         print('❌ CurrentLoanOfficerController: Unexpected error: $e');
@@ -99,17 +83,50 @@ class CurrentLoanOfficerController extends GetxController {
   /// Re-fetches the latest data for the current loan officer.
   ///
   /// Useful for pull-to-refresh, after profile edits, or on app resume.
-  Future<void> refreshData([String? id]) async {
-    final auth = Get.isRegistered<AuthController>()
-        ? Get.find<AuthController>()
-        : null;
+  Future<void> refreshData([String? id, bool forceRefresh = false]) async {
+    try {
+      // Get auth controller safely
+      final auth = Get.isRegistered<AuthController>()
+          ? Get.find<AuthController>()
+          : null;
 
-    final effectiveId = id ??
-        auth?.currentUser?.id ??
-        currentLoanOfficer.value?.id ??
-        '';
+      // Determine effective ID with fallback chain
+      final effectiveId =
+          id ?? auth?.currentUser?.id ?? currentLoanOfficer.value?.id ?? '';
 
-    await fetchCurrentLoanOfficer(effectiveId);
+      if (effectiveId.isEmpty) {
+        debugPrint(
+          'Warning: No valid ID found for refreshing loan officer data',
+        );
+        return;
+      }
+
+      // If force refresh is requested → clear current data to bypass cache
+      LoanOfficerModel? previousData;
+      if (forceRefresh) {
+        previousData = currentLoanOfficer.value;
+        currentLoanOfficer.value = null; // Force fetch by clearing state
+        isLoading.value = true;
+      }
+
+      // Perform the actual fetch
+      await fetchCurrentLoanOfficer(effectiveId);
+
+      // If fetch failed during force refresh → restore previous data
+      if (forceRefresh &&
+          currentLoanOfficer.value == null &&
+          previousData != null) {
+        currentLoanOfficer.value = previousData;
+        debugPrint('Force refresh failed, restored previous data');
+      }
+    } catch (e, stack) {
+      debugPrint('Error refreshing loan officer data: $e');
+      debugPrint('Stack trace: $stack');
+      // Optional: show user-friendly error (uncomment if needed)
+      // Get.snackbar('Refresh Failed', 'Could not update profile. Please try again.');
+    } finally {
+      isLoading.value = false;
+    }
   }
 
   void _safeShowSnackbar(String title, String message) {
@@ -131,10 +148,3 @@ class CurrentLoanOfficerController extends GetxController {
     }
   }
 }
-
-
-
-
-
-
-

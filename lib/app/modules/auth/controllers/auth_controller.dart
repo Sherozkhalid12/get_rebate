@@ -183,7 +183,7 @@ class AuthViewController extends GetxController {
         _selectedProfilePic.value = File(image.path);
       }
     } catch (e) {
-      Get.snackbar('Error', 'Failed to pick image: ${e.toString()}');
+      SnackbarHelper.showError('Failed to pick image: ${e.toString()}');
     }
   }
 
@@ -353,7 +353,12 @@ class AuthViewController extends GetxController {
         );
       }
     } catch (e) {
-      Get.snackbar('Error', e.toString());
+      // Show professional error snackbar (matching buyer flow pattern)
+      String errorMsg = 'An error occurred. Please try again.';
+      if (e.toString().contains('Exception')) {
+        errorMsg = e.toString().replaceAll('Exception: ', '');
+      }
+      SnackbarHelper.showError(errorMsg);
     } finally {
       _isLoading.value = false;
     }
@@ -392,7 +397,12 @@ class AuthViewController extends GetxController {
         );
       }
     } catch (e) {
-      Get.snackbar('Error', e.toString());
+      // Show professional error snackbar (matching buyer flow pattern)
+      String errorMsg = 'Social login failed. Please try again.';
+      if (e.toString().contains('Exception')) {
+        errorMsg = e.toString().replaceAll('Exception: ', '');
+      }
+      SnackbarHelper.showError(errorMsg);
     } finally {
       _isLoading.value = false;
     }
@@ -400,61 +410,55 @@ class AuthViewController extends GetxController {
 
   bool _validateForm() {
     if (emailController.text.trim().isEmpty) {
-      Get.snackbar('Error', 'Please enter your email');
+      SnackbarHelper.showError('Please enter your email');
       return false;
     }
 
     if (!GetUtils.isEmail(emailController.text.trim())) {
-      Get.snackbar('Error', 'Please enter a valid email');
+      SnackbarHelper.showError('Please enter a valid email');
       return false;
     }
 
     if (passwordController.text.isEmpty) {
-      Get.snackbar('Error', 'Please enter your password');
+      SnackbarHelper.showError('Please enter your password');
       return false;
     }
 
     if (passwordController.text.length < 6) {
-      Get.snackbar('Error', 'Password must be at least 6 characters');
+      SnackbarHelper.showError('Password must be at least 6 characters');
       return false;
     }
 
     if (!isLoginMode) {
       if (nameController.text.trim().isEmpty) {
-        Get.snackbar('Error', 'Please enter your name');
+        SnackbarHelper.showError('Please enter your name');
         return false;
       }
 
       // Validate required fields for agents
       if (selectedRole == UserRole.agent) {
         if (brokerageController.text.trim().isEmpty) {
-          Get.snackbar('Error', 'Please enter your brokerage name');
+          SnackbarHelper.showError('Please enter your brokerage name');
           return false;
         }
         if (agentLicenseNumberController.text.trim().isEmpty) {
-          Get.snackbar('Error', 'Please enter your license number');
+          SnackbarHelper.showError('Please enter your license number');
           return false;
         }
         if (_selectedLicensedStates.isEmpty) {
-          Get.snackbar('Error', 'Please select at least one licensed state');
+          SnackbarHelper.showError('Please select at least one licensed state');
           return false;
         }
         if (isDualAgencyAllowedInState == null) {
-          Get.snackbar(
-            'Error',
-            'Please answer if dual agency is allowed in your state',
-          );
+          SnackbarHelper.showError('Please answer if dual agency is allowed in your state');
           return false;
         }
         if (isDualAgencyAllowedAtBrokerage == null) {
-          Get.snackbar(
-            'Error',
-            'Please answer if dual agency is allowed at your brokerage',
-          );
+          SnackbarHelper.showError('Please answer if dual agency is allowed at your brokerage');
           return false;
         }
         if (!_agentVerificationAgreed.value) {
-          Get.snackbar('Error', 'Please confirm the verification statement');
+          SnackbarHelper.showError('Please confirm the verification statement');
           return false;
         }
       }
@@ -462,19 +466,19 @@ class AuthViewController extends GetxController {
       // Validate required fields for loan officers
       if (selectedRole == UserRole.loanOfficer) {
         if (companyController.text.trim().isEmpty) {
-          Get.snackbar('Error', 'Please enter your company name');
+          SnackbarHelper.showError('Please enter your company name');
           return false;
         }
         if (loanOfficerLicenseNumberController.text.trim().isEmpty) {
-          Get.snackbar('Error', 'Please enter your license number');
+          SnackbarHelper.showError('Please enter your license number');
           return false;
         }
         if (_selectedLicensedStates.isEmpty) {
-          Get.snackbar('Error', 'Please select at least one licensed state');
+          SnackbarHelper.showError('Please select at least one licensed state');
           return false;
         }
         if (!_loanOfficerVerificationAgreed.value) {
-          Get.snackbar('Error', 'Please confirm the verification statement');
+          SnackbarHelper.showError('Please confirm the verification statement');
           return false;
         }
       }

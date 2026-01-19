@@ -8,6 +8,7 @@ import 'dart:convert';
 import 'package:getrebate/app/models/user_model.dart';
 import 'package:getrebate/app/routes/app_pages.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
+import 'package:getrebate/app/utils/snackbar_helper.dart';
 import 'package:getrebate/app/controllers/current_loan_officer_controller.dart';
 
 class AuthController extends GetxController {
@@ -314,11 +315,10 @@ class AuthController extends GetxController {
           print('   Role: ${user.role}');
           print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
-          Get.snackbar(
-            'Success',
+          // Show success message using SnackbarHelper (matching buyer flow pattern)
+          SnackbarHelper.showSuccess(
             responseData['message']?.toString() ?? 'Login successful!',
-            backgroundColor: Get.theme.colorScheme.primary,
-            colorText: Get.theme.colorScheme.onPrimary,
+            title: 'Success',
           );
 
           _navigateToRoleBasedScreen();
@@ -366,21 +366,17 @@ class AuthController extends GetxController {
         errorMessage = 'No internet connection. Please check your network.';
       }
 
-      // Safely show snackbar - wrap in try-catch to prevent overlay errors
-      try {
-        Get.snackbar('Error', errorMessage);
-      } catch (overlayError) {
-        print('⚠️ Could not show snackbar: $overlayError');
-      }
+      // Show professional error snackbar using SnackbarHelper (matching buyer flow pattern)
+      SnackbarHelper.showError(errorMessage);
     } catch (e) {
       print('❌ Unexpected Error: ${e.toString()}');
       print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      // Safely show snackbar - wrap in try-catch to prevent overlay errors
-      try {
-        Get.snackbar('Error', 'Login failed: ${e.toString()}');
-      } catch (overlayError) {
-        print('⚠️ Could not show snackbar: $overlayError');
+      // Show professional error snackbar using SnackbarHelper (matching buyer flow pattern)
+      String errorMsg = 'Login failed. Please try again.';
+      if (e.toString().contains('Exception')) {
+        errorMsg = e.toString().replaceAll('Exception: ', '');
       }
+      SnackbarHelper.showError(errorMsg);
     } finally {
       _isLoading.value = false;
     }
@@ -875,11 +871,10 @@ class AuthController extends GetxController {
         print('   Role: ${user.role}');
         print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
-        Get.snackbar(
-          'Success',
+        // Show success message using SnackbarHelper (matching buyer flow pattern)
+        SnackbarHelper.showSuccess(
           'Account created successfully!',
-          backgroundColor: Get.theme.colorScheme.primary,
-          colorText: Get.theme.colorScheme.onPrimary,
+          title: 'Success',
         );
 
         _navigateToRoleBasedScreen();
@@ -910,9 +905,17 @@ class AuthController extends GetxController {
         errorMessage = 'No internet connection. Please check your network.';
       }
 
-      Get.snackbar('Error', errorMessage);
+      // Show professional error snackbar using SnackbarHelper (matching buyer flow pattern)
+      SnackbarHelper.showError(errorMessage);
     } catch (e) {
-      Get.snackbar('Error', 'Sign up failed: ${e.toString()}');
+      print('❌ Unexpected Error: ${e.toString()}');
+      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      // Show professional error snackbar using SnackbarHelper (matching buyer flow pattern)
+      String errorMsg = 'Sign up failed. Please try again.';
+      if (e.toString().contains('Exception')) {
+        errorMsg = e.toString().replaceAll('Exception: ', '');
+      }
+      SnackbarHelper.showError(errorMsg);
     } finally {
       _isLoading.value = false;
     }

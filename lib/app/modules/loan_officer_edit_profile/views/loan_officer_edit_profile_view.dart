@@ -9,6 +9,7 @@ import 'package:getrebate/app/widgets/custom_button.dart';
 import 'package:getrebate/app/widgets/custom_text_field.dart';
 import 'package:getrebate/app/widgets/gradient_card.dart';
 import 'package:getrebate/app/models/mortgage_types.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 
 class LoanOfficerEditProfileView extends GetView<LoanOfficerEditProfileController> {
   const LoanOfficerEditProfileView({super.key});
@@ -39,7 +40,7 @@ class LoanOfficerEditProfileView extends GetView<LoanOfficerEditProfileControlle
         ),
         centerTitle: true,
         leading: IconButton(
-          onPressed: () => Get.back(),
+          onPressed: () => Navigator.pop(context),
           icon: const Icon(Icons.arrow_back, color: AppTheme.white),
         ),
       ),
@@ -96,12 +97,12 @@ class LoanOfficerEditProfileView extends GetView<LoanOfficerEditProfileControlle
                     ),
                     const SizedBox(height: 16),
 
-                    CustomTextField(
-                      controller: controller.licenseNumberController,
-                      labelText: 'License Number',
-                      prefixIcon: Icons.badge_outlined,
-                    ),
-                    const SizedBox(height: 16),
+                    // CustomTextField(
+                    //   controller: controller.licenseNumberController,
+                    //   labelText: 'License Number',
+                    //   prefixIcon: Icons.badge_outlined,
+                    // ),
+                    // const SizedBox(height: 16),
                     CustomTextField(
                       controller: controller.companyNameController,
                       labelText: 'Company Name',
@@ -152,21 +153,21 @@ class LoanOfficerEditProfileView extends GetView<LoanOfficerEditProfileControlle
                   .fadeIn(duration: 300.ms, delay: 200.ms)
                   .slideY(begin: -0.1, duration: 300.ms, delay: 200.ms),
 
-              const SizedBox(height: 24),
+              // const SizedBox(height: 24),
 
               // Service Areas
-              _buildServiceAreasSection(context)
-                  .animate()
-                  .fadeIn(duration: 300.ms, delay: 300.ms)
-                  .slideY(begin: -0.1, duration: 300.ms, delay: 300.ms),
-
-              const SizedBox(height: 24),
+              // _buildServiceAreasSection(context)
+              //     .animate()
+              //     .fadeIn(duration: 300.ms, delay: 300.ms)
+              //     .slideY(begin: -0.1, duration: 300.ms, delay: 300.ms),
+              //
+              // const SizedBox(height: 24),
 
               // Specialty Products
-              _buildSpecialtyProductsSection(context)
-                  .animate()
-                  .fadeIn(duration: 300.ms, delay: 350.ms)
-                  .slideY(begin: -0.1, duration: 300.ms, delay: 350.ms),
+              // _buildSpecialtyProductsSection(context)
+              //     .animate()
+              //     .fadeIn(duration: 300.ms, delay: 350.ms)
+              //     .slideY(begin: -0.1, duration: 300.ms, delay: 350.ms),
 
               const SizedBox(height: 24),
 
@@ -175,14 +176,6 @@ class LoanOfficerEditProfileView extends GetView<LoanOfficerEditProfileControlle
                   .animate()
                   .fadeIn(duration: 300.ms, delay: 400.ms)
                   .slideY(begin: -0.1, duration: 300.ms, delay: 400.ms),
-
-              const SizedBox(height: 24),
-
-              // Why Pick Me Section
-              _buildWhyPickMeSection(context)
-                  .animate()
-                  .fadeIn(duration: 300.ms, delay: 250.ms)
-                  .slideY(begin: -0.1, duration: 300.ms, delay: 250.ms),
 
               const SizedBox(height: 24),
 
@@ -261,8 +254,14 @@ class LoanOfficerEditProfileView extends GetView<LoanOfficerEditProfileControlle
                           width: 120,
                           height: 120,
                           fit: BoxFit.cover,
-                          placeholder: (context, url) => const Center(
-                            child: CircularProgressIndicator(),
+                          cacheKey: imageUrl,
+                          memCacheWidth: 240,
+                          memCacheHeight: 240,
+                          maxWidthDiskCache: 500,
+                          maxHeightDiskCache: 500,
+                          fadeInDuration: Duration.zero,
+                          placeholder: (context, url) => Container(
+                            color: AppTheme.primaryBlue.withOpacity(0.1),
                           ),
                           errorWidget: (context, url, error) => const Icon(
                             Icons.person,
@@ -366,8 +365,14 @@ class LoanOfficerEditProfileView extends GetView<LoanOfficerEditProfileControlle
                           width: 120,
                           height: 120,
                           fit: BoxFit.contain,
-                          placeholder: (context, url) => const Center(
-                            child: CircularProgressIndicator(),
+                          cacheKey: imageUrl,
+                          memCacheWidth: 240,
+                          memCacheHeight: 240,
+                          maxWidthDiskCache: 500,
+                          maxHeightDiskCache: 500,
+                          fadeInDuration: Duration.zero,
+                          placeholder: (context, url) => Container(
+                            color: AppTheme.primaryBlue.withOpacity(0.1),
                           ),
                           errorWidget: (context, url, error) => const Icon(
                             Icons.business,
@@ -645,6 +650,41 @@ class LoanOfficerEditProfileView extends GetView<LoanOfficerEditProfileControlle
             prefixIcon: Icons.link_outlined,
             hintText: 'https://example.com/apply',
           ),
+          const SizedBox(height: 12),
+          CustomButton(
+            text: 'Open Mortgage Link',
+            isOutlined: true,
+            width: double.infinity,
+            icon: Icons.open_in_browser,
+            onPressed: () {
+              final rawUrl =
+              controller.mortgageApplicationUrlController.text.trim();
+              if (rawUrl.isEmpty) {
+                Get.snackbar(
+                  'Error',
+                  'Please enter a mortgage application URL first.',
+                  snackPosition: SnackPosition.BOTTOM,
+                );
+                return;
+              }
+
+              final normalizedUrl = _normalizeUrl(rawUrl);
+              final uri = Uri.tryParse(normalizedUrl);
+              if (uri == null || !uri.isAbsolute) {
+                Get.snackbar(
+                  'Error',
+                  'Please enter a valid URL.',
+                  snackPosition: SnackPosition.BOTTOM,
+                );
+                return;
+              }
+
+              Get.to(
+                    () => _MortgageWebView(url: normalizedUrl),
+                fullscreenDialog: true,
+              );
+            },
+          ),
           const SizedBox(height: 16),
 
           CustomTextField(
@@ -657,108 +697,57 @@ class LoanOfficerEditProfileView extends GetView<LoanOfficerEditProfileControlle
       ),
     );
   }
+}
 
-  Widget _buildWhyPickMeSection(BuildContext context) {
-    return GradientCard(
-      gradientColors: AppTheme.cardGradient,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+String _normalizeUrl(String url) {
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url;
+  }
+  return 'https://$url';
+}
+
+class _MortgageWebView extends StatefulWidget {
+  final String url;
+
+  const _MortgageWebView({required this.url});
+
+  @override
+  State<_MortgageWebView> createState() => _MortgageWebViewState();
+}
+
+class _MortgageWebViewState extends State<_MortgageWebView> {
+  late final WebViewController _controller;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setNavigationDelegate(
+        NavigationDelegate(
+          onPageStarted: (_) => setState(() => _isLoading = true),
+          onPageFinished: (_) => setState(() => _isLoading = false),
+        ),
+      )
+      ..loadRequest(Uri.parse(widget.url));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Mortgage Application'),
+      ),
+      body: Stack(
         children: [
-          Row(
-            children: [
-              Icon(
-                Icons.star,
-                color: AppTheme.lightGreen,
-                size: 24,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Why Pick Me',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    color: AppTheme.black,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Help buyers understand why they should choose you. This information will be displayed on your profile.',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: AppTheme.mediumGray,
+          WebViewWidget(controller: _controller),
+          if (_isLoading)
+            const Center(
+              child: CircularProgressIndicator(),
             ),
-          ),
-          const SizedBox(height: 20),
-
-          CustomTextField(
-            controller: controller.yearsOfExperienceController,
-            labelText: 'Years of Experience',
-            keyboardType: TextInputType.number,
-            prefixIcon: Icons.calendar_today_outlined,
-            hintText: 'e.g., 10',
-          ),
-          const SizedBox(height: 16),
-
-          CustomTextField(
-            controller: controller.languagesSpokenController,
-            labelText: 'Languages Spoken',
-            prefixIcon: Icons.language_outlined,
-            hintText: 'e.g., English, Spanish, French',
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Separate multiple languages with commas',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: AppTheme.mediumGray,
-              fontSize: 12,
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          CustomTextField(
-            controller: controller.discountsOfferedController,
-            labelText: 'Discounts & Special Offers',
-            prefixIcon: Icons.local_offer_outlined,
-            maxLines: 3,
-            hintText: 'e.g., Discounted appraisal, Reduced lender fees, Special first-time buyer programs',
-          ),
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppTheme.lightGreen.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: AppTheme.lightGreen.withOpacity(0.3),
-                width: 1,
-              ),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(
-                  Icons.info_outline,
-                  color: AppTheme.lightGreen,
-                  size: 18,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'These are marketing statements only and are not enforced by the platform. Make sure all offers comply with your lender\'s policies.',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AppTheme.darkGray,
-                      fontSize: 11,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
         ],
       ),
     );
   }
 }
-

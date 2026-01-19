@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -18,6 +19,7 @@ import 'package:getrebate/app/modules/messages/views/messages_view.dart';
 import 'package:getrebate/app/modules/messages/bindings/messages_binding.dart';
 import 'package:getrebate/app/modules/messages/controllers/messages_controller.dart';
 
+import '../../loan_officer_edit_profile/controllers/loan_officer_edit_profile_controller.dart';
 
 class LoanOfficerView extends GetView<LoanOfficerController> {
   const LoanOfficerView({super.key});
@@ -30,9 +32,11 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
         ? Get.find<CurrentLoanOfficerController>()
         : Get.put(CurrentLoanOfficerController(), permanent: true);
 
-    debugPrint('📊 LoanOfficerView.build: '
-        'loanOfficer=${currentLoanOfficerController.currentLoanOfficer.value?.id}, '
-        'isLoading=${currentLoanOfficerController.isLoading.value}');
+    debugPrint(
+      '📊 LoanOfficerView.build: '
+          'loanOfficer=${currentLoanOfficerController.currentLoanOfficer.value?.id}, '
+          'isLoading=${currentLoanOfficerController.isLoading.value}',
+    );
 
     return Scaffold(
       backgroundColor: AppTheme.lightGray,
@@ -49,16 +53,21 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
           ),
         ),
         title: Obx(() {
-          final officer =
-              currentLoanOfficerController.currentLoanOfficer.value;
+          final officer = currentLoanOfficerController.currentLoanOfficer.value;
           final loading = currentLoanOfficerController.isLoading.value;
 
           if (officer == null && loading) {
-            debugPrint('📊 LoanOfficerView: Waiting for current loan officer data...');
+            debugPrint(
+              '📊 LoanOfficerView: Waiting for current loan officer data...',
+            );
           } else if (officer == null && !loading) {
-            debugPrint('⚠️ LoanOfficerView: currentLoanOfficer is null and not loading. Check fetchCurrentLoanOfficer call.');
+            debugPrint(
+              '⚠️ LoanOfficerView: currentLoanOfficer is null and not loading. Check fetchCurrentLoanOfficer call.',
+            );
           } else if (officer != null) {
-            debugPrint('✅ LoanOfficerView: Showing data for loanOfficer=${officer.id}, name=${officer.name}');
+            debugPrint(
+              '✅ LoanOfficerView: Showing data for loanOfficer=${officer.id}, name=${officer.name}',
+            );
           }
 
           return Column(
@@ -121,15 +130,11 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
             Expanded(
               child: _buildTab(context, 'Dashboard', 0, Icons.dashboard),
             ),
-            Expanded(
-              child: _buildTab(context, 'Messages', 1, Icons.message),
-            ),
+            Expanded(child: _buildTab(context, 'Messages', 1, Icons.message)),
             Expanded(
               child: _buildTab(context, 'ZIP Codes', 2, Icons.location_on),
             ),
-            Expanded(
-              child: _buildTab(context, 'Billing', 3, Icons.payment),
-            ),
+            Expanded(child: _buildTab(context, 'Billing', 3, Icons.payment)),
             // COMMENTED OUT: Checklists tab
             // Expanded(child: _buildTab(context, 'Checklists', 4, Icons.checklist_rtl)),
             // COMMENTED OUT: Stats tab
@@ -253,10 +258,12 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
       if (officer == null) {
         if (loading) {
           debugPrint(
-              '📊 _buildStatsCards: Waiting for current loan officer stats (still loading)...');
+            '📊 _buildStatsCards: Waiting for current loan officer stats (still loading)...',
+          );
         } else {
           debugPrint(
-              '⚠️ _buildStatsCards: currentLoanOfficer is null, falling back to mock stats from LoanOfficerController.');
+            '⚠️ _buildStatsCards: currentLoanOfficer is null, falling back to mock stats from LoanOfficerController.',
+          );
         }
 
         // Fallback to existing mock stats if we don't have real data yet
@@ -282,7 +289,11 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(stat['icon'], color: AppTheme.lightGreen, size: 22),
+                    Icon(
+                      stat['icon'],
+                      color: AppTheme.lightGreen,
+                      size: 22,
+                    ),
                     const SizedBox(height: 6),
                     Flexible(
                       child: Text(
@@ -326,7 +337,8 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
       }
 
       debugPrint(
-          '✅ _buildStatsCards: Using real stats from LoanOfficerModel (id=${officer.id}).');
+        '✅ _buildStatsCards: Using real stats from LoanOfficerModel (id=${officer.id}).',
+      );
 
       final realStats = [
         {
@@ -339,11 +351,7 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
           'value': officer.profileViews,
           'icon': Icons.visibility,
         },
-        {
-          'label': 'Contacts',
-          'value': officer.contacts,
-          'icon': Icons.phone,
-        },
+        {'label': 'Contacts', 'value': officer.contacts, 'icon': Icons.phone},
         {
           'label': 'Rating (${officer.reviewCount} reviews)',
           'value': officer.rating.toStringAsFixed(1),
@@ -372,15 +380,16 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(stat['icon'] as IconData,
-                      color: AppTheme.lightGreen, size: 22),
+                  Icon(
+                    stat['icon'] as IconData,
+                    color: AppTheme.lightGreen,
+                    size: 22,
+                  ),
                   const SizedBox(height: 6),
                   Flexible(
                     child: Text(
                       stat['value'].toString(),
-                      style: Theme.of(context)
-                          .textTheme
-                          .headlineMedium
+                      style: Theme.of(context).textTheme.headlineMedium
                           ?.copyWith(
                         color: AppTheme.black,
                         fontWeight: FontWeight.bold,
@@ -393,9 +402,7 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                   Flexible(
                     child: Text(
                       stat['label'].toString(),
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodySmall
+                      style: Theme.of(context).textTheme.bodySmall
                           ?.copyWith(
                         color: AppTheme.mediumGray,
                         fontSize: 12,
@@ -507,13 +514,16 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
 
       if (officer == null && loading) {
         debugPrint(
-            '📊 _buildRecentActivity: Waiting for current loan officer activity data...');
+          '📊 _buildRecentActivity: Waiting for current loan officer activity data...',
+        );
       } else if (officer == null && !loading) {
         debugPrint(
-            '⚠️ _buildRecentActivity: currentLoanOfficer is null, showing placeholder activity.');
+          '⚠️ _buildRecentActivity: currentLoanOfficer is null, showing placeholder activity.',
+        );
       } else if (officer != null) {
         debugPrint(
-            '✅ _buildRecentActivity: Showing recent activity for loanOfficer=${officer.id}');
+          '✅ _buildRecentActivity: Showing recent activity for loanOfficer=${officer.id}',
+        );
       }
 
       return Card(
@@ -944,202 +954,343 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
   }
 
   Widget _buildZipManagement(BuildContext context) {
-    // Persistent search controller for better performance
-    final searchController = TextEditingController();
+    final authController = Get.find<global.AuthController>();
+    final currentLoanOfficerController =
+    Get.isRegistered<CurrentLoanOfficerController>()
+        ? Get.find<CurrentLoanOfficerController>()
+        : Get.put(CurrentLoanOfficerController(), permanent: true);
 
-    return Obx(
-          () {
-        final isLoading = controller.isLoadingZipCodes;
-        final hasData = controller.hasLoadedZipCodes;
-
-        // Show loading only on initial load (page opens instantly, then shows loader)
-        if (isLoading && !hasData) {
-          return Column(
-            children: [
-              // Show search bar even during loading for better UX
-              Padding(
-                padding: const EdgeInsets.all(20),
-                child: CustomTextField(
-                  controller: searchController,
-                  labelText: 'Search ZIP codes',
-                  prefixIcon: Icons.search,
-                  onChanged: (value) => controller.searchZipCodes(value),
-                ),
+    return CustomScrollView(
+      slivers: [
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
+          sliver: SliverList(
+            delegate: SliverChildListDelegate([
+              // Search
+              CustomTextField(
+                controller: TextEditingController(),
+                labelText: 'Search ZIP codes',
+                prefixIcon: Icons.search,
+                onChanged: (value) => controller.searchZipCodes(value),
               ),
-              const Expanded(
-                child: Center(
-                  child: CircularProgressIndicator(),
-                ),
-              ),
-            ],
-          );
-        }
 
-        return RefreshIndicator(
-          onRefresh: () async {
-            await controller.refreshZipCodes();
-          },
-          child: CustomScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            slivers: [
-              SliverPadding(
-                padding: const EdgeInsets.all(20),
-                sliver: SliverToBoxAdapter(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+              const SizedBox(height: 20),
+
+              // Licensed States Section
+              Obx(() {
+                final loanOfficer =
+                    currentLoanOfficerController.currentLoanOfficer.value;
+                final licensedStates = loanOfficer?.licensedStates ?? [];
+                if (licensedStates.isNotEmpty) {
+                  return Column(
                     children: [
-                      // Search - persistent controller
-                      CustomTextField(
-                        controller: searchController,
-                        labelText: 'Search ZIP codes',
-                        prefixIcon: Icons.search,
-                        onChanged: (value) => controller.searchZipCodes(value),
+                      Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.location_on,
+                                    color: AppTheme.primaryBlue,
+                                    size: 20,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Your Licensed States',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleMedium
+                                        ?.copyWith(
+                                      color: AppTheme.black,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                'States you selected during sign up:',
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(color: AppTheme.mediumGray),
+                              ),
+                              const SizedBox(height: 12),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: licensedStates.map((state) {
+                                  return Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 6,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: AppTheme.primaryBlue.withOpacity(
+                                        0.1,
+                                      ),
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(
+                                        color: AppTheme.primaryBlue
+                                            .withOpacity(0.3),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      state,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodyMedium
+                                          ?.copyWith(
+                                        color: AppTheme.primaryBlue,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  );
+                                }).toList(),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
-
                       const SizedBox(height: 20),
                     ],
-                  ),
-                ),
-              ),
+                  );
+                }
+                return const SizedBox.shrink();
+              }),
 
-              // Claimed ZIP Codes Section Header
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Obx(
-                        () {
-                      final searchQuery = controller.searchQuery;
-                      final claimedList = searchQuery.isEmpty
-                          ? controller.claimedZipCodes
-                          : controller.filteredClaimedZipCodes;
-                      final claimedCount = claimedList.length;
+              // State Selector for ZIP Codes - Always show, but only show licensed states in dropdown
+              Obx(() {
+                final loanOfficer =
+                    currentLoanOfficerController.currentLoanOfficer.value;
+                final licensedStates = loanOfficer?.licensedStates ?? [];
+                final uniqueStates = licensedStates.toSet().toList()
+                  ..sort((a, b) => a.compareTo(b));
 
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Your Claimed ZIP Codes ($claimedCount/6)',
-                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              color: AppTheme.black,
-                              fontWeight: FontWeight.w600,
-                            ),
+                return Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Select State to View ZIP Codes',
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(
+                            color: AppTheme.black,
+                            fontWeight: FontWeight.w600,
                           ),
+                        ),
+                        const SizedBox(height: 12),
+                        if (uniqueStates.isEmpty)
+                          Container(
+                            padding: EdgeInsets.zero,
+                            child: Text(
+                              'No licensed states found. Please update your profile to add licensed states.',
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(color: AppTheme.mediumGray),
+                            ),
+                          )
+                        else
+                          Obx(() {
+                            final currentValue = controller.selectedState;
+                            final safeValue =
+                            uniqueStates.contains(currentValue)
+                                ? currentValue
+                                : null;
+
+                            return DropdownButtonFormField<String>(
+                              value: safeValue,
+                              decoration: InputDecoration(
+                                labelText: 'Select State',
+                                prefixIcon: Icon(
+                                  Icons.map,
+                                  color: AppTheme.primaryBlue,
+                                ),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                filled: true,
+                                fillColor: AppTheme.lightGray,
+                              ),
+                              items: [
+                                DropdownMenuItem<String>(
+                                  value: null,
+                                  child: Text(
+                                    'Select a state',
+                                    style: TextStyle(
+                                      color: AppTheme.mediumGray,
+                                    ),
+                                  ),
+                                ),
+                                ...uniqueStates.map((stateName) {
+                                  return DropdownMenuItem<String>(
+                                    value: stateName,
+                                    child: Text(stateName),
+                                  );
+                                }),
+                              ],
+                              onChanged: (value) {
+                                if (value != null) {
+                                  controller.selectStateAndFetchZipCodes(
+                                    value,
+                                  );
+                                } else {
+                                  controller.selectStateAndFetchZipCodes('');
+                                }
+                              },
+                            );
+                          }),
+                        if (controller.isLoadingZipCodes) ...[
                           const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: AppTheme.primaryBlue,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Loading ZIP codes...',
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(color: AppTheme.mediumGray),
+                              ),
+                            ],
+                          ),
                         ],
-                      );
-                    },
-                  ),
-                ),
-              ),
-
-              // Claimed ZIP Codes List (Virtualized for performance)
-              Obx(
-                    () {
-                  final searchQuery = controller.searchQuery;
-                  final claimedList = searchQuery.isEmpty
-                      ? controller.claimedZipCodes
-                      : controller.filteredClaimedZipCodes;
-
-                  if (claimedList.isEmpty) {
-                    return SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
-                        child: _buildEmptyState(
-                          context,
-                          'No claimed ZIP codes',
-                          'Start by claiming a ZIP code below',
-                        ),
-                      ),
-                    );
-                  }
-
-                  return SliverPadding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    sliver: SliverList(
-                      delegate: SliverChildBuilderDelegate(
-                            (context, index) {
-                          if (index >= claimedList.length) return null;
-                          final zip = claimedList[index];
-                          return RepaintBoundary(
-                            key: ValueKey('claimed_${zip.zipCode}'),
-                            child: _buildZipCodeCard(context, zip, true),
-                          );
-                        },
-                        childCount: claimedList.length,
-                        addAutomaticKeepAlives: false,
-                        addRepaintBoundaries: true,
-                      ),
-                    ),
-                  );
-                },
-              ),
-
-              const SliverToBoxAdapter(child: SizedBox(height: 24)),
-
-              // Available ZIP Codes Section Header
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Text(
-                    'Available ZIP Codes',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      color: AppTheme.black,
-                      fontWeight: FontWeight.w600,
+                      ],
                     ),
                   ),
-                ),
-              ),
+                );
+              }),
+              const SizedBox(height: 20),
 
-              const SliverToBoxAdapter(child: SizedBox(height: 12)),
-
-              // Available ZIP Codes List (Virtualized for performance)
-              Obx(
-                    () {
-                  final searchQuery = controller.searchQuery;
-                  final availableList = searchQuery.isEmpty
-                      ? controller.availableZipCodes
-                      : controller.filteredAvailableZipCodes;
-
-                  if (availableList.isEmpty) {
-                    return SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
-                        child: _buildEmptyState(
-                          context,
-                          'No available ZIP codes',
-                          'All ZIP codes in your area are claimed',
-                        ),
-                      ),
-                    );
-                  }
-
-                  return SliverPadding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    sliver: SliverList(
-                      delegate: SliverChildBuilderDelegate(
-                            (context, index) {
-                          if (index >= availableList.length) return null;
-                          final zip = availableList[index];
-                          return RepaintBoundary(
-                            key: ValueKey('available_${zip.zipCode}'),
-                            child: _buildZipCodeCard(context, zip, false),
-                          );
-                        },
-                        childCount: availableList.length,
-                        addAutomaticKeepAlives: false,
-                        addRepaintBoundaries: true,
+              // Claimed ZIP Codes
+              Obx(() {
+                if (controller.claimedZipCodes.isEmpty) {
+                  return _buildEmptyState(
+                    context,
+                    'No claimed ZIP codes',
+                    'Start by claiming a ZIP code below',
+                    icon: Icons.location_on_outlined,
+                    infoMessage:
+                    'Claim ZIP codes in your licensed states to appear in buyer searches',
+                  );
+                }
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Your Claimed ZIP Codes (${controller.claimedZipCodes.length}/6)',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: AppTheme.black,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
-                  );
-                },
-              ),
+                    const SizedBox(height: 12),
+                    ...controller.claimedZipCodes.map(
+                          (zip) => RepaintBoundary(
+                        child: _buildZipCodeCard(context, zip, true),
+                      ),
+                    ),
+                  ],
+                );
+              }),
 
-              // Bottom padding
-              const SliverToBoxAdapter(child: SizedBox(height: 20)),
-            ],
+              const SizedBox(height: 24),
+
+              // Available ZIP Codes Header
+              Text(
+                'Available ZIP Codes',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  color: AppTheme.black,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ]),
           ),
-        );
-      },
+        ),
+
+        // Available ZIP Codes List (optimized with SliverList)
+        Obx(() {
+          if (controller.selectedState == null) {
+            return SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: _buildEmptyState(
+                  context,
+                  'Select a State',
+                  'Please select a state above to view available ZIP codes',
+                  icon: Icons.location_off_outlined,
+                ),
+              ),
+            );
+          }
+
+          if (controller.isLoadingZipCodes) {
+            return SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(40),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        CircularProgressIndicator(
+                          color: AppTheme.primaryBlue,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Loading ZIP codes...',
+                          style: Theme.of(context).textTheme.bodyLarge
+                              ?.copyWith(color: AppTheme.mediumGray),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }
+
+          if (controller.availableZipCodes.isEmpty) {
+            return SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: _buildEmptyState(
+                  context,
+                  'No available ZIP codes',
+                  'All ZIP codes in ${controller.selectedState} are claimed',
+                  icon: Icons.location_off_outlined,
+                ),
+              ),
+            );
+          }
+
+          return SliverPadding(
+            padding: const EdgeInsets.only(top: 8, left: 20, right: 20),
+            sliver: SliverList(
+              delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                  final zip = controller.availableZipCodes[index];
+                  return RepaintBoundary(
+                    child: _buildZipCodeCard(context, zip, false),
+                  );
+                },
+                childCount: controller.availableZipCodes.length,
+                addAutomaticKeepAlives: false,
+                addRepaintBoundaries: true,
+              ),
+            ),
+          );
+        }),
+      ],
     );
   }
 
@@ -1150,6 +1301,13 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
       ZipCodeModel zip,
       bool isClaimed,
       ) {
+    // Pre-compute expensive string formatting
+    final formattedPopulation = zip.population.toString().replaceAllMapped(
+      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+          (Match m) => '${m[1]},',
+    );
+    final formattedPrice = '\$${zip.calculatedPrice.toStringAsFixed(2)}/month';
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: Padding(
@@ -1159,6 +1317,7 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
                     zip.zipCode,
@@ -1167,53 +1326,46 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                       fontWeight: FontWeight.w600,
                     ),
                   ),
+                  const SizedBox(height: 4),
                   Text(
-                    '${zip.state} • Population: ${zip.population.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}',
+                    '${zip.state} • Population: $formattedPopulation',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: AppTheme.mediumGray,
                     ),
                   ),
+                  const SizedBox(height: 4),
                   Text(
-                    '\$${zip.calculatedPrice.toStringAsFixed(2)}/month',
+                    formattedPrice,
                     style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      color: AppTheme.lightGreen,
+                      color: AppTheme.primaryBlue,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
                 ],
               ),
             ),
-            Obx(
-                  () {
-                // Check if THIS specific zip code is loading
-                final isLoading = controller.isZipCodeLoading(zip.zipCode);
-
-                return isLoading
-                    ? const SizedBox(
-                  width: 90,
-                  height: 36,
-                  child: Center(
-                    child: SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                  ),
-                )
-                    : isClaimed
-                    ? CustomButton(
+            if (isClaimed)
+              Obx(
+                    () => CustomButton(
                   text: 'Release',
-                  onPressed: () => controller.releaseZipCode(zip),
+                  onPressed: controller.isZipCodeLoading(zip.zipCode)
+                      ? null
+                      : () => controller.releaseZipCode(zip),
                   isOutlined: true,
-                  width: 90,
-                )
-                    : CustomButton(
+                  // Let button size itself; show loader per ZIP
+                  isLoading: controller.isZipCodeLoading(zip.zipCode),
+                ),
+              )
+            else
+              Obx(
+                    () => CustomButton(
                   text: 'Claim',
-                  onPressed: () => controller.claimZipCode(zip),
-                  width: 90,
-                );
-              },
-            ),
+                  onPressed: controller.isZipCodeLoading(zip.zipCode)
+                      ? null
+                      : () => controller.claimZipCode(zip),
+                  isLoading: controller.isZipCodeLoading(zip.zipCode),
+                ),
+              ),
           ],
         ),
       ),
@@ -1222,17 +1374,85 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
 
   Widget _buildBilling(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Subscription Plan Details
-          _buildSubscriptionPlanCard(context),
+          // Subscription Summary
+          _buildSubscriptionSummaryCard(context),
 
           const SizedBox(height: 20),
 
-          // Payment Method
-          _buildPaymentMethodCard(context),
+          // Claimed ZIP Codes (manage from billing)
+          Obx(() {
+            if (controller.claimedZipCodes.isEmpty) {
+              return _buildEmptyState(
+                context,
+                'No claimed ZIP codes',
+                'Claim ZIP codes to appear in searches',
+                icon: Icons.location_on_outlined,
+                infoMessage:
+                'You can claim ZIP codes from the ZIP Management tab.',
+              );
+            }
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Your Claimed ZIP Codes (${controller.claimedZipCodes.length}/6)',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    color: AppTheme.black,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                ...controller.claimedZipCodes.map(
+                      (zip) => RepaintBoundary(
+                    child: _buildZipCodeCard(context, zip, true),
+                  ),
+                ),
+              ],
+            );
+          }),
+
+          const SizedBox(height: 20),
+
+          // Active Subscriptions List
+          Text(
+            'Active Subscriptions',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              color: AppTheme.black,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          Obx(() {
+            final activeSubs = controller.activeSubscriptions;
+
+            if (activeSubs.isEmpty) {
+              return Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(
+                  'No active subscriptions',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(color: AppTheme.mediumGray),
+                ),
+              );
+            }
+
+            return Column(
+              children: activeSubs.map((subscription) {
+                return _buildActiveSubscriptionCard(context, subscription);
+              }).toList(),
+            );
+          }),
+
+          const SizedBox(height: 20),
+
+          // Promo Code Input Section
+          _buildPromoCodeCard(context),
 
           const SizedBox(height: 20),
 
@@ -1243,257 +1463,253 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
     );
   }
 
-  Widget _buildSubscriptionPlanCard(BuildContext context) {
-    return Obx(() => Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+  Widget _buildSubscriptionSummaryCard(BuildContext context) {
+    return Obx(() {
+      try {
+        final hasActivePromo = controller.hasActivePromo;
+        final subscription = controller.subscription;
+        final standardPrice = controller.getStandardMonthlyPrice();
+        final monthlyCost = controller.calculateMonthlyCost();
+        final claimedCount = controller.claimedZipCodes.length;
+        final promoExpiresAt = subscription?.promoExpiresAt;
+
+        return Card(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(
-                  Icons.account_balance_wallet,
-                  color: AppTheme.lightGreen,
-                  size: 24,
-                ),
-                const SizedBox(width: 8),
                 Text(
-                  'Subscription Plan',
+                  'Subscription Summary',
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
                     color: AppTheme.black,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
+                const SizedBox(height: 16),
+
+                // Standard Pricing Display
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Standard Monthly Price',
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodyLarge?.copyWith(color: AppTheme.darkGray),
+                    ),
+                    Text(
+                      '\$${standardPrice.toStringAsFixed(2)}/month',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: AppTheme.darkGray,
+                        fontWeight: FontWeight.w500,
+                        decoration: hasActivePromo
+                            ? TextDecoration.lineThrough
+                            : TextDecoration.none,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+
+                // Current Monthly Cost (with promo if applicable)
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Current Monthly Cost',
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodyLarge?.copyWith(color: AppTheme.darkGray),
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          '\$${monthlyCost.toStringAsFixed(2)}',
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(
+                            color: hasActivePromo
+                                ? Colors.green
+                                : AppTheme.primaryBlue,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        if (hasActivePromo)
+                          Text(
+                            '70% OFF',
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                              color: Colors.green,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+
+                // Promo Expiration Info
+                if (hasActivePromo && promoExpiresAt != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      'Promo expires: ${promoExpiresAt.toString().split(' ')[0]}',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppTheme.mediumGray,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ),
+
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'ZIP Codes Claimed',
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodyLarge?.copyWith(color: AppTheme.darkGray),
+                    ),
+                    Text(
+                      '$claimedCount/6',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: AppTheme.darkGray,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
               ],
             ),
-            const SizedBox(height: 20),
+          ),
+        );
+      } catch (e, stackTrace) {
+        if (kDebugMode) {
+          print('❌ Error building subscription summary card: $e');
+          print('   Stack trace: $stackTrace');
+        }
+        // Return error card
+        return Card(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              children: [
+                Icon(Icons.error_outline, color: Colors.red, size: 48),
+                const SizedBox(height: 16),
+                Text(
+                  'Error loading subscription data',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleMedium?.copyWith(color: Colors.red),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Please try refreshing the page',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: AppTheme.mediumGray),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+    });
+  }
 
-            // Plan Status Badge
-            _buildPlanStatusBadge(context),
+  Widget _buildPromoCodeCard(BuildContext context) {
+    return Obx(() {
+      try {
+        final hasActivePromo = controller.hasActivePromo;
 
-            const SizedBox(height: 20),
+        if (hasActivePromo) {
+          return const SizedBox.shrink();
+        }
 
-            // Standard Pricing Display
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        return Card(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Standard Monthly Price',
-                  style: Theme.of(context).textTheme.bodyLarge
-                      ?.copyWith(color: AppTheme.darkGray),
-                ),
-                Text(
-                  '\$${controller.getStandardMonthlyPrice().toStringAsFixed(2)}/month',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: AppTheme.darkGray,
+                  'Have a promo code?',
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: AppTheme.black,
                     fontWeight: FontWeight.w500,
-                    decoration: controller.isInFreePeriod
-                        ? TextDecoration.lineThrough
-                        : TextDecoration.none,
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 16),
-
-            // Current Monthly Cost (with free period if applicable)
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: controller.isInFreePeriod
-                      ? [Colors.green.withOpacity(0.1), Colors.green.withOpacity(0.05)]
-                      : [AppTheme.lightGreen.withOpacity(0.1), AppTheme.lightGreen.withOpacity(0.05)],
-                ),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: controller.isInFreePeriod
-                      ? Colors.green.withOpacity(0.3)
-                      : AppTheme.lightGreen.withOpacity(0.3),
-                  width: 1.5,
-                ),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Current Monthly Cost',
-                        style: Theme.of(context).textTheme.bodyMedium
-                            ?.copyWith(color: AppTheme.mediumGray),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        controller.isInFreePeriod
-                            ? 'FREE'
-                            : '\$${controller.calculateMonthlyCost().toStringAsFixed(2)}/month',
-                        style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                          color: controller.isInFreePeriod
-                              ? Colors.green
-                              : AppTheme.lightGreen,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      if (controller.isInFreePeriod) ...[
-                        const SizedBox(height: 4),
-                        Text(
-                          '6 Months Free Trial',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Colors.green,
-                            fontWeight: FontWeight.w600,
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        onChanged: (value) =>
+                            controller.setPromoCodeInput(value),
+                        decoration: InputDecoration(
+                          hintText: 'Enter promo code',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 12,
                           ),
                         ),
-                      ],
-                    ],
-                  ),
-                  if (controller.isInFreePeriod)
-                    Icon(
-                      Icons.celebration,
-                      color: Colors.green,
-                      size: 32,
+                      ),
                     ),
-                ],
-              ),
-            ),
-
-            // Free Period Info
-            if (controller.isInFreePeriod && controller.freePeriodEndsAt != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.green.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.celebration, color: Colors.green, size: 20),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Free period ends: ${controller.freePeriodEndsAt!.toString().split(' ')[0]}. After that, you can continue at the normal subscription rate.',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Colors.green.shade700,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-            const SizedBox(height: 20),
-
-            // Plan Details Section
-            _buildPlanDetails(context),
-
-            const SizedBox(height: 20),
-
-            // Renewal Date
-            _buildRenewalDate(context),
-
-            // Cancellation Status
-            if (controller.isCancelled)
-              Padding(
-                padding: const EdgeInsets.only(top: 12),
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.orange.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.info_outline, color: Colors.orange, size: 20),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Subscription will be cancelled in ${controller.daysUntilCancellation} days',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Colors.orange.shade700,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-            const SizedBox(height: 16),
-
-            // Promo Code Input Section
-            if (!controller.isInFreePeriod)
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Have a promo code from an agent?',
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      color: AppTheme.black,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          onChanged: (value) => controller.setPromoCodeInput(value),
-                          decoration: InputDecoration(
-                            hintText: 'Enter promo code',
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 12,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      CustomButton(
-                        text: 'Apply',
-                        onPressed: () {
-                          if (controller.promoCodeInput.isEmpty) {
-                            Get.snackbar('Error', 'Please enter a promo code');
+                    const SizedBox(width: 8),
+                    CustomButton(
+                      text: 'Apply',
+                      onPressed: () {
+                        try {
+                          final promoCodeInput = controller.promoCodeInput;
+                          if (promoCodeInput.isEmpty) {
+                            Get.snackbar(
+                              'Error',
+                              'Please enter a promo code',
+                              snackPosition: SnackPosition.TOP,
+                            );
                             return;
                           }
-                          controller.applyPromoCode(controller.promoCodeInput);
-                        },
-                        width: 80,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Enter a promo code from an agent to get 6 months free. After that, you can choose to continue at the normal subscription rate.',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AppTheme.mediumGray,
+                          controller.applyPromoCode(promoCodeInput);
+                        } catch (e) {
+                          if (kDebugMode) {
+                            print('❌ Error applying promo code: $e');
+                          }
+                          Get.snackbar(
+                            'Error',
+                            'Failed to apply promo code. Please try again.',
+                            snackPosition: SnackPosition.TOP,
+                          );
+                        }
+                      },
+                      width: 80,
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                ],
-              ),
-
-            CustomButton(
-              text: controller.isCancelled ? 'Cancellation Scheduled' : 'Cancel Subscription',
-              onPressed: controller.isCancelled
-                  ? null
-                  : () => _showCancelConfirmation(context),
-              isOutlined: true,
-              width: double.infinity,
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'If you have a promo code, please enter it above',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: AppTheme.mediumGray),
+                ),
+                const SizedBox(height: 16),
+              ],
             ),
-          ],
-        ),
-      ),
-    ));
+          ),
+        );
+      } catch (e, stackTrace) {
+        if (kDebugMode) {
+          print('❌ Error building promo code card: $e');
+          print('   Stack trace: $stackTrace');
+        }
+        return const SizedBox.shrink();
+      }
+    });
   }
 
   Widget _buildPlanStatusBadge(BuildContext context) {
@@ -1616,14 +1832,14 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
       }) {
     return Row(
       children: [
-        Icon(icon, color: AppTheme.lightGreen, size: 20),
+        Icon(icon, color: AppTheme.primaryBlue, size: 20),
         const SizedBox(width: 12),
         Expanded(
           child: Text(
             label,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: AppTheme.darkGray,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: AppTheme.darkGray),
           ),
         ),
         Text(
@@ -1662,7 +1878,7 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
         ),
         child: Row(
           children: [
-            Icon(Icons.calendar_today, color: AppTheme.lightGreen, size: 20),
+            Icon(Icons.calendar_today, color: AppTheme.primaryBlue, size: 20),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -1672,9 +1888,9 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                     controller.isInFreePeriod
                         ? 'Free Period Ends'
                         : 'Next Billing Date',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AppTheme.mediumGray,
-                    ),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: AppTheme.mediumGray),
                   ),
                   const SizedBox(height: 4),
                   Text(
@@ -1702,11 +1918,7 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
           children: [
             Row(
               children: [
-                Icon(
-                  Icons.payment,
-                  color: AppTheme.lightGreen,
-                  size: 24,
-                ),
+                Icon(Icons.payment, color: AppTheme.lightGreen, size: 24),
                 const SizedBox(width: 8),
                 Text(
                   'Payment Method',
@@ -1732,11 +1944,7 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
               ),
               child: Row(
                 children: [
-                  Icon(
-                    Icons.credit_card,
-                    color: AppTheme.mediumGray,
-                    size: 24,
-                  ),
+                  Icon(Icons.credit_card, color: AppTheme.mediumGray, size: 24),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
@@ -1744,7 +1952,8 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                       children: [
                         Text(
                           'No payment method on file',
-                          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          style: Theme.of(context).textTheme.bodyLarge
+                              ?.copyWith(
                             color: AppTheme.darkGray,
                             fontWeight: FontWeight.w500,
                           ),
@@ -1752,9 +1961,8 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                         const SizedBox(height: 4),
                         Text(
                           'Add a payment method to continue your subscription',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: AppTheme.mediumGray,
-                          ),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: AppTheme.mediumGray),
                         ),
                       ],
                     ),
@@ -1769,7 +1977,7 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                     },
                     child: Text(
                       'Add',
-                      style: TextStyle(color: AppTheme.lightGreen),
+                      style: TextStyle(color: AppTheme.primaryBlue),
                     ),
                   ),
                 ],
@@ -1794,30 +2002,257 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
         ),
         const SizedBox(height: 12),
 
-        // Show message if no payment history
         Obx(() {
-          // For now, show placeholder - in production, fetch from API
+          if (controller.subscriptions.isEmpty) {
+            return Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                'No payment history available',
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(color: AppTheme.mediumGray),
+              ),
+            );
+          }
+
           return Column(
-            children: [
-              _buildPaymentItem(context, 'December 2024', '\$${controller.calculateMonthlyCost().toStringAsFixed(2)}', 'Paid'),
-              _buildPaymentItem(context, 'November 2024', '\$${controller.calculateMonthlyCost().toStringAsFixed(2)}', 'Paid'),
-              _buildPaymentItem(context, 'October 2024', '\$${controller.calculateMonthlyCost().toStringAsFixed(2)}', 'Paid'),
-            ],
+            children: controller.subscriptions.map((subscription) {
+              final dateStr =
+                  subscription['createdAt']?.toString() ??
+                      subscription['subscriptionStart']?.toString() ??
+                      '';
+              final date = DateTime.tryParse(dateStr);
+              final monthYear = date != null
+                  ? '${_getMonthName(date.month)} ${date.year}'
+                  : 'Unknown Date';
+
+              final amount = subscription['amountPaid'] as double? ?? 0.0;
+              final amountStr = '\$${amount.toStringAsFixed(2)}';
+
+              final status =
+                  subscription['subscriptionStatus']?.toString() ?? '';
+              final displayStatus = _formatSubscriptionStatus(status);
+
+              return _buildPaymentItem(
+                context,
+                monthYear,
+                amountStr,
+                displayStatus,
+              );
+            }).toList(),
           );
         }),
       ],
     );
   }
 
+  Widget _buildActiveSubscriptionCard(
+      BuildContext context,
+      Map<String, dynamic> subscription,
+      ) {
+    final dateStr =
+        subscription['createdAt']?.toString() ??
+            subscription['subscriptionStart']?.toString() ??
+            '';
+    final date = DateTime.tryParse(dateStr);
+    final monthYear = date != null
+        ? '${_getMonthName(date.month)} ${date.year}'
+        : 'Unknown Date';
+
+    final amount = subscription['amountPaid'] as double? ?? 0.0;
+    final amountStr = '\$${amount.toStringAsFixed(2)}';
+
+    final status = subscription['subscriptionStatus']?.toString() ?? '';
+    final displayStatus = _formatSubscriptionStatus(status);
+
+    final stripeCustomerId = subscription['stripeCustomerId']?.toString();
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Subscription',
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.black,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        monthYear,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: AppTheme.darkGray,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      amountStr,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.primaryBlue,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color:
+                        displayStatus == 'Paid' || displayStatus == 'Active'
+                            ? Colors.green.withOpacity(0.1)
+                            : Colors.orange.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        displayStatus,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color:
+                          displayStatus == 'Paid' ||
+                              displayStatus == 'Active'
+                              ? Colors.green.shade700
+                              : Colors.orange.shade700,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            if (stripeCustomerId != null && stripeCustomerId.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: () => _showCancelConfirmationForSubscription(
+                    context,
+                    stripeCustomerId,
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(color: Colors.red.shade400),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  child: Text(
+                    'Cancel Subscription',
+                    style: TextStyle(
+                      color: Colors.red.shade600,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showCancelConfirmationForSubscription(
+      BuildContext context,
+      String stripeCustomerId,
+      ) {
+    Get.dialog(
+      AlertDialog(
+        title: const Text('Cancel Subscription'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Are you sure you want to cancel this subscription?',
+              style: TextStyle(fontSize: 16),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.orange.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline, color: Colors.orange, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Your subscription will remain active for 30 days from today. You can cancel anytime with 30 days\' notice.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.orange.shade700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Keep Subscription'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              controller.cancelSubscription(stripeCustomerId);
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Cancel Subscription'),
+          ),
+        ],
+      ),
+    );
+  }
+
   String _formatDate(DateTime date) {
     final months = [
-      'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December'
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
     ];
     return '${months[date.month - 1]} ${date.day}, ${date.year}';
   }
 
   void _showCancelConfirmation(BuildContext context) {
+    final activeSub = controller.activeSubscriptionFromAPI;
+    final stripeCustomerId = activeSub?['stripeCustomerId']?.toString();
+
+    if (stripeCustomerId != null && stripeCustomerId.isNotEmpty) {
+      _showCancelConfirmationForSubscription(context, stripeCustomerId);
+      return;
+    }
+
     Get.dialog(
       AlertDialog(
         title: const Text('Cancel Subscription'),
@@ -1864,14 +2299,47 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
               Navigator.pop(context);
               controller.cancelSubscription();
             },
-            style: TextButton.styleFrom(
-              foregroundColor: Colors.red,
-            ),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
             child: const Text('Cancel Subscription'),
           ),
         ],
       ),
     );
+  }
+
+  String _getMonthName(int month) {
+    const months = [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ];
+    if (month < 1 || month > 12) return 'Unknown';
+    return months[month - 1];
+  }
+
+  String _formatSubscriptionStatus(String status) {
+    final lowerStatus = status.toLowerCase();
+    if (lowerStatus.isEmpty) return 'Unknown';
+
+    if (lowerStatus == 'active' ||
+        lowerStatus == 'paid' ||
+        lowerStatus == 'trialing') {
+      return 'Active';
+    } else if (lowerStatus == 'past_due' || lowerStatus == 'unpaid') {
+      return 'Past Due';
+    } else if (lowerStatus == 'canceled' || lowerStatus == 'cancelled') {
+      return 'Cancelled';
+    }
+    return status;
   }
 
   Widget _buildPaymentItem(
@@ -1908,7 +2376,7 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
             Text(
               amount,
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: AppTheme.lightGreen,
+                color: AppTheme.primaryBlue,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -1930,13 +2398,16 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
 
       if (officer == null && loading) {
         debugPrint(
-            '📊 _buildStats: Waiting for current loan officer analytics data...');
+          '📊 _buildStats: Waiting for current loan officer analytics data...',
+        );
       } else if (officer == null && !loading) {
         debugPrint(
-            '⚠️ _buildStats: currentLoanOfficer is null, showing placeholder analytics.');
+          '⚠️ _buildStats: currentLoanOfficer is null, showing placeholder analytics.',
+        );
       } else if (officer != null) {
         debugPrint(
-            '✅ _buildStats: Showing analytics for loanOfficer=${officer.id}');
+          '✅ _buildStats: Showing analytics for loanOfficer=${officer.id}',
+        );
       }
 
       // Simple derived metrics from LoanOfficerModel
@@ -2056,9 +2527,7 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                         Expanded(
                           child: Text(
                             'Monthly Contacts (derived)',
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleMedium
+                            style: Theme.of(context).textTheme.titleMedium
                                 ?.copyWith(fontWeight: FontWeight.w600),
                             overflow: TextOverflow.ellipsis,
                             maxLines: 1,
@@ -2068,9 +2537,7 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                         Flexible(
                           child: Text(
                             'Last 7 months (approximate)',
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodySmall
+                            style: Theme.of(context).textTheme.bodySmall
                                 ?.copyWith(color: AppTheme.mediumGray),
                             textAlign: TextAlign.right,
                             overflow: TextOverflow.ellipsis,
@@ -2357,29 +2824,88 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
     );
   }
 
-  Widget _buildEmptyState(BuildContext context, String title, String subtitle) {
+  Widget _buildEmptyState(
+      BuildContext context,
+      String title,
+      String subtitle, {
+        String? infoMessage,
+        IconData? icon,
+      }) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(40),
+        padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 60),
         child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.location_off, size: 64, color: AppTheme.mediumGray),
-            const SizedBox(height: 16),
-            Text(
-              title,
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                color: AppTheme.darkGray,
-                fontWeight: FontWeight.w600,
+            Container(
+              width: 120,
+              height: 120,
+              decoration: BoxDecoration(
+                color: AppTheme.primaryBlue.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                icon ?? Icons.people_outline,
+                size: 64,
+                color: AppTheme.primaryBlue.withOpacity(0.6),
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 32),
             Text(
-              subtitle,
-              style: Theme.of(
-                context,
-              ).textTheme.bodyLarge?.copyWith(color: AppTheme.mediumGray),
+              title,
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                color: AppTheme.darkGray,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.5,
+              ),
               textAlign: TextAlign.center,
             ),
+            const SizedBox(height: 12),
+            Text(
+              subtitle,
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                color: AppTheme.mediumGray,
+                height: 1.5,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            if (infoMessage != null) ...[
+              const SizedBox(height: 40),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryBlue.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: AppTheme.primaryBlue.withOpacity(0.3),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.info_outline,
+                      color: AppTheme.primaryBlue,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 12),
+                    Flexible(
+                      child: Text(
+                        infoMessage,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: AppTheme.primaryBlue,
+                          height: 1.4,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -2405,9 +2931,9 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
           const SizedBox(height: 8),
           Text(
             'View the checklists that buyers and agents see, so you know what they\'re working with.',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: AppTheme.darkGray,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: AppTheme.darkGray),
           ),
           const SizedBox(height: 24),
 

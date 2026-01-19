@@ -48,18 +48,28 @@ class MessagesView extends GetView<MessagesController> {
       }
     });
 
-    return Scaffold(
-      backgroundColor: AppTheme.lightGray,
-      // Ensure no bottom navigation bar is shown in chat
-      bottomNavigationBar: null,
-      body: SafeArea(
-        child: Obx(() {
-          if (controller.selectedConversation != null) {
-            return _buildChatView(context);
-          } else {
-            return _buildConversationsList(context);
-          }
-        }),
+    return PopScope(
+      canPop: controller.selectedConversation == null,
+      onPopInvoked: (didPop) {
+        if (!didPop && controller.selectedConversation != null) {
+          // When Android back button is pressed in chat view, go back to conversations list
+          // instead of exiting the app
+          controller.goBack();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: AppTheme.lightGray,
+        // Ensure no bottom navigation bar is shown in chat
+        bottomNavigationBar: null,
+        body: SafeArea(
+          child: Obx(() {
+            if (controller.selectedConversation != null) {
+              return _buildChatView(context);
+            } else {
+              return _buildConversationsList(context);
+            }
+          }),
+        ),
       ),
     );
   }
