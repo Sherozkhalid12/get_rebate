@@ -750,4 +750,24 @@ class FavoritesController extends GetxController {
       ),
     );
   }
+  
+  /// Clear all favorites data when user logs out
+  void clearAllData() {
+    if (kDebugMode) {
+      print('🧹 FavoritesController: Clearing all favorites data');
+    }
+    
+    _favoriteAgents.clear();
+    _favoriteLoanOfficers.clear();
+    _favoriteListings.clear();
+    _favoriteOpenHouses.clear();
+    _recentlyLikedAgents.clear();
+    _recentlyLikedLoanOfficers.clear();
+    _selectedTab.value = 0;
+    _isLoading.value = false;
+    
+    if (kDebugMode) {
+      print('✅ FavoritesController: All data cleared');
+    }
+  }
 }

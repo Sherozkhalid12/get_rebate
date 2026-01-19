@@ -1926,6 +1926,43 @@ class MessagesController extends GetxController {
     }
   }
 
+  /// Clear all data when user logs out
+  void clearAllData() {
+    if (kDebugMode) {
+      print('🧹 MessagesController: Clearing all data');
+    }
+    
+    // Leave socket room if in conversation
+    if (_selectedConversation.value != null && _socketService != null) {
+      _socketService!.leaveRoom(_selectedConversation.value!.id);
+    }
+    
+    // Clear all observable data
+    _conversations.clear();
+    _allConversations.clear();
+    _messages.clear();
+    _selectedConversation.value = null;
+    _searchQuery.value = '';
+    _error.value = null;
+    _isLoading.value = false;
+    _isLoadingThreads.value = false;
+    _isLoadingMessages.value = false;
+    
+    // Clear message input
+    messageController.clear();
+    
+    // Reset initialization flag
+    _hasInitialized = false;
+    
+    // Disconnect socket
+    _socketService?.dispose();
+    _socketService = null;
+    
+    if (kDebugMode) {
+      print('✅ MessagesController: All data cleared');
+    }
+  }
+
   @override
   void onClose() {
     // Leave socket room if in conversation

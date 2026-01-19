@@ -10,6 +10,8 @@ import 'package:getrebate/app/routes/app_pages.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
 import 'package:getrebate/app/controllers/current_loan_officer_controller.dart';
+import 'package:getrebate/app/modules/messages/controllers/messages_controller.dart';
+import 'package:getrebate/app/modules/favorites/controllers/favorites_controller.dart';
 
 class AuthController extends GetxController {
   final _storage = GetStorage();
@@ -1251,6 +1253,26 @@ class AuthController extends GetxController {
     _isLoggedIn.value = false;
     _storage.remove('current_user');
     _storage.remove('auth_token');
+    
+    // Clear all controller data to prevent old data from showing in new account
+    try {
+      // Clear MessagesController
+      if (Get.isRegistered<MessagesController>()) {
+        final messagesController = Get.find<MessagesController>();
+        messagesController.clearAllData();
+        print('✅ Cleared chat data on logout');
+      }
+      
+      // Clear FavoritesController
+      if (Get.isRegistered<FavoritesController>()) {
+        final favoritesController = Get.find<FavoritesController>();
+        favoritesController.clearAllData();
+        print('✅ Cleared favorites data on logout');
+      }
+    } catch (e) {
+      print('⚠️ Error clearing controller data: $e');
+    }
+    
     print('🔓 User logged out - cleared user data and token');
     Get.offAllNamed(AppPages.AUTH);
   }
