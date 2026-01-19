@@ -871,11 +871,9 @@ class AuthController extends GetxController {
         print('   Role: ${user.role}');
         print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
-        Get.snackbar(
-          'Success',
+        SnackbarHelper.showSuccess(
           'Account created successfully!',
-          backgroundColor: Get.theme.colorScheme.primary,
-          colorText: Get.theme.colorScheme.onPrimary,
+          duration: const Duration(seconds: 2),
         );
 
         _navigateToRoleBasedScreen();
