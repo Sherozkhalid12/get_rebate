@@ -1955,7 +1955,7 @@ class MessagesController extends GetxController {
     _hasInitialized = false;
     
     // Disconnect socket
-    _socketService?.dispose();
+    _socketService?.disconnect();
     _socketService = null;
     
     if (kDebugMode) {
