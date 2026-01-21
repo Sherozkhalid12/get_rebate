@@ -8,12 +8,16 @@ import 'package:getrebate/app/modules/add_listing/controllers/add_listing_contro
 import 'package:getrebate/app/widgets/custom_button.dart';
 import 'package:getrebate/app/widgets/custom_text_field.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
+import 'package:getrebate/app/routes/app_pages.dart';
+import 'package:getrebate/app/modules/agent/controllers/agent_controller.dart';
 
 class AddListingView extends GetView<AddListingController> {
   const AddListingView({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final agentController = Get.find<AgentController>();
+
     return Scaffold(
       backgroundColor: AppTheme.lightGray,
       appBar: AppBar(
@@ -215,37 +219,83 @@ class AddListingView extends GetView<AddListingController> {
 
               const SizedBox(height: 16),
 
-              Row(
-                children: [
-                  Expanded(
-                    child: CustomTextField(
-                      controller: controller.cityController,
-                      labelText: 'City',
-                      hintText: 'e.g., New York',
-                      maxLines: 1,
+                Row(
+                  children: [
+                    Expanded(
+                      child: CustomTextField(
+                        controller: controller.cityController,
+                        labelText: 'City',
+                        hintText: 'e.g., New York',
+                        maxLines: 1,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    flex: 2,
-                    child: CustomTextField(
-                      controller: controller.stateController,
-                      labelText: 'State',
-                      hintText: 'e.g., NY',
-                      maxLines: 1,
+                    const SizedBox(width: 16),
+                    Expanded(
+                      flex: 2,
+                      child: CustomTextField(
+                        controller: controller.stateController,
+                        labelText: 'State',
+                        hintText: 'e.g., NY',
+                        maxLines: 1,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: CustomTextField(
-                      controller: controller.zipCodeController,
-                      labelText: 'ZIP',
-                      hintText: '10001',
-                      maxLines: 1,
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Obx(
+                        () {
+                          final claimedZips = agentController.claimedZipCodes;
+                          if (claimedZips.isEmpty) {
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Select one of your claimed ZIP codes to list this property.',
+                                ),
+                                const SizedBox(height: 6),
+                                TextButton(
+                                  onPressed: () => Get.toNamed(AppPages.AGENT),
+                                  child: const Text('Manage ZIP Codes'),
+                                ),
+                              ],
+                            );
+                          }
+
+                          return DropdownButtonFormField<String>(
+                            value: controller.selectedClaimedZip?.zipCode,
+                            decoration: InputDecoration(
+                              labelText: 'ZIP',
+                              prefixIcon: const Icon(Icons.pin_drop),
+                              border: OutlineInputBorder(
+                                borderSide: BorderSide(
+                                  color: AppTheme.lightGray,
+                                ),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              filled: true,
+                              fillColor: AppTheme.white,
+                            ),
+                            items: claimedZips
+                                .map(
+                                  (zip) => DropdownMenuItem<String>(
+                                    value: zip.zipCode,
+                                    child: Text('${zip.zipCode} • ${zip.state}'),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: (value) {
+                              final zip = claimedZips.firstWhere(
+                                (z) => z.zipCode == value,
+                                orElse: () => claimedZips.first,
+                              );
+                              controller.selectClaimedZip(zip);
+                            },
+                            isExpanded: true,
+                          );
+                        },
+                      ),
                     ),
-                  ),
-                ],
-              ),
+                  ],
+                ),
 
               const SizedBox(height: 24),
 

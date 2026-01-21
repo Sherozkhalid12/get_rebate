@@ -196,7 +196,6 @@ class AgentController extends GetxController {
   void onInit() {
     super.onInit();
     _setupDio();
-    _loadMockData(); // Keep mock data for ZIP codes - instant
     _initializeSubscription(); // Initialize subscription - instant
     checkPromoExpiration(); // Check if any promos have expired - instant
 
@@ -392,144 +391,6 @@ class AgentController extends GetxController {
       // Fetch leads every time user visits the leads tab
       Future.microtask(() => refreshLeads());
     }
-  }
-
-  void _loadMockData() {
-    // Mock claimed ZIP codes
-    _claimedZipCodes.value = [
-      ZipCodeModel(
-        zipCode: '10001',
-        state: 'NY',
-        population: 50000,
-        claimedByAgent: 'agent_1',
-        claimedAt: DateTime.now().subtract(const Duration(days: 30)),
-        price: 299.99,
-        isAvailable: false,
-        createdAt: DateTime.now().subtract(const Duration(days: 30)),
-        searchCount: 45,
-      ),
-      ZipCodeModel(
-        zipCode: '10002',
-        state: 'NY',
-        population: 45000,
-        claimedByAgent: 'agent_1',
-        claimedAt: DateTime.now().subtract(const Duration(days: 15)),
-        price: 249.99,
-        isAvailable: false,
-        createdAt: DateTime.now().subtract(const Duration(days: 15)),
-        searchCount: 32,
-      ),
-    ];
-
-    // Mock available ZIP codes
-    _availableZipCodes.value = [
-      ZipCodeModel(
-        zipCode: '10003',
-        state: 'NY',
-        population: 40000,
-        price: 199.99,
-        isAvailable: true,
-        createdAt: DateTime.now(),
-        searchCount: 0,
-      ),
-      ZipCodeModel(
-        zipCode: '10004',
-        state: 'NY',
-        population: 35000,
-        price: 179.99,
-        isAvailable: true,
-        createdAt: DateTime.now(),
-        searchCount: 0,
-      ),
-      ZipCodeModel(
-        zipCode: '10005',
-        state: 'NY',
-        population: 30000,
-        price: 159.99,
-        isAvailable: true,
-        createdAt: DateTime.now(),
-        searchCount: 0,
-      ),
-    ];
-
-    // Mock listings
-    _myListings.value = [
-      AgentListingModel(
-        id: 'listing_1',
-        agentId: 'agent_1',
-        title: 'Beautiful 3BR Condo in Manhattan',
-        description:
-            'Stunning 3-bedroom condo with city views, modern kitchen, and premium finishes.',
-        priceCents: 125000000, // $1,250,000
-        address: '123 Park Avenue',
-        city: 'New York',
-        state: 'NY',
-        zipCode: '10001',
-        photoUrls: [
-          'https://images.unsplash.com/photo-1560185008-b033106af2fb?w=800&h=600&fit=crop',
-          'https://images.unsplash.com/photo-1560185127-6c4a0b4b0b0b?w=800&h=600&fit=crop',
-        ],
-        bacPercent: 2.5,
-        dualAgencyAllowed: true,
-        isApproved: true,
-        createdAt: DateTime.now().subtract(const Duration(days: 30)),
-        approvedAt: DateTime.now().subtract(const Duration(days: 28)),
-        searchCount: 45,
-        viewCount: 234,
-        contactCount: 12,
-        marketStatus: MarketStatus.forSale,
-      ),
-      AgentListingModel(
-        id: 'listing_2',
-        agentId: 'agent_1',
-        title: 'Luxury Penthouse with Terrace',
-        description:
-            'Exclusive penthouse featuring private terrace, panoramic views, and luxury amenities.',
-        priceCents: 250000000, // $2,500,000
-        address: '456 Central Park West',
-        city: 'New York',
-        state: 'NY',
-        zipCode: '10002',
-        photoUrls: [
-          'https://images.unsplash.com/photo-1560185008-b033106af2fb?w=800&h=600&fit=crop',
-        ],
-        bacPercent: 3.0,
-        dualAgencyAllowed: false,
-        isActive: true,
-        isApproved: true,
-        createdAt: DateTime.now().subtract(const Duration(days: 15)),
-        approvedAt: DateTime.now().subtract(const Duration(days: 12)),
-        searchCount: 32,
-        viewCount: 156,
-        contactCount: 8,
-        marketStatus: MarketStatus.pending,
-      ),
-      AgentListingModel(
-        id: 'listing_3',
-        agentId: 'agent_1',
-        title: 'Modern Studio in SoHo',
-        description:
-            'Chic studio apartment in trendy SoHo neighborhood, perfect for young professionals.',
-        priceCents: 75000000, // $750,000
-        address: '789 Broadway',
-        city: 'New York',
-        state: 'NY',
-        zipCode: '10003',
-        photoUrls: [],
-        bacPercent: 2.0,
-        dualAgencyAllowed: true,
-        isApproved: false,
-        createdAt: DateTime.now().subtract(const Duration(days: 5)),
-        searchCount: 8,
-        viewCount: 23,
-        contactCount: 2,
-        marketStatus: MarketStatus.sold,
-        isActive: false,
-      ),
-    ];
-
-    // Stats will be loaded from API in fetchUserStats()
-    // Don't reset to 0 here to avoid overwriting API data
   }
 
   /// Fetches user stats from the API
@@ -814,9 +675,8 @@ class AgentController extends GetxController {
       }
 
       // Step 1: Create checkout session
-      // Calculate the price for this ZIP code
-      final zipCodePrice = (zipCode.price ?? zipCode.calculatedPrice)
-          .toStringAsFixed(0);
+      final zipCodePrice =
+          zipCode.calculatedPrice.toStringAsFixed(2);
 
       // Prepare request body
       final requestBody = {
@@ -1108,10 +968,11 @@ class AgentController extends GetxController {
       _isLoading.value = true;
 
       // Prepare request body according to API specification
+      final formattedPrice = zipCode.calculatedPrice.toStringAsFixed(2);
       final requestBody = {
         'id': userId, // agent's Mongo user _id
         'zipcode': zipCode.zipCode,
-        'price': (zipCode.price ?? zipCode.calculatedPrice).toStringAsFixed(0),
+        'price': formattedPrice,
         'state': zipCode.state,
         'population': zipCode.population.toString(),
       };
@@ -2350,7 +2211,7 @@ class AgentController extends GetxController {
     }
   }
 
-  Future<void> deleteListing(String listingId) async {
+  Future<bool> deleteListing(String listingId) async {
     try {
       _isLoading.value = true;
 
@@ -2389,15 +2250,9 @@ class AgentController extends GetxController {
         // Apply filters to update displayed listings
         _applyFilters();
 
-        Get.snackbar(
-          'Success',
-          'Listing deleted successfully!',
-          backgroundColor: Colors.green,
-          colorText: Colors.white,
-        );
-
         // Refresh listings from API to ensure consistency
         await fetchAgentListings();
+        return true;
       }
     } on DioException catch (e) {
       // Handle Dio errors
@@ -2439,6 +2294,7 @@ class AgentController extends GetxController {
     } finally {
       _isLoading.value = false;
     }
+    return false;
   }
 
   Future<void> toggleListingStatus(String listingId) async {
@@ -2540,20 +2396,60 @@ class AgentController extends GetxController {
     try {
       _isLoading.value = true;
 
-      // Simulate payment processing
-      await Future.delayed(const Duration(seconds: 2));
+      final authController = Get.find<global.AuthController>();
+      final userId = authController.currentUser?.id;
+      if (userId == null || userId.isEmpty) {
+        SnackbarHelper.showError('Unable to identify the user. Please login again.');
+        return;
+      }
 
-      // In a real app, this would process payment for a new listing
-      // The $9.99 fee covers the listing until it sells (one-time fee)
-      Get.snackbar(
-        'Success',
-        'Listing payment processed! You can now add your listing. This one-time fee covers your listing until it sells.',
+      final response = await _dio.post(
+        '/subscription/create-listing-checkout',
+        data: {
+          'role': 'agent',
+          'userId': userId,
+          'price': 9.99.toStringAsFixed(2),
+        },
+        options: Options(
+          headers: {
+            'ngrok-skip-browser-warning': 'true',
+            'Content-Type': 'application/json',
+          },
+        ),
       );
+
+      final checkoutUrl = response.data['url'] as String?;
+
+      if (checkoutUrl == null || checkoutUrl.isEmpty) {
+        throw Exception('Invalid checkout URL received from server');
+      }
+
+      final paymentSuccess = await Get.to<bool>(
+        () => PaymentWebView(checkoutUrl: checkoutUrl),
+        fullscreenDialog: true,
+      );
+
+      if (paymentSuccess == true) {
+        SnackbarHelper.showSuccess(
+          'Payment completed! You can now add your listing.',
+        );
+        await Future.delayed(const Duration(milliseconds: 200));
+        Get.toNamed('/add-listing');
+      } else {
+        SnackbarHelper.showInfo('Payment was cancelled.');
+      }
+    } on DioException catch (e) {
+      if (kDebugMode) {
+        print('❌ Error creating listing checkout session: ${e.response?.data ?? e.message}');
+      }
+      final message = e.response?.data?['message']?.toString() ??
+          'Failed to initiate listing payment. Please try again.';
+      SnackbarHelper.showError(message);
     } catch (e) {
-      Get.snackbar(
-        'Error',
-        'Failed to process listing payment: ${e.toString()}',
-      );
+      if (kDebugMode) {
+        print('❌ Error processing listing payment: $e');
+      }
+      SnackbarHelper.showError('Failed to process listing payment: ${e.toString()}');
     } finally {
       _isLoading.value = false;
     }

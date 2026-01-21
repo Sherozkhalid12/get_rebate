@@ -35,11 +35,11 @@ class ZipCodeModel {
       id: json['_id']?.toString() ?? json['id']?.toString(),
       zipCode: json['zipCode'] ?? json['zipcode'] ?? '',
       state: json['state'] ?? '',
-      population: json['population'] is int 
+      population: json['population'] is int
           ? json['population'] as int
-          : (json['population'] is String 
-              ? int.tryParse(json['population'] as String) ?? 0
-              : 0),
+          : (json['population'] is String
+                ? int.tryParse(json['population'] as String) ?? 0
+                : 0),
       claimedByAgent: json['claimedByAgent'],
       claimedByLoanOfficer: json['claimedByLoanOfficer'],
       claimedAt: json['claimedAt'] != null
@@ -106,11 +106,9 @@ class ZipCodeModel {
 
   bool get isClaimed => claimedByAgent != null || claimedByLoanOfficer != null;
 
-  /// Get the calculated price based on population tier (if price is not explicitly set)
-  double get calculatedPrice {
-    if (price != null) return price!;
-    return ZipCodePricingService.calculatePriceForPopulation(population);
-  }
+  /// Get the calculated price based on population tier (ignores backend price)
+  double get calculatedPrice =>
+      ZipCodePricingService.calculatePriceForPopulation(population);
 
   /// Get the pricing tier name for this zip code
   String get tier {

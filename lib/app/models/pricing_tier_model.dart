@@ -56,85 +56,68 @@ class PricingTier {
 class PricingTierConfig {
   static List<PricingTier> getDefaultTiers() {
     return [
-      // Tier 1: Very small populations (0-999)
       PricingTier(
         tierName: 'Tier 1',
         minPopulation: 0,
-        maxPopulation: 1000,
-        monthlyPrice: 9.99,
-        description: 'Very Small (0-999)',
+        maxPopulation: 1001,
+        monthlyPrice: 7.99,
+        description: 'Agent Tier 1 (Up to 1,000)',
       ),
-      // Tier 2: Small populations (1,000-2,499)
       PricingTier(
         tierName: 'Tier 2',
-        minPopulation: 1000,
-        maxPopulation: 2500,
-        monthlyPrice: 12.99,
-        description: 'Small (1,000-2,499)',
+        minPopulation: 1001,
+        maxPopulation: 3001,
+        monthlyPrice: 9.99,
+        description: 'Agent Tier 2 (1,001-3,000)',
       ),
-      // Tier 3: Small-medium populations (2,500-4,999)
       PricingTier(
         tierName: 'Tier 3',
-        minPopulation: 2500,
-        maxPopulation: 5000,
-        monthlyPrice: 15.99,
-        description: 'Small-Medium (2,500-4,999)',
+        minPopulation: 3001,
+        maxPopulation: 7501,
+        monthlyPrice: 12.99,
+        description: 'Agent Tier 3 (3,001-7,500)',
       ),
-      // Tier 4: Medium populations (5,000-9,999)
       PricingTier(
         tierName: 'Tier 4',
-        minPopulation: 5000,
-        maxPopulation: 10000,
+        minPopulation: 7501,
+        maxPopulation: 15001,
         monthlyPrice: 17.99,
-        description: 'Medium (5,000-9,999)',
+        description: 'Agent Tier 4 (7,501-15,000)',
       ),
-      // Tier 5: Medium-large populations (10,000-19,999)
       PricingTier(
         tierName: 'Tier 5',
-        minPopulation: 10000,
-        maxPopulation: 20000,
-        monthlyPrice: 22.99,
-        description: 'Medium-Large (10,000-19,999)',
+        minPopulation: 15001,
+        maxPopulation: 30001,
+        monthlyPrice: 24.99,
+        description: 'Agent Tier 5 (15,001-30,000)',
       ),
-      // Tier 6: Large populations (20,000-29,999)
       PricingTier(
         tierName: 'Tier 6',
-        minPopulation: 20000,
-        maxPopulation: 30000,
-        monthlyPrice: 27.99,
-        description: 'Large (20,000-29,999)',
+        minPopulation: 30001,
+        maxPopulation: 50001,
+        monthlyPrice: 32.99,
+        description: 'Agent Tier 6 (30,001-50,000)',
       ),
-      // Tier 7: Very large populations (30,000-49,999)
       PricingTier(
         tierName: 'Tier 7',
-        minPopulation: 30000,
-        maxPopulation: 50000,
-        monthlyPrice: 34.99,
-        description: 'Very Large (30,000-49,999)',
+        minPopulation: 50001,
+        maxPopulation: 75001,
+        monthlyPrice: 39.99,
+        description: 'Agent Tier 7 (50,001-75,000)',
       ),
-      // Tier 8: Extra large populations (50,000-74,999)
       PricingTier(
         tierName: 'Tier 8',
-        minPopulation: 50000,
-        maxPopulation: 75000,
+        minPopulation: 75001,
+        maxPopulation: 100001,
         monthlyPrice: 44.99,
-        description: 'Extra Large (50,000-74,999)',
+        description: 'Agent Tier 8 (75,001-100,000)',
       ),
-      // Tier 9: Super large populations (75,000-99,999)
       PricingTier(
         tierName: 'Tier 9',
-        minPopulation: 75000,
-        maxPopulation: 100000,
-        monthlyPrice: 59.99,
-        description: 'Super Large (75,000-99,999)',
-      ),
-      // Tier 10: Maximum populations (100,000+)
-      PricingTier(
-        tierName: 'Tier 10',
-        minPopulation: 100000,
-        maxPopulation: null, // No upper limit
-        monthlyPrice: 79.99,
-        description: 'Maximum (100,000+)',
+        minPopulation: 100001,
+        maxPopulation: null,
+        monthlyPrice: 49.99,
+        description: 'Agent Tier 9 (100,001+)',
       ),
     ];
   }
