@@ -302,7 +302,7 @@ class RebateCalculatorView extends StatelessWidget {
                 ),
               )
             : Text(
-                'Convert',
+                'Calculate Estimated Rebate',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       color: Colors.white,
                       fontWeight: FontWeight.w600,

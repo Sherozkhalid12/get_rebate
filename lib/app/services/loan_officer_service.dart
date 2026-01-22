@@ -547,36 +547,31 @@ class LoanOfficerService {
       return null;
     }
 
-    // Check cache to prevent duplicate calls
+    // Prevent duplicate calls within cache duration
     final now = DateTime.now();
     if (_profileViewCallCache.containsKey(loanOfficerId)) {
       final lastCall = _profileViewCallCache[loanOfficerId]!;
       if (now.difference(lastCall) < _cacheDuration) {
-        // Already called recently, skip
         return null;
       }
     }
-    
+
     // Update cache
     _profileViewCallCache[loanOfficerId] = now;
 
-    // Use the same agent endpoint for loan officers
     final endpoint = ApiConstants.getAddProfileViewEndpoint(loanOfficerId);
-    
+
     if (kDebugMode && !_hasLogged404ForProfileView) {
-      print('👁️ Recording profile view for loan officer: $loanOfficerId');
+      print('👁️ Recording profile view (GET) for loan officer: $loanOfficerId');
       print('   URL: $endpoint');
     }
 
     try {
-      final response = await _dio.post(
+      final response = await _dio.get(
         endpoint,
         options: Options(
           headers: ApiConstants.ngrokHeaders,
-          validateStatus: (status) {
-            // Accept all status codes to handle them manually
-            return true;
-          },
+          validateStatus: (status) => true, // handle manually
         ),
       );
 
@@ -585,31 +580,31 @@ class LoanOfficerService {
           print('✅ Profile view recorded successfully for loan officer: $loanOfficerId');
         }
         return response.data as Map<String, dynamic>?;
-      } else if (response.statusCode == 404) {
-        // Endpoint doesn't exist - log once and suppress future logs
+      }
+
+      if (response.statusCode == 404) {
+        // Log once, then suppress
         if (kDebugMode && !_hasLogged404ForProfileView) {
-          print('⚠️ Profile view endpoint not found (404) - endpoint may not exist on server');
+          print('⚠️ Profile view endpoint not found (404)');
           print('   Endpoint: $endpoint');
-          print('   Future 404 errors for this endpoint will be suppressed');
           _hasLogged404ForProfileView = true;
         }
         return null;
-      } else {
-        if (kDebugMode) {
-          print('⚠️ Profile view recording failed for loan officer: $loanOfficerId');
-          print('   Status Code: ${response.statusCode}');
-          print('   Response: ${response.data}');
-        }
-        return null;
       }
+
+      if (kDebugMode) {
+        print('⚠️ Profile view recording failed');
+        print('   Status Code: ${response.statusCode}');
+        print('   Response: ${response.data}');
+      }
+      return null;
     } on DioException catch (e) {
-      // Suppress 404 errors after first log
       if (e.response?.statusCode == 404 && _hasLogged404ForProfileView) {
         return null;
       }
-      
+
       if (kDebugMode && (!_hasLogged404ForProfileView || e.response?.statusCode != 404)) {
-        print('⚠️ Error recording profile view for loan officer: $loanOfficerId');
+        print('⚠️ Error recording profile view');
         print('   Status Code: ${e.response?.statusCode}');
         print('   Response: ${e.response?.data}');
         if (e.response?.statusCode == 404) {

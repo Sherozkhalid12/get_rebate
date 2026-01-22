@@ -74,25 +74,25 @@ class HelpSupportView extends StatelessWidget {
               _buildFAQItem(
                 context,
                 'Is GetRebate free to use?',
-                'Yes, GetRebate is completely free for buyers and sellers. There are no hidden fees. Agents pay subscription fees to be featured on our platform.',
+                'Yes, GetRebate is completely free for buyers and sellers.The rebate amount will vary per transaction/property and will be determined by the amount of Buyer Agent Comission being paid on that property, which is negotiable when making an offer.',
               ),
               
               _buildFAQItem(
                 context,
-                'How do I contact an agent?',
-                'Tap on any agent\'s profile card to view their full profile. From there, you can use the "Contact" button to send them a message or start a conversation.',
+                'How do I cotact an Agent or Loan Officer?',
+                'Tap on any agent\'s & Loan Officer\'s profile card to view their full profile. From there, you can use the "Contact" button to send them a message or start a conversation.',
               ),
               
               _buildFAQItem(
                 context,
-                'Can I save my favorite agents?',
+                'Can I save my favorite agents and loan officers?',
                 'Yes! Tap the heart icon on any agent or loan officer card to add them to your favorites. You can view all your favorites in the Favorites tab.',
               ),
               
               _buildFAQItem(
                 context,
                 'How do I calculate my potential rebate?',
-                'Use the Rebate Calculator tool available on the home screen. Enter your estimated home purchase price and the agent\'s rebate percentage to see your potential savings.',
+                'Use the Rebate Calculator tool available on the home screen.  Use the Estimated calculator to get an estimate.  Use the Actual calculator once you know the buyer agent commission being paid.  And use the Seller Conversion tab to calculate what your lowered commission would be including the rebate when you are looking to sell.',
               ),
               
               SizedBox(height: 24.h),

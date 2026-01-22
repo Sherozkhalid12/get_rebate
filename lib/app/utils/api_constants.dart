@@ -186,7 +186,7 @@ class ApiConstants {
   }
 
   static String getAddProfileViewEndpoint(String id) {
-    return "$apiBaseUrl/agent/addProfileView/$id";
+    return "$apiBaseUrl/api/v1/agent/addProfileView/$id";
   }
 
   // Listing specific endpoints
