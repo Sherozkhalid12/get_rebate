@@ -374,7 +374,11 @@ class ChecklistView extends GetView<ChecklistController> {
   }
 
   void _navigateToRebateCalculator() {
-    Get.toNamed(AppPages.REBATE_CALCULATOR);
+    // Navigate to Seller Conversion calculator (mode 2) instead of Estimated
+    Get.toNamed(
+      AppPages.REBATE_CALCULATOR,
+      arguments: {'mode': 2}, // Mode 2 = Seller Conversion
+    );
   }
 
   void _navigateToReview() {
