@@ -27,7 +27,7 @@ class LeadsService {
   LeadsService() {
     _dio = Dio(
       BaseOptions(
-        baseUrl: ApiConstants.baseUrl,
+        baseUrl: ApiConstants.apiBaseUrl, // Use apiBaseUrl which includes /api/v1
         connectTimeout: const Duration(seconds: 30),
         receiveTimeout: const Duration(seconds: 30),
         sendTimeout: const Duration(seconds: 30),
@@ -186,18 +186,21 @@ class LeadsService {
     }
 
     try {
-      final endpoint = ApiConstants.getLeadsByBuyerIdEndpoint(buyerId);
-      final fullUrl = _buildFullUrl(endpoint);
-
       // Get auth token from storage
       final storage = GetStorage();
       final authToken = storage.read('auth_token');
 
+      // Extract just the path from the full endpoint URL
+      // getLeadsByBuyerIdEndpoint returns full URL, but we need just the path
+      final fullEndpoint = ApiConstants.getLeadsByBuyerIdEndpoint(buyerId);
+      final endpoint = fullEndpoint.replaceFirst(ApiConstants.apiBaseUrl, '');
+
       if (kDebugMode) {
         print('📡 Fetching leads for buyerId: $buyerId');
-        print('   Endpoint: $endpoint');
-        print('   Base URL: ${ApiConstants.baseUrl}');
-        print('   Full URL: $fullUrl');
+        print('   Full Endpoint: $fullEndpoint');
+        print('   Endpoint Path: $endpoint');
+        print('   Base URL: ${ApiConstants.apiBaseUrl}');
+        print('   Full URL: ${ApiConstants.apiBaseUrl}$endpoint');
         print('   Auth Token: ${authToken != null ? "Present" : "Missing"}');
       }
 
