@@ -198,7 +198,60 @@ class AddListingView extends GetView<AddListingController> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 24),
+                    // Total Commission Slider
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                'Total Commission, Listing Agent Commission (LAC) + Buyer Agent Commission (BAC): ${controller.dualAgencyTotalCommissionPercent.toStringAsFixed(1)}%',
+                                style: Theme.of(context).textTheme.titleMedium
+                                    ?.copyWith(
+                                      color: AppTheme.black,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            GestureDetector(
+                              onTap: () => _showTotalCommissionInfo(context),
+                              child: Icon(
+                                Icons.info_outline,
+                                size: 20,
+                                color: AppTheme.primaryBlue,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Slider(
+                          value: controller.dualAgencyTotalCommissionPercent,
+                          min: 0.5,
+                          max: 8.0,
+                          divisions: 75,
+                          activeColor: AppTheme.primaryBlue,
+                          inactiveColor: AppTheme.lightGray,
+                          onChanged: controller.updateDualAgencyTotalCommission,
+                        ),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              '0.5%',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                            Text(
+                              '8.0%',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
                     _buildRebateTierReference(context),
                   ],
                 ),
@@ -219,83 +272,79 @@ class AddListingView extends GetView<AddListingController> {
 
               const SizedBox(height: 16),
 
-                Row(
-                  children: [
-                    Expanded(
-                      child: CustomTextField(
-                        controller: controller.cityController,
-                        labelText: 'City',
-                        hintText: 'e.g., New York',
-                        maxLines: 1,
-                      ),
+              Row(
+                children: [
+                  Expanded(
+                    child: CustomTextField(
+                      controller: controller.cityController,
+                      labelText: 'City',
+                      hintText: 'e.g., New York',
+                      maxLines: 1,
                     ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      flex: 2,
-                      child: CustomTextField(
-                        controller: controller.stateController,
-                        labelText: 'State',
-                        hintText: 'e.g., NY',
-                        maxLines: 1,
-                      ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    flex: 2,
+                    child: CustomTextField(
+                      controller: controller.stateController,
+                      labelText: 'State',
+                      hintText: 'e.g., NY',
+                      maxLines: 1,
                     ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Obx(
-                        () {
-                          final claimedZips = agentController.claimedZipCodes;
-                          if (claimedZips.isEmpty) {
-                            return Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Select one of your claimed ZIP codes to list this property.',
-                                ),
-                                const SizedBox(height: 6),
-                                TextButton(
-                                  onPressed: () => Get.toNamed(AppPages.AGENT),
-                                  child: const Text('Manage ZIP Codes'),
-                                ),
-                              ],
-                            );
-                          }
-
-                          return DropdownButtonFormField<String>(
-                            value: controller.selectedClaimedZip?.zipCode,
-                            decoration: InputDecoration(
-                              labelText: 'ZIP',
-                              prefixIcon: const Icon(Icons.pin_drop),
-                              border: OutlineInputBorder(
-                                borderSide: BorderSide(
-                                  color: AppTheme.lightGray,
-                                ),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              filled: true,
-                              fillColor: AppTheme.white,
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Obx(() {
+                      final claimedZips = agentController.claimedZipCodes;
+                      if (claimedZips.isEmpty) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Select one of your claimed ZIP codes to list this property.',
                             ),
-                            items: claimedZips
-                                .map(
-                                  (zip) => DropdownMenuItem<String>(
-                                    value: zip.zipCode,
-                                    child: Text('${zip.zipCode} • ${zip.state}'),
-                                  ),
-                                )
-                                .toList(),
-                            onChanged: (value) {
-                              final zip = claimedZips.firstWhere(
-                                (z) => z.zipCode == value,
-                                orElse: () => claimedZips.first,
-                              );
-                              controller.selectClaimedZip(zip);
-                            },
-                            isExpanded: true,
+                            const SizedBox(height: 6),
+                            TextButton(
+                              onPressed: () => Get.toNamed(AppPages.AGENT),
+                              child: const Text('Manage ZIP Codes'),
+                            ),
+                          ],
+                        );
+                      }
+
+                      return DropdownButtonFormField<String>(
+                        value: controller.selectedClaimedZip?.zipCode,
+                        decoration: InputDecoration(
+                          labelText: 'ZIP',
+                          prefixIcon: const Icon(Icons.pin_drop),
+                          border: OutlineInputBorder(
+                            borderSide: BorderSide(color: AppTheme.lightGray),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          filled: true,
+                          fillColor: AppTheme.white,
+                        ),
+                        items: claimedZips
+                            .map(
+                              (zip) => DropdownMenuItem<String>(
+                                value: zip.zipCode,
+                                child: Text('${zip.zipCode} • ${zip.state}'),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) {
+                          final zip = claimedZips.firstWhere(
+                            (z) => z.zipCode == value,
+                            orElse: () => claimedZips.first,
                           );
+                          controller.selectClaimedZip(zip);
                         },
-                      ),
-                    ),
-                  ],
-                ),
+                        isExpanded: true,
+                      );
+                    }),
+                  ),
+                ],
+              ),
 
               const SizedBox(height: 24),
 
@@ -616,61 +665,15 @@ class AddListingView extends GetView<AddListingController> {
                                 if (controller
                                     .agreeToLargerRebateForDualAgency) ...[
                                   const SizedBox(height: 24),
-                                  Row(
-                                    children: [
-                                      Text(
-                                        'Total Commission (Both Sides): ${controller.dualAgencyTotalCommissionPercent.toStringAsFixed(1)}%',
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .titleMedium
-                                            ?.copyWith(
-                                              color: AppTheme.black,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      GestureDetector(
-                                        onTap: () =>
-                                            _showDualAgencyCommissionInfo(
-                                              context,
-                                            ),
-                                        child: Icon(
-                                          Icons.info_outline,
-                                          size: 20,
-                                          color: AppTheme.primaryBlue,
+                                  Text(
+                                    'Total Commission (Both Sides): ${controller.dualAgencyTotalCommissionPercent.toStringAsFixed(1)}%',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleMedium
+                                        ?.copyWith(
+                                          color: AppTheme.black,
+                                          fontWeight: FontWeight.w600,
                                         ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Slider(
-                                    value: controller
-                                        .dualAgencyTotalCommissionPercent,
-                                    min: 1.5,
-                                    max: 8.0,
-                                    divisions: 65,
-                                    activeColor: AppTheme.primaryBlue,
-                                    inactiveColor: AppTheme.lightGray,
-                                    onChanged: controller
-                                        .updateDualAgencyTotalCommission,
-                                  ),
-                                  Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Text(
-                                        '1.5%',
-                                        style: Theme.of(
-                                          context,
-                                        ).textTheme.bodySmall,
-                                      ),
-                                      Text(
-                                        '8.0%',
-                                        style: Theme.of(
-                                          context,
-                                        ).textTheme.bodySmall,
-                                      ),
-                                    ],
                                   ),
                                   const SizedBox(height: 8),
                                   Container(
@@ -1008,7 +1011,13 @@ class AddListingView extends GetView<AddListingController> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Use this chart to estimate the rebate owed when you set a Buyer Agent Commission (BAC) for buyers or a Listing Agent Commission (LAC) when you plan to rebate a seller.',
+            'This chart shows estimated buyer rebates based on the commission entered. '
+            'If the Buyer Agent Commission (BAC) you select above is 2.7%, for example, '
+            'and negotiated in the purchase agreement, the buyer’s agent provides a 30% rebate '
+            'of their earned commission at closing. If a buyer comes directly through the site '
+            'and dual agency is permitted, a total commission of 5.0% (LAC + BAC) to you results '
+            'in a 40% rebate of the commission received to the Buyer. Buyers will see estimated '
+            'rebates with and without dual agency, where allowed, and may contact you directly.',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
               color: AppTheme.darkGray,
               height: 1.4,
@@ -1181,7 +1190,10 @@ class AddListingView extends GetView<AddListingController> {
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
         ],
       ),
     );
@@ -1202,7 +1214,10 @@ class AddListingView extends GetView<AddListingController> {
       if (images.isNotEmpty) {
         for (var image in images) {
           if (controller.selectedPhotos.length >= 10) {
-            SnackbarHelper.showInfo('You can add up to 10 photos', title: 'Limit Reached');
+            SnackbarHelper.showInfo(
+              'You can add up to 10 photos',
+              title: 'Limit Reached',
+            );
             break;
           }
           controller.addPhoto(File(image.path));
@@ -1222,7 +1237,10 @@ class AddListingView extends GetView<AddListingController> {
             if (controller.selectedPhotos.length < 10) {
               controller.addPhoto(File(image.path));
             } else {
-              SnackbarHelper.showInfo('You can add up to 10 photos', title: 'Limit Reached');
+              SnackbarHelper.showInfo(
+                'You can add up to 10 photos',
+                title: 'Limit Reached',
+              );
             }
           }
         } catch (e2) {
@@ -1248,27 +1266,33 @@ class AddListingView extends GetView<AddListingController> {
           'This will be used to show potential buyers a rebate range. The actual Buyer Agent Commission (BAC) will not be shared with potential buyers.',
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Got it')),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Got it'),
+          ),
         ],
       ),
     );
   }
 
-  void _showDualAgencyCommissionInfo(BuildContext context) {
+  void _showTotalCommissionInfo(BuildContext context) {
     Get.dialog(
       AlertDialog(
         title: Row(
           children: [
             Icon(Icons.info_outline, color: AppTheme.primaryBlue, size: 24),
             const SizedBox(width: 8),
-            const Expanded(child: Text('Total Commission (Both Sides)')),
+            const Expanded(child: Text('Total Commission (LAC + BAC)')),
           ],
         ),
         content: const Text(
-          'This will be used to show potential buyers a potential rebate if they work directly with the listing agent. The actual Listing Agent Commission (LAC) will not be shared with potential buyers.',
+          'This amount will be used to show potential buyers a possible higher rebate amount should Dual Agency be allowed and the Buyer participates. The actual Total Commission (LAC + BAC) will not be shared with potential buyers.',
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Got it')),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Got it'),
+          ),
         ],
       ),
     );

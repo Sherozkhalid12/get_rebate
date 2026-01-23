@@ -24,16 +24,16 @@ class ZipCodesResponse {
   final int count;
   final List<ZipCodeResult> results;
 
-  ZipCodesResponse({
-    required this.count,
-    required this.results,
-  });
+  ZipCodesResponse({required this.count, required this.results});
 
   factory ZipCodesResponse.fromJson(Map<String, dynamic> json) {
     return ZipCodesResponse(
       count: json['count'] ?? 0,
-      results: (json['results'] as List<dynamic>?)
-              ?.map((item) => ZipCodeResult.fromJson(item as Map<String, dynamic>))
+      results:
+          (json['results'] as List<dynamic>?)
+              ?.map(
+                (item) => ZipCodeResult.fromJson(item as Map<String, dynamic>),
+              )
               .toList() ??
           [],
     );
@@ -42,7 +42,7 @@ class ZipCodesResponse {
   /// Converts the API response to a list of ZipCodeModel
   List<ZipCodeModel> toZipCodeModels() {
     final zipCodes = <ZipCodeModel>[];
-    
+
     for (final result in results) {
       // Each result has multiple postal codes
       // If the API returns individual ZIP code records with IDs, they might be in a different format
@@ -61,7 +61,7 @@ class ZipCodesResponse {
         );
       }
     }
-    
+
     return zipCodes;
   }
 
@@ -151,7 +151,8 @@ class ZipCodeResult {
     return ZipCodeResult(
       id: json['_id']?.toString() ?? json['id']?.toString(),
       city: json['city'] ?? '',
-      postalCodes: (json['postalCodes'] as List<dynamic>?)
+      postalCodes:
+          (json['postalCodes'] as List<dynamic>?)
               ?.map((code) => code.toString())
               .toList() ??
           [],
@@ -264,15 +265,23 @@ class ZipCodesService {
     }
   }
 
+  /// Only includes zip codes that are unclaimed by agents and have a non-zero population
+  List<ZipCodeModel> _filterUnclaimedByAgent(List<ZipCodeModel> zipCodes) {
+    return zipCodes
+        .where((zip) => zip.claimedByAgent != true && zip.population > 0)
+        .toList();
+  }
+
   /// Fetches ZIP codes for a given country and state
-  /// 
+  ///
   /// [country] should be "US" (default)
   /// [state] should be a state code (e.g., "CA", "NY")
-  /// 
+  ///
   /// Throws [ZipCodesServiceException] if the request fails
   Future<List<ZipCodeModel>> getZipCodesByState({
     String country = 'US',
     required String state,
+    required String userId,
   }) async {
     if (state.isEmpty) {
       throw ZipCodesServiceException(
@@ -280,15 +289,23 @@ class ZipCodesService {
         statusCode: 400,
       );
     }
+    if (userId.isEmpty) {
+      throw ZipCodesServiceException(
+        message: 'User ID is required for fetching ZIP codes',
+        statusCode: 400,
+      );
+    }
 
     try {
-      final endpoint = '${ApiConstants.apiBaseUrl}/zip-codes/$country/$state';
-      
+      final endpoint =
+          '${ApiConstants.apiBaseUrl}/zip-codes/$country/$state/$userId';
+
       if (kDebugMode) {
         print('📡 Fetching ZIP codes for state: $state');
+        print('   User ID: $userId');
         print('   Endpoint: $endpoint');
       }
-      
+
       final response = await _dio.get(
         endpoint,
         options: Options(
@@ -307,7 +324,7 @@ class ZipCodesService {
 
       if (response.statusCode == 200) {
         final data = response.data;
-        
+
         if (kDebugMode) {
           print('📥 Raw API response structure:');
           print('   Type: ${data.runtimeType}');
@@ -321,68 +338,113 @@ class ZipCodesService {
                 if (results[0] is Map) {
                   final firstResult = results[0] as Map;
                   print('   First result keys: ${firstResult.keys.toList()}');
-                  print('   First result has _id: ${firstResult.containsKey('_id')}');
-                  print('   First result has id: ${firstResult.containsKey('id')}');
+                  print(
+                    '   First result has _id: ${firstResult.containsKey('_id')}',
+                  );
+                  print(
+                    '   First result has id: ${firstResult.containsKey('id')}',
+                  );
                   if (firstResult.containsKey('_id')) {
                     print('   First result _id: ${firstResult['_id']}');
                   }
                   if (firstResult.containsKey('id')) {
                     print('   First result id: ${firstResult['id']}');
                   }
-                  if (firstResult.containsKey('zipcode') || firstResult.containsKey('zipCode')) {
+                  if (firstResult.containsKey('zipcode') ||
+                      firstResult.containsKey('zipCode')) {
                     print('   First result is individual ZIP code');
                   }
                   if (firstResult.containsKey('postalCodes')) {
-                    print('   First result is city-grouped (postalCodes: ${firstResult['postalCodes']})');
+                    print(
+                      '   First result is city-grouped (postalCodes: ${firstResult['postalCodes']})',
+                    );
                   }
                 }
               }
             }
           }
         }
-        
+
         if (data is Map<String, dynamic>) {
+          if (data.containsKey('zipCodes')) {
+            final zipCodesList = data['zipCodes'];
+            if (zipCodesList is List && zipCodesList.isNotEmpty) {
+              final parsed = zipCodesList
+                  .whereType<Map<String, dynamic>>()
+                  .map((zipJson) => ZipCodeModel.fromJson(zipJson))
+                  .toList();
+
+              if (kDebugMode) {
+                print(
+                  '🛰️ Parsed ${parsed.length} ZIP codes from new api.zipCodes payload',
+                );
+              }
+
+              final filtered = _filterUnclaimedByAgent(parsed);
+              if (kDebugMode) {
+                print(
+                  '   Filtered to ${filtered.length} ZIP codes with claimedByAgent=false',
+                );
+              }
+              return filtered;
+            }
+          }
+
           // Check if results is a list of individual ZIP code objects (each with its own ID)
           final results = data['results'];
           if (results is List && results.isNotEmpty) {
             final firstResult = results[0];
             // Check if each result is an individual ZIP code (has zipcode/zipCode field directly)
-            if (firstResult is Map && 
-                (firstResult.containsKey('zipcode') || 
-                 firstResult.containsKey('zipCode') ||
-                 firstResult.containsKey('postalCodes'))) {
-              
+            if (firstResult is Map &&
+                (firstResult.containsKey('zipcode') ||
+                    firstResult.containsKey('zipCode') ||
+                    firstResult.containsKey('postalCodes'))) {
               // Handle two possible formats:
               // 1. Individual ZIP code objects (each with ID)
               // 2. City-grouped objects (with postalCodes array)
-              
+
               final zipCodes = <ZipCodeModel>[];
               for (final item in results) {
                 if (item is Map<String, dynamic>) {
                   // Check if it's an individual ZIP code object
-                  if (item.containsKey('zipcode') || item.containsKey('zipCode')) {
+                  if (item.containsKey('zipcode') ||
+                      item.containsKey('zipCode')) {
                     // Individual ZIP code object - parse directly
                     if (kDebugMode) {
-                      print('   Parsing individual ZIP code: ${item['zipcode'] ?? item['zipCode']}');
-                      print('      Has _id: ${item.containsKey('_id')}, value: ${item['_id']}');
-                      print('      Has id: ${item.containsKey('id')}, value: ${item['id']}');
+                      print(
+                        '   Parsing individual ZIP code: ${item['zipcode'] ?? item['zipCode']}',
+                      );
+                      print(
+                        '      Has _id: ${item.containsKey('_id')}, value: ${item['_id']}',
+                      );
+                      print(
+                        '      Has id: ${item.containsKey('id')}, value: ${item['id']}',
+                      );
                     }
                     final zipCode = ZipCodeModel.fromJson(item);
                     if (kDebugMode && zipCode.id == null) {
-                      print('   ⚠️ WARNING: ZIP code ${zipCode.zipCode} parsed without ID!');
+                      print(
+                        '   ⚠️ WARNING: ZIP code ${zipCode.zipCode} parsed without ID!',
+                      );
                       print('      Item keys: ${item.keys.toList()}');
                     }
                     zipCodes.add(zipCode);
                   } else if (item.containsKey('postalCodes')) {
                     // City-grouped object - extract individual ZIP codes
                     if (kDebugMode) {
-                      print('   Parsing city-grouped object with ID: ${item['_id'] ?? item['id']}');
+                      print(
+                        '   Parsing city-grouped object with ID: ${item['_id'] ?? item['id']}',
+                      );
                     }
                     final zipCodeResult = ZipCodeResult.fromJson(item);
-                    final stateCode = ZipCodesService._getStateCodeFromName(zipCodeResult.state);
+                    final stateCode = ZipCodesService._getStateCodeFromName(
+                      zipCodeResult.state,
+                    );
                     for (final postalCode in zipCodeResult.postalCodes) {
                       if (kDebugMode && zipCodeResult.id == null) {
-                        print('   ⚠️ WARNING: City-grouped object has no ID for postal codes!');
+                        print(
+                          '   ⚠️ WARNING: City-grouped object has no ID for postal codes!',
+                        );
                       }
                       zipCodes.add(
                         ZipCodeModel(
@@ -399,14 +461,16 @@ class ZipCodesService {
                   }
                 }
               }
-              
+
               if (kDebugMode) {
                 print('✅ Converted ${zipCodes.length} ZIP codes from API');
                 if (zipCodes.isNotEmpty) {
                   print('   First ZIP code ID: ${zipCodes[0].id ?? "NULL"}');
                   print('   First ZIP code: ${zipCodes[0].zipCode}');
                   // Count how many have IDs
-                  final withIds = zipCodes.where((z) => z.id != null && z.id!.isNotEmpty).length;
+                  final withIds = zipCodes
+                      .where((z) => z.id != null && z.id!.isNotEmpty)
+                      .length;
                   final withoutIds = zipCodes.length - withIds;
                   print('   ZIP codes with IDs: $withIds');
                   print('   ZIP codes without IDs: $withoutIds');
@@ -415,24 +479,38 @@ class ZipCodesService {
                   }
                 }
               }
-              
-              return zipCodes;
+
+              final filtered = _filterUnclaimedByAgent(zipCodes);
+              if (kDebugMode) {
+                print(
+                  '   Filtered to ${filtered.length} ZIP codes with claimedByAgent=false',
+                );
+              }
+              return filtered;
             }
           }
-          
+
           // Fallback to original parsing logic
           final zipCodesResponse = ZipCodesResponse.fromJson(data);
           final zipCodes = zipCodesResponse.toZipCodeModels();
-          
+
           if (kDebugMode) {
-            print('✅ Converted ${zipCodes.length} ZIP codes from API (using fallback)');
+            print(
+              '✅ Converted ${zipCodes.length} ZIP codes from API (using fallback)',
+            );
             if (zipCodes.isNotEmpty) {
               print('   First ZIP code ID: ${zipCodes[0].id}');
               print('   First ZIP code: ${zipCodes[0].zipCode}');
             }
           }
-          
-          return zipCodes;
+
+          final filtered = _filterUnclaimedByAgent(zipCodes);
+          if (kDebugMode) {
+            print(
+              '   Filtered to ${filtered.length} ZIP codes with claimedByAgent=false',
+            );
+          }
+          return filtered;
         } else {
           throw ZipCodesServiceException(
             message: 'Invalid response format',
@@ -453,13 +531,14 @@ class ZipCodesService {
         print('   Error: ${e.error}');
         print('   Request path: ${e.requestOptions.path}');
       }
-      
+
       if (e.response != null) {
         final statusCode = e.response!.statusCode;
-        final errorMessage = e.response!.data?['message']?.toString() ?? 
-                            e.response!.data?['error']?.toString() ?? 
-                            'Failed to fetch ZIP codes';
-        
+        final errorMessage =
+            e.response!.data?['message']?.toString() ??
+            e.response!.data?['error']?.toString() ??
+            'Failed to fetch ZIP codes';
+
         throw ZipCodesServiceException(
           message: errorMessage,
           statusCode: statusCode,
@@ -469,7 +548,8 @@ class ZipCodesService {
         // Handle different DioException types
         String errorMsg = 'Network error';
         if (e.type == DioExceptionType.connectionTimeout) {
-          errorMsg = 'Connection timeout. Please check your internet connection.';
+          errorMsg =
+              'Connection timeout. Please check your internet connection.';
         } else if (e.type == DioExceptionType.receiveTimeout) {
           errorMsg = 'Request timeout. Please try again.';
         } else if (e.type == DioExceptionType.connectionError) {
@@ -477,11 +557,8 @@ class ZipCodesService {
         } else if (e.message != null && e.message!.isNotEmpty) {
           errorMsg = 'Network error: ${e.message}';
         }
-        
-        throw ZipCodesServiceException(
-          message: errorMsg,
-          originalError: e,
-        );
+
+        throw ZipCodesServiceException(message: errorMsg, originalError: e);
       }
     } catch (e) {
       if (e is ZipCodesServiceException) {
@@ -494,4 +571,3 @@ class ZipCodesService {
     }
   }
 }
-

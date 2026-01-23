@@ -6,8 +6,8 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart' as global;
 import 'package:getrebate/app/models/zip_code_model.dart';
-import 'package:getrebate/app/utils/api_constants.dart';
 import 'package:getrebate/app/modules/agent/controllers/agent_controller.dart';
+import 'package:getrebate/app/utils/api_constants.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
 import 'package:get_storage/get_storage.dart';
 
@@ -334,11 +334,12 @@ class AddListingController extends GetxController {
           title: 'Success',
         );
 
-        // Navigate back to dashboard after a short delay
-        await Future.delayed(const Duration(milliseconds: 500));
         final agentController = Get.find<AgentController>();
         agentController.setSelectedTab(0);
-        Get.back();
+
+        // Navigate back after a short delay
+        await Future.delayed(const Duration(milliseconds: 500));
+        Navigator.pop(Get.context!);
       }
     } on DioException catch (e) {
       _isLoading.value = false;

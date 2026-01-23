@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart';
 import 'package:getrebate/app/controllers/main_navigation_controller.dart';
 import 'package:getrebate/app/models/user_model.dart';
 import 'package:getrebate/app/services/chat_service.dart';
-import 'package:getrebate/app/services/user_service.dart';
 import 'package:getrebate/app/services/socket_service.dart';
 import 'package:getrebate/app/services/agent_service.dart';
 import 'package:getrebate/app/services/loan_officer_service.dart';
@@ -132,7 +130,6 @@ class ConversationModel {
 class MessagesController extends GetxController {
   final AuthController _authController = Get.find<AuthController>();
   final ChatService _chatService = ChatService();
-  final UserService _userService = UserService();
 
   // Data
   final _conversations = <ConversationModel>[].obs;
@@ -174,6 +171,11 @@ class MessagesController extends GetxController {
   bool get isAgent {
     final user = _authController.currentUser;
     return user?.role == UserRole.agent;
+  }
+
+  bool get isBuyerSeller {
+    final user = _authController.currentUser;
+    return user?.role == UserRole.buyerSeller;
   }
 
   SocketService? _socketService;
@@ -353,6 +355,29 @@ class MessagesController extends GetxController {
     }
   }
 
+  /// Clears cached threads/messages so a new user starts with a clean slate
+  void resetForLogout() {
+    if (kDebugMode) {
+      print('🧹 MessagesController.resetForLogout');
+    }
+    _conversations.clear();
+    _allConversations.clear();
+    _messages.clear();
+    _selectedConversation.value = null;
+    _searchQuery.value = '';
+    _error.value = null;
+    _isLoading.value = false;
+    _isLoadingThreads.value = false;
+    _isLoadingMessages.value = false;
+    _previousMessageCount = 0;
+    _hasInitialized = false;
+    if (_socketService != null) {
+      _socketService!.disconnect();
+      _socketService = null;
+    }
+    messageController.clear();
+  }
+
   /// Initializes socket connection
   void _initializeSocket() async {
     final user = _authController.currentUser;
@@ -501,7 +526,13 @@ class MessagesController extends GetxController {
       // Always update the conversation list with new message, even if not viewing that conversation
       // This ensures agents see new messages instantly even when on dashboard
       final user = _authController.currentUser;
-      final isFromMe = senderId == (user?.id ?? '');
+      if (user == null || user.id.isEmpty) {
+        if (kDebugMode) {
+          print('⚠️ Ignoring new message because user is not logged in');
+        }
+        return;
+      }
+      final isFromMe = senderId == user.id;
 
       // Find the conversation in our list and update it
       final conversationIndex = _allConversations.indexWhere(
@@ -582,15 +613,18 @@ class MessagesController extends GetxController {
         String senderType;
         if (isFromMe) {
           // Determine sender type based on current user's role
-          if (user?.role == UserRole.agent) {
+          if (user.role == UserRole.agent) {
             senderType = 'agent';
-          } else if (user?.role == UserRole.loanOfficer) {
+          } else if (user.role == UserRole.loanOfficer) {
             senderType = 'loan_officer';
           } else {
             senderType = 'user';
           }
         } else {
-          final role = sender?['role']?.toString()?.toLowerCase() ?? '';
+          final roleValue = sender != null ? sender['role'] : null;
+          final role = roleValue != null
+              ? roleValue.toString().toLowerCase()
+              : '';
           if (role == 'agent') {
             senderType = 'agent';
           } else if (role == 'loanofficer' || role == 'loan_officer') {
@@ -604,8 +638,8 @@ class MessagesController extends GetxController {
         final isReadBy = data['isReadBy'] as List<dynamic>? ?? [];
         final isRead =
             isFromMe ||
-            isReadBy.contains(user?.id) ||
-            isReadBy.any((id) => id.toString() == user?.id);
+            isReadBy.contains(user.id) ||
+            isReadBy.any((id) => id.toString() == user.id);
 
         final message = MessageModel(
           id: messageId,
@@ -1024,19 +1058,22 @@ class MessagesController extends GetxController {
                   ? json['sender'] as Map<String, dynamic>
                   : null;
 
-              final senderId =
-                  sender?['_id']?.toString() ??
-                  sender?['id']?.toString() ??
-                  json['sender']?.toString() ??
-                  '';
+              final senderId = sender != null
+                  ? (sender['_id']?.toString() ??
+                        sender['id']?.toString() ??
+                        '')
+                  : (json['sender']?.toString() ?? '');
 
-              final senderName =
-                  sender?['fullname']?.toString() ??
-                  sender?['name']?.toString() ??
-                  'User';
+              final senderName = sender != null
+                  ? (sender['fullname']?.toString() ??
+                        sender['name']?.toString() ??
+                        'User')
+                  : 'User';
 
-              final senderRole =
-                  sender?['role']?.toString()?.toLowerCase() ?? 'user';
+              final roleValue = sender != null ? sender['role'] : null;
+              final senderRole = roleValue != null
+                  ? roleValue.toString().toLowerCase()
+                  : 'user';
               String senderType = 'user';
               if (senderRole == 'agent') {
                 senderType = 'agent';
@@ -1046,7 +1083,12 @@ class MessagesController extends GetxController {
               }
 
               // Build profile pic URL using helper function
-              final senderImageRaw = sender?['profilePic']?.toString()?.trim();
+              final profilePicValue = sender != null
+                  ? sender['profilePic']
+                  : null;
+              final senderImageRaw = profilePicValue != null
+                  ? profilePicValue.toString().trim()
+                  : null;
               final senderImage = ApiConstants.getImageUrl(senderImageRaw);
 
               // Parse timestamp
@@ -1171,7 +1213,6 @@ class MessagesController extends GetxController {
 
     final text = messageController.text.trim();
     final conversation = _selectedConversation.value!;
-    final receiverId = conversation.senderId;
     final now = DateTime.now().toUtc();
 
     // Create optimistic message with unique ID

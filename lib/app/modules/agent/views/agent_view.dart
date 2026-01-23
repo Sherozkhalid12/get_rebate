@@ -17,8 +17,6 @@ import 'package:getrebate/app/widgets/gradient_card.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
-import 'package:getrebate/app/modules/rebate_checklist/views/rebate_checklist_view.dart';
-import 'package:getrebate/app/modules/rebate_checklist/bindings/rebate_checklist_binding.dart';
 
 class AgentView extends GetView<AgentController> {
   const AgentView({super.key});
@@ -423,14 +421,9 @@ class AgentView extends GetView<AgentController> {
             children: [
               Expanded(
                 child: CustomButton(
-                  text: 'Compliance Tutorial',
-                  onPressed: () {
-                    Get.to(
-                      () => const RebateChecklistView(),
-                      binding: RebateChecklistBinding(),
-                    );
-                  },
-                  icon: Icons.school,
+                  text: 'Compliance Checklist',
+                  onPressed: () => Get.toNamed('/rebate-checklist'),
+                  icon: Icons.assignment_outlined,
                   isOutlined: true,
                   height: 60.h,
                   padding: EdgeInsets.symmetric(
@@ -721,6 +714,28 @@ class AgentView extends GetView<AgentController> {
                               },
                             );
                           }),
+                        const SizedBox(height: 8),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton(
+                            onPressed: controller.refreshZipCodesFromApi,
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            child: Text(
+                              'Fetch from API',
+                              style: TextStyle(
+                                color: AppTheme.primaryBlue,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        ),
                         if (controller.isLoadingZipCodes) ...[
                           const SizedBox(height: 12),
                           Row(
@@ -800,7 +815,7 @@ class AgentView extends GetView<AgentController> {
           if (controller.selectedState == null) {
             return SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.only(top: 8),
+                padding: const EdgeInsets.only(top: 0),
                 child: _buildEmptyState(
                   context,
                   'Select a State',
@@ -814,7 +829,7 @@ class AgentView extends GetView<AgentController> {
           if (controller.isLoadingZipCodes) {
             return SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.only(top: 8),
+                padding: const EdgeInsets.only(top: 0),
                 child: Center(
                   child: Padding(
                     padding: const EdgeInsets.all(40),
@@ -839,7 +854,7 @@ class AgentView extends GetView<AgentController> {
           if (controller.availableZipCodes.isEmpty) {
             return SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.only(top: 8),
+                padding: const EdgeInsets.only(top: 0),
                 child: _buildEmptyState(
                   context,
                   'No available ZIP codes',
@@ -851,7 +866,7 @@ class AgentView extends GetView<AgentController> {
           }
 
           return SliverPadding(
-            padding: const EdgeInsets.only(top: 8, left: 20, right: 20),
+            padding: const EdgeInsets.only(left: 20, right: 20),
             sliver: SliverList(
               delegate: SliverChildBuilderDelegate(
                 (context, index) {
@@ -862,6 +877,7 @@ class AgentView extends GetView<AgentController> {
                 },
                 childCount: controller.availableZipCodes.length,
                 addAutomaticKeepAlives: false,
+
                 addRepaintBoundaries: true,
               ),
             ),
@@ -919,6 +935,7 @@ class AgentView extends GetView<AgentController> {
                 ],
               ),
             ),
+
             if (isClaimed)
               Obx(
                 () => CustomButton(
@@ -932,18 +949,122 @@ class AgentView extends GetView<AgentController> {
                 ),
               )
             else
-              Obx(
-                () => CustomButton(
-                  text: 'Claim',
-                  onPressed: controller.isZipProcessing(zip.zipCode)
-                      ? null
-                      : () => controller.claimZipCode(zip),
-                  isLoading: controller.isZipProcessing(zip.zipCode),
-                ),
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Obx(
+                    () => CustomButton(
+                      text: 'Claim',
+                      onPressed: controller.isZipProcessing(zip.zipCode)
+                          ? null
+                          : () => controller.claimZipCode(zip),
+                      isLoading: controller.isZipProcessing(zip.zipCode),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  TextButton(
+                    onPressed: () => _showPromoCodeEntrySheet(context),
+                    style: TextButton.styleFrom(
+                      minimumSize: Size.zero,
+                      padding: EdgeInsets.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      textStyle: Theme.of(context).textTheme.bodySmall
+                          ?.copyWith(
+                            color: AppTheme.primaryBlue,
+                            fontWeight: FontWeight.w500,
+                          ),
+                    ),
+                    child: const Text('Have a promo code?'),
+                  ),
+                ],
               ),
           ],
         ),
       ),
+    );
+  }
+
+  void _showPromoCodeEntrySheet(BuildContext context) {
+    final textController = TextEditingController(
+      text: controller.promoCodeInput,
+    );
+
+    Get.bottomSheet(
+      Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+          left: 16,
+          right: 16,
+          top: 20,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Promo code',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: AppTheme.black,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  tooltip: 'Close',
+                  onPressed: () => Get.back(),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: textController,
+              textCapitalization: TextCapitalization.characters,
+              textInputAction: TextInputAction.done,
+              onChanged: controller.setPromoCodeInput,
+              decoration: InputDecoration(
+                hintText: 'Enter promo code',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 12,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            CustomButton(
+              text: 'Apply',
+              width: double.infinity,
+              onPressed: () async {
+                final code = textController.text.trim();
+                if (code.isEmpty) {
+                  SnackbarHelper.showError('Please enter a promo code');
+                  return;
+                }
+                await controller.applyPromoCode(code);
+              },
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Promo codes are optional. Apply before claiming to lock in 70% off.',
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: AppTheme.mediumGray),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+      backgroundColor: AppTheme.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      isScrollControlled: true,
     );
   }
 
@@ -1297,6 +1418,8 @@ class AgentView extends GetView<AgentController> {
   }
 
   Widget _buildListingCard(BuildContext context, AgentListingModel listing) {
+    final isActivatedState =
+        listing.isActive || controller.recentlyActivatedListingId == listing.id;
     return Container(
       decoration: BoxDecoration(
         color: AppTheme.white,
@@ -1610,6 +1733,28 @@ class AgentView extends GetView<AgentController> {
                     ),
                   ],
                 ),
+                if (isActivatedState)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.check_circle,
+                          color: AppTheme.lightGreen,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Activated',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: AppTheme.lightGreen,
+                                fontWeight: FontWeight.w600,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
               ],
             ),
           ),
