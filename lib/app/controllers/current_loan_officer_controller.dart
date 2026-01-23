@@ -19,7 +19,7 @@ class CurrentLoanOfficerController extends GetxController {
   final RxBool isLoading = false.obs;
 
   CurrentLoanOfficerController({LoanOfficerService? loanOfficerService})
-    : _loanOfficerService = loanOfficerService ?? LoanOfficerService();
+      : _loanOfficerService = loanOfficerService ?? LoanOfficerService();
 
   /// Convenience getter
   LoanOfficerModel? get loanOfficer => currentLoanOfficer.value;
