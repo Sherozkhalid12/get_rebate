@@ -147,6 +147,63 @@ class PostClosingSurveyView extends GetView<PostClosingSurveyController> {
     });
   }
 
+  /// Build profile image widget
+  Widget _buildProfileImage(CompletedProfessional professional) {
+    if (professional.profileImage == null || professional.profileImage!.isEmpty) {
+      return Container(
+        width: 60,
+        height: 60,
+        color: AppTheme.lightGray,
+        child: Icon(
+          Icons.person,
+          color: AppTheme.mediumGray,
+          size: 30,
+        ),
+      );
+    }
+
+    final imageUrl = ApiConstants.getImageUrl(professional.profileImage);
+    if (imageUrl == null || imageUrl.isEmpty) {
+      return Container(
+        width: 60,
+        height: 60,
+        color: AppTheme.lightGray,
+        child: Icon(
+          Icons.person,
+          color: AppTheme.mediumGray,
+          size: 30,
+        ),
+      );
+    }
+
+    return CachedNetworkImage(
+      imageUrl: imageUrl,
+      width: 60,
+      height: 60,
+      fit: BoxFit.cover,
+      placeholder: (context, url) => Container(
+        width: 60,
+        height: 60,
+        color: AppTheme.lightGray,
+        child: Icon(
+          Icons.person,
+          color: AppTheme.mediumGray,
+          size: 30,
+        ),
+      ),
+      errorWidget: (context, url, error) => Container(
+        width: 60,
+        height: 60,
+        color: AppTheme.lightGray,
+        child: Icon(
+          Icons.person,
+          color: AppTheme.mediumGray,
+          size: 30,
+        ),
+      ),
+    );
+  }
+
   /// Build a card for a professional (agent or loan officer)
   Widget _buildProfessionalCard(BuildContext context, CompletedProfessional professional) {
     return Card(
@@ -165,44 +222,7 @@ class PostClosingSurveyView extends GetView<PostClosingSurveyController> {
               // Profile Image
               ClipRRect(
                 borderRadius: BorderRadius.circular(40),
-                child: professional.profileImage != null &&
-                        professional.profileImage!.isNotEmpty
-                    ? CachedNetworkImage(
-                        imageUrl: ApiConstants.getImageUrl(professional.profileImage!),
-                        width: 60,
-                        height: 60,
-                        fit: BoxFit.cover,
-                        placeholder: (context, url) => Container(
-                          width: 60,
-                          height: 60,
-                          color: AppTheme.lightGray,
-                          child: Icon(
-                            Icons.person,
-                            color: AppTheme.mediumGray,
-                            size: 30,
-                          ),
-                        ),
-                        errorWidget: (context, url, error) => Container(
-                          width: 60,
-                          height: 60,
-                          color: AppTheme.lightGray,
-                          child: Icon(
-                            Icons.person,
-                            color: AppTheme.mediumGray,
-                            size: 30,
-                          ),
-                        ),
-                      )
-                    : Container(
-                        width: 60,
-                        height: 60,
-                        color: AppTheme.lightGray,
-                        child: Icon(
-                          Icons.person,
-                          color: AppTheme.mediumGray,
-                          size: 30,
-                        ),
-                      ),
+                child: _buildProfileImage(professional),
               ),
               const SizedBox(width: 16),
               
