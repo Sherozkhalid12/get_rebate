@@ -164,6 +164,9 @@ class PostClosingSurveyController extends GetxController {
               name: agentName,
               type: role == 'loan_officer' ? 'loanOfficer' : 'agent',
               profileImage: profileImage,
+              company: lead.agentId!.role == 'loan_officer' 
+                  ? null // Company info would need to be fetched separately if needed
+                  : null, // Agent brokerage would need to be fetched separately if needed
               leadId: lead.id,
               completedAt: lead.updatedAt,
             );
