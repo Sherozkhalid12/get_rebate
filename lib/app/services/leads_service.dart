@@ -189,22 +189,33 @@ class LeadsService {
       final endpoint = ApiConstants.getLeadsByBuyerIdEndpoint(buyerId);
       final fullUrl = _buildFullUrl(endpoint);
 
+      // Get auth token from storage
+      final storage = GetStorage();
+      final authToken = storage.read('auth_token');
+
       if (kDebugMode) {
         print('📡 Fetching leads for buyerId: $buyerId');
         print('   Endpoint: $endpoint');
         print('   Base URL: ${ApiConstants.baseUrl}');
         print('   Full URL: $fullUrl');
+        print('   Auth Token: ${authToken != null ? "Present" : "Missing"}');
+      }
+
+      // Build headers with auth token
+      final headers = <String, String>{
+        ...ApiConstants.ngrokHeaders,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      };
+
+      // Add Authorization header if token exists
+      if (authToken != null && authToken.isNotEmpty) {
+        headers['Authorization'] = 'Bearer $authToken';
       }
 
       final response = await _dio.get(
         endpoint,
-        options: Options(
-          headers: {
-            ...ApiConstants.ngrokHeaders,
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-          },
-        ),
+        options: Options(headers: headers),
       );
 
       if (kDebugMode) {

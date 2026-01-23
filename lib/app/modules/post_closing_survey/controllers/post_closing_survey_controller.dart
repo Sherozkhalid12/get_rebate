@@ -116,9 +116,10 @@ class PostClosingSurveyController extends GetxController {
     }
   }
 
-  /// Load completed leads and extract unique agents/loan officers
+  /// Load completed leads and extract unique agents
   Future<void> loadCompletedProfessionals() async {
     _isLoadingProfessionals.value = true;
+    _completedProfessionals.clear(); // Clear previous data
 
     try {
       final currentUser = _authController.currentUser;
@@ -129,26 +130,50 @@ class PostClosingSurveyController extends GetxController {
       }
 
       if (kDebugMode) {
+        print('📡 ==========================================');
         print('📡 Loading completed leads for user: ${currentUser.id}');
-        print('   Using endpoint: ${ApiConstants.getLeadsByBuyerIdEndpoint(currentUser.id)}');
+        print('📡 Using endpoint: ${ApiConstants.getLeadsByBuyerIdEndpoint(currentUser.id)}');
+        print('📡 Full URL: ${ApiConstants.baseUrl}${ApiConstants.getLeadsByBuyerIdEndpoint(currentUser.id).replaceFirst(ApiConstants.apiBaseUrl, '')}');
       }
 
       // Fetch leads using getLeadsByAgentId endpoint (for buyer's own leads)
-      // Note: The endpoint is /buyer/getLeadsByAgentId/{userId} - same endpoint used in proposals
+      // Endpoint: /api/v1/buyer/getLeadsByAgentId/{userId}
       final leadsResponse = await _leadsService.getLeadsByBuyerId(currentUser.id);
       
+      if (kDebugMode) {
+        print('📡 Total leads received: ${leadsResponse.leads.length}');
+        print('📡 Response success: ${leadsResponse.success}');
+        print('📡 Response count: ${leadsResponse.count}');
+      }
+
       // Filter to only completed leads with agents (not loan officers)
       final completedLeads = leadsResponse.leads.where((lead) {
-        final isCompleted = lead.isCompleted || 
-                           lead.leadStatus?.toLowerCase() == 'completed';
-        // Only include leads with agents (role should be 'agent' or null, not 'loan_officer')
+        // Check if lead is completed
+        final leadStatusLower = lead.leadStatus?.toLowerCase() ?? '';
+        final isCompletedByStatus = leadStatusLower == 'completed';
+        final isCompletedByFlag = lead.isCompleted == true;
+        final isCompleted = isCompletedByStatus || isCompletedByFlag;
+        
+        // Check if lead has an agent (not loan officer)
         final hasAgent = lead.agentId != null;
-        final isAgent = lead.agentId?.role?.toLowerCase() != 'loan_officer';
+        final agentRole = lead.agentId?.role?.toLowerCase() ?? 'agent';
+        final isAgent = agentRole != 'loan_officer' && agentRole != 'loan_officer';
+        
+        if (kDebugMode && hasAgent) {
+          print('   Lead ${lead.id}: status=$leadStatusLower, isCompleted=$isCompletedByFlag, agentRole=$agentRole, isCompleted=$isCompleted, isAgent=$isAgent');
+        }
+        
         return isCompleted && hasAgent && isAgent;
       }).toList();
 
       if (kDebugMode) {
         print('✅ Found ${completedLeads.length} completed leads with agents');
+        if (completedLeads.isEmpty) {
+          print('⚠️ No completed leads found. Checking all leads...');
+          for (final lead in leadsResponse.leads.take(5)) {
+            print('   Lead ${lead.id}: status=${lead.leadStatus}, isCompleted=${lead.isCompleted}, hasAgent=${lead.agentId != null}');
+          }
+        }
       }
 
       // Extract unique agents from completed leads (only agents, not loan officers)
@@ -172,6 +197,10 @@ class PostClosingSurveyController extends GetxController {
               leadId: lead.id,
               completedAt: lead.updatedAt,
             );
+            
+            if (kDebugMode) {
+              print('   ✅ Added agent: $agentName (ID: $agentId)');
+            }
           }
         }
       }
@@ -187,13 +216,18 @@ class PostClosingSurveyController extends GetxController {
       });
 
       if (kDebugMode) {
+        print('✅ ==========================================');
         print('✅ Loaded ${_completedProfessionals.length} completed agents');
         for (final agent in _completedProfessionals) {
-          print('   - ${agent.name} (Agent)');
+          print('   - ${agent.name} (ID: ${agent.id})');
         }
+        print('✅ ==========================================');
       }
 
       if (_completedProfessionals.isEmpty) {
+        if (kDebugMode) {
+          print('⚠️ No completed agents found. Showing info message.');
+        }
         SnackbarHelper.showInfo(
           'You don\'t have any completed transactions with agents yet. Complete a service with an agent to leave a review.',
           duration: const Duration(seconds: 4),
@@ -202,9 +236,15 @@ class PostClosingSurveyController extends GetxController {
 
     } catch (e) {
       if (kDebugMode) {
+        print('❌ ==========================================');
         print('❌ Error loading completed professionals: $e');
+        print('❌ Error type: ${e.runtimeType}');
+        if (e is Exception) {
+          print('❌ Error message: ${e.toString()}');
+        }
+        print('❌ ==========================================');
       }
-      SnackbarHelper.showError('Failed to load completed professionals: ${e.toString()}');
+      SnackbarHelper.showError('Failed to load agents: ${e.toString()}');
     } finally {
       _isLoadingProfessionals.value = false;
     }
