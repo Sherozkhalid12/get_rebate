@@ -94,10 +94,13 @@ class PostClosingSurveyController extends GetxController {
   void onInit() {
     super.onInit();
     
-    // Check if agent/LO was passed directly (backward compatibility)
+    // Always show selection screen first to let user choose agent
+    // Only skip selection if explicitly told to via 'skipSelection' flag
     final args = Get.arguments as Map<String, dynamic>?;
-    if (args != null && args['agentId'] != null) {
-      // Direct navigation with agent/LO already selected
+    final skipSelection = args?['skipSelection'] == true;
+    
+    if (skipSelection && args != null && args['agentId'] != null) {
+      // Direct navigation with agent/LO already selected (backward compatibility)
       agentId = args['agentId'];
       agentName = args['agentName'] ?? 'Agent';
       userId = args['userId'] ?? _authController.currentUser?.id ?? '';
@@ -108,7 +111,7 @@ class PostClosingSurveyController extends GetxController {
       loanOfficerName = args['loanOfficerName'];
       _showSelectionScreen.value = false;
     } else {
-      // New flow: show selection screen first
+      // New flow: ALWAYS show selection screen first
       _showSelectionScreen.value = true;
       userId = _authController.currentUser?.id ?? '';
       isBuyer = true; // Default, can be determined from lead
