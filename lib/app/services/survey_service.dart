@@ -22,6 +22,19 @@ class SurveyService {
         },
       ),
     );
+    
+    // Add auth token interceptor
+    _dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          final authToken = _storage.read('auth_token');
+          if (authToken != null && authToken.isNotEmpty) {
+            options.headers['Authorization'] = 'Bearer $authToken';
+          }
+          handler.next(options);
+        },
+      ),
+    );
   }
 
   /// Submit post-closing survey
@@ -75,8 +88,9 @@ class SurveyService {
         if (authToken != null) 'Authorization': 'Bearer $authToken',
       };
 
+      // apiBaseUrl already includes /api/v1, so use /survey/submit
       final response = await _dio.post(
-        '/api/v1/survey/submit',
+        '/survey/submit',
         data: requestBody,
         options: Options(headers: headers),
       );
