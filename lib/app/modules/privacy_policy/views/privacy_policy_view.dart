@@ -59,7 +59,7 @@ class PrivacyPolicyView extends StatelessWidget {
               _buildSection(
                 context,
                 '1. Introduction',
-                'GetRebate ("we," "our," or "us") is committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our mobile application and services.',
+                'GetaRebate  ("we," "our," or "us") is committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our mobile application and services.',
               ),
               
               _buildSection(

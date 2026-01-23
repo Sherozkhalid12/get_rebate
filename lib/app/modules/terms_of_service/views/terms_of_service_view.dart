@@ -59,13 +59,13 @@ class TermsOfServiceView extends StatelessWidget {
               _buildSection(
                 context,
                 '1. Acceptance of Terms',
-                'By accessing and using GetRebate ("the Service"), you accept and agree to be bound by the terms and provision of this agreement. If you do not agree to abide by the above, please do not use this service.',
+                'By accessing and using GetaRebate  ("the Service"), you accept and agree to be bound by the terms and provision of this agreement. If you do not agree to abide by the above, please do not use this service.',
               ),
               
               _buildSection(
                 context,
                 '2. Description of Service',
-                'GetRebate is a platform that connects homebuyers and sellers with real estate agents and loan officers. We facilitate connections and provide tools to help users find properties, calculate potential rebates, and manage their real estate transactions. We do not act as a real estate broker, agent, or lender.',
+                'GetaRebate  is a platform that connects homebuyers and sellers with real estate agents and loan officers. We facilitate connections and provide tools to help users find properties, calculate potential rebates, and manage their real estate transactions. We do not act as a real estate broker, agent, or lender.',
               ),
               
               _buildSection(
@@ -100,7 +100,7 @@ class TermsOfServiceView extends StatelessWidget {
                 '• Must be properly licensed in their respective jurisdictions\n'
                 '• Are responsible for their own professional conduct and compliance\n'
                 '• Must provide accurate information about their services and rebates\n'
-                '• Are independent contractors, not employees of GetRebate\n'
+                '• Are independent contractors, not employees of GetaRebate \n'
                 '• Are solely responsible for their transactions and client relationships',
               ),
               
@@ -112,13 +112,13 @@ class TermsOfServiceView extends StatelessWidget {
                 '• Applicable state and federal laws\n'
                 '• Successful completion of a real estate transaction\n'
                 '• The terms of the purchase or sale agreement\n\n'
-                'GetRebate does not guarantee any rebate amount and is not responsible for rebate disputes between users and agents.',
+                'GetaRebate  does not guarantee any rebate amount and is not responsible for rebate disputes between users and agents.',
               ),
               
               _buildSection(
                 context,
                 '7. Intellectual Property',
-                'The Service and its original content, features, and functionality are owned by GetRebate and are protected by international copyright, trademark, patent, trade secret, and other intellectual property laws. You may not copy, modify, distribute, sell, or lease any part of our Service.',
+                'The Service and its original content, features, and functionality are owned by GetaRebate  and are protected by international copyright, trademark, patent, trade secret, and other intellectual property laws. You may not copy, modify, distribute, sell, or lease any part of our Service.',
               ),
               
               _buildSection(
@@ -130,13 +130,13 @@ class TermsOfServiceView extends StatelessWidget {
               _buildSection(
                 context,
                 '9. Limitation of Liability',
-                'TO THE MAXIMUM EXTENT PERMITTED BY LAW, GETREBATE SHALL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, OR ANY LOSS OF PROFITS OR REVENUES, WHETHER INCURRED DIRECTLY OR INDIRECTLY, OR ANY LOSS OF DATA, USE, GOODWILL, OR OTHER INTANGIBLE LOSSES.',
+                'TO THE MAXIMUM EXTENT PERMITTED BY LAW, GETAREBATE SHALL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, OR ANY LOSS OF PROFITS OR REVENUES, WHETHER INCURRED DIRECTLY OR INDIRECTLY, OR ANY LOSS OF DATA, USE, GOODWILL, OR OTHER INTANGIBLE LOSSES.',
               ),
               
               _buildSection(
                 context,
                 '10. Indemnification',
-                'You agree to indemnify and hold harmless GetRebate, its officers, directors, employees, and agents from any claims, damages, losses, liabilities, and expenses (including legal fees) arising out of your use of the Service or violation of these Terms.',
+                'You agree to indemnify and hold harmless GetaRebate , its officers, directors, employees, and agents from any claims, damages, losses, liabilities, and expenses (including legal fees) arising out of your use of the Service or violation of these Terms.',
               ),
               
               _buildSection(
@@ -161,8 +161,8 @@ class TermsOfServiceView extends StatelessWidget {
                 context,
                 '14. Contact Information',
                 'If you have any questions about these Terms of Service, please contact us:\n\n'
-                'Email: legal@getrebate.com\n'
-                'Address: GetRebate, Inc.\n'
+                'Email: legal@getarebate.com\n'
+                'Address: GetaRebate , Inc.\n'
                 'Attn: Legal Department\n'
                 '[Your Business Address]',
               ),

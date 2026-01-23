@@ -81,7 +81,7 @@ class BuyerLeadFormV2View extends GetView<BuyerLeadFormV2Controller> {
               Icon(Icons.home, color: AppTheme.primaryBlue, size: 24),
               const SizedBox(width: 12),
               Text(
-                'Connect with a Local Agent & Get a Rebate',
+                'Connect with a Local Agent & GetaRebate',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   color: AppTheme.primaryBlue,
                   fontWeight: FontWeight.w600,

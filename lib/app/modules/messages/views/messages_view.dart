@@ -695,23 +695,23 @@ class MessagesView extends GetView<MessagesController> {
               ),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 32),
-            ElevatedButton.icon(
-              onPressed: () => Get.toNamed(AppPages.MAIN),
-              icon: const Icon(Icons.search),
-              label: const Text('Find Professionals'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.primaryBlue,
-                foregroundColor: AppTheme.white,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 12,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-            ),
+            // const SizedBox(height: 32),
+            // ElevatedButton.icon(
+            //   onPressed: () => Get.toNamed(AppPages.MAIN),
+            //   icon: const Icon(Icons.search),
+            //   label: const Text('Find Professionals'),
+            //   style: ElevatedButton.styleFrom(
+            //     backgroundColor: AppTheme.primaryBlue,
+            //     foregroundColor: AppTheme.white,
+            //     padding: const EdgeInsets.symmetric(
+            //       horizontal: 24,
+            //       vertical: 12,
+            //     ),
+            //     shape: RoundedRectangleBorder(
+            //       borderRadius: BorderRadius.circular(12),
+            //     ),
+            //   ),
+            // ),
           ],
         ),
       ),

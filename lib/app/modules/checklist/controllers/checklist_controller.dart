@@ -7,8 +7,8 @@ class ChecklistController extends GetxController {
     return [
       'Get Pre-Approved\n\nFind a loan officer on our site who allows a rebate to be applied. Or, confirm your loan officer allows rebates.\n\nGet your pre-approval letter and know your budget.',
       'Choose Your Agent\n\nEvery agent on our site has agreed to give you a rebate when you work with them. You must work with an agent from this site in order to get a rebate.',
-      'Search for Homes\n\nTour homes, compare, and pick your favorite. All homes listed on our site will note a likely rebate range if you were to buy that home. A rebate will work on any home for sale where the seller, builder and/or listing agent is sharing part of the commission with the agent working with the Buyer. The rebate comes from that commission.',
-      'Make an Offer\n\nWork with your agent to submit your offer and negotiate terms. You and your agent should include the BAC (Buyer Agent Compensation) directly on the purchase agreement. Once you finalize the sales price and the BAC, you will be able to calculate your exact rebate.',
+      'Search for Homes\n\nTour homes, compare, and pick your favorite. All homes listed on our site will note a likely rebate range if you were to buy that home. A rebate will work on any home for sale, even ones not listed on this site, where the seller, builder and/or listing agent is sharing part of the commission with the agent working with the Buyer. The rebate comes from that commission.',
+      'Make an Offer\n\nWork with your agent to submit your offer and negotiate terms. You and your agent should include the BAC (Buyer Agent Commission) directly on the purchase agreement. Once you finalize the sales price and the BAC, you will be able to calculate your exact rebate.',
       'Inspection & Appraisal\n\nGet a home inspection and review results.\n\nYour lender will handle the appraisal.',
       'Finalize Financing & Rebate\n\nConfirm with your agent and lender that your rebate will appear on the closing disclosure.',
       'Closing Day\n\nSign papers, get your keys and your rebate — then celebrate!',

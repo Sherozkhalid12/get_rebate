@@ -9,7 +9,14 @@ import 'package:getrebate/app/models/user_model.dart';
 import 'package:getrebate/app/routes/app_pages.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
+import 'package:getrebate/app/utils/snackbar_helper.dart';
 import 'package:getrebate/app/controllers/current_loan_officer_controller.dart';
+import 'package:getrebate/app/controllers/main_navigation_controller.dart';
+import 'package:getrebate/app/modules/messages/controllers/messages_controller.dart';
+import 'package:getrebate/app/modules/favorites/controllers/favorites_controller.dart';
+import 'package:getrebate/app/modules/buyer_v2/controllers/buyer_v2_controller.dart';
+import 'package:getrebate/app/modules/agent/controllers/agent_controller.dart';
+import 'package:getrebate/app/modules/loan_officer/controllers/loan_officer_controller.dart';
 
 class AuthController extends GetxController {
   final _storage = GetStorage();
@@ -315,11 +322,9 @@ class AuthController extends GetxController {
           print('   Role: ${user.role}');
           print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
-          Get.snackbar(
-            'Success',
+          SnackbarHelper.showSuccess(
             responseData['message']?.toString() ?? 'Login successful!',
-            backgroundColor: Get.theme.colorScheme.primary,
-            colorText: Get.theme.colorScheme.onPrimary,
+            duration: const Duration(seconds: 2),
           );
 
           _navigateToRoleBasedScreen();
@@ -367,21 +372,11 @@ class AuthController extends GetxController {
         errorMessage = 'No internet connection. Please check your network.';
       }
 
-      // Safely show snackbar - wrap in try-catch to prevent overlay errors
-      try {
-        Get.snackbar('Error', errorMessage);
-      } catch (overlayError) {
-        print('⚠️ Could not show snackbar: $overlayError');
-      }
+      SnackbarHelper.showError(errorMessage);
     } catch (e) {
       print('❌ Unexpected Error: ${e.toString()}');
       print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      // Safely show snackbar - wrap in try-catch to prevent overlay errors
-      try {
-        Get.snackbar('Error', 'Login failed: ${e.toString()}');
-      } catch (overlayError) {
-        print('⚠️ Could not show snackbar: $overlayError');
-      }
+      SnackbarHelper.showError('Login failed: ${e.toString()}');
     } finally {
       _isLoading.value = false;
     }
@@ -876,11 +871,9 @@ class AuthController extends GetxController {
         print('   Role: ${user.role}');
         print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
-        Get.snackbar(
-          'Success',
+        SnackbarHelper.showSuccess(
           'Account created successfully!',
-          backgroundColor: Get.theme.colorScheme.primary,
-          colorText: Get.theme.colorScheme.onPrimary,
+          duration: const Duration(seconds: 2),
         );
 
         _navigateToRoleBasedScreen();
@@ -911,9 +904,9 @@ class AuthController extends GetxController {
         errorMessage = 'No internet connection. Please check your network.';
       }
 
-      Get.snackbar('Error', errorMessage);
+      SnackbarHelper.showError(errorMessage);
     } catch (e) {
-      Get.snackbar('Error', 'Sign up failed: ${e.toString()}');
+      SnackbarHelper.showError('Sign up failed: ${e.toString()}');
     } finally {
       _isLoading.value = false;
     }
@@ -1156,25 +1149,15 @@ class AuthController extends GetxController {
         }
 
         // Show success message after updating user data
-        Get.snackbar(
-          'Success',
+        SnackbarHelper.showSuccess(
           'Profile updated successfully!',
-          backgroundColor: AppTheme.primaryBlue,
-          colorText: Colors.white,
-          snackPosition: SnackPosition.TOP,
           duration: const Duration(seconds: 2),
-          isDismissible: true,
         );
       } else {
         // If status code is not 200/201, still show success if we got a response
-        Get.snackbar(
-          'Success',
+        SnackbarHelper.showSuccess(
           'Profile updated successfully!',
-          backgroundColor: Colors.white.withOpacity(0.0),
-          colorText: Colors.black,
-          snackPosition: SnackPosition.TOP,
           duration: const Duration(seconds: 2),
-          isDismissible: true,
         );
       }
     } on DioException catch (e) {
@@ -1201,11 +1184,11 @@ class AuthController extends GetxController {
         errorMessage = 'No internet connection. Please check your network.';
       }
 
-      Get.snackbar('Error', errorMessage);
+      SnackbarHelper.showError(errorMessage);
       rethrow;
     } catch (e) {
       print('❌ Unexpected Error: ${e.toString()}');
-      Get.snackbar('Error', 'Failed to update profile: ${e.toString()}');
+      SnackbarHelper.showError('Failed to update profile: ${e.toString()}');
       rethrow;
     } finally {
       _isLoading.value = false;
@@ -1238,7 +1221,7 @@ class AuthController extends GetxController {
       // final user = UserModel(id: userId, ...);
     } catch (e) {
       print('❌ Social login error: $e');
-      Get.snackbar('Error', 'Social login failed: ${e.toString()}');
+      SnackbarHelper.showError('Social login failed: ${e.toString()}');
     } finally {
       _isLoading.value = false;
     }
@@ -1249,7 +1232,27 @@ class AuthController extends GetxController {
     _isLoggedIn.value = false;
     _storage.remove('current_user');
     _storage.remove('auth_token');
+    
+    // Clear all controller data BEFORE navigation
+    // This ensures clean state without force-deleting controllers
+    try {
+      // Clear MessagesController data - removes all chat data and socket connections
+      if (Get.isRegistered<MessagesController>()) {
+        final messagesController = Get.find<MessagesController>();
+        messagesController.clearAllData();
+        print('✅ Cleared MessagesController data');
+      }
+      
+      // Note: Other controllers will be automatically disposed by GetX when routes are removed
+      // We don't need to manually delete them - Get.offAllNamed() handles cleanup
+      
+    } catch (e) {
+      print('⚠️ Error clearing controller data: $e');
+    }
+    
     print('🔓 User logged out - cleared user data and token');
+    
+    // Navigate to auth screen - this will automatically dispose route-bound controllers
     Get.offAllNamed(AppPages.AUTH);
   }
 

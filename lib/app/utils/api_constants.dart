@@ -186,7 +186,7 @@ class ApiConstants {
   }
 
   static String getAddProfileViewEndpoint(String id) {
-    return "$apiBaseUrl/agent/addProfileView/$id";
+    return "$apiBaseUrl/api/v1/agent/addProfileView/$id";
   }
 
   // Listing specific endpoints
@@ -223,6 +223,9 @@ class ApiConstants {
   static String getMarkAllNotificationsReadEndpoint(String userId) {
     return "$apiBaseUrl/notifications/mark-all-read/$userId";
   }
+
+  // Survey endpoints
+  static String get submitSurveyEndpoint => "$apiBaseUrl/survey/submit";
 
   // Helper to get ngrok headers if using ngrok
   static Map<String, String> get ngrokHeaders {
