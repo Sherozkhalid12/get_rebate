@@ -168,7 +168,7 @@ class PostClosingSurveyView extends GetView<PostClosingSurveyController> {
                 child: professional.profileImage != null &&
                         professional.profileImage!.isNotEmpty
                     ? CachedNetworkImage(
-                        imageUrl: ApiConstants.getImageUrl(professional.profileImage),
+                        imageUrl: ApiConstants.getImageUrl(professional.profileImage!),
                         width: 60,
                         height: 60,
                         fit: BoxFit.cover,
