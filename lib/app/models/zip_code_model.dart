@@ -6,8 +6,8 @@ class ZipCodeModel {
   final String zipCode;
   final String state;
   final int population;
-  final String? claimedByAgent;
-  final String? claimedByLoanOfficer;
+  final bool? claimedByAgent;
+  final bool? claimedByLoanOfficer;
   final DateTime? claimedAt;
   final double? price; // Optional: can be calculated from population if null
   final bool isAvailable;
@@ -33,15 +33,27 @@ class ZipCodeModel {
   factory ZipCodeModel.fromJson(Map<String, dynamic> json) {
     return ZipCodeModel(
       id: json['_id']?.toString() ?? json['id']?.toString(),
-      zipCode: json['zipCode'] ?? json['zipcode'] ?? '',
+      zipCode:
+          json['postalCode']?.toString() ??
+          json['zipCode'] ??
+          json['zipcode'] ??
+          '',
       state: json['state'] ?? '',
-      population: json['population'] is int 
+      population: json['population'] is int
           ? json['population'] as int
-          : (json['population'] is String 
-              ? int.tryParse(json['population'] as String) ?? 0
-              : 0),
-      claimedByAgent: json['claimedByAgent'],
-      claimedByLoanOfficer: json['claimedByLoanOfficer'],
+          : (json['population'] is String
+                ? int.tryParse(json['population'] as String) ?? 0
+                : 0),
+      claimedByAgent: json['claimedByAgent'] is bool
+          ? json['claimedByAgent'] as bool
+          : (json['claimedByAgent'] is String
+                ? (json['claimedByAgent']?.toLowerCase() == 'true')
+                : null),
+      claimedByLoanOfficer: json['claimedByLoanOfficer'] is bool
+          ? json['claimedByLoanOfficer'] as bool
+          : (json['claimedByLoanOfficer'] is String
+                ? (json['claimedByLoanOfficer']?.toLowerCase() == 'true')
+                : null),
       claimedAt: json['claimedAt'] != null
           ? DateTime.parse(json['claimedAt'])
           : null,
@@ -79,8 +91,8 @@ class ZipCodeModel {
     String? zipCode,
     String? state,
     int? population,
-    String? claimedByAgent,
-    String? claimedByLoanOfficer,
+    bool? claimedByAgent,
+    bool? claimedByLoanOfficer,
     DateTime? claimedAt,
     double? price,
     bool? isAvailable,
@@ -106,11 +118,9 @@ class ZipCodeModel {
 
   bool get isClaimed => claimedByAgent != null || claimedByLoanOfficer != null;
 
-  /// Get the calculated price based on population tier (if price is not explicitly set)
-  double get calculatedPrice {
-    if (price != null) return price!;
-    return ZipCodePricingService.calculatePriceForPopulation(population);
-  }
+  /// Get the calculated price based on population tier (ignores backend price)
+  double get calculatedPrice =>
+      ZipCodePricingService.calculatePriceForPopulation(population);
 
   /// Get the pricing tier name for this zip code
   String get tier {

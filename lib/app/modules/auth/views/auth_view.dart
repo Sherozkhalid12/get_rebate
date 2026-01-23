@@ -563,9 +563,9 @@ class AuthView extends GetView<AuthViewController> {
               const SizedBox(height: 8),
               Text(
                 'Select all states where you are licensed',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppTheme.mediumGray,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: AppTheme.mediumGray),
               ),
               const SizedBox(height: 12),
               _buildLicensedStatesSelection(context),
@@ -574,9 +574,9 @@ class AuthView extends GetView<AuthViewController> {
               // Service Areas (ZIP codes)
               CustomTextField(
                 controller: controller.serviceZipCodesController,
-                labelText: 'Service Areas (ZIP Codes)',
+                labelText: 'What ZIP code is your office located?',
                 prefixIcon: Icons.location_on_outlined,
-                hintText: 'Enter ZIP codes separated by commas (e.g., 10001, 10002, 10003)',
+                hintText: 'Enter your office ZIP code',
               ),
               const SizedBox(height: 16),
 
@@ -654,9 +654,9 @@ class AuthView extends GetView<AuthViewController> {
               const SizedBox(height: 8),
               Text(
                 'Select all states where you are licensed',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppTheme.mediumGray,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: AppTheme.mediumGray),
               ),
               const SizedBox(height: 12),
               _buildLicensedStatesSelection(context),
@@ -679,11 +679,56 @@ class AuthView extends GetView<AuthViewController> {
 
   Widget _buildLicensedStatesSelection(BuildContext context) {
     final usStates = [
-      'AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA',
-      'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD',
-      'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ',
-      'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC',
-      'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY',
+      'AL',
+      'AK',
+      'AZ',
+      'AR',
+      'CA',
+      'CO',
+      'CT',
+      'DE',
+      'FL',
+      'GA',
+      'HI',
+      'ID',
+      'IL',
+      'IN',
+      'IA',
+      'KS',
+      'KY',
+      'LA',
+      'ME',
+      'MD',
+      'MA',
+      'MI',
+      'MN',
+      'MS',
+      'MO',
+      'MT',
+      'NE',
+      'NV',
+      'NH',
+      'NJ',
+      'NM',
+      'NY',
+      'NC',
+      'ND',
+      'OH',
+      'OK',
+      'OR',
+      'PA',
+      'RI',
+      'SC',
+      'SD',
+      'TN',
+      'TX',
+      'UT',
+      'VT',
+      'VA',
+      'WA',
+      'WV',
+      'WI',
+      'WY',
     ];
 
     return Obx(
@@ -700,9 +745,7 @@ class AuthView extends GetView<AuthViewController> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                color: isSelected
-                    ? color.withOpacity(0.1)
-                    : AppTheme.white,
+                color: isSelected ? color.withOpacity(0.1) : AppTheme.white,
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
                   color: isSelected
@@ -724,7 +767,9 @@ class AuthView extends GetView<AuthViewController> {
                     state,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: isSelected ? color : AppTheme.darkGray,
-                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                      fontWeight: isSelected
+                          ? FontWeight.w600
+                          : FontWeight.normal,
                     ),
                   ),
                 ],
@@ -772,18 +817,13 @@ class AuthView extends GetView<AuthViewController> {
                 labelText: 'Bio / Introduction (Optional)',
                 prefixIcon: Icons.description_outlined,
                 maxLines: 3,
-                hintText: 'Tell buyers about yourself and your experience...',
+                hintText:
+                    'Tell Buyers and Sellers about yourself and why they should pick you as their Agent...',
               ),
               const SizedBox(height: 16),
 
-              // Video URL
-              CustomTextField(
-                controller: controller.videoUrlController,
-                labelText: 'Video Introduction URL (Optional)',
-                prefixIcon: Icons.video_library_outlined,
-                keyboardType: TextInputType.url,
-                hintText: 'YouTube or Vimeo link',
-              ),
+              // Video Upload
+              _buildVideoUploadField(context),
               const SizedBox(height: 16),
 
               // Areas of Expertise
@@ -879,14 +919,8 @@ class AuthView extends GetView<AuthViewController> {
               ),
               const SizedBox(height: 16),
 
-              // Video URL
-              CustomTextField(
-                controller: controller.loanOfficerVideoUrlController,
-                labelText: 'Video Introduction URL (Optional)',
-                prefixIcon: Icons.video_library_outlined,
-                keyboardType: TextInputType.url,
-                hintText: 'YouTube or Vimeo link',
-              ),
+              // Video Upload
+              _buildVideoUploadField(context),
               const SizedBox(height: 16),
 
               // Specialty Products (Areas of Expertise)
@@ -950,6 +984,69 @@ class AuthView extends GetView<AuthViewController> {
         .fadeIn(duration: 600.ms, delay: 500.ms);
   }
 
+  Widget _buildVideoUploadField(BuildContext context) {
+    return Obx(() {
+      final videoFile = controller.selectedVideo;
+      final hasVideo = videoFile != null;
+      final fileName = hasVideo
+          ? videoFile.path.split('/').last
+          : 'No video selected';
+      final actionLabel = hasVideo ? 'Change Video' : 'Upload Video';
+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Video Introduction (Optional)',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: AppTheme.darkGray,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Select a short intro video from your device (gallery or files).',
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: AppTheme.mediumGray),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            fileName,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: hasVideo ? AppTheme.black : AppTheme.mediumGray,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              OutlinedButton.icon(
+                onPressed: controller.pickVideo,
+                icon: Icon(Icons.upload_file, color: AppTheme.primaryBlue),
+                label: Text(
+                  actionLabel,
+                  style: const TextStyle(color: AppTheme.primaryBlue),
+                ),
+                style: OutlinedButton.styleFrom(
+                  side: BorderSide(color: AppTheme.primaryBlue),
+                ),
+              ),
+              if (hasVideo) ...[
+                const SizedBox(width: 8),
+                IconButton(
+                  onPressed: controller.removeVideo,
+                  icon: const Icon(Icons.close),
+                  color: AppTheme.mediumGray,
+                  tooltip: 'Remove video',
+                ),
+              ],
+            ],
+          ),
+        ],
+      );
+    });
+  }
+
   Widget _buildSpecialtyProductsSelection(BuildContext context) {
     return Obx(
       () => Wrap(
@@ -991,7 +1088,9 @@ class AuthView extends GetView<AuthViewController> {
                         color: isSelected
                             ? AppTheme.lightGreen
                             : AppTheme.darkGray,
-                        fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                        fontWeight: isSelected
+                            ? FontWeight.w600
+                            : FontWeight.normal,
                       ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
@@ -1046,7 +1145,9 @@ class AuthView extends GetView<AuthViewController> {
                       color: isSelected
                           ? AppTheme.primaryBlue
                           : AppTheme.darkGray,
-                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                      fontWeight: isSelected
+                          ? FontWeight.w600
+                          : FontWeight.normal,
                     ),
                   ),
                 ],
@@ -1354,16 +1455,16 @@ class AuthView extends GetView<AuthViewController> {
           Text(
             'Company Logo (Optional)',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppTheme.darkGray,
-                  fontWeight: FontWeight.w500,
-                ),
+              color: AppTheme.darkGray,
+              fontWeight: FontWeight.w500,
+            ),
           ),
           const SizedBox(height: 8),
           Text(
             'Upload a square logo so your branding appears on your profile.',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppTheme.mediumGray,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: AppTheme.mediumGray),
           ),
           const SizedBox(height: 12),
           GestureDetector(
@@ -1423,9 +1524,8 @@ class AuthView extends GetView<AuthViewController> {
                         const SizedBox(height: 8),
                         Text(
                           'Tap to upload your company logo',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: AppTheme.mediumGray,
-                              ),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: AppTheme.mediumGray),
                           textAlign: TextAlign.center,
                         ),
                       ],

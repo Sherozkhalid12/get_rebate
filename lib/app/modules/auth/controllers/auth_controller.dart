@@ -21,7 +21,6 @@ class AuthViewController extends GetxController {
   final brokerageController = TextEditingController();
   final agentLicenseNumberController = TextEditingController();
   final bioController = TextEditingController();
-  final videoUrlController = TextEditingController();
   final websiteUrlController = TextEditingController();
   final googleReviewsUrlController = TextEditingController();
   final thirdPartyReviewsUrlController = TextEditingController();
@@ -32,7 +31,6 @@ class AuthViewController extends GetxController {
   final companyController = TextEditingController();
   final loanOfficerLicenseNumberController = TextEditingController();
   final loanOfficerBioController = TextEditingController();
-  final loanOfficerVideoUrlController = TextEditingController();
   final loanOfficerWebsiteUrlController = TextEditingController();
   final mortgageApplicationUrlController = TextEditingController();
   final loanOfficerExternalReviewsUrlController = TextEditingController();
@@ -103,7 +101,6 @@ class AuthViewController extends GetxController {
       brokerageController.clear();
       agentLicenseNumberController.clear();
       bioController.clear();
-      videoUrlController.clear();
       websiteUrlController.clear();
       googleReviewsUrlController.clear();
       thirdPartyReviewsUrlController.clear();
@@ -115,7 +112,6 @@ class AuthViewController extends GetxController {
       companyController.clear();
       loanOfficerLicenseNumberController.clear();
       loanOfficerBioController.clear();
-      loanOfficerVideoUrlController.clear();
       loanOfficerWebsiteUrlController.clear();
       mortgageApplicationUrlController.clear();
       loanOfficerExternalReviewsUrlController.clear();
@@ -244,7 +240,6 @@ class AuthViewController extends GetxController {
     brokerageController.clear();
     agentLicenseNumberController.clear();
     bioController.clear();
-    videoUrlController.clear();
     websiteUrlController.clear();
     googleReviewsUrlController.clear();
     thirdPartyReviewsUrlController.clear();
@@ -254,7 +249,6 @@ class AuthViewController extends GetxController {
     companyController.clear();
     loanOfficerLicenseNumberController.clear();
     loanOfficerBioController.clear();
-    loanOfficerVideoUrlController.clear();
     loanOfficerWebsiteUrlController.clear();
     mortgageApplicationUrlController.clear();
     loanOfficerExternalReviewsUrlController.clear();
@@ -287,6 +281,10 @@ class AuthViewController extends GetxController {
             : null;
 
         if (selectedRole == UserRole.agent) {
+          final officeZipCode = serviceZipCodesController.text.trim();
+          final officeZipCodesList = officeZipCode.isNotEmpty
+              ? [officeZipCode]
+              : null;
           additionalData = {
             'brokerage': brokerageController.text.trim(),
             'licenseNumber': agentLicenseNumberController.text.trim(),
@@ -295,8 +293,6 @@ class AuthViewController extends GetxController {
             // Agent profile fields
             if (bioController.text.trim().isNotEmpty)
               'bio': bioController.text.trim(),
-            if (videoUrlController.text.trim().isNotEmpty)
-              'videoUrl': videoUrlController.text.trim(),
             if (_selectedExpertise.isNotEmpty) 'expertise': _selectedExpertise,
             if (websiteUrlController.text.trim().isNotEmpty)
               'websiteUrl': websiteUrlController.text.trim(),
@@ -305,13 +301,9 @@ class AuthViewController extends GetxController {
             if (thirdPartyReviewsUrlController.text.trim().isNotEmpty)
               'thirdPartyReviewsUrl': thirdPartyReviewsUrlController.text
                   .trim(),
-            if (serviceZipCodesController.text.trim().isNotEmpty)
-              'serviceZipCodes': serviceZipCodesController.text
-                  .trim()
-                  .split(',')
-                  .map((z) => z.trim())
-                  .where((z) => z.isNotEmpty)
-                  .toList(),
+            if (officeZipCode.isNotEmpty) 'zipCode': officeZipCode,
+            if (officeZipCodesList != null)
+              'serviceZipCodes': officeZipCodesList,
             'verificationAgreed': _agentVerificationAgreed.value,
           };
         } else if (selectedRole == UserRole.loanOfficer) {
@@ -321,8 +313,6 @@ class AuthViewController extends GetxController {
             // Loan officer profile fields
             if (loanOfficerBioController.text.trim().isNotEmpty)
               'bio': loanOfficerBioController.text.trim(),
-            if (loanOfficerVideoUrlController.text.trim().isNotEmpty)
-              'videoUrl': loanOfficerVideoUrlController.text.trim(),
             if (_selectedSpecialtyProducts.isNotEmpty)
               'specialtyProducts': _selectedSpecialtyProducts,
             if (loanOfficerWebsiteUrlController.text.trim().isNotEmpty)
@@ -490,7 +480,6 @@ class AuthViewController extends GetxController {
     brokerageController.dispose();
     agentLicenseNumberController.dispose();
     bioController.dispose();
-    videoUrlController.dispose();
     websiteUrlController.dispose();
     googleReviewsUrlController.dispose();
     thirdPartyReviewsUrlController.dispose();
@@ -498,7 +487,6 @@ class AuthViewController extends GetxController {
     companyController.dispose();
     loanOfficerLicenseNumberController.dispose();
     loanOfficerBioController.dispose();
-    loanOfficerVideoUrlController.dispose();
     loanOfficerWebsiteUrlController.dispose();
     mortgageApplicationUrlController.dispose();
     loanOfficerExternalReviewsUrlController.dispose();

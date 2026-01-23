@@ -5,8 +5,8 @@ import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart' as global;
-import 'package:getrebate/app/models/user_model.dart';
-import 'package:getrebate/app/routes/app_pages.dart';
+import 'package:getrebate/app/models/zip_code_model.dart';
+import 'package:getrebate/app/modules/agent/controllers/agent_controller.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
 import 'package:get_storage/get_storage.dart';
@@ -16,8 +16,6 @@ import '../../../widgets/custom_snackbar.dart';
 class AddListingController extends GetxController {
   final Dio _dio = Dio();
   // Using ApiConstants for centralized URL management
-  static String get _baseUrl => ApiConstants.apiBaseUrl;
-
   // Form controllers
   final titleController = TextEditingController();
   final descriptionController = TextEditingController();
@@ -26,6 +24,7 @@ class AddListingController extends GetxController {
   final cityController = TextEditingController();
   final stateController = TextEditingController();
   final zipCodeController = TextEditingController();
+  final _selectedClaimedZip = Rxn<ZipCodeModel>();
 
   // Observable variables
   final _isLoading = false.obs;
@@ -37,17 +36,17 @@ class AddListingController extends GetxController {
   final _dualAgencyTotalCommissionPercent =
       5.0.obs; // Default 5% total commission
   final _openHouses = <OpenHouseEntry>[].obs;
-  
+
   // Property details fields (for propertyDetails JSON)
   final _propertyType = 'house'.obs; // Default to 'house'
   final _propertyStatus = 'active'.obs; // Default to 'active'
   final _bedrooms = ''.obs;
   final _bathrooms = ''.obs;
   final _squareFeet = ''.obs;
-  
+
   // Property features (array)
   final _propertyFeatures = <String>[].obs;
-  
+
   // Status field (separate from propertyDetails.status)
   final _listingStatus = 'active'.obs; // Default to 'active'
 
@@ -63,6 +62,7 @@ class AddListingController extends GetxController {
       _dualAgencyTotalCommissionPercent.value;
   List<OpenHouseEntry> get openHouses => _openHouses;
   bool get canAddMoreOpenHouses => _openHouses.length < 4;
+  ZipCodeModel? get selectedClaimedZip => _selectedClaimedZip.value;
   String get propertyType => _propertyType.value;
   String get propertyStatus => _propertyStatus.value;
   String get bedrooms => _bedrooms.value;
@@ -70,7 +70,7 @@ class AddListingController extends GetxController {
   String get squareFeet => _squareFeet.value;
   List<String> get propertyFeatures => _propertyFeatures;
   String get listingStatus => _listingStatus.value;
-  
+
   void setPropertyType(String type) => _propertyType.value = type;
   void setPropertyStatus(String status) => _propertyStatus.value = status;
   void setBedrooms(String value) => _bedrooms.value = value;
@@ -83,6 +83,7 @@ class AddListingController extends GetxController {
       _propertyFeatures.add(feature);
     }
   }
+
   void setListingStatus(String status) => _listingStatus.value = status;
 
   @override
@@ -124,12 +125,23 @@ class AddListingController extends GetxController {
     }
   }
 
+  void selectClaimedZip(ZipCodeModel? zip) {
+    _selectedClaimedZip.value = zip;
+    if (zip != null) {
+      zipCodeController.text = zip.zipCode;
+      stateController.text = zip.state;
+    }
+  }
+
   void addPhoto(File photoFile) {
     if (_selectedPhotos.length < 10) {
       // Max 10 photos
       _selectedPhotos.add(photoFile);
     } else {
-      SnackbarHelper.showInfo('You can add up to 10 photos', title: 'Limit Reached');
+      SnackbarHelper.showInfo(
+        'You can add up to 10 photos',
+        title: 'Limit Reached',
+      );
     }
   }
 
@@ -139,7 +151,10 @@ class AddListingController extends GetxController {
 
   void addOpenHouse() {
     if (_openHouses.length >= 4) {
-      SnackbarHelper.showInfo('You can add up to 4 open houses', title: 'Limit Reached');
+      SnackbarHelper.showInfo(
+        'You can add up to 4 open houses',
+        title: 'Limit Reached',
+      );
       return;
     }
     _openHouses.add(OpenHouseEntry());
@@ -193,22 +208,6 @@ class AddListingController extends GetxController {
         return;
       }
 
-      // Get user role and convert to API format
-      String createdByRole = 'user'; // Default
-      if (currentUser?.role != null) {
-        switch (currentUser!.role) {
-          case UserRole.agent:
-            createdByRole = 'agent';
-            break;
-          case UserRole.loanOfficer:
-            createdByRole = 'loan_officer';
-            break;
-          case UserRole.buyerSeller:
-            createdByRole = 'buyerSeller';
-            break;
-        }
-      }
-
       // Prepare form data
       final formData = FormData();
 
@@ -252,10 +251,14 @@ class AddListingController extends GetxController {
         if (_bedrooms.value.isNotEmpty) 'bedrooms': _bedrooms.value,
         if (_bathrooms.value.isNotEmpty) 'bathrooms': _bathrooms.value,
       };
-      formData.fields.add(MapEntry('propertyDetails', jsonEncode(propertyDetailsJson)));
+      formData.fields.add(
+        MapEntry('propertyDetails', jsonEncode(propertyDetailsJson)),
+      );
 
       // Format propertyFeatures as JSON array
-      formData.fields.add(MapEntry('propertyFeatures', jsonEncode(_propertyFeatures)));
+      formData.fields.add(
+        MapEntry('propertyFeatures', jsonEncode(_propertyFeatures)),
+      );
 
       // Add property photos (files)
       for (var photo in _selectedPhotos) {
@@ -269,7 +272,9 @@ class AddListingController extends GetxController {
       }
 
       if (kDebugMode) {
-        print('🚀 Sending POST request to: ${ApiConstants.createListingEndpoint}');
+        print(
+          '🚀 Sending POST request to: ${ApiConstants.createListingEndpoint}',
+        );
         print('📤 Request Data:');
         print('  - propertyTitle: ${titleController.text.trim()}');
         print('  - description: ${descriptionController.text.trim()}');
@@ -322,12 +327,15 @@ class AddListingController extends GetxController {
         }
 
         _isLoading.value = false;
-        
+
         // Show success snackbar
         SnackbarHelper.showSuccess(
           'Listing created successfully!',
           title: 'Success',
         );
+
+        final agentController = Get.find<AgentController>();
+        agentController.setSelectedTab(0);
 
         // Navigate back after a short delay
         await Future.delayed(const Duration(milliseconds: 500));
@@ -335,7 +343,7 @@ class AddListingController extends GetxController {
       }
     } on DioException catch (e) {
       _isLoading.value = false;
-      
+
       if (kDebugMode) {
         print('❌ ERROR - Status Code: ${e.response?.statusCode ?? "N/A"}');
         print('📥 Error Response:');
@@ -371,12 +379,12 @@ class AddListingController extends GetxController {
       SnackbarHelper.showError(errorMessage);
     } catch (e) {
       _isLoading.value = false;
-      
+
       if (kDebugMode) {
         print('❌ Unexpected Error: ${e.toString()}');
         print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       }
-      
+
       CustomSnackbar.showError('Failed to create listing: ${e.toString()}');
     }
   }
@@ -427,14 +435,18 @@ class AddListingController extends GetxController {
       return false;
     }
 
-    if (zipCodeController.text.trim().isEmpty) {
-      SnackbarHelper.showValidation('Please enter a ZIP code');
+    if (_selectedClaimedZip.value == null) {
+      SnackbarHelper.showValidation(
+        'Please select a ZIP code from your claimed areas',
+      );
       return false;
     }
 
     // CRITICAL: Verify listing agent status
     if (_isListingAgent.value == null) {
-      SnackbarHelper.showValidation('Please confirm if you are the listing agent for this property');
+      SnackbarHelper.showValidation(
+        'Please confirm if you are the listing agent for this property',
+      );
       return false;
     }
 

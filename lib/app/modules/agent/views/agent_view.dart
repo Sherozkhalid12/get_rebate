@@ -75,7 +75,7 @@ class AgentView extends GetView<AgentController> {
           // My Listings tab
           return FloatingActionButton.extended(
             onPressed: controller.canAddFreeListing
-                ? () => Get.toNamed('/add-listing')
+                ? () => _handleAddListing(context)
                 : () => _showBuySlotDialog(context),
             backgroundColor: AppTheme.primaryBlue,
             foregroundColor: Colors.white,
@@ -330,49 +330,53 @@ class AgentView extends GetView<AgentController> {
         itemBuilder: (context, index) {
           final stat = stats[index];
 
-        return GradientCardWithIcon(
-              icon: stat['icon'],
-              iconColor: Colors.white,
-              gradientColors: AppTheme.primaryGradient,
-              child: Padding(
-                padding: const EdgeInsets.all(4.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      stat['value'].toString(),
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
+          return GradientCardWithIcon(
+                icon: stat['icon'],
+                iconColor: Colors.white,
+                gradientColors: AppTheme.primaryGradient,
+                child: Padding(
+                  padding: const EdgeInsets.all(4.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        stat['value'].toString(),
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
                       ),
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      stat['label'],
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Colors.white.withOpacity(0.9),
-                        fontSize: 11,
+                      const SizedBox(height: 2),
+                      Text(
+                        stat['label'],
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Colors.white.withOpacity(0.9),
+                          fontSize: 11,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 2,
+                        textAlign: TextAlign.center,
                       ),
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 2,
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            )
-            .animate()
-            .slideY(
-              begin: 0.2,
-              duration: 300.ms,
-              curve: Curves.easeOutCubic,
-              delay: (index * 50).ms,
-            )
-            .fadeIn(duration: 250.ms, delay: (index * 50).ms, curve: Curves.easeOut);
+              )
+              .animate()
+              .slideY(
+                begin: 0.2,
+                duration: 300.ms,
+                curve: Curves.easeOutCubic,
+                delay: (index * 50).ms,
+              )
+              .fadeIn(
+                duration: 250.ms,
+                delay: (index * 50).ms,
+                curve: Curves.easeOut,
+              );
         },
       );
     });
@@ -417,11 +421,9 @@ class AgentView extends GetView<AgentController> {
             children: [
               Expanded(
                 child: CustomButton(
-                  text: 'Compliance Tutorial',
-                  onPressed: () {
-                    Get.toNamed('/compliance-tutorial');
-                  },
-                  icon: Icons.school,
+                  text: 'Compliance Checklist',
+                  onPressed: () => Get.toNamed('/rebate-checklist'),
+                  icon: Icons.assignment_outlined,
                   isOutlined: true,
                   height: 60.h,
                   padding: EdgeInsets.symmetric(
@@ -539,220 +541,260 @@ class AgentView extends GetView<AgentController> {
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
           sliver: SliverList(
             delegate: SliverChildListDelegate([
-          // Search
-          CustomTextField(
-            controller: TextEditingController(),
-            labelText: 'Search ZIP codes',
-            prefixIcon: Icons.search,
-            onChanged: (value) => controller.searchZipCodes(value),
-          ),
+              // Search
+              CustomTextField(
+                controller: TextEditingController(),
+                labelText: 'Search ZIP codes',
+                prefixIcon: Icons.search,
+                onChanged: (value) => controller.searchZipCodes(value),
+              ),
 
-          const SizedBox(height: 20),
+              const SizedBox(height: 20),
 
-          // Licensed States Section
-          Obx(() {
-            final licensedStates = authController.currentUser?.licensedStates ?? [];
-            if (licensedStates.isNotEmpty) {
-              return Column(
-                children: [
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
+              // Licensed States Section
+              Obx(() {
+                final licensedStates =
+                    authController.currentUser?.licensedStates ?? [];
+                if (licensedStates.isNotEmpty) {
+                  return Column(
+                    children: [
+                      Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Icon(
-                                Icons.location_on,
-                                color: AppTheme.primaryBlue,
-                                size: 20,
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.location_on,
+                                    color: AppTheme.primaryBlue,
+                                    size: 20,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Your Licensed States',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleMedium
+                                        ?.copyWith(
+                                          color: AppTheme.black,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                  ),
+                                ],
                               ),
-                              const SizedBox(width: 8),
+                              const SizedBox(height: 12),
                               Text(
-                                'Your Licensed States',
-                                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                  color: AppTheme.black,
-                                  fontWeight: FontWeight.w600,
-                                ),
+                                'States you selected during sign up:',
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(color: AppTheme.mediumGray),
+                              ),
+                              const SizedBox(height: 12),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: licensedStates.map((state) {
+                                  return Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 6,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: AppTheme.primaryBlue.withOpacity(
+                                        0.1,
+                                      ),
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(
+                                        color: AppTheme.primaryBlue.withOpacity(
+                                          0.3,
+                                        ),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      state,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodyMedium
+                                          ?.copyWith(
+                                            color: AppTheme.primaryBlue,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                    ),
+                                  );
+                                }).toList(),
                               ),
                             ],
                           ),
-                          const SizedBox(height: 12),
-                          Text(
-                            'States you selected during sign up:',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: AppTheme.mediumGray,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                    ],
+                  );
+                }
+                return const SizedBox.shrink();
+              }),
+
+              // State Selector for ZIP Codes - Always show, but only show licensed states in dropdown
+              Obx(() {
+                final licensedStates =
+                    authController.currentUser?.licensedStates ?? [];
+                final uniqueStates = licensedStates.toSet().toList()
+                  ..sort((a, b) => a.compareTo(b));
+
+                return Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Select State to View ZIP Codes',
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(
+                                color: AppTheme.black,
+                                fontWeight: FontWeight.w600,
+                              ),
+                        ),
+                        const SizedBox(height: 12),
+                        if (uniqueStates.isEmpty)
+                          Container(
+                            padding: EdgeInsets.zero,
+                            child: Text(
+                              'No licensed states found. Please update your profile to add licensed states.',
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(color: AppTheme.mediumGray),
+                            ),
+                          )
+                        else
+                          Obx(() {
+                            final currentValue = controller.selectedState;
+                            final safeValue =
+                                uniqueStates.contains(currentValue)
+                                ? currentValue
+                                : null;
+
+                            return DropdownButtonFormField<String>(
+                              value: safeValue,
+                              decoration: InputDecoration(
+                                labelText: 'Select State',
+                                prefixIcon: Icon(
+                                  Icons.map,
+                                  color: AppTheme.primaryBlue,
+                                ),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                filled: true,
+                                fillColor: AppTheme.lightGray,
+                              ),
+                              items: [
+                                DropdownMenuItem<String>(
+                                  value: null,
+                                  child: Text(
+                                    'Select a state',
+                                    style: TextStyle(
+                                      color: AppTheme.mediumGray,
+                                    ),
+                                  ),
+                                ),
+                                ...uniqueStates.map((stateName) {
+                                  return DropdownMenuItem<String>(
+                                    value: stateName,
+                                    child: Text(stateName),
+                                  );
+                                }),
+                              ],
+                              onChanged: (value) {
+                                if (value != null) {
+                                  controller.selectStateAndFetchZipCodes(value);
+                                } else {
+                                  controller.selectStateAndFetchZipCodes('');
+                                }
+                              },
+                            );
+                          }),
+                        const SizedBox(height: 8),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton(
+                            onPressed: controller.refreshZipCodesFromApi,
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            child: Text(
+                              'Fetch from API',
+                              style: TextStyle(
+                                color: AppTheme.primaryBlue,
+                                fontSize: 12,
+                              ),
                             ),
                           ),
+                        ),
+                        if (controller.isLoadingZipCodes) ...[
                           const SizedBox(height: 12),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: licensedStates.map((state) {
-                              return Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 6,
+                          Row(
+                            children: [
+                              SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: AppTheme.primaryBlue,
                                 ),
-                                decoration: BoxDecoration(
-                                  color: AppTheme.primaryBlue.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(
-                                    color: AppTheme.primaryBlue.withOpacity(0.3),
-                                  ),
-                                ),
-                                child: Text(
-                                  state,
-                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                    color: AppTheme.primaryBlue,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              );
-                            }).toList(),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Loading ZIP codes...',
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(color: AppTheme.mediumGray),
+                              ),
+                            ],
                           ),
                         ],
-                      ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 20),
-                ],
-              );
-            }
-            return const SizedBox.shrink();
-          }),
+                );
+              }),
+              const SizedBox(height: 20),
 
-          // State Selector for ZIP Codes - Always show, but only show licensed states in dropdown
-          Obx(() {
-            final licensedStates = authController.currentUser?.licensedStates ?? [];
-            final uniqueStates = licensedStates.toSet().toList()..sort((a, b) => a.compareTo(b));
-            
-            return Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
+              // Claimed ZIP Codes
+              Obx(() {
+                if (controller.claimedZipCodes.isEmpty) {
+                  return _buildEmptyState(
+                    context,
+                    'No claimed ZIP codes',
+                    'Start by claiming a ZIP code below',
+                    icon: Icons.location_on_outlined,
+                    infoMessage:
+                        'Claim ZIP codes in your licensed states to appear in buyer searches',
+                  );
+                }
+                return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Select State to View ZIP Codes',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      'Your Claimed ZIP Codes (${controller.claimedZipCodes.length}/6)',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         color: AppTheme.black,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
                     const SizedBox(height: 12),
-                    if (uniqueStates.isEmpty)
-                      Container(
-                        padding: EdgeInsets.zero,
-                        child: Text(
-                          'No licensed states found. Please update your profile to add licensed states.',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: AppTheme.mediumGray,
-                              ),
-                        ),
-                      )
-                    else
-                      Obx(() {
-                        final currentValue = controller.selectedState;
-                        final safeValue = uniqueStates.contains(currentValue)
-                            ? currentValue
-                            : null;
-
-                        return DropdownButtonFormField<String>(
-                          value: safeValue,
-                          decoration: InputDecoration(
-                            labelText: 'Select State',
-                            prefixIcon: Icon(Icons.map, color: AppTheme.primaryBlue),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            filled: true,
-                            fillColor: AppTheme.lightGray,
-                          ),
-                          items: [
-                            DropdownMenuItem<String>(
-                              value: null,
-                              child: Text(
-                                'Select a state',
-                                style: TextStyle(color: AppTheme.mediumGray),
-                              ),
-                            ),
-                            ...uniqueStates.map((stateName) {
-                              return DropdownMenuItem<String>(
-                                value: stateName,
-                                child: Text(stateName),
-                              );
-                            }),
-                          ],
-                          onChanged: (value) {
-                            if (value != null) {
-                              controller.selectStateAndFetchZipCodes(value);
-                            } else {
-                              controller.selectStateAndFetchZipCodes('');
-                            }
-                          },
-                        );
-                      }),
-                    if (controller.isLoadingZipCodes) ...[
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: AppTheme.primaryBlue,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Loading ZIP codes...',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: AppTheme.mediumGray,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            );
-          }),
-          const SizedBox(height: 20),
-
-              // Claimed ZIP Codes
-              Obx(
-                () {
-                  if (controller.claimedZipCodes.isEmpty) {
-                    return _buildEmptyState(
-                      context,
-                      'No claimed ZIP codes',
-                      'Start by claiming a ZIP code below',
-                      icon: Icons.location_on_outlined,
-                      infoMessage: 'Claim ZIP codes in your licensed states to appear in buyer searches',
-                    );
-                  }
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Your Claimed ZIP Codes (${controller.claimedZipCodes.length}/6)',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          color: AppTheme.black,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      ...controller.claimedZipCodes.map((zip) => RepaintBoundary(
+                    ...controller.claimedZipCodes.map(
+                      (zip) => RepaintBoundary(
                         child: _buildZipCodeCard(context, zip, true),
-                      )),
-                    ],
-                  );
-                },
-              ),
+                      ),
+                    ),
+                  ],
+                );
+              }),
 
               const SizedBox(height: 24),
 
@@ -767,82 +809,80 @@ class AgentView extends GetView<AgentController> {
             ]),
           ),
         ),
-        
+
         // Available ZIP Codes List (optimized with SliverList)
-        Obx(
-          () {
-            if (controller.selectedState == null) {
-              return SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: _buildEmptyState(
-                    context,
-                    'Select a State',
-                    'Please select a state above to view available ZIP codes',
-                    icon: Icons.location_off_outlined,
-                  ),
-                ),
-              );
-            }
-            
-            if (controller.isLoadingZipCodes) {
-              return SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(40),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          CircularProgressIndicator(color: AppTheme.primaryBlue),
-                          const SizedBox(height: 16),
-                          Text(
-                            'Loading ZIP codes...',
-                            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                              color: AppTheme.mediumGray,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            }
-            
-            if (controller.availableZipCodes.isEmpty) {
-              return SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: _buildEmptyState(
-                    context,
-                    'No available ZIP codes',
-                    'All ZIP codes in ${controller.selectedState} are claimed',
-                    icon: Icons.location_off_outlined,
-                  ),
-                ),
-              );
-            }
-            
-            return SliverPadding(
-              padding: const EdgeInsets.only(top: 8, left: 20, right: 20),
-              sliver: SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) {
-                    final zip = controller.availableZipCodes[index];
-                    return RepaintBoundary(
-                      child: _buildZipCodeCard(context, zip, false),
-                    );
-                  },
-                  childCount: controller.availableZipCodes.length,
-                  addAutomaticKeepAlives: false,
-                  addRepaintBoundaries: true,
+        Obx(() {
+          if (controller.selectedState == null) {
+            return SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.only(top: 0),
+                child: _buildEmptyState(
+                  context,
+                  'Select a State',
+                  'Please select a state above to view available ZIP codes',
+                  icon: Icons.location_off_outlined,
                 ),
               ),
             );
-          },
-        ),
+          }
+
+          if (controller.isLoadingZipCodes) {
+            return SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.only(top: 0),
+                child: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(40),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        CircularProgressIndicator(color: AppTheme.primaryBlue),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Loading ZIP codes...',
+                          style: Theme.of(context).textTheme.bodyLarge
+                              ?.copyWith(color: AppTheme.mediumGray),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }
+
+          if (controller.availableZipCodes.isEmpty) {
+            return SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.only(top: 0),
+                child: _buildEmptyState(
+                  context,
+                  'No available ZIP codes',
+                  'All ZIP codes in ${controller.selectedState} are claimed',
+                  icon: Icons.location_off_outlined,
+                ),
+              ),
+            );
+          }
+
+          return SliverPadding(
+            padding: const EdgeInsets.only(left: 20, right: 20),
+            sliver: SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (context, index) {
+                  final zip = controller.availableZipCodes[index];
+                  return RepaintBoundary(
+                    child: _buildZipCodeCard(context, zip, false),
+                  );
+                },
+                childCount: controller.availableZipCodes.length,
+                addAutomaticKeepAlives: false,
+
+                addRepaintBoundaries: true,
+              ),
+            ),
+          );
+        }),
       ],
     );
   }
@@ -858,7 +898,7 @@ class AgentView extends GetView<AgentController> {
       (Match m) => '${m[1]},',
     );
     final formattedPrice = '\$${zip.calculatedPrice.toStringAsFixed(2)}/month';
-    
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: Padding(
@@ -895,6 +935,7 @@ class AgentView extends GetView<AgentController> {
                 ],
               ),
             ),
+
             if (isClaimed)
               Obx(
                 () => CustomButton(
@@ -908,18 +949,122 @@ class AgentView extends GetView<AgentController> {
                 ),
               )
             else
-              Obx(
-                () => CustomButton(
-                  text: 'Claim',
-                  onPressed: controller.isZipProcessing(zip.zipCode)
-                      ? null
-                      : () => controller.claimZipCode(zip),
-                  isLoading: controller.isZipProcessing(zip.zipCode),
-                ),
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Obx(
+                    () => CustomButton(
+                      text: 'Claim',
+                      onPressed: controller.isZipProcessing(zip.zipCode)
+                          ? null
+                          : () => controller.claimZipCode(zip),
+                      isLoading: controller.isZipProcessing(zip.zipCode),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  TextButton(
+                    onPressed: () => _showPromoCodeEntrySheet(context),
+                    style: TextButton.styleFrom(
+                      minimumSize: Size.zero,
+                      padding: EdgeInsets.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      textStyle: Theme.of(context).textTheme.bodySmall
+                          ?.copyWith(
+                            color: AppTheme.primaryBlue,
+                            fontWeight: FontWeight.w500,
+                          ),
+                    ),
+                    child: const Text('Have a promo code?'),
+                  ),
+                ],
               ),
           ],
         ),
       ),
+    );
+  }
+
+  void _showPromoCodeEntrySheet(BuildContext context) {
+    final textController = TextEditingController(
+      text: controller.promoCodeInput,
+    );
+
+    Get.bottomSheet(
+      Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+          left: 16,
+          right: 16,
+          top: 20,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Promo code',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: AppTheme.black,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  tooltip: 'Close',
+                  onPressed: () => Get.back(),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: textController,
+              textCapitalization: TextCapitalization.characters,
+              textInputAction: TextInputAction.done,
+              onChanged: controller.setPromoCodeInput,
+              decoration: InputDecoration(
+                hintText: 'Enter promo code',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 12,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            CustomButton(
+              text: 'Apply',
+              width: double.infinity,
+              onPressed: () async {
+                final code = textController.text.trim();
+                if (code.isEmpty) {
+                  SnackbarHelper.showError('Please enter a promo code');
+                  return;
+                }
+                await controller.applyPromoCode(code);
+              },
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Promo codes are optional. Apply before claiming to lock in 70% off.',
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: AppTheme.mediumGray),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+      backgroundColor: AppTheme.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      isScrollControlled: true,
     );
   }
 
@@ -999,7 +1144,7 @@ class AgentView extends GetView<AgentController> {
                       ? 'Add New Listing'
                       : 'Buy Slot',
                   onPressed: controller.canAddFreeListing
-                      ? () => Get.toNamed('/add-listing')
+                      ? () => _handleAddListing(context)
                       : () => _showBuySlotDialog(context),
                   icon: controller.canAddFreeListing
                       ? Icons.add_circle_outline
@@ -1056,10 +1201,11 @@ class AgentView extends GetView<AgentController> {
 
           // Listings List
           Obx(() {
-            if (controller.myListings.isEmpty && controller.allListings.isNotEmpty) {
+            if (controller.myListings.isEmpty &&
+                controller.allListings.isNotEmpty) {
               return _buildNoFilterResults(context);
             }
-            
+
             if (controller.myListings.isEmpty) {
               return _buildEmptyListingsState(context);
             }
@@ -1080,6 +1226,19 @@ class AgentView extends GetView<AgentController> {
         ],
       ),
     );
+  }
+
+  void _handleAddListing(BuildContext context) {
+    if (controller.claimedZipCodes.isEmpty) {
+      SnackbarHelper.showInfo(
+        'Claim a ZIP code before adding a listing.',
+        title: 'ZIP code required',
+      );
+      controller.setSelectedTab(1);
+      return;
+    }
+
+    Get.toNamed('/add-listing');
   }
 
   Widget _buildListingStats(BuildContext context) {
@@ -1259,6 +1418,8 @@ class AgentView extends GetView<AgentController> {
   }
 
   Widget _buildListingCard(BuildContext context, AgentListingModel listing) {
+    final isActivatedState =
+        listing.isActive || controller.recentlyActivatedListingId == listing.id;
     return Container(
       decoration: BoxDecoration(
         color: AppTheme.white,
@@ -1306,8 +1467,7 @@ class AgentView extends GetView<AgentController> {
                     listingTitle: listing.title,
                     photoUrls: listing.photoUrls,
                   ),
-                ]
-                else
+                ] else
                   Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -1320,9 +1480,8 @@ class AgentView extends GetView<AgentController> {
                         const SizedBox(height: 8),
                         Text(
                           'No Image',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: AppTheme.mediumGray,
-                          ),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: AppTheme.mediumGray),
                         ),
                       ],
                     ),
@@ -1574,6 +1733,28 @@ class AgentView extends GetView<AgentController> {
                     ),
                   ],
                 ),
+                if (isActivatedState)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.check_circle,
+                          color: AppTheme.lightGreen,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Activated',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: AppTheme.lightGreen,
+                                fontWeight: FontWeight.w600,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
               ],
             ),
           ),
@@ -1690,27 +1871,27 @@ class AgentView extends GetView<AgentController> {
           ),
         ),
         const SizedBox(height: 12),
-        
+
         // Search Bar
         Container(
           decoration: BoxDecoration(
             color: AppTheme.white,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: AppTheme.lightGray.withOpacity(0.5),
-            ),
+            border: Border.all(color: AppTheme.lightGray.withOpacity(0.5)),
           ),
           child: TextField(
             onChanged: (value) => controller.setSearchQuery(value),
             decoration: InputDecoration(
               hintText: 'Search by title, address, city...',
               prefixIcon: Icon(Icons.search, color: AppTheme.mediumGray),
-              suffixIcon: Obx(() => controller.searchQuery.isNotEmpty
-                  ? IconButton(
-                      icon: Icon(Icons.clear, color: AppTheme.mediumGray),
-                      onPressed: () => controller.setSearchQuery(''),
-                    )
-                  : const SizedBox.shrink()),
+              suffixIcon: Obx(
+                () => controller.searchQuery.isNotEmpty
+                    ? IconButton(
+                        icon: Icon(Icons.clear, color: AppTheme.mediumGray),
+                        onPressed: () => controller.setSearchQuery(''),
+                      )
+                    : const SizedBox.shrink(),
+              ),
               border: InputBorder.none,
               contentPadding: const EdgeInsets.symmetric(
                 horizontal: 16,
@@ -1719,9 +1900,9 @@ class AgentView extends GetView<AgentController> {
             ),
           ),
         ),
-        
+
         const SizedBox(height: 12),
-        
+
         // Status Filter Chips
         Obx(
           () => Wrap(
@@ -1770,9 +1951,7 @@ class AgentView extends GetView<AgentController> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected
-              ? AppTheme.primaryBlue
-              : AppTheme.white,
+          color: isSelected ? AppTheme.primaryBlue : AppTheme.white,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: isSelected
@@ -1806,11 +1985,7 @@ class AgentView extends GetView<AgentController> {
       ),
       child: Column(
         children: [
-          Icon(
-            Icons.filter_alt_off,
-            size: 48,
-            color: AppTheme.mediumGray,
-          ),
+          Icon(Icons.filter_alt_off, size: 48, color: AppTheme.mediumGray),
           const SizedBox(height: 16),
           Text(
             'No listings match your filters',
@@ -1822,9 +1997,9 @@ class AgentView extends GetView<AgentController> {
           const SizedBox(height: 8),
           Text(
             'Try adjusting your search or filter criteria',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: AppTheme.mediumGray,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: AppTheme.mediumGray),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 16),
@@ -1890,7 +2065,7 @@ class AgentView extends GetView<AgentController> {
           const SizedBox(height: 32),
           CustomButton(
             text: 'Add Your First Listing',
-            onPressed: () => Get.toNamed('/add-listing'),
+            onPressed: () => _handleAddListing(context),
             icon: Icons.add_circle_outline,
             width: double.infinity,
             height: 52,
@@ -1952,14 +2127,15 @@ class AgentView extends GetView<AgentController> {
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
-              // Process payment and then navigate to add listing
-              controller.purchaseAdditionalListing().then((_) {
-                Get.toNamed('/add-listing');
-              });
+              // Process payment and navigation is handled internally
+              controller.purchaseAdditionalListing();
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppTheme.primaryBlue,
@@ -1977,14 +2153,20 @@ class AgentView extends GetView<AgentController> {
   void _showEditListingDialog(BuildContext context, AgentListingModel listing) {
     // Create controllers with existing values
     final titleController = TextEditingController(text: listing.title);
-    final descriptionController = TextEditingController(text: listing.description);
-    final priceController = TextEditingController(text: (listing.priceCents / 100).toStringAsFixed(0));
+    final descriptionController = TextEditingController(
+      text: listing.description,
+    );
+    final priceController = TextEditingController(
+      text: (listing.priceCents / 100).toStringAsFixed(0),
+    );
     final addressController = TextEditingController(text: listing.address);
     final cityController = TextEditingController(text: listing.city);
     final stateController = TextEditingController(text: listing.state);
     final zipCodeController = TextEditingController(text: listing.zipCode);
-    final bacPercentController = TextEditingController(text: listing.bacPercent.toString());
-    
+    final bacPercentController = TextEditingController(
+      text: listing.bacPercent.toString(),
+    );
+
     final isListingAgent = listing.isListingAgent.obs;
     final dualAgencyAllowed = listing.dualAgencyAllowed.obs;
     final isLoading = false.obs;
@@ -2142,7 +2324,7 @@ class AgentView extends GetView<AgentController> {
                         ],
                       ),
                       SizedBox(height: 20.h),
-                      
+
                       // Property Images Card
                       _buildEditSectionCard(
                         context,
@@ -2150,16 +2332,18 @@ class AgentView extends GetView<AgentController> {
                         title: 'Property Images',
                         children: [
                           SizedBox(height: 8.h),
-                          Obx(() => _buildImageManagementSection(
-                            context,
-                            currentImages,
-                            newImages,
-                            imagePicker,
-                          )),
+                          Obx(
+                            () => _buildImageManagementSection(
+                              context,
+                              currentImages,
+                              newImages,
+                              imagePicker,
+                            ),
+                          ),
                         ],
                       ),
                       SizedBox(height: 20.h),
-                      
+
                       // Price Information Card
                       _buildEditSectionCard(
                         context,
@@ -2194,7 +2378,7 @@ class AgentView extends GetView<AgentController> {
                         ],
                       ),
                       SizedBox(height: 20.h),
-                      
+
                       // Address Information Card
                       _buildEditSectionCard(
                         context,
@@ -2244,7 +2428,7 @@ class AgentView extends GetView<AgentController> {
                         ],
                       ),
                       SizedBox(height: 20.h),
-                      
+
                       // Settings Card
                       _buildEditSectionCard(
                         context,
@@ -2252,21 +2436,29 @@ class AgentView extends GetView<AgentController> {
                         title: 'Listing Settings',
                         children: [
                           SizedBox(height: 8.h),
-                          Obx(() => _buildToggleSwitch(
-                            context,
-                            title: 'I am the Listing Agent',
-                            subtitle: 'You are the listing agent for this property',
-                            value: isListingAgent.value,
-                            onChanged: (value) => isListingAgent.value = value,
-                          )),
+                          Obx(
+                            () => _buildToggleSwitch(
+                              context,
+                              title: 'I am the Listing Agent',
+                              subtitle:
+                                  'You are the listing agent for this property',
+                              value: isListingAgent.value,
+                              onChanged: (value) =>
+                                  isListingAgent.value = value,
+                            ),
+                          ),
                           SizedBox(height: 16.h),
-                          Obx(() => _buildToggleSwitch(
-                            context,
-                            title: 'Dual Agency Allowed',
-                            subtitle: 'Allow representing both buyer and seller',
-                            value: dualAgencyAllowed.value,
-                            onChanged: (value) => dualAgencyAllowed.value = value,
-                          )),
+                          Obx(
+                            () => _buildToggleSwitch(
+                              context,
+                              title: 'Dual Agency Allowed',
+                              subtitle:
+                                  'Allow representing both buyer and seller',
+                              value: dualAgencyAllowed.value,
+                              onChanged: (value) =>
+                                  dualAgencyAllowed.value = value,
+                            ),
+                          ),
                         ],
                       ),
                       SizedBox(height: 8.h),
@@ -2293,7 +2485,10 @@ class AgentView extends GetView<AgentController> {
                         },
                         style: OutlinedButton.styleFrom(
                           padding: EdgeInsets.symmetric(vertical: 18.h),
-                          side: BorderSide(color: AppTheme.mediumGray, width: 1.5),
+                          side: BorderSide(
+                            color: AppTheme.mediumGray,
+                            width: 1.5,
+                          ),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(16.r),
                           ),
@@ -2312,127 +2507,159 @@ class AgentView extends GetView<AgentController> {
                     SizedBox(width: 16.w),
                     Expanded(
                       flex: 2,
-                      child: Obx(() => Container(
-                        decoration: BoxDecoration(
-                          gradient: isLoading.value
-                              ? null
-                              : LinearGradient(
-                                  colors: AppTheme.primaryGradient,
-                                ),
-                          borderRadius: BorderRadius.circular(16.r),
-                          boxShadow: isLoading.value
-                              ? null
-                              : [
-                                  BoxShadow(
-                                    color: AppTheme.primaryBlue.withOpacity(0.4),
-                                    blurRadius: 12,
-                                    offset: const Offset(0, 6),
+                      child: Obx(
+                        () => Container(
+                          decoration: BoxDecoration(
+                            gradient: isLoading.value
+                                ? null
+                                : LinearGradient(
+                                    colors: AppTheme.primaryGradient,
                                   ),
-                                ],
-                        ),
-                        child: ElevatedButton(
-                          onPressed: isLoading.value
-                              ? null
-                              : () async {
-                                  // Validate fields
-                                  if (titleController.text.trim().isEmpty) {
-                                    SnackbarHelper.showError('Please enter a property title');
-                                    return;
-                                  }
-                                  if (descriptionController.text.trim().isEmpty) {
-                                    SnackbarHelper.showError('Please enter a description');
-                                    return;
-                                  }
-                                  if (priceController.text.trim().isEmpty) {
-                                    SnackbarHelper.showError('Please enter a price');
-                                    return;
-                                  }
-                                  if (addressController.text.trim().isEmpty) {
-                                    SnackbarHelper.showError('Please enter a street address');
-                                    return;
-                                  }
-                                  if (cityController.text.trim().isEmpty) {
-                                    SnackbarHelper.showError('Please enter a city');
-                                    return;
-                                  }
-                                  if (stateController.text.trim().isEmpty) {
-                                    SnackbarHelper.showError('Please enter a state');
-                                    return;
-                                  }
-                                  if (zipCodeController.text.trim().isEmpty) {
-                                    SnackbarHelper.showError('Please enter a ZIP code');
-                                    return;
-                                  }
-
-                                  isLoading.value = true;
-                                  
-                                  try {
-                                    await controller.updateListingViaAPI(
-                                      listing.id,
-                                      titleController.text.trim(),
-                                      descriptionController.text.trim(),
-                                      priceController.text.trim(),
-                                      addressController.text.trim(),
-                                      cityController.text.trim(),
-                                      stateController.text.trim(),
-                                      zipCodeController.text.trim(),
-                                      bacPercentController.text.trim(),
-                                      isListingAgent.value,
-                                      dualAgencyAllowed.value,
-                                      remainingImageUrls: currentImages.toList(),
-                                      newImageFiles: newImages.toList(),
-                                    );
-                                    
-                                    Get.back();
-                                    
-                                    // Wait for dialog to fully close before showing success
-                                    await Future.delayed(const Duration(milliseconds: 300));
-                                    
-                                    SnackbarHelper.showSuccess('Listing updated successfully!');
-                                  } catch (e) {
-                                    SnackbarHelper.showError('Failed to update listing: ${e.toString()}');
-                                  } finally {
-                                    isLoading.value = false;
-                                  }
-                                },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: isLoading.value
-                                ? AppTheme.primaryBlue.withOpacity(0.6)
-                                : Colors.transparent,
-                            foregroundColor: Colors.white,
-                            padding: EdgeInsets.symmetric(vertical: 18.h),
-                            elevation: 0,
-                            shadowColor: Colors.transparent,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16.r),
-                            ),
-                          ),
-                          child: isLoading.value
-                              ? SizedBox(
-                                  height: 22.h,
-                                  width: 22.w,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2.5,
-                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                                  ),
-                                )
-                              : Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(Icons.check_circle_outline_rounded, size: 20.sp),
-                                    SizedBox(width: 8.w),
-                                    Text(
-                                      'Update Listing',
-                                      style: TextStyle(
-                                        fontSize: 16.sp,
-                                        fontWeight: FontWeight.w700,
-                                        letterSpacing: 0.3,
+                            borderRadius: BorderRadius.circular(16.r),
+                            boxShadow: isLoading.value
+                                ? null
+                                : [
+                                    BoxShadow(
+                                      color: AppTheme.primaryBlue.withOpacity(
+                                        0.4,
                                       ),
+                                      blurRadius: 12,
+                                      offset: const Offset(0, 6),
                                     ),
                                   ],
-                                ),
+                          ),
+                          child: ElevatedButton(
+                            onPressed: isLoading.value
+                                ? null
+                                : () async {
+                                    // Validate fields
+                                    if (titleController.text.trim().isEmpty) {
+                                      SnackbarHelper.showError(
+                                        'Please enter a property title',
+                                      );
+                                      return;
+                                    }
+                                    if (descriptionController.text
+                                        .trim()
+                                        .isEmpty) {
+                                      SnackbarHelper.showError(
+                                        'Please enter a description',
+                                      );
+                                      return;
+                                    }
+                                    if (priceController.text.trim().isEmpty) {
+                                      SnackbarHelper.showError(
+                                        'Please enter a price',
+                                      );
+                                      return;
+                                    }
+                                    if (addressController.text.trim().isEmpty) {
+                                      SnackbarHelper.showError(
+                                        'Please enter a street address',
+                                      );
+                                      return;
+                                    }
+                                    if (cityController.text.trim().isEmpty) {
+                                      SnackbarHelper.showError(
+                                        'Please enter a city',
+                                      );
+                                      return;
+                                    }
+                                    if (stateController.text.trim().isEmpty) {
+                                      SnackbarHelper.showError(
+                                        'Please enter a state',
+                                      );
+                                      return;
+                                    }
+                                    if (zipCodeController.text.trim().isEmpty) {
+                                      SnackbarHelper.showError(
+                                        'Please enter a ZIP code',
+                                      );
+                                      return;
+                                    }
+
+                                    isLoading.value = true;
+
+                                    try {
+                                      await controller.updateListingViaAPI(
+                                        listing.id,
+                                        titleController.text.trim(),
+                                        descriptionController.text.trim(),
+                                        priceController.text.trim(),
+                                        addressController.text.trim(),
+                                        cityController.text.trim(),
+                                        stateController.text.trim(),
+                                        zipCodeController.text.trim(),
+                                        bacPercentController.text.trim(),
+                                        isListingAgent.value,
+                                        dualAgencyAllowed.value,
+                                        remainingImageUrls: currentImages
+                                            .toList(),
+                                        newImageFiles: newImages.toList(),
+                                      );
+
+                                      Get.back();
+
+                                      // Wait for dialog to fully close before showing success
+                                      await Future.delayed(
+                                        const Duration(milliseconds: 300),
+                                      );
+
+                                      SnackbarHelper.showSuccess(
+                                        'Listing updated successfully!',
+                                      );
+                                    } catch (e) {
+                                      SnackbarHelper.showError(
+                                        'Failed to update listing: ${e.toString()}',
+                                      );
+                                    } finally {
+                                      isLoading.value = false;
+                                    }
+                                  },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: isLoading.value
+                                  ? AppTheme.primaryBlue.withOpacity(0.6)
+                                  : Colors.transparent,
+                              foregroundColor: Colors.white,
+                              padding: EdgeInsets.symmetric(vertical: 18.h),
+                              elevation: 0,
+                              shadowColor: Colors.transparent,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16.r),
+                              ),
+                            ),
+                            child: isLoading.value
+                                ? SizedBox(
+                                    height: 22.h,
+                                    width: 22.w,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2.5,
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                        Colors.white,
+                                      ),
+                                    ),
+                                  )
+                                : Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        Icons.check_circle_outline_rounded,
+                                        size: 20.sp,
+                                      ),
+                                      SizedBox(width: 8.w),
+                                      Text(
+                                        'Update Listing',
+                                        style: TextStyle(
+                                          fontSize: 16.sp,
+                                          fontWeight: FontWeight.w700,
+                                          letterSpacing: 0.3,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                          ),
                         ),
-                      )),
+                      ),
                     ),
                   ],
                 ),
@@ -2481,16 +2708,10 @@ class AgentView extends GetView<AgentController> {
                 Container(
                   padding: EdgeInsets.all(10.w),
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: AppTheme.primaryGradient,
-                    ),
+                    gradient: LinearGradient(colors: AppTheme.primaryGradient),
                     borderRadius: BorderRadius.circular(12.r),
                   ),
-                  child: Icon(
-                    icon,
-                    color: AppTheme.white,
-                    size: 20.sp,
-                  ),
+                  child: Icon(icon, color: AppTheme.white, size: 20.sp),
                 ),
                 SizedBox(width: 12.w),
                 Text(
@@ -2524,7 +2745,9 @@ class AgentView extends GetView<AgentController> {
         color: AppTheme.lightGray.withOpacity(0.5),
         borderRadius: BorderRadius.circular(16.r),
         border: Border.all(
-          color: value ? AppTheme.primaryBlue.withOpacity(0.3) : AppTheme.lightGray,
+          color: value
+              ? AppTheme.primaryBlue.withOpacity(0.3)
+              : AppTheme.lightGray,
           width: 1.5,
         ),
       ),
@@ -2545,10 +2768,7 @@ class AgentView extends GetView<AgentController> {
                 SizedBox(height: 4.h),
                 Text(
                   subtitle,
-                  style: TextStyle(
-                    fontSize: 12.sp,
-                    color: AppTheme.mediumGray,
-                  ),
+                  style: TextStyle(fontSize: 12.sp, color: AppTheme.mediumGray),
                 ),
               ],
             ),
@@ -2596,17 +2816,15 @@ class AgentView extends GetView<AgentController> {
                 if (index < currentImages.length) {
                   // Existing image from URL
                   final imageUrl = currentImages[index];
-                  final processedUrl = ImageUrlHelper.buildImageUrl(imageUrl) ?? imageUrl;
-                  
+                  final processedUrl =
+                      ImageUrlHelper.buildImageUrl(imageUrl) ?? imageUrl;
+
                   return Container(
                     width: 120.w,
                     margin: EdgeInsets.only(right: 12.w),
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(12.r),
-                      border: Border.all(
-                        color: AppTheme.lightGray,
-                        width: 1.5,
-                      ),
+                      border: Border.all(color: AppTheme.lightGray, width: 1.5),
                     ),
                     child: Stack(
                       children: [
@@ -2633,9 +2851,13 @@ class AgentView extends GetView<AgentController> {
                                 child: Center(
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
-                                    value: loadingProgress.expectedTotalBytes != null
-                                        ? loadingProgress.cumulativeBytesLoaded /
-                                            loadingProgress.expectedTotalBytes!
+                                    value:
+                                        loadingProgress.expectedTotalBytes !=
+                                            null
+                                        ? loadingProgress
+                                                  .cumulativeBytesLoaded /
+                                              loadingProgress
+                                                  .expectedTotalBytes!
                                         : null,
                                   ),
                                 ),
@@ -2675,7 +2897,7 @@ class AgentView extends GetView<AgentController> {
                   // New image from file
                   final fileIndex = index - currentImages.length;
                   final imageFile = newImages[fileIndex];
-                  
+
                   return Container(
                     width: 120.w,
                     margin: EdgeInsets.only(right: 12.w),
@@ -2701,7 +2923,10 @@ class AgentView extends GetView<AgentController> {
                           top: 4,
                           left: 4,
                           child: Container(
-                            padding: EdgeInsets.symmetric(horizontal: 6.w, vertical: 2.h),
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 6.w,
+                              vertical: 2.h,
+                            ),
                             decoration: BoxDecoration(
                               color: AppTheme.lightGreen,
                               borderRadius: BorderRadius.circular(8.r),
@@ -2750,7 +2975,7 @@ class AgentView extends GetView<AgentController> {
           ),
           SizedBox(height: 16.h),
         ],
-        
+
         // Add Image Button
         OutlinedButton.icon(
           onPressed: () async {
@@ -2759,7 +2984,7 @@ class AgentView extends GetView<AgentController> {
                 source: ImageSource.gallery,
                 imageQuality: 85,
               );
-              
+
               if (image != null) {
                 newImages.add(File(image.path));
               }
@@ -2770,23 +2995,17 @@ class AgentView extends GetView<AgentController> {
           icon: Icon(Icons.add_photo_alternate_rounded, size: 20.sp),
           label: Text(
             'Add Image',
-            style: TextStyle(
-              fontSize: 14.sp,
-              fontWeight: FontWeight.w600,
-            ),
+            style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w600),
           ),
           style: OutlinedButton.styleFrom(
             padding: EdgeInsets.symmetric(vertical: 14.h, horizontal: 20.w),
-            side: BorderSide(
-              color: AppTheme.primaryBlue,
-              width: 1.5,
-            ),
+            side: BorderSide(color: AppTheme.primaryBlue, width: 1.5),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12.r),
             ),
           ),
         ),
-        
+
         if (currentImages.isEmpty && newImages.isEmpty) ...[
           SizedBox(height: 8.h),
           Text(
@@ -2809,13 +3028,27 @@ class AgentView extends GetView<AgentController> {
     Get.dialog(
       AlertDialog(
         title: const Text('Delete Listing'),
-        content: Text('Are you sure you want to delete "${listing.title}"?'),
+        content: Text(
+          'Confirm you really want to delete "${listing.title}". '
+          'This action cannot be undone.',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
           TextButton(
-            onPressed: () {
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
               Navigator.pop(context);
-              controller.deleteListing(listing.id);
+              final success = await controller.deleteListing(listing.id);
+              if (success) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Listing deleted successfully'),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              }
             },
             child: const Text('Delete', style: TextStyle(color: Colors.red)),
           ),
@@ -3000,15 +3233,15 @@ class AgentView extends GetView<AgentController> {
 
           Obx(() {
             final activeSubs = controller.activeSubscriptions;
-            
+
             if (activeSubs.isEmpty) {
               return Padding(
                 padding: const EdgeInsets.all(16),
                 child: Text(
                   'No active subscriptions',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppTheme.mediumGray,
-                  ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(color: AppTheme.mediumGray),
                 ),
               );
             }
@@ -3033,11 +3266,10 @@ class AgentView extends GetView<AgentController> {
                     if (!controller.hasActivePromo) ...[
                       Text(
                         'Have a promo code?',
-                        style: Theme.of(context).textTheme.bodyLarge
-                            ?.copyWith(
-                              color: AppTheme.black,
-                              fontWeight: FontWeight.w500,
-                            ),
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          color: AppTheme.black,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                       const SizedBox(height: 8),
                       Row(
@@ -3063,7 +3295,9 @@ class AgentView extends GetView<AgentController> {
                             text: 'Apply',
                             onPressed: () {
                               if (controller.promoCodeInput.isEmpty) {
-                                SnackbarHelper.showError('Please enter a promo code');
+                                SnackbarHelper.showError(
+                                  'Please enter a promo code',
+                                );
                                 return;
                               }
                               controller.applyPromoCode(
@@ -3077,8 +3311,9 @@ class AgentView extends GetView<AgentController> {
                       const SizedBox(height: 8),
                       Text(
                         'If you have a promo code, please enter it above',
-                        style: Theme.of(context).textTheme.bodySmall
-                            ?.copyWith(color: AppTheme.mediumGray),
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppTheme.mediumGray,
+                        ),
                       ),
                       const SizedBox(height: 16),
                     ],
@@ -3086,17 +3321,17 @@ class AgentView extends GetView<AgentController> {
                     // Generate Promo Code for Loan Officers
                     Text(
                       'Share with Loan Officers',
-                      style: Theme.of(context).textTheme.bodyLarge
-                          ?.copyWith(
-                            color: AppTheme.black,
-                            fontWeight: FontWeight.w500,
-                          ),
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        color: AppTheme.black,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Text(
                       'Generate a promo code to share with loan officers. They\'ll get 6 months free!',
-                      style: Theme.of(context).textTheme.bodySmall
-                          ?.copyWith(color: AppTheme.mediumGray),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppTheme.mediumGray,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     CustomButton(
@@ -3112,11 +3347,10 @@ class AgentView extends GetView<AgentController> {
                       const SizedBox(height: 12),
                       Text(
                         'Your Generated Codes:',
-                        style: Theme.of(context).textTheme.bodyMedium
-                            ?.copyWith(
-                              color: AppTheme.darkGray,
-                              fontWeight: FontWeight.w500,
-                            ),
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: AppTheme.darkGray,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                       const SizedBox(height: 8),
                       ...controller.generatedPromoCodes.map(
@@ -3146,8 +3380,7 @@ class AgentView extends GetView<AgentController> {
                                             ),
                                       ),
                                       Text(
-                                        promo.description ??
-                                            '6 Months Free',
+                                        promo.description ?? '6 Months Free',
                                         style: Theme.of(context)
                                             .textTheme
                                             .bodySmall
@@ -3163,7 +3396,10 @@ class AgentView extends GetView<AgentController> {
                                   onPressed: () {
                                     // Copy to clipboard
                                     // Clipboard.setData(ClipboardData(text: promo.code));
-                                    SnackbarHelper.showSuccess('Promo code copied to clipboard', title: 'Copied');
+                                    SnackbarHelper.showSuccess(
+                                      'Promo code copied to clipboard',
+                                      title: 'Copied',
+                                    );
                                   },
                                 ),
                               ],
@@ -3197,9 +3433,9 @@ class AgentView extends GetView<AgentController> {
                 padding: const EdgeInsets.all(16),
                 child: Text(
                   'No payment history available',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppTheme.mediumGray,
-                  ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(color: AppTheme.mediumGray),
                 ),
               );
             }
@@ -3207,7 +3443,8 @@ class AgentView extends GetView<AgentController> {
             return Column(
               children: controller.subscriptions.map((subscription) {
                 // Format date from createdAt or subscriptionStart
-                final dateStr = subscription['createdAt']?.toString() ??
+                final dateStr =
+                    subscription['createdAt']?.toString() ??
                     subscription['subscriptionStart']?.toString() ??
                     '';
                 final date = DateTime.tryParse(dateStr);
@@ -3220,7 +3457,8 @@ class AgentView extends GetView<AgentController> {
                 final amountStr = '\$${amount.toStringAsFixed(2)}';
 
                 // Format status
-                final status = subscription['subscriptionStatus']?.toString() ?? '';
+                final status =
+                    subscription['subscriptionStatus']?.toString() ?? '';
                 final displayStatus = _formatSubscriptionStatus(status);
 
                 // Payment History only shows payment records, no cancel buttons
@@ -3243,7 +3481,8 @@ class AgentView extends GetView<AgentController> {
     Map<String, dynamic> subscription,
   ) {
     // Format date from createdAt or subscriptionStart
-    final dateStr = subscription['createdAt']?.toString() ??
+    final dateStr =
+        subscription['createdAt']?.toString() ??
         subscription['subscriptionStart']?.toString() ??
         '';
     final date = DateTime.tryParse(dateStr);
@@ -3278,10 +3517,11 @@ class AgentView extends GetView<AgentController> {
                     children: [
                       Text(
                         'Subscription',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                          color: AppTheme.black,
-                        ),
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: AppTheme.black,
+                            ),
                       ),
                       const SizedBox(height: 4),
                       Text(
@@ -3310,7 +3550,8 @@ class AgentView extends GetView<AgentController> {
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: displayStatus == 'Paid' || displayStatus == 'Active'
+                        color:
+                            displayStatus == 'Paid' || displayStatus == 'Active'
                             ? Colors.green.withOpacity(0.1)
                             : Colors.orange.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(4),
@@ -3318,7 +3559,9 @@ class AgentView extends GetView<AgentController> {
                       child: Text(
                         displayStatus,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: displayStatus == 'Paid' || displayStatus == 'Active'
+                          color:
+                              displayStatus == 'Paid' ||
+                                  displayStatus == 'Active'
                               ? Colors.green.shade700
                               : Colors.orange.shade700,
                           fontWeight: FontWeight.w600,
@@ -3417,11 +3660,12 @@ class AgentView extends GetView<AgentController> {
     );
   }
 
+  // ignore: unused_element
   void _showCancelConfirmation(BuildContext context) {
     // Use the active subscription's stripeCustomerId if available
     final activeSub = controller.activeSubscriptionFromAPI;
     final stripeCustomerId = activeSub?['stripeCustomerId']?.toString();
-    
+
     if (stripeCustomerId != null && stripeCustomerId.isNotEmpty) {
       _showCancelConfirmationForSubscription(context, stripeCustomerId);
     } else {
@@ -3480,7 +3724,6 @@ class AgentView extends GetView<AgentController> {
       );
     }
   }
-
 
   Widget _buildPaymentItem(
     BuildContext context,
@@ -3609,12 +3852,16 @@ class AgentView extends GetView<AgentController> {
       final totalLeads = controller.totalLeads;
       final conversions = controller.conversions;
       final closeRate = controller.closeRate;
-      
+
       // Calculate month-over-month changes
       final leadsChange = controller.calculateMonthOverMonthChange('leads');
-      final conversionsChange = controller.calculateMonthOverMonthChange('conversions');
-      final closeRateChange = controller.calculateMonthOverMonthChange('closeRate');
-      
+      final conversionsChange = controller.calculateMonthOverMonthChange(
+        'conversions',
+      );
+      final closeRateChange = controller.calculateMonthOverMonthChange(
+        'closeRate',
+      );
+
       // Get monthly data
       final monthlyLeadsData = controller.getMonthlyLeadsData();
       final monthlyLeads = monthlyLeadsData['values'] as List<int>;
@@ -3624,7 +3871,7 @@ class AgentView extends GetView<AgentController> {
       final cardWidth = (screenWidth - 40 - 12) / 2;
       final now = DateTime.now();
       final monthLabel = _getMonthName(now.month);
-      
+
       // Get activity breakdown
       final activityData = controller.getActivityBreakdown();
 
@@ -3652,7 +3899,10 @@ class AgentView extends GetView<AgentController> {
                 ),
                 const Spacer(),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: AppTheme.primaryBlue.withOpacity(0.08),
                     borderRadius: BorderRadius.circular(20),
@@ -3779,9 +4029,8 @@ class AgentView extends GetView<AgentController> {
                         ),
                         Text(
                           '$monthsCount months',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: AppTheme.mediumGray,
-                          ),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: AppTheme.mediumGray),
                         ),
                       ],
                     ),
@@ -3802,7 +4051,7 @@ class AgentView extends GetView<AgentController> {
                 ),
               ),
             ),
-          const SizedBox(height: 16),
+            const SizedBox(height: 16),
 
             // Activity Breakdown
             Card(
@@ -3897,8 +4146,10 @@ class AgentView extends GetView<AgentController> {
                 ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 140),
                   child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: trendColor.withOpacity(0.12),
                       borderRadius: BorderRadius.circular(20),
@@ -3907,10 +4158,10 @@ class AgentView extends GetView<AgentController> {
                       trimmedSubtitle,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: trendColor,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 11,
-                          ),
+                        color: trendColor,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 11,
+                      ),
                     ),
                   ),
                 ),
@@ -3928,9 +4179,9 @@ class AgentView extends GetView<AgentController> {
           Text(
             label,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppTheme.mediumGray,
-                  fontWeight: FontWeight.w500,
-                ),
+              color: AppTheme.mediumGray,
+              fontWeight: FontWeight.w500,
+            ),
           ),
         ],
       ),
@@ -3969,17 +4220,17 @@ class AgentView extends GetView<AgentController> {
                 Text(
                   label,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppTheme.mediumGray,
-                        fontWeight: FontWeight.w500,
-                      ),
+                    color: AppTheme.mediumGray,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   value,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: AppTheme.black,
-                      ),
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.black,
+                  ),
                 ),
               ],
             ),
@@ -3993,9 +4244,9 @@ class AgentView extends GetView<AgentController> {
     if (data.isEmpty) {
       return const SizedBox(height: 200);
     }
-    
+
     final maxValue = data.reduce((a, b) => a > b ? a : b);
-    
+
     // Prevent division by zero
     if (maxValue == 0) {
       return SizedBox(
@@ -4026,10 +4277,7 @@ class AgentView extends GetView<AgentController> {
                   const SizedBox(height: 6),
                   Text(
                     labels[index],
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: AppTheme.mediumGray,
-                    ),
+                    style: TextStyle(fontSize: 10, color: AppTheme.mediumGray),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -4059,7 +4307,10 @@ class AgentView extends GetView<AgentController> {
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: List.generate(data.length, (index) {
               final value = data[index];
-              final height = ((value / maxValue) * 150).clamp(4.0, 150.0); // Clamp to prevent NaN and ensure minimum height
+              final height = ((value / maxValue) * 150).clamp(
+                4.0,
+                150.0,
+              ); // Clamp to prevent NaN and ensure minimum height
 
               return Expanded(
                 child: Column(
@@ -4199,7 +4450,10 @@ class AgentView extends GetView<AgentController> {
             if (infoMessage != null) ...[
               const SizedBox(height: 40),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 12,
+                ),
                 decoration: BoxDecoration(
                   color: AppTheme.lightGray,
                   borderRadius: BorderRadius.circular(12),
@@ -4246,7 +4500,7 @@ class AgentView extends GetView<AgentController> {
         }
       }
     });
-    
+
     return Obx(() {
       if (controller.isLoadingLeads && controller.leads.isEmpty) {
         return Center(
@@ -4259,9 +4513,9 @@ class AgentView extends GetView<AgentController> {
                 const SizedBox(height: 16),
                 Text(
                   'Loading leads...',
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: AppTheme.mediumGray,
-                  ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyLarge?.copyWith(color: AppTheme.mediumGray),
                 ),
               ],
             ),
@@ -4284,7 +4538,8 @@ class AgentView extends GetView<AgentController> {
                     context,
                     'No Leads',
                     'No leads for this agent.',
-                    infoMessage: 'Leads will appear here when buyers contact you',
+                    infoMessage:
+                        'Leads will appear here when buyers contact you',
                   ),
                   const SizedBox(height: 16),
                   Container(
@@ -4309,10 +4564,11 @@ class AgentView extends GetView<AgentController> {
                         Flexible(
                           child: Text(
                             'Swipe down to refresh and load new leads',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: AppTheme.primaryBlue,
-                              fontWeight: FontWeight.w500,
-                            ),
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: AppTheme.primaryBlue,
+                                  fontWeight: FontWeight.w500,
+                                ),
                             textAlign: TextAlign.center,
                           ),
                         ),
@@ -4443,11 +4699,14 @@ class AgentView extends GetView<AgentController> {
                 Flexible(
                   flex: 2,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
                       color: Colors.white.withOpacity(0.25),
                       borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
+                      border: Border.all(
                         color: Colors.white.withOpacity(0.4),
                         width: 1.5,
                       ),
@@ -4458,32 +4717,34 @@ class AgentView extends GetView<AgentController> {
                           offset: const Offset(0, 2),
                         ),
                       ],
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        isBuying ? Icons.shopping_bag_rounded : Icons.sell_rounded,
-                        color: Colors.white,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          isBuying
+                              ? Icons.shopping_bag_rounded
+                              : Icons.sell_rounded,
+                          color: Colors.white,
                           size: 16,
-                      ),
+                        ),
                         const SizedBox(width: 6),
                         Flexible(
                           child: Text(
-                        isBuying ? 'Buying Lead' : 'Selling Lead',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
+                            isBuying ? 'Buying Lead' : 'Selling Lead',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
                               fontSize: 12,
                               letterSpacing: 0.3,
                             ),
                             overflow: TextOverflow.ellipsis,
                             maxLines: 1,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
                 ),
                 const SizedBox(width: 8),
                 // Lead Status Badge
@@ -4491,13 +4752,16 @@ class AgentView extends GetView<AgentController> {
                   Flexible(
                     flex: 2,
                     child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
                         color: lead.isCompleted
                             ? AppTheme.primaryBlue.withOpacity(0.95)
-                            : lead.isAccepted 
-                                ? AppTheme.lightGreen.withOpacity(0.95)
-                                : Colors.white.withOpacity(0.25),
+                            : lead.isAccepted
+                            ? AppTheme.lightGreen.withOpacity(0.95)
+                            : Colors.white.withOpacity(0.25),
                         borderRadius: BorderRadius.circular(16),
                         border: (lead.isCompleted || lead.isAccepted)
                             ? Border.all(color: Colors.white, width: 1.5)
@@ -4511,23 +4775,23 @@ class AgentView extends GetView<AgentController> {
                             offset: const Offset(0, 2),
                           ),
                         ],
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                            lead.isCompleted 
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            lead.isCompleted
                                 ? Icons.check_circle_outline
-                                : lead.isAccepted 
-                                    ? Icons.check_circle 
-                                    : Icons.pending,
-                        color: Colors.white,
+                                : lead.isAccepted
+                                ? Icons.check_circle
+                                : Icons.pending,
+                            color: Colors.white,
                             size: 13,
                           ),
                           const SizedBox(width: 4),
                           Flexible(
                             child: Text(
-                              lead.isCompleted 
+                              lead.isCompleted
                                   ? 'COMPLETED'
                                   : lead.leadStatus!.toUpperCase(),
                               style: const TextStyle(
@@ -4543,14 +4807,17 @@ class AgentView extends GetView<AgentController> {
                         ],
                       ),
                     ),
-                      ),
-                      const SizedBox(width: 6),
+                  ),
+                  const SizedBox(width: 6),
                 ],
                 // Date Badge
                 Flexible(
                   flex: 1,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.white.withOpacity(0.25),
                       borderRadius: BorderRadius.circular(16),
@@ -4570,17 +4837,17 @@ class AgentView extends GetView<AgentController> {
                         const SizedBox(width: 4),
                         Flexible(
                           child: Text(
-                        lead.formattedDate,
-                        style: const TextStyle(
-                          color: Colors.white,
+                            lead.formattedDate,
+                            style: const TextStyle(
+                              color: Colors.white,
                               fontSize: 10,
-                          fontWeight: FontWeight.w600,
+                              fontWeight: FontWeight.w600,
                             ),
                             overflow: TextOverflow.ellipsis,
                             maxLines: 1,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
                     ),
                   ),
                 ),
@@ -4628,7 +4895,9 @@ class AgentView extends GetView<AgentController> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                lead.isCompleted ? 'Lead Completed' : 'Lead Accepted',
+                                lead.isCompleted
+                                    ? 'Lead Completed'
+                                    : 'Lead Accepted',
                                 style: TextStyle(
                                   fontSize: 16.sp,
                                   fontWeight: FontWeight.w700,
@@ -4637,7 +4906,8 @@ class AgentView extends GetView<AgentController> {
                                       : AppTheme.lightGreen,
                                 ),
                               ),
-                              if (lead.agentResponseNote != null && !lead.isCompleted) ...[
+                              if (lead.agentResponseNote != null &&
+                                  !lead.isCompleted) ...[
                                 SizedBox(height: 4.h),
                                 Text(
                                   lead.agentResponseNote!,
@@ -4661,10 +4931,7 @@ class AgentView extends GetView<AgentController> {
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
-                        colors: [
-                          AppTheme.lightGray,
-                          Colors.white,
-                        ],
+                        colors: [AppTheme.lightGray, Colors.white],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                       ),
@@ -4686,8 +4953,11 @@ class AgentView extends GetView<AgentController> {
                             ),
                             boxShadow: [
                               BoxShadow(
-                                color: (isBuying ? AppTheme.primaryBlue : AppTheme.lightGreen)
-                                    .withOpacity(0.3),
+                                color:
+                                    (isBuying
+                                            ? AppTheme.primaryBlue
+                                            : AppTheme.lightGreen)
+                                        .withOpacity(0.3),
                                 blurRadius: 8,
                                 offset: const Offset(0, 4),
                               ),
@@ -4696,10 +4966,19 @@ class AgentView extends GetView<AgentController> {
                           child: CircleAvatar(
                             radius: 32,
                             backgroundColor: Colors.transparent,
-                            backgroundImage: ImageUrlHelper.buildImageUrl(buyerInfo.profilePic) != null
-                                ? NetworkImage(ImageUrlHelper.buildImageUrl(buyerInfo.profilePic)!)
+                            backgroundImage:
+                                ImageUrlHelper.buildImageUrl(
+                                      buyerInfo.profilePic,
+                                    ) !=
+                                    null
+                                ? NetworkImage(
+                                    ImageUrlHelper.buildImageUrl(
+                                      buyerInfo.profilePic,
+                                    )!,
+                                  )
                                 : null,
-                            child: buyerInfo.profilePic == null ||
+                            child:
+                                buyerInfo.profilePic == null ||
                                     buyerInfo.profilePic!.isEmpty
                                 ? Text(
                                     (buyerInfo.fullname ?? 'B')
@@ -4721,9 +5000,7 @@ class AgentView extends GetView<AgentController> {
                             children: [
                               Text(
                                 buyerInfo.fullname ?? 'Unknown Buyer',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .titleLarge
+                                style: Theme.of(context).textTheme.titleLarge
                                     ?.copyWith(
                                       fontWeight: FontWeight.w700,
                                       color: AppTheme.black,
@@ -4810,7 +5087,8 @@ class AgentView extends GetView<AgentController> {
                   spacing: 12,
                   runSpacing: 12,
                   children: [
-                    if (lead.propertyType != null && lead.propertyType!.isNotEmpty)
+                    if (lead.propertyType != null &&
+                        lead.propertyType!.isNotEmpty)
                       _buildDetailChip(
                         context,
                         Icons.home_rounded,
@@ -4872,7 +5150,8 @@ class AgentView extends GetView<AgentController> {
                     ),
                     child: Column(
                       children: [
-                        if (lead.bestTime != null && lead.bestTime!.isNotEmpty) ...[
+                        if (lead.bestTime != null &&
+                            lead.bestTime!.isNotEmpty) ...[
                           _buildInfoRow(
                             context,
                             Icons.access_time_rounded,
@@ -4904,7 +5183,9 @@ class AgentView extends GetView<AgentController> {
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         colors: [
-                          (isBuying ? AppTheme.primaryBlue : AppTheme.lightGreen)
+                          (isBuying
+                                  ? AppTheme.primaryBlue
+                                  : AppTheme.lightGreen)
                               .withOpacity(0.05),
                           Colors.white,
                         ],
@@ -4913,8 +5194,11 @@ class AgentView extends GetView<AgentController> {
                       ),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: (isBuying ? AppTheme.primaryBlue : AppTheme.lightGreen)
-                            .withOpacity(0.2),
+                        color:
+                            (isBuying
+                                    ? AppTheme.primaryBlue
+                                    : AppTheme.lightGreen)
+                                .withOpacity(0.2),
                         width: 1,
                       ),
                     ),
@@ -4924,23 +5208,26 @@ class AgentView extends GetView<AgentController> {
                         Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                            color: (isBuying ? AppTheme.primaryBlue : AppTheme.lightGreen)
-                                .withOpacity(0.1),
+                            color:
+                                (isBuying
+                                        ? AppTheme.primaryBlue
+                                        : AppTheme.lightGreen)
+                                    .withOpacity(0.1),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Icon(
                             Icons.format_quote_rounded,
                             size: 20,
-                            color: isBuying ? AppTheme.primaryBlue : AppTheme.lightGreen,
+                            color: isBuying
+                                ? AppTheme.primaryBlue
+                                : AppTheme.lightGreen,
                           ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(
                             lead.comments!,
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodyMedium
+                            style: Theme.of(context).textTheme.bodyMedium
                                 ?.copyWith(
                                   color: AppTheme.darkGray,
                                   height: 1.5,
@@ -4959,69 +5246,74 @@ class AgentView extends GetView<AgentController> {
                     // Contact/Open Chat Button
                     Expanded(
                       child: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: gradientColors,
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: (isBuying ? AppTheme.primaryBlue : AppTheme.lightGreen)
-                            .withOpacity(0.4),
-                        blurRadius: 12,
-                        offset: const Offset(0, 6),
-                      ),
-                    ],
-                  ),
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: () => controller.contactBuyerFromLead(lead),
-                      borderRadius: BorderRadius.circular(16),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.2),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: const Icon(
-                                Icons.chat_bubble_outline_rounded,
-                                color: Colors.white,
-                                size: 22,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                                  Flexible(
-                                    child: Text(
-                                      lead.isAccepted ? 'Open Chat' : 'Contact Buyer',
-                                      style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 17,
-                                letterSpacing: 0.5,
-                                      ),
-                                      overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                                  const Icon(
-                              Icons.arrow_forward_rounded,
-                              color: Colors.white,
-                              size: 20,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: gradientColors,
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color:
+                                  (isBuying
+                                          ? AppTheme.primaryBlue
+                                          : AppTheme.lightGreen)
+                                      .withOpacity(0.4),
+                              blurRadius: 12,
+                              offset: const Offset(0, 6),
                             ),
                           ],
                         ),
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: () => controller.contactBuyerFromLead(lead),
+                            borderRadius: BorderRadius.circular(16),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withOpacity(0.2),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: const Icon(
+                                      Icons.chat_bubble_outline_rounded,
+                                      color: Colors.white,
+                                      size: 22,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Flexible(
+                                    child: Text(
+                                      lead.isAccepted
+                                          ? 'Open Chat'
+                                          : 'Contact Buyer',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 17,
+                                        letterSpacing: 0.5,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  const Icon(
+                                    Icons.arrow_forward_rounded,
+                                    color: Colors.white,
+                                    size: 20,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                ),
                     ),
                     // Complete Button (only show if lead is accepted but not completed)
                     if (lead.isAccepted && !lead.isCompleted) ...[
@@ -5052,7 +5344,9 @@ class AgentView extends GetView<AgentController> {
                               onTap: () => controller.markLeadComplete(lead),
                               borderRadius: BorderRadius.circular(16),
                               child: Container(
-                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 16,
+                                ),
                                 child: Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
@@ -5114,19 +5408,15 @@ class AgentView extends GetView<AgentController> {
             color: AppTheme.primaryBlue.withOpacity(0.1),
             borderRadius: BorderRadius.circular(6),
           ),
-          child: Icon(
-            icon,
-            size: 16,
-            color: AppTheme.primaryBlue,
-          ),
+          child: Icon(icon, size: 16, color: AppTheme.primaryBlue),
         ),
         const SizedBox(width: 10),
         Expanded(
           child: RichText(
             text: TextSpan(
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppTheme.darkGray,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: AppTheme.darkGray),
               children: [
                 TextSpan(
                   text: '$label: ',
@@ -5167,10 +5457,7 @@ class AgentView extends GetView<AgentController> {
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: accentColor.withOpacity(0.15),
-          width: 1.5,
-        ),
+        border: Border.all(color: accentColor.withOpacity(0.15), width: 1.5),
         boxShadow: [
           BoxShadow(
             color: accentColor.withOpacity(0.08),
@@ -5196,17 +5483,13 @@ class AgentView extends GetView<AgentController> {
               borderRadius: BorderRadius.circular(12),
               boxShadow: [
                 BoxShadow(
-              color: accentColor.withOpacity(0.15),
+                  color: accentColor.withOpacity(0.15),
                   blurRadius: 4,
                   offset: const Offset(0, 2),
                 ),
               ],
             ),
-            child: Icon(
-              icon,
-              size: 22,
-              color: accentColor,
-            ),
+            child: Icon(icon, size: 22, color: accentColor),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -5216,21 +5499,21 @@ class AgentView extends GetView<AgentController> {
                 Text(
                   label,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppTheme.mediumGray,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0.5,
-                        fontSize: 12,
-                      ),
+                    color: AppTheme.mediumGray,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.5,
+                    fontSize: 12,
+                  ),
                 ),
                 const SizedBox(height: 6),
                 Text(
                   value,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppTheme.darkGray,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 15,
-                        letterSpacing: -0.2,
-                      ),
+                    color: AppTheme.darkGray,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
+                    letterSpacing: -0.2,
+                  ),
                   overflow: TextOverflow.ellipsis,
                   maxLines: 2,
                 ),
@@ -5281,22 +5564,18 @@ class AgentView extends GetView<AgentController> {
               color: AppTheme.primaryBlue.withOpacity(0.15),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(
-            icon,
-            size: 16,
-            color: AppTheme.primaryBlue,
-          ),
+            child: Icon(icon, size: 16, color: AppTheme.primaryBlue),
           ),
           const SizedBox(width: 10),
           Flexible(
             child: Text(
               '$label: $value',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppTheme.darkGray,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 13,
-                    letterSpacing: -0.2,
-                  ),
+                color: AppTheme.darkGray,
+                fontWeight: FontWeight.w700,
+                fontSize: 13,
+                letterSpacing: -0.2,
+              ),
               overflow: TextOverflow.ellipsis,
               maxLines: 1,
             ),
@@ -5343,7 +5622,7 @@ class _ListingImageCarouselState extends State<_ListingImageCarousel> {
   @override
   Widget build(BuildContext context) {
     final totalImages = widget.photoUrls.length;
-    
+
     // Print image URLs for debugging
     if (kDebugMode && _currentPage == 0) {
       print('🖼️ ========== LISTING IMAGE NETWORK URL ==========');
@@ -5378,13 +5657,16 @@ class _ListingImageCarouselState extends State<_ListingImageCarousel> {
             },
             itemBuilder: (context, index) {
               final originalUrl = widget.photoUrls[index];
-              final processedUrl = ImageUrlHelper.buildImageUrl(originalUrl) ?? originalUrl;
-              
+              final processedUrl =
+                  ImageUrlHelper.buildImageUrl(originalUrl) ?? originalUrl;
+
               // Print current image URL when displayed
               if (kDebugMode) {
-                print('🌐 Image [$index/$totalImages] in Image.network: $processedUrl');
+                print(
+                  '🌐 Image [$index/$totalImages] in Image.network: $processedUrl',
+                );
               }
-              
+
               return Image.network(
                 processedUrl,
                 width: double.infinity,
@@ -5417,14 +5699,17 @@ class _ListingImageCarouselState extends State<_ListingImageCarousel> {
               );
             },
           ),
-          
+
           // Image Counter (e.g., "1/10")
           if (totalImages > 1)
             Positioned(
               top: 8,
               left: 12,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.black.withOpacity(0.6),
                   borderRadius: BorderRadius.circular(20),
@@ -5439,7 +5724,7 @@ class _ListingImageCarouselState extends State<_ListingImageCarousel> {
                 ),
               ),
             ),
-          
+
           // Page Indicators (dots)
           if (totalImages > 1)
             Positioned(
@@ -5469,5 +5754,3 @@ class _ListingImageCarouselState extends State<_ListingImageCarousel> {
     );
   }
 }
-
-

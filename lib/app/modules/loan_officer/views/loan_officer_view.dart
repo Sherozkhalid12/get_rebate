@@ -13,7 +13,9 @@ import 'package:getrebate/app/models/loan_officer_zip_code_model.dart';
 import 'package:getrebate/app/widgets/custom_button.dart';
 import 'package:getrebate/app/widgets/custom_text_field.dart';
 import 'package:getrebate/app/modules/checklist/controllers/checklist_controller.dart';
+import 'package:getrebate/app/modules/rebate_checklist/bindings/rebate_checklist_binding.dart';
 import 'package:getrebate/app/modules/rebate_checklist/controllers/rebate_checklist_controller.dart';
+import 'package:getrebate/app/modules/rebate_checklist/views/rebate_checklist_view.dart';
 import 'package:getrebate/app/routes/app_pages.dart';
 import 'package:getrebate/app/modules/messages/views/messages_view.dart';
 import 'package:getrebate/app/modules/messages/bindings/messages_binding.dart';
@@ -26,14 +28,14 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
   Widget build(BuildContext context) {
     // This controller holds the real loan officer profile from the backend
     final currentLoanOfficerController =
-    Get.isRegistered<CurrentLoanOfficerController>()
+        Get.isRegistered<CurrentLoanOfficerController>()
         ? Get.find<CurrentLoanOfficerController>()
         : Get.put(CurrentLoanOfficerController(), permanent: true);
 
     debugPrint(
       '📊 LoanOfficerView.build: '
-          'loanOfficer=${currentLoanOfficerController.currentLoanOfficer.value?.id}, '
-          'isLoading=${currentLoanOfficerController.isLoading.value}',
+      'loanOfficer=${currentLoanOfficerController.currentLoanOfficer.value?.id}, '
+      'isLoading=${currentLoanOfficerController.isLoading.value}',
     );
 
     return Scaffold(
@@ -123,7 +125,7 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
     return Container(
       color: AppTheme.white,
       child: Obx(
-            () => Row(
+        () => Row(
           children: [
             Expanded(
               child: _buildTab(context, 'Dashboard', 0, Icons.dashboard),
@@ -144,11 +146,11 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
   }
 
   Widget _buildTab(
-      BuildContext context,
-      String title,
-      int index,
-      IconData icon,
-      ) {
+    BuildContext context,
+    String title,
+    int index,
+    IconData icon,
+  ) {
     final isSelected = controller.selectedTab == index;
 
     return GestureDetector(
@@ -199,12 +201,12 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
           return _buildZipManagement(context);
         case 3:
           return _buildBilling(context);
-      // COMMENTED OUT: Checklists tab content
-      // case 4:
-      //   return _buildChecklists(context);
-      // COMMENTED OUT: Stats tab content
-      // case 5:
-      //   return _buildStats(context);
+        // COMMENTED OUT: Checklists tab content
+        // case 4:
+        //   return _buildChecklists(context);
+        // COMMENTED OUT: Stats tab content
+        // case 5:
+        //   return _buildStats(context);
         default:
           return _buildDashboard(context);
       }
@@ -250,7 +252,7 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
 
   Widget _buildStatsCards(BuildContext context) {
     final currentLoanOfficerController =
-    Get.isRegistered<CurrentLoanOfficerController>()
+        Get.isRegistered<CurrentLoanOfficerController>()
         ? Get.find<CurrentLoanOfficerController>()
         : Get.put(CurrentLoanOfficerController(), permanent: true);
 
@@ -285,55 +287,55 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
             final stat = stats[index];
 
             return Card(
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      stat['icon'],
-                      color: AppTheme.lightGreen,
-                      size: 22,
-                    ),
-                    const SizedBox(height: 6),
-                    Flexible(
-                      child: Text(
-                        stat['value'].toString(),
-                        style: Theme.of(context).textTheme.headlineMedium
-                            ?.copyWith(
-                          color: AppTheme.black,
-                          fontWeight: FontWeight.bold,
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          stat['icon'],
+                          color: AppTheme.lightGreen,
+                          size: 22,
                         ),
-                        overflow: TextOverflow.ellipsis,
-                        maxLines: 1,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Flexible(
-                      child: Text(
-                        stat['label'],
-                        style: Theme.of(context).textTheme.bodySmall
-                            ?.copyWith(
-                          color: AppTheme.mediumGray,
-                          fontSize: 12,
+                        const SizedBox(height: 6),
+                        Flexible(
+                          child: Text(
+                            stat['value'].toString(),
+                            style: Theme.of(context).textTheme.headlineMedium
+                                ?.copyWith(
+                                  color: AppTheme.black,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                          ),
                         ),
-                        overflow: TextOverflow.ellipsis,
-                        maxLines: 2,
-                      ),
+                        const SizedBox(height: 2),
+                        Flexible(
+                          child: Text(
+                            stat['label'],
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: AppTheme.mediumGray,
+                                  fontSize: 12,
+                                ),
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 2,
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-              ),
-            )
+                  ),
+                )
                 .animate()
                 .slideY(
-              begin: 0.3,
-              duration: 600.ms,
-              curve: Curves.easeOut,
-              delay: (index * 100).ms,
-            )
+                  begin: 0.3,
+                  duration: 600.ms,
+                  curve: Curves.easeOut,
+                  delay: (index * 100).ms,
+                )
                 .fadeIn(duration: 600.ms, delay: (index * 100).ms);
           },
         );
@@ -376,55 +378,55 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
           final stat = realStats[index];
 
           return Card(
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    stat['icon'] as IconData,
-                    color: AppTheme.lightGreen,
-                    size: 22,
-                  ),
-                  const SizedBox(height: 6),
-                  Flexible(
-                    child: Text(
-                      stat['value'].toString(),
-                      style: Theme.of(context).textTheme.headlineMedium
-                          ?.copyWith(
-                        color: AppTheme.black,
-                        fontWeight: FontWeight.bold,
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        stat['icon'] as IconData,
+                        color: AppTheme.lightGreen,
+                        size: 22,
                       ),
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Flexible(
-                    child: Text(
-                      stat['label'].toString(),
-                      style: Theme.of(context).textTheme.bodySmall
-                          ?.copyWith(
-                        color: AppTheme.mediumGray,
-                        fontSize: 12,
+                      const SizedBox(height: 6),
+                      Flexible(
+                        child: Text(
+                          stat['value'].toString(),
+                          style: Theme.of(context).textTheme.headlineMedium
+                              ?.copyWith(
+                                color: AppTheme.black,
+                                fontWeight: FontWeight.bold,
+                              ),
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                        ),
                       ),
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 2,
-                    ),
+                      const SizedBox(height: 2),
+                      Flexible(
+                        child: Text(
+                          stat['label'].toString(),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: AppTheme.mediumGray,
+                                fontSize: 12,
+                              ),
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 2,
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            ),
-          )
+                ),
+              )
               .animate()
               .slideY(
-            begin: 0.3,
-            duration: 600.ms,
-            curve: Curves.easeOut,
-            delay: (index * 100).ms,
-          )
+                begin: 0.3,
+                duration: 600.ms,
+                curve: Curves.easeOut,
+                delay: (index * 100).ms,
+              )
               .fadeIn(duration: 600.ms, delay: (index * 100).ms);
         },
       );
@@ -459,13 +461,40 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                   text: 'Edit Profile',
                   onPressed: () {
                     Get.to(
-                          () => const LoanOfficerEditProfileView(),
+                      () => const LoanOfficerEditProfileView(),
                       binding: LoanOfficerEditProfileBinding(),
                     );
                   },
                   icon: Icons.edit,
                   isOutlined: true,
                   width: double.infinity,
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: CustomButton(
+                    text: 'Compliance Tutorial',
+                    onPressed: () {
+                      Get.to(
+                        () => const RebateChecklistView(),
+                        binding: RebateChecklistBinding(),
+                      );
+                    },
+                    icon: Icons.school,
+                    isOutlined: true,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: CustomButton(
+                    text: 'View Billing',
+                    onPressed: () => controller.setSelectedTab(3),
+                    icon: Icons.credit_card,
+                    isOutlined: true,
+                  ),
                 ),
               ],
             ),
@@ -591,7 +620,7 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
 
   Widget _buildRecentActivity(BuildContext context) {
     final currentLoanOfficerController =
-    Get.isRegistered<CurrentLoanOfficerController>()
+        Get.isRegistered<CurrentLoanOfficerController>()
         ? Get.find<CurrentLoanOfficerController>()
         : Get.put(CurrentLoanOfficerController(), permanent: true);
 
@@ -669,11 +698,11 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
   }
 
   Widget _buildActivityItem(
-      BuildContext context,
-      String title,
-      String time,
-      IconData icon,
-      ) {
+    BuildContext context,
+    String title,
+    String time,
+    IconData icon,
+  ) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
@@ -1043,7 +1072,7 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
   Widget _buildZipManagement(BuildContext context) {
     final authController = Get.find<global.AuthController>();
     final currentLoanOfficerController =
-    Get.isRegistered<CurrentLoanOfficerController>()
+        Get.isRegistered<CurrentLoanOfficerController>()
         ? Get.find<CurrentLoanOfficerController>()
         : Get.put(CurrentLoanOfficerController(), permanent: true);
 
@@ -1091,9 +1120,9 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                                         .textTheme
                                         .titleMedium
                                         ?.copyWith(
-                                      color: AppTheme.black,
-                                      fontWeight: FontWeight.w600,
-                                    ),
+                                          color: AppTheme.black,
+                                          fontWeight: FontWeight.w600,
+                                        ),
                                   ),
                                 ],
                               ),
@@ -1119,8 +1148,9 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                                       ),
                                       borderRadius: BorderRadius.circular(16),
                                       border: Border.all(
-                                        color: AppTheme.primaryBlue
-                                            .withOpacity(0.3),
+                                        color: AppTheme.primaryBlue.withOpacity(
+                                          0.3,
+                                        ),
                                       ),
                                     ),
                                     child: Text(
@@ -1129,9 +1159,9 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                                           .textTheme
                                           .bodyMedium
                                           ?.copyWith(
-                                        color: AppTheme.primaryBlue,
-                                        fontWeight: FontWeight.w600,
-                                      ),
+                                            color: AppTheme.primaryBlue,
+                                            fontWeight: FontWeight.w600,
+                                          ),
                                     ),
                                   );
                                 }).toList(),
@@ -1165,9 +1195,9 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                           'Select State to View ZIP Codes',
                           style: Theme.of(context).textTheme.titleMedium
                               ?.copyWith(
-                            color: AppTheme.black,
-                            fontWeight: FontWeight.w600,
-                          ),
+                                color: AppTheme.black,
+                                fontWeight: FontWeight.w600,
+                              ),
                         ),
                         const SizedBox(height: 12),
                         if (uniqueStates.isEmpty)
@@ -1183,7 +1213,7 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                           Obx(() {
                             final currentValue = controller.selectedState;
                             final safeValue =
-                            uniqueStates.contains(currentValue)
+                                uniqueStates.contains(currentValue)
                                 ? currentValue
                                 : null;
 
@@ -1220,9 +1250,7 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                               ],
                               onChanged: (value) {
                                 if (value != null) {
-                                  controller.selectStateAndFetchZipCodes(
-                                    value,
-                                  );
+                                  controller.selectStateAndFetchZipCodes(value);
                                 } else {
                                   controller.selectStateAndFetchZipCodes('');
                                 }
@@ -1266,7 +1294,7 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                     'Start by claiming a ZIP code below',
                     icon: Icons.location_on_outlined,
                     infoMessage:
-                    'Claim ZIP codes in your licensed states to appear in buyer searches',
+                        'Claim ZIP codes in your licensed states to appear in buyer searches',
                   );
                 }
                 return Column(
@@ -1281,7 +1309,7 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                     ),
                     const SizedBox(height: 12),
                     ...controller.claimedZipCodes.map(
-                          (zip) => RepaintBoundary(
+                      (zip) => RepaintBoundary(
                         child: _buildZipCodeCard(context, zip, true),
                       ),
                     ),
@@ -1329,9 +1357,7 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        CircularProgressIndicator(
-                          color: AppTheme.primaryBlue,
-                        ),
+                        CircularProgressIndicator(color: AppTheme.primaryBlue),
                         const SizedBox(height: 16),
                         Text(
                           'Loading ZIP codes...',
@@ -1364,7 +1390,7 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
             padding: const EdgeInsets.only(top: 8, left: 20, right: 20),
             sliver: SliverList(
               delegate: SliverChildBuilderDelegate(
-                    (context, index) {
+                (context, index) {
                   final zip = controller.availableZipCodes[index];
                   return RepaintBoundary(
                     child: _buildZipCodeCard(context, zip, false),
@@ -1384,14 +1410,14 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
   // Removed _buildZipCodeList - now using SliverList directly for better performance
 
   Widget _buildZipCodeCard(
-      BuildContext context,
-      LoanOfficerZipCodeModel zip,
-      bool isClaimed,
-      ) {
+    BuildContext context,
+    LoanOfficerZipCodeModel zip,
+    bool isClaimed,
+  ) {
     // Pre-compute expensive string formatting
     final formattedPopulation = zip.population.toString().replaceAllMapped(
       RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-          (Match m) => '${m[1]},',
+      (Match m) => '${m[1]},',
     );
     final formattedPrice = '\$${zip.calculatedPrice.toStringAsFixed(2)}/month';
 
@@ -1433,7 +1459,7 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
             ),
             if (isClaimed)
               Obx(
-                    () => CustomButton(
+                () => CustomButton(
                   text: 'Release',
                   onPressed: controller.isZipCodeLoading(zip.postalCode)
                       ? null
@@ -1445,7 +1471,7 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
               )
             else
               Obx(
-                    () => Column(
+                () => Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
@@ -1461,20 +1487,25 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                       onTap: controller.isZipCodeLoading(zip.postalCode)
                           ? null
                           : () async {
-                        // Show promo code bottom sheet
-                        final promoCode = await controller.showPromoCodeBottomSheet();
-                        if (promoCode != null && promoCode.isNotEmpty) {
-                          if (kDebugMode) {
-                            print('📝 Promo code entered (frontend only): $promoCode');
-                          }
-                          // Store promo code locally (frontend only, not sent to backend)
-                          // This is just for user reference
-                        }
-                        // Proceed with claim after promo code entry (or skip)
-                        if (!controller.isZipCodeLoading(zip.postalCode)) {
-                          controller.claimZipCode(zip);
-                        }
-                      },
+                              // Show promo code bottom sheet
+                              final promoCode = await controller
+                                  .showPromoCodeBottomSheet();
+                              if (promoCode != null && promoCode.isNotEmpty) {
+                                if (kDebugMode) {
+                                  print(
+                                    '📝 Promo code entered (frontend only): $promoCode',
+                                  );
+                                }
+                                // Store promo code locally (frontend only, not sent to backend)
+                                // This is just for user reference
+                              }
+                              // Proceed with claim after promo code entry (or skip)
+                              if (!controller.isZipCodeLoading(
+                                zip.postalCode,
+                              )) {
+                                controller.claimZipCode(zip);
+                              }
+                            },
                       child: Text(
                         'Have a promo code?',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -1511,7 +1542,7 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                 'Claim ZIP codes to appear in searches',
                 icon: Icons.location_on_outlined,
                 infoMessage:
-                'You can claim ZIP codes from the ZIP Management tab.',
+                    'You can claim ZIP codes from the ZIP Management tab.',
               );
             }
             return Column(
@@ -1526,7 +1557,7 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                 ),
                 const SizedBox(height: 12),
                 ...controller.claimedZipCodes.map(
-                      (zip) => RepaintBoundary(
+                  (zip) => RepaintBoundary(
                     child: _buildZipCodeCard(context, zip, true),
                   ),
                 ),
@@ -1648,20 +1679,20 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                           '\$${monthlyCost.toStringAsFixed(2)}',
                           style: Theme.of(context).textTheme.titleLarge
                               ?.copyWith(
-                            color: hasActivePromo
-                                ? Colors.green
-                                : AppTheme.primaryBlue,
-                            fontWeight: FontWeight.bold,
-                          ),
+                                color: hasActivePromo
+                                    ? Colors.green
+                                    : AppTheme.primaryBlue,
+                                fontWeight: FontWeight.bold,
+                              ),
                         ),
                         if (hasActivePromo)
                           Text(
                             '70% OFF',
                             style: Theme.of(context).textTheme.bodySmall
                                 ?.copyWith(
-                              color: Colors.green,
-                              fontWeight: FontWeight.w600,
-                            ),
+                                  color: Colors.green,
+                                  fontWeight: FontWeight.w600,
+                                ),
                           ),
                       ],
                     ),
@@ -1943,12 +1974,12 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
   }
 
   Widget _buildDetailRow(
-      BuildContext context,
-      IconData icon,
-      String label,
-      String value, {
-        bool showStrikethrough = false,
-      }) {
+    BuildContext context,
+    IconData icon,
+    String label,
+    String value, {
+    bool showStrikethrough = false,
+  }) {
     return Row(
       children: [
         Icon(icon, color: AppTheme.primaryBlue, size: 20),
@@ -2073,9 +2104,9 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                           'No payment method on file',
                           style: Theme.of(context).textTheme.bodyLarge
                               ?.copyWith(
-                            color: AppTheme.darkGray,
-                            fontWeight: FontWeight.w500,
-                          ),
+                                color: AppTheme.darkGray,
+                                fontWeight: FontWeight.w500,
+                              ),
                         ),
                         const SizedBox(height: 4),
                         Text(
@@ -2138,8 +2169,8 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
             children: controller.subscriptions.map((subscription) {
               final dateStr =
                   subscription['createdAt']?.toString() ??
-                      subscription['subscriptionStart']?.toString() ??
-                      '';
+                  subscription['subscriptionStart']?.toString() ??
+                  '';
               final date = DateTime.tryParse(dateStr);
               final monthYear = date != null
                   ? '${_getMonthName(date.month)} ${date.year}'
@@ -2166,13 +2197,13 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
   }
 
   Widget _buildActiveSubscriptionCard(
-      BuildContext context,
-      Map<String, dynamic> subscription,
-      ) {
+    BuildContext context,
+    Map<String, dynamic> subscription,
+  ) {
     final dateStr =
         subscription['createdAt']?.toString() ??
-            subscription['subscriptionStart']?.toString() ??
-            '';
+        subscription['subscriptionStart']?.toString() ??
+        '';
     final date = DateTime.tryParse(dateStr);
     final monthYear = date != null
         ? '${_getMonthName(date.month)} ${date.year}'
@@ -2204,9 +2235,9 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                         'Subscription',
                         style: Theme.of(context).textTheme.titleMedium
                             ?.copyWith(
-                          fontWeight: FontWeight.w600,
-                          color: AppTheme.black,
-                        ),
+                              fontWeight: FontWeight.w600,
+                              color: AppTheme.black,
+                            ),
                       ),
                       const SizedBox(height: 4),
                       Text(
@@ -2236,7 +2267,7 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                       ),
                       decoration: BoxDecoration(
                         color:
-                        displayStatus == 'Paid' || displayStatus == 'Active'
+                            displayStatus == 'Paid' || displayStatus == 'Active'
                             ? Colors.green.withOpacity(0.1)
                             : Colors.orange.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(4),
@@ -2245,8 +2276,8 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                         displayStatus,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color:
-                          displayStatus == 'Paid' ||
-                              displayStatus == 'Active'
+                              displayStatus == 'Paid' ||
+                                  displayStatus == 'Active'
                               ? Colors.green.shade700
                               : Colors.orange.shade700,
                           fontWeight: FontWeight.w600,
@@ -2288,9 +2319,9 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
   }
 
   void _showCancelConfirmationForSubscription(
-      BuildContext context,
-      String stripeCustomerId,
-      ) {
+    BuildContext context,
+    String stripeCustomerId,
+  ) {
     Get.dialog(
       AlertDialog(
         title: const Text('Cancel Subscription'),
@@ -2462,11 +2493,11 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
   }
 
   Widget _buildPaymentItem(
-      BuildContext context,
-      String month,
-      String amount,
-      String status,
-      ) {
+    BuildContext context,
+    String month,
+    String amount,
+    String status,
+  ) {
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: Padding(
@@ -2507,7 +2538,7 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
 
   Widget _buildStats(BuildContext context) {
     final currentLoanOfficerController =
-    Get.isRegistered<CurrentLoanOfficerController>()
+        Get.isRegistered<CurrentLoanOfficerController>()
         ? Get.find<CurrentLoanOfficerController>()
         : Get.put(CurrentLoanOfficerController(), permanent: true);
 
@@ -2758,13 +2789,13 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
   }
 
   Widget _buildLoanStatsCard(
-      BuildContext context,
-      String label,
-      String value,
-      IconData icon,
-      Color color,
-      String subtitle,
-      ) {
+    BuildContext context,
+    String label,
+    String value,
+    IconData icon,
+    Color color,
+    String subtitle,
+  ) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -2944,12 +2975,12 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
   }
 
   Widget _buildEmptyState(
-      BuildContext context,
-      String title,
-      String subtitle, {
-        String? infoMessage,
-        IconData? icon,
-      }) {
+    BuildContext context,
+    String title,
+    String subtitle, {
+    String? infoMessage,
+    IconData? icon,
+  }) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 60),
@@ -3091,16 +3122,16 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
   }
 
   Widget _buildChecklistCard(
-      BuildContext context,
-      String title,
-      List<String> items,
-      IconData icon,
-      Color color, {
-        bool isAgentVersion = false,
-        bool isConsumerVersion = false,
-        String? actionLabel,
-        VoidCallback? onAction,
-      }) {
+    BuildContext context,
+    String title,
+    List<String> items,
+    IconData icon,
+    Color color, {
+    bool isAgentVersion = false,
+    bool isConsumerVersion = false,
+    String? actionLabel,
+    VoidCallback? onAction,
+  }) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
