@@ -509,13 +509,11 @@ class AgentController extends GetxController {
         }
 
         // Extract stats from API response
-        _searchesAppearedIn.value =
-            (userData['searches'] as num?)?.toInt() ?? 0;
-        _profileViews.value = (userData['views'] as num?)?.toInt() ?? 0;
-        _contacts.value = (userData['contacts'] as num?)?.toInt() ?? 0;
-        _websiteClicks.value =
-            (userData['websiteclicks'] as num?)?.toInt() ?? 0;
-        _totalRevenue.value = (userData['revenue'] as num?)?.toDouble() ?? 0.0;
+        _searchesAppearedIn.value = _parseInt(userData['searches']);
+        _profileViews.value = _parseInt(userData['views']);
+        _contacts.value = _parseInt(userData['contacts']);
+        _websiteClicks.value = _parseInt(userData['websiteclicks']);
+        _totalRevenue.value = _parseDouble(userData['revenue']);
 
         // Extract claimed ZIP codes from user profile (if present)
         final claimedZipCodesData =
@@ -537,8 +535,8 @@ class AgentController extends GetxController {
                 return ZipCodeModel(
                   zipCode: zipCode,
                   state: zipJson['state']?.toString() ?? '',
-                  population: (zipJson['population'] as num?)?.toInt() ?? 0,
-                  price: (zipJson['price'] as num?)?.toDouble(),
+                  population: _parseInt(zipJson['population']),
+                  price: _parseNullableDouble(zipJson['price']),
                   claimedByAgent: true,
                   claimedAt:
                       DateTime.tryParse(
@@ -551,7 +549,7 @@ class AgentController extends GetxController {
                         zipJson['createdAt']?.toString() ?? '',
                       ) ??
                       DateTime.now(),
-                  searchCount: (zipJson['searchCount'] as num?)?.toInt() ?? 0,
+                  searchCount: _parseInt(zipJson['searchCount']),
                 );
               })
               .whereType<ZipCodeModel>()
@@ -595,11 +593,11 @@ class AgentController extends GetxController {
                       subJson['subscriptionStatus']?.toString() ?? '',
                   'subscriptionRole': subJson['subscriptionRole']?.toString(),
                   'subscriptionTier': subJson['subscriptionTier']?.toString(),
-                  'population': (subJson['population'] as num?)?.toInt(),
+                  'population': _parseNullableInt(subJson['population']),
                   'subscriptionStart': subJson['subscriptionStart']?.toString(),
                   'subscriptionEnd': subJson['subscriptionEnd']?.toString(),
                   'priceId': subJson['priceId']?.toString(),
-                  'amountPaid': (subJson['amountPaid'] as num?)?.toDouble(),
+                  'amountPaid': _parseNullableDouble(subJson['amountPaid']),
                   'createdAt': subJson['createdAt']?.toString(),
                   '_id': subJson['_id']?.toString(),
                 },
@@ -692,6 +690,30 @@ class AgentController extends GetxController {
       snackPosition: SnackPosition.BOTTOM,
       duration: const Duration(seconds: 3),
     );
+  }
+
+  int _parseInt(dynamic value) {
+    if (value is num) return value.toInt();
+    if (value is String) return int.tryParse(value) ?? 0;
+    return 0;
+  }
+
+  int? _parseNullableInt(dynamic value) {
+    if (value is num) return value.toInt();
+    if (value is String) return int.tryParse(value);
+    return null;
+  }
+
+  double _parseDouble(dynamic value) {
+    if (value is num) return value.toDouble();
+    if (value is String) return double.tryParse(value) ?? 0.0;
+    return 0.0;
+  }
+
+  double? _parseNullableDouble(dynamic value) {
+    if (value is num) return value.toDouble();
+    if (value is String) return double.tryParse(value);
+    return null;
   }
 
   /// Initiates ZIP code payment flow

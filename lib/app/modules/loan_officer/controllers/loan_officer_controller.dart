@@ -380,82 +380,47 @@ class LoanOfficerController extends GetxController {
       // ALWAYS check GetStorage cache second (before API)
       if (!forceRefresh) {
         try {
-          final cachedData = _storage.read<String>(cacheKey);
-          if (cachedData != null && cachedData.isNotEmpty) {
+          final cachedZipCodes = _readCachedZipCodes(cacheKey);
+          if (cachedZipCodes != null && cachedZipCodes.isNotEmpty) {
+            _allZipCodes.value = cachedZipCodes;
+            _currentState.value = stateKey;
+            _updateZipCodeLists();
+            _hasLoadedZipCodes.value = true;
+
+            if (kDebugMode) {
+              print(
+                '✅ Loaded ${cachedZipCodes.length} zip codes from GetStorage',
+              );
+              print('   State: $state');
+            }
+
             try {
-              final List<dynamic> jsonList = jsonDecode(cachedData);
-              if (jsonList.isNotEmpty) {
-                final cachedZipCodes = jsonList
-                    .map((json) {
-                      try {
-                        return LoanOfficerZipCodeModel.fromJson(
-                          json as Map<String, dynamic>,
-                        );
-                      } catch (e) {
-                        if (kDebugMode) {
-                          print('⚠️ Failed to parse zip code item: $e');
-                        }
-                        return null;
-                      }
-                    })
-                    .whereType<LoanOfficerZipCodeModel>()
-                    .toList();
+              final lastCacheTimeStr = _storage.read<String>(
+                '${cacheKey}_timestamp',
+              );
+              DateTime? lastCacheTime;
+              if (lastCacheTimeStr != null) {
+                lastCacheTime = DateTime.tryParse(lastCacheTimeStr);
+              }
+              final shouldRefresh =
+                  lastCacheTime == null ||
+                  DateTime.now().difference(lastCacheTime).inHours >= 1;
 
-                if (cachedZipCodes.isNotEmpty) {
-                  // Update reactive state using GetX
-                  _allZipCodes.value = cachedZipCodes;
-                  _currentState.value = stateKey;
-                  _updateZipCodeLists();
-                  _hasLoadedZipCodes.value = true;
-
-                  if (kDebugMode) {
-                    print(
-                      '✅ Loaded ${cachedZipCodes.length} zip codes from GetStorage',
-                    );
-                    print('   State: $state');
-                  }
-
-                  // Skip background refresh if data is fresh (prevent unnecessary API calls)
-                  // Only refresh if cache is older than 1 hour
-                  try {
-                    final lastCacheTimeStr = _storage.read<String>(
-                      '${cacheKey}_timestamp',
-                    );
-                    DateTime? lastCacheTime;
-                    if (lastCacheTimeStr != null) {
-                      lastCacheTime = DateTime.tryParse(lastCacheTimeStr);
-                    }
-                    final shouldRefresh =
-                        lastCacheTime == null ||
-                        DateTime.now().difference(lastCacheTime).inHours >= 1;
-
-                    if (shouldRefresh) {
-                      // Refresh cache in background (non-blocking, delayed to avoid conflicts)
-                      Future.delayed(const Duration(seconds: 5), () {
-                        _refreshCacheInBackground(country, state).catchError((
-                          e,
-                        ) {
-                          if (kDebugMode) {
-                            print('⚠️ Background refresh failed: $e');
-                          }
-                        });
-                      });
-                    }
-                  } catch (e) {
+              if (shouldRefresh) {
+                Future.delayed(const Duration(seconds: 5), () {
+                  _refreshCacheInBackground(country, state).catchError((e) {
                     if (kDebugMode) {
-                      print('⚠️ Error checking cache timestamp: $e');
+                      print('⚠️ Background refresh failed: $e');
                     }
-                  }
-                  return;
-                }
+                  });
+                });
               }
             } catch (e) {
               if (kDebugMode) {
-                print('⚠️ Failed to parse cached zip codes: $e');
+                print('⚠️ Error checking cache timestamp: $e');
               }
-              // Clear invalid cache
-              _storage.remove(cacheKey);
             }
+            return;
           }
         } catch (e) {
           if (kDebugMode) {
@@ -589,6 +554,70 @@ class LoanOfficerController extends GetxController {
         }
       }
     }
+  }
+
+  List<LoanOfficerZipCodeModel>? _readCachedZipCodes(String cacheKey) {
+    final cachedData = _storage.read(cacheKey);
+    return _decodeZipCodesFromCache(cachedData, cacheKey);
+  }
+
+  List<LoanOfficerZipCodeModel>? _decodeZipCodesFromCache(
+    dynamic cachedData,
+    String cacheKey,
+  ) {
+    if (cachedData == null) return null;
+
+    List<dynamic> jsonList = [];
+
+    if (cachedData is String && cachedData.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(cachedData);
+        if (decoded is List) {
+          jsonList = decoded;
+        } else {
+          if (kDebugMode) {
+            print(
+              '⚠️ Cached zip codes for $cacheKey are not a list (${decoded.runtimeType})',
+            );
+          }
+          return null;
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          print('⚠️ Failed to parse cached zip codes: $e');
+        }
+        _storage.remove(cacheKey);
+        return null;
+      }
+    } else if (cachedData is List) {
+      jsonList = cachedData;
+    } else {
+      if (kDebugMode) {
+        print(
+          '⚠️ Unexpected cached data type for $cacheKey: ${cachedData.runtimeType}, clearing cache',
+        );
+      }
+      _storage.remove(cacheKey);
+      return null;
+    }
+
+    final zipCodes = jsonList
+        .map((json) {
+          try {
+            return LoanOfficerZipCodeModel.fromJson(
+              json as Map<String, dynamic>,
+            );
+          } catch (e) {
+            if (kDebugMode) {
+              print('⚠️ Failed to parse zip code item: $e');
+            }
+            return null;
+          }
+        })
+        .whereType<LoanOfficerZipCodeModel>()
+        .toList();
+
+    return zipCodes.isNotEmpty ? zipCodes : null;
   }
 
   /// Refreshes cache in background without blocking UI
@@ -2282,39 +2311,18 @@ class LoanOfficerController extends GetxController {
       }
 
       // ALWAYS check GetStorage cache second (before API)
+
       if (!forceRefresh) {
         try {
-          final cachedData = _storage.read(cacheKey);
-          if (cachedData != null) {
-            try {
-              final List<dynamic> cachedList = cachedData is List
-                  ? cachedData
-                  : [];
-              if (cachedList.isNotEmpty) {
-                final cachedZipCodes = cachedList
-                    .map(
-                      (json) => LoanOfficerZipCodeModel.fromJson(
-                        json as Map<String, dynamic>,
-                      ),
-                    )
-                    .toList();
+          final cachedZipCodes = _readCachedZipCodes(cacheKey);
+          if (cachedZipCodes != null && cachedZipCodes.isNotEmpty) {
+            _allZipCodes.value = cachedZipCodes;
+            _currentState.value = stateKey;
+            _updateZipCodeLists();
+            _hasLoadedZipCodes.value = true;
 
-                _allZipCodes.value = cachedZipCodes;
-                _currentState.value = stateKey;
-                _updateZipCodeLists();
-                _hasLoadedZipCodes.value = true;
-
-                if (kDebugMode) {
-                  print(
-                    '📦 Loaded ${cachedZipCodes.length} zip codes from cache',
-                  );
-                }
-              }
-            } catch (e) {
-              if (kDebugMode) {
-                print('⚠️ Failed to parse cached zip codes: $e');
-              }
-              _storage.remove(cacheKey);
+            if (kDebugMode) {
+              print('📦 Loaded ${cachedZipCodes.length} zip codes from cache');
             }
           }
         } catch (e) {
