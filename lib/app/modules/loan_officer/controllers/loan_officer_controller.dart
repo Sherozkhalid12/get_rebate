@@ -5,12 +5,14 @@ import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:dio/dio.dart';
-import 'package:getrebate/app/models/zip_code_model.dart';
+import 'package:getrebate/app/theme/app_theme.dart';
+import 'package:getrebate/app/models/loan_officer_zip_code_model.dart';
 import 'package:getrebate/app/models/loan_model.dart';
 import 'package:getrebate/app/models/loan_officer_model.dart';
 import 'package:getrebate/app/models/subscription_model.dart';
 import 'package:getrebate/app/models/promo_code_model.dart';
-import 'package:getrebate/app/services/zip_code_pricing_service.dart';
+import 'package:getrebate/app/services/loan_officer_zip_code_pricing_service.dart';
+import 'package:getrebate/app/services/loan_officer_zip_code_service.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart' as global;
 import 'package:getrebate/app/controllers/current_loan_officer_controller.dart';
 import 'package:getrebate/app/modules/messages/controllers/messages_controller.dart';
@@ -20,11 +22,9 @@ import 'package:getrebate/app/utils/snackbar_helper.dart';
 import 'package:getrebate/app/widgets/payment_web_view.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../../zipcodeservice.dart';
-
 class LoanOfficerController extends GetxController {
-  // Services
-  final ZipCodeService _zipCodeService;
+  // Services - using separate loan officer zip code service
+  final LoanOfficerZipCodeService _loanOfficerZipCodeService;
   final GetStorage _storage;
   final Dio _dio = Dio();
 
@@ -32,22 +32,22 @@ class LoanOfficerController extends GetxController {
   static String get _baseUrl => ApiConstants.apiBaseUrl;
 
   // Storage keys
-  static const String _zipCodesCacheKeyPrefix = 'zip_codes_cache_';
-  static const String _lastStateKey = 'zip_codes_last_state';
+  static const String _zipCodesCacheKeyPrefix = 'loan_officer_zip_codes_cache_';
+  static const String _lastStateKey = 'loan_officer_zip_codes_last_state';
   static const Duration _apiTimeout = Duration(seconds: 60);
 
-  LoanOfficerController({ZipCodeService? zipCodeService, GetStorage? storage})
-    : _zipCodeService = zipCodeService ?? ZipCodeService(),
-      _storage = storage ?? GetStorage();
+  LoanOfficerController({LoanOfficerZipCodeService? loanOfficerZipCodeService, GetStorage? storage})
+      : _loanOfficerZipCodeService = loanOfficerZipCodeService ?? LoanOfficerZipCodeService(),
+        _storage = storage ?? GetStorage();
 
-  // Data
-  final _claimedZipCodes = <ZipCodeModel>[].obs;
-  final _availableZipCodes = <ZipCodeModel>[].obs;
-  final _allZipCodes = <ZipCodeModel>[].obs; // All zip codes from API
+  // Data - using LoanOfficerZipCodeModel instead of ZipCodeModel
+  final _claimedZipCodes = <LoanOfficerZipCodeModel>[].obs;
+  final _availableZipCodes = <LoanOfficerZipCodeModel>[].obs;
+  final _allZipCodes = <LoanOfficerZipCodeModel>[].obs; // All zip codes from API
   final _filteredAvailableZipCodes =
-      <ZipCodeModel>[].obs; // Filtered available zip codes for search
+      <LoanOfficerZipCodeModel>[].obs; // Filtered available zip codes for search
   final _filteredClaimedZipCodes =
-      <ZipCodeModel>[].obs; // Filtered claimed zip codes for search
+      <LoanOfficerZipCodeModel>[].obs; // Filtered claimed zip codes for search
   final _searchQuery = ''.obs; // Current search query
   final _loans = <LoanModel>[].obs;
   final _isLoading = false.obs;
@@ -72,18 +72,18 @@ class LoanOfficerController extends GetxController {
   final _subscriptions =
       <Map<String, dynamic>>[].obs; // Payment history subscriptions
   final Set<String> _profileClaimedZipCodes =
-      <String>{}; // Claimed ZIPs from user profile
+  <String>{}; // Claimed ZIPs from user profile
 
   // Standard pricing (deprecated - now using zip code population-based pricing)
   // Kept for backward compatibility, but pricing is now calculated from zip codes
-  @Deprecated('Use ZipCodePricingService instead')
+  @Deprecated('Use LoanOfficerZipCodePricingService instead')
   static const double standardMonthlyPrice = 17.99;
 
   // Getters
-  List<ZipCodeModel> get claimedZipCodes => _claimedZipCodes;
-  List<ZipCodeModel> get availableZipCodes => _availableZipCodes;
-  List<ZipCodeModel> get filteredClaimedZipCodes => _filteredClaimedZipCodes;
-  List<ZipCodeModel> get filteredAvailableZipCodes =>
+  List<LoanOfficerZipCodeModel> get claimedZipCodes => _claimedZipCodes;
+  List<LoanOfficerZipCodeModel> get availableZipCodes => _availableZipCodes;
+  List<LoanOfficerZipCodeModel> get filteredClaimedZipCodes => _filteredClaimedZipCodes;
+  List<LoanOfficerZipCodeModel> get filteredAvailableZipCodes =>
       _filteredAvailableZipCodes;
   List<LoanModel> get loans => _loans;
   bool get isLoading => _isLoading.value;
@@ -93,6 +93,14 @@ class LoanOfficerController extends GetxController {
 
   /// Check if a specific zip code is being processed
   bool isZipCodeLoading(String zipCode) => _loadingZipCodeIds.contains(zipCode);
+  
+  /// Get user ID for API calls
+  String? get _userId {
+    final authController = Get.isRegistered<global.AuthController>()
+        ? Get.find<global.AuthController>()
+        : null;
+    return authController?.currentUser?.id;
+  }
   String? get selectedState => _selectedState.value;
   int get selectedTab => _selectedTab.value;
   int get searchesAppearedIn => _searchesAppearedIn.value;
@@ -182,7 +190,7 @@ class LoanOfficerController extends GetxController {
       _pendingReleasedZipCodes.clear();
 
       final currentLoanOfficerController =
-          Get.isRegistered<CurrentLoanOfficerController>()
+      Get.isRegistered<CurrentLoanOfficerController>()
           ? Get.find<CurrentLoanOfficerController>()
           : null;
 
@@ -262,15 +270,15 @@ class LoanOfficerController extends GetxController {
   void _setupLoanOfficerListener() {
     try {
       final currentLoanOfficerController =
-          Get.isRegistered<CurrentLoanOfficerController>()
+      Get.isRegistered<CurrentLoanOfficerController>()
           ? Get.find<CurrentLoanOfficerController>()
           : null;
 
       if (currentLoanOfficerController != null) {
         // Listen to changes in currentLoanOfficer and update ZIP code lists
         ever(currentLoanOfficerController.currentLoanOfficer, (
-          LoanOfficerModel? officer,
-        ) {
+            LoanOfficerModel? officer,
+            ) {
           if (officer != null) {
             if (kDebugMode) {
               print('🔄 Loan officer data updated, syncing ZIP codes...');
@@ -311,7 +319,7 @@ class LoanOfficerController extends GetxController {
     return '$_zipCodesCacheKeyPrefix${country}_$state';
   }
 
-  /// Loads zip codes from cache or API
+  /// Loads zip codes from cache or API using the new loan officer endpoint
   /// ALWAYS checks GetStorage first, only fetches from API if cache is empty or invalid
   /// Uses GetX reactive state management for optimal performance
   Future<void> _loadZipCodes({bool forceRefresh = false}) async {
@@ -324,9 +332,18 @@ class LoanOfficerController extends GetxController {
     }
 
     try {
+      // Get user ID for API call
+      final userId = _userId;
+      if (userId == null || userId.isEmpty) {
+        if (kDebugMode) {
+          print('⚠️ Cannot load zip codes: User ID is null or empty');
+        }
+        return;
+      }
+
       // Get current loan officer to determine state
       final currentLoanOfficerController =
-          Get.isRegistered<CurrentLoanOfficerController>()
+      Get.isRegistered<CurrentLoanOfficerController>()
           ? Get.find<CurrentLoanOfficerController>()
           : null;
 
@@ -359,24 +376,24 @@ class LoanOfficerController extends GetxController {
         try {
           final cachedData = _storage.read<String>(cacheKey);
           if (cachedData != null && cachedData.isNotEmpty) {
-            try {
-              final List<dynamic> jsonList = jsonDecode(cachedData);
-              if (jsonList.isNotEmpty) {
-                final cachedZipCodes = jsonList
-                    .map((json) {
-                      try {
-                        return ZipCodeModel.fromJson(
-                          json as Map<String, dynamic>,
-                        );
-                      } catch (e) {
-                        if (kDebugMode) {
-                          print('⚠️ Failed to parse zip code item: $e');
-                        }
-                        return null;
+              try {
+                final List<dynamic> jsonList = jsonDecode(cachedData);
+                if (jsonList.isNotEmpty) {
+                  final cachedZipCodes = jsonList
+                      .map((json) {
+                    try {
+                      return LoanOfficerZipCodeModel.fromJson(
+                        json as Map<String, dynamic>,
+                      );
+                    } catch (e) {
+                      if (kDebugMode) {
+                        print('⚠️ Failed to parse zip code item: $e');
                       }
-                    })
-                    .whereType<ZipCodeModel>()
-                    .toList();
+                      return null;
+                    }
+                  })
+                      .whereType<LoanOfficerZipCodeModel>()
+                      .toList();
 
                 if (cachedZipCodes.isNotEmpty) {
                   // Update reactive state using GetX
@@ -404,14 +421,14 @@ class LoanOfficerController extends GetxController {
                     }
                     final shouldRefresh =
                         lastCacheTime == null ||
-                        DateTime.now().difference(lastCacheTime).inHours >= 1;
+                            DateTime.now().difference(lastCacheTime).inHours >= 1;
 
                     if (shouldRefresh) {
                       // Refresh cache in background (non-blocking, delayed to avoid conflicts)
                       Future.delayed(const Duration(seconds: 5), () {
                         _refreshCacheInBackground(country, state).catchError((
-                          e,
-                        ) {
+                            e,
+                            ) {
                           if (kDebugMode) {
                             print('⚠️ Background refresh failed: $e');
                           }
@@ -451,7 +468,7 @@ class LoanOfficerController extends GetxController {
         print('   Force refresh: $forceRefresh');
       }
 
-      final zipCodes = await _zipCodeService.getZipCodes(country, state);
+      final zipCodes = await _loanOfficerZipCodeService.getZipCodes(country, state, userId);
 
       if (zipCodes.isEmpty) {
         if (kDebugMode) {
@@ -504,10 +521,10 @@ class LoanOfficerController extends GetxController {
   /// Saves zip codes to GetStorage cache with error handling
   /// Optimized for large datasets with chunked processing
   void _saveZipCodesToCache(
-    String cacheKey,
-    List<ZipCodeModel> zipCodes,
-    String stateKey,
-  ) {
+      String cacheKey,
+      List<LoanOfficerZipCodeModel> zipCodes,
+      String stateKey,
+      ) {
     if (zipCodes.isEmpty) {
       if (kDebugMode) {
         print('⚠️ Cannot save empty zip codes list to cache');
@@ -589,7 +606,13 @@ class LoanOfficerController extends GetxController {
         return;
       }
 
-      final zipCodes = await _zipCodeService.getZipCodes(country, state);
+      // Get user ID for API call
+      final userId = _userId;
+      if (userId == null || userId.isEmpty) {
+        return;
+      }
+
+      final zipCodes = await _loanOfficerZipCodeService.getZipCodes(country, state, userId);
 
       if (zipCodes.isEmpty) {
         return;
@@ -656,10 +679,10 @@ class LoanOfficerController extends GetxController {
         );
       }
 
-      // Create ZipCodeModel objects for claimed zip codes
-      final claimedZips = <ZipCodeModel>[];
+      // Create LoanOfficerZipCodeModel objects for claimed zip codes
+      final claimedZips = <LoanOfficerZipCodeModel>[];
       final existingClaimedCodes = _claimedZipCodes
-          .map((z) => z.zipCode)
+          .map((z) => z.postalCode)
           .toSet();
 
       for (final zipCodeString in claimedZipCodesFromModel) {
@@ -670,31 +693,28 @@ class LoanOfficerController extends GetxController {
 
         // Try to find in _allZipCodes first
         final existingZipIndex = _allZipCodes.indexWhere(
-          (zip) => zip.zipCode == zipCodeString,
+              (zip) => zip.postalCode == zipCodeString,
         );
 
         if (existingZipIndex != -1) {
           // If found in _allZipCodes, use it but mark as claimed
           final existingZip = _allZipCodes[existingZipIndex];
           final updatedZip = existingZip.copyWith(
-            claimedByLoanOfficer: officer.id,
-            isAvailable: false,
+            claimedByOfficer: true,
           );
           _allZipCodes[existingZipIndex] = updatedZip;
           claimedZips.add(updatedZip);
         } else {
-          // Create new ZipCodeModel for claimed zip code not in current state
-          final newZip = ZipCodeModel(
-            zipCode: zipCodeString,
+          // Create new LoanOfficerZipCodeModel for claimed zip code not in current state
+          final newZip = LoanOfficerZipCodeModel(
+            postalCode: zipCodeString,
             state: officer.licensedStates.isNotEmpty
                 ? officer.licensedStates.first
                 : 'CA',
             population: 0,
-            claimedByLoanOfficer: officer.id,
-            claimedAt: DateTime.now(),
-            isAvailable: false,
+            claimedByOfficer: true,
             createdAt: DateTime.now(),
-            price: null,
+            updatedAt: DateTime.now(),
           );
           claimedZips.add(newZip);
         }
@@ -704,14 +724,14 @@ class LoanOfficerController extends GetxController {
       // This prevents showing stale/incorrect claimed zip codes
       final modelClaimedSet = claimedZipCodesFromModel.toSet();
       _claimedZipCodes.removeWhere(
-        (zip) =>
-            zip.claimedByLoanOfficer == officer.id &&
-            !modelClaimedSet.contains(zip.zipCode),
+            (zip) =>
+        zip.claimedByOfficer &&
+            !modelClaimedSet.contains(zip.postalCode),
       );
 
       // Add to claimed list (avoid duplicates)
       for (final zip in claimedZips) {
-        if (!_claimedZipCodes.any((z) => z.zipCode == zip.zipCode)) {
+        if (!_claimedZipCodes.any((z) => z.postalCode == zip.postalCode)) {
           _claimedZipCodes.add(zip);
         }
       }
@@ -741,7 +761,7 @@ class LoanOfficerController extends GetxController {
   void _updateZipCodeLists() {
     try {
       final currentLoanOfficerController =
-          Get.isRegistered<CurrentLoanOfficerController>()
+      Get.isRegistered<CurrentLoanOfficerController>()
           ? Get.find<CurrentLoanOfficerController>()
           : null;
 
@@ -783,30 +803,27 @@ class LoanOfficerController extends GetxController {
       }
 
       // Create a set of all zip codes we have in _allZipCodes for quick lookup
-      final allZipCodesSet = _allZipCodes.map((z) => z.zipCode).toSet();
+      final allZipCodesSet = _allZipCodes.map((z) => z.postalCode).toSet();
 
       // Separate claimed and available zip codes efficiently
-      final claimed = <ZipCodeModel>[];
-      final available = <ZipCodeModel>[];
+      final claimed = <LoanOfficerZipCodeModel>[];
+      final available = <LoanOfficerZipCodeModel>[];
 
       // First, process all zip codes from _allZipCodes
       for (final zip in _allZipCodes) {
         // Check if this zip code is claimed by the current loan officer
-        // Check both: 1) claimedByLoanOfficer field, 2) claimedZipCodes array from loan officer model
-        final isClaimedByField =
-            zip.claimedByLoanOfficer != null &&
-            zip.claimedByLoanOfficer == loanOfficerId;
-        final isClaimedInModel = effectiveClaimedZipCodes.contains(zip.zipCode);
+        // Check both: 1) claimedByOfficer field, 2) claimedZipCodes array from loan officer model
+        final isClaimedByField = zip.claimedByOfficer;
+        final isClaimedInModel = effectiveClaimedZipCodes.contains(zip.postalCode);
 
         if (isClaimedByField || isClaimedInModel) {
           // If claimed in model but not in field, update the zip code model
           if (!isClaimedByField && isClaimedInModel) {
             final updatedZip = zip.copyWith(
-              claimedByLoanOfficer: loanOfficerId,
-              isAvailable: false,
+              claimedByOfficer: true,
             );
             final index = _allZipCodes.indexWhere(
-              (z) => z.zipCode == zip.zipCode,
+                  (z) => z.postalCode == zip.postalCode,
             );
             if (index != -1) {
               _allZipCodes[index] = updatedZip;
@@ -826,24 +843,22 @@ class LoanOfficerController extends GetxController {
       for (final claimedZipCodeString in effectiveClaimedZipCodes) {
         // Only add if not already in our claimed list
         final alreadyInClaimed = claimed.any(
-          (z) => z.zipCode == claimedZipCodeString,
+              (z) => z.postalCode == claimedZipCodeString,
         );
         if (!alreadyInClaimed &&
             !allZipCodesSet.contains(claimedZipCodeString)) {
-          // Create a basic ZipCodeModel for this claimed zip code
+          // Create a basic LoanOfficerZipCodeModel for this claimed zip code
           // We'll use default values since we don't have full data from API
           try {
-            final claimedZip = ZipCodeModel(
-              zipCode: claimedZipCodeString,
+            final claimedZip = LoanOfficerZipCodeModel(
+              postalCode: claimedZipCodeString,
               state: loanOfficer?.licensedStates.isNotEmpty == true
                   ? loanOfficer!.licensedStates.first
                   : 'CA', // Default state
               population: 0, // Will be updated when full data is loaded
-              claimedByLoanOfficer: loanOfficerId,
-              claimedAt: DateTime.now(),
-              isAvailable: false,
+              claimedByOfficer: true,
               createdAt: DateTime.now(),
-              price: null, // Will be calculated
+              updatedAt: DateTime.now(),
             );
             claimed.add(claimedZip);
 
@@ -870,34 +885,31 @@ class LoanOfficerController extends GetxController {
         if (!effectiveClaimedZipCodes.contains(pendingZip)) {
           // Find in _allZipCodes or available list
           final pendingZipModel = _allZipCodes.firstWhere(
-            (z) => z.zipCode == pendingZip,
+                (z) => z.postalCode == pendingZip,
             orElse: () => available.firstWhere(
-              (z) => z.zipCode == pendingZip,
-              orElse: () => ZipCodeModel(
-                zipCode: pendingZip,
+                  (z) => z.postalCode == pendingZip,
+              orElse: () => LoanOfficerZipCodeModel(
+                postalCode: pendingZip,
                 state: loanOfficer?.licensedStates.isNotEmpty == true
                     ? loanOfficer!.licensedStates.first
                     : 'CA',
                 population: 0,
-                claimedByLoanOfficer: loanOfficerId,
-                claimedAt: DateTime.now(),
-                isAvailable: false,
+                claimedByOfficer: true,
                 createdAt: DateTime.now(),
-                price: null,
+                updatedAt: DateTime.now(),
               ),
             ),
           );
 
           // Mark as claimed
           final claimedPending = pendingZipModel.copyWith(
-            claimedByLoanOfficer: loanOfficerId,
-            isAvailable: false,
+            claimedByOfficer: true,
           );
 
           // Remove from available if there
-          available.removeWhere((z) => z.zipCode == pendingZip);
+          available.removeWhere((z) => z.postalCode == pendingZip);
           // Add to claimed if not already there
-          if (!claimed.any((z) => z.zipCode == pendingZip)) {
+          if (!claimed.any((z) => z.postalCode == pendingZip)) {
             claimed.add(claimedPending);
           }
         }
@@ -907,31 +919,27 @@ class LoanOfficerController extends GetxController {
       for (final pendingZip in _pendingReleasedZipCodes) {
         if (effectiveClaimedZipCodes.contains(pendingZip)) {
           // Backend still has it, but we just released it - remove from claimed
-          claimed.removeWhere((z) => z.zipCode == pendingZip);
+          claimed.removeWhere((z) => z.postalCode == pendingZip);
           // Find and add to available
           final releasedZip = _allZipCodes.firstWhere(
-            (z) => z.zipCode == pendingZip,
-            orElse: () => ZipCodeModel(
-              zipCode: pendingZip,
+                (z) => z.postalCode == pendingZip,
+            orElse: () => LoanOfficerZipCodeModel(
+              postalCode: pendingZip,
               state: loanOfficer?.licensedStates.isNotEmpty == true
                   ? loanOfficer!.licensedStates.first
                   : 'CA',
               population: 0,
-              claimedByLoanOfficer: null,
-              claimedAt: null,
-              isAvailable: true,
+              claimedByOfficer: false,
               createdAt: DateTime.now(),
-              price: null,
+              updatedAt: DateTime.now(),
             ),
           );
 
           final availableReleased = releasedZip.copyWith(
-            claimedByLoanOfficer: null,
-            claimedAt: null,
-            isAvailable: true,
+            claimedByOfficer: false,
           );
 
-          if (!available.any((z) => z.zipCode == pendingZip)) {
+          if (!available.any((z) => z.postalCode == pendingZip)) {
             available.add(availableReleased);
           }
         }
@@ -983,17 +991,17 @@ class LoanOfficerController extends GetxController {
     _filteredClaimedZipCodes.value = _claimedZipCodes
         .where(
           (zip) =>
-              zip.zipCode.contains(query) ||
-              zip.state.toLowerCase().contains(query),
-        )
+      zip.postalCode.contains(query) ||
+          zip.state.toLowerCase().contains(query),
+    )
         .toList();
 
     _filteredAvailableZipCodes.value = _availableZipCodes
         .where(
           (zip) =>
-              zip.zipCode.contains(query) ||
-              zip.state.toLowerCase().contains(query),
-        )
+      zip.postalCode.contains(query) ||
+          zip.state.toLowerCase().contains(query),
+    )
         .toList();
   }
 
@@ -1040,8 +1048,8 @@ class LoanOfficerController extends GetxController {
     final authController = Get.find<global.AuthController>();
     final userId = authController.currentUser?.id ?? 'loan_1';
 
-    // Calculate base price from claimed zip codes using population-based pricing
-    final basePrice = ZipCodePricingService.calculateTotalMonthlyPrice(
+    // Calculate base price from claimed zip codes using loan officer population-based pricing
+    final basePrice = LoanOfficerZipCodePricingService.calculateTotalMonthlyPrice(
       _claimedZipCodes,
     );
 
@@ -1087,7 +1095,7 @@ class LoanOfficerController extends GetxController {
     // This prevents mock data from interfering with real claimed zip codes
     try {
       final currentLoanOfficerController =
-          Get.isRegistered<CurrentLoanOfficerController>()
+      Get.isRegistered<CurrentLoanOfficerController>()
           ? Get.find<CurrentLoanOfficerController>()
           : null;
 
@@ -1220,7 +1228,7 @@ class LoanOfficerController extends GetxController {
 
           // Handle both response formats: {user: {...}} or direct user object
           final userData =
-              responseData is Map && responseData.containsKey('user')
+          responseData is Map && responseData.containsKey('user')
               ? responseData['user']
               : responseData;
 
@@ -1240,7 +1248,7 @@ class LoanOfficerController extends GetxController {
             if (kDebugMode) {
               print(
                 '📦 Loading subscriptions from user profile '
-                '(${subscriptionsData.length} items)',
+                    '(${subscriptionsData.length} items)',
               );
             }
 
@@ -1248,23 +1256,23 @@ class LoanOfficerController extends GetxController {
                 .whereType<Map<String, dynamic>>()
                 .map(
                   (subJson) => {
-                    'stripeCustomerId': subJson['stripeCustomerId']?.toString(),
-                    'stripeSubscriptionId': subJson['stripeSubscriptionId']
-                        ?.toString(),
-                    'subscriptionStatus':
-                        subJson['subscriptionStatus']?.toString() ?? '',
-                    'subscriptionRole': subJson['subscriptionRole']?.toString(),
-                    'subscriptionTier': subJson['subscriptionTier']?.toString(),
-                    'population': (subJson['population'] as num?)?.toInt(),
-                    'subscriptionStart': subJson['subscriptionStart']
-                        ?.toString(),
-                    'subscriptionEnd': subJson['subscriptionEnd']?.toString(),
-                    'priceId': subJson['priceId']?.toString(),
-                    'amountPaid': (subJson['amountPaid'] as num?)?.toDouble(),
-                    'createdAt': subJson['createdAt']?.toString(),
-                    '_id': subJson['_id']?.toString(),
-                  },
-                )
+                'stripeCustomerId': subJson['stripeCustomerId']?.toString(),
+                'stripeSubscriptionId': subJson['stripeSubscriptionId']
+                    ?.toString(),
+                'subscriptionStatus':
+                subJson['subscriptionStatus']?.toString() ?? '',
+                'subscriptionRole': subJson['subscriptionRole']?.toString(),
+                'subscriptionTier': subJson['subscriptionTier']?.toString(),
+                'population': (subJson['population'] as num?)?.toInt(),
+                'subscriptionStart': subJson['subscriptionStart']
+                    ?.toString(),
+                'subscriptionEnd': subJson['subscriptionEnd']?.toString(),
+                'priceId': subJson['priceId']?.toString(),
+                'amountPaid': (subJson['amountPaid'] as num?)?.toDouble(),
+                'createdAt': subJson['createdAt']?.toString(),
+                '_id': subJson['_id']?.toString(),
+              },
+            )
                 .toList();
 
             // Sort by createdAt descending (most recent first)
@@ -1280,7 +1288,7 @@ class LoanOfficerController extends GetxController {
             if (kDebugMode) {
               print(
                 '✅ Subscriptions synced from API: '
-                '${_subscriptions.length} items',
+                    '${_subscriptions.length} items',
               );
             }
           } else {
@@ -1296,7 +1304,7 @@ class LoanOfficerController extends GetxController {
       } on DioException catch (e) {
         final isTimeout =
             e.type == DioExceptionType.connectionTimeout ||
-            e.type == DioExceptionType.receiveTimeout;
+                e.type == DioExceptionType.receiveTimeout;
         if (kDebugMode) {
           print('❌ DioException fetching user stats (attempt $attempt):');
           print('   Type: ${e.type}');
@@ -1319,50 +1327,47 @@ class LoanOfficerController extends GetxController {
   }
 
   void _syncClaimedZipCodesFromProfile(
-    List<dynamic> claimedZipCodesData,
-    String userId,
-  ) {
+      List<dynamic> claimedZipCodesData,
+      String userId,
+      ) {
     final claimedZips = claimedZipCodesData
         .whereType<Map<String, dynamic>>()
         .map((zipJson) {
-          final zipCode = zipJson['postalCode']?.toString() ?? '';
-          if (zipCode.isEmpty) return null;
+      final zipCode = zipJson['postalCode']?.toString() ?? '';
+      if (zipCode.isEmpty) return null;
 
-          return ZipCodeModel(
-            zipCode: zipCode,
-            state: zipJson['state']?.toString() ?? '',
-            population: (zipJson['population'] as num?)?.toInt() ?? 0,
-            price: (zipJson['price'] as num?)?.toDouble(),
-            claimedByLoanOfficer: userId,
-            claimedAt:
-                DateTime.tryParse(zipJson['claimedAt']?.toString() ?? '') ??
-                DateTime.now(),
-            isAvailable: false,
-            createdAt:
-                DateTime.tryParse(zipJson['createdAt']?.toString() ?? '') ??
-                DateTime.now(),
-            searchCount: (zipJson['searchCount'] as num?)?.toInt() ?? 0,
-          );
-        })
-        .whereType<ZipCodeModel>()
+      return LoanOfficerZipCodeModel(
+        postalCode: zipCode,
+        state: zipJson['state']?.toString() ?? '',
+        population: (zipJson['population'] as num?)?.toInt() ?? 0,
+        claimedByOfficer: true,
+        createdAt:
+        DateTime.tryParse(zipJson['createdAt']?.toString() ?? '') ??
+            DateTime.now(),
+        updatedAt:
+        DateTime.tryParse(zipJson['updatedAt']?.toString() ?? '') ??
+            DateTime.now(),
+      );
+    })
+        .whereType<LoanOfficerZipCodeModel>()
         .toList();
 
     if (claimedZips.isEmpty) return;
 
     _profileClaimedZipCodes
       ..clear()
-      ..addAll(claimedZips.map((z) => z.zipCode));
+      ..addAll(claimedZips.map((z) => z.postalCode));
 
     // Merge profile claimed ZIPs into local claimed list
     for (final zip in claimedZips) {
-      if (!_claimedZipCodes.any((z) => z.zipCode == zip.zipCode)) {
+      if (!_claimedZipCodes.any((z) => z.postalCode == zip.postalCode)) {
         _claimedZipCodes.add(zip);
       }
     }
 
     // Ensure available list excludes claimed zip codes
     _availableZipCodes.removeWhere(
-      (zip) => _profileClaimedZipCodes.contains(zip.zipCode),
+          (zip) => _profileClaimedZipCodes.contains(zip.postalCode),
     );
 
     if (kDebugMode) {
@@ -1372,15 +1377,15 @@ class LoanOfficerController extends GetxController {
     }
   }
 
-  Future<void> claimZipCode(ZipCodeModel zipCode) async {
+  Future<void> claimZipCode(LoanOfficerZipCodeModel zipCode) async {
     // Prevent multiple simultaneous claims of the same zip code
-    if (_loadingZipCodeIds.contains(zipCode.zipCode)) {
+    if (_loadingZipCodeIds.contains(zipCode.postalCode)) {
       return;
     }
 
     try {
       // Add to loading set for this specific zip code
-      _loadingZipCodeIds.add(zipCode.zipCode);
+      _loadingZipCodeIds.add(zipCode.postalCode);
 
       // Check if loan officer can claim more ZIP codes (max 6)
       if (_claimedZipCodes.length >= 6) {
@@ -1390,7 +1395,7 @@ class LoanOfficerController extends GetxController {
 
       // Get current loan officer ID
       final currentLoanOfficerController =
-          Get.isRegistered<CurrentLoanOfficerController>()
+      Get.isRegistered<CurrentLoanOfficerController>()
           ? Get.find<CurrentLoanOfficerController>()
           : null;
 
@@ -1404,7 +1409,7 @@ class LoanOfficerController extends GetxController {
 
       // Check if ZIP code is already claimed locally
       final isAlreadyClaimedLocally = _claimedZipCodes.any(
-        (zip) => zip.zipCode == zipCode.zipCode,
+            (zip) => zip.postalCode == zipCode.postalCode,
       );
       if (isAlreadyClaimedLocally) {
         _showSnackbarSafely(
@@ -1414,24 +1419,26 @@ class LoanOfficerController extends GetxController {
         return;
       }
 
+      // Step 1: Proceed directly to payment (promo code is optional via bottom sheet)
+      // Promo code can be entered via "Have a promo code?" link in the UI
+
       _setupDio();
       final authToken = _storage.read('auth_token');
 
-      // Step 1: Create checkout session
-      final zipCodePrice = (zipCode.price ?? zipCode.calculatedPrice)
-          .toStringAsFixed(0);
+      // Step 2: Create checkout session
+      final zipCodePrice = zipCode.calculatedPrice.toStringAsFixed(0);
 
       final requestBody = {
-        'role': 'agent',
+        'role': 'loanofficer',
         'population': zipCode.population.toString(),
         'userId': loanOfficerId,
-        'zipcode': zipCode.zipCode,
+        'zipcode': zipCode.postalCode,
         'price': zipCodePrice,
         'state': zipCode.state,
       };
 
       if (kDebugMode) {
-        print('💳 Creating checkout session for ZIP code: ${zipCode.zipCode}');
+        print('💳 Creating checkout session for ZIP code: ${zipCode.postalCode}');
         print('   Population: ${zipCode.population}');
         print('   Price: $zipCodePrice');
         print('   State: ${zipCode.state}');
@@ -1468,13 +1475,13 @@ class LoanOfficerController extends GetxController {
           print('   Checkout Session ID: $sessionId');
         }
 
-        // Step 2: Open payment URL in in-app web view
+        // Step 3: Open payment URL in in-app web view
         final paymentSuccess = await Get.to<bool>(
-          () => PaymentWebView(checkoutUrl: checkoutUrl),
+              () => PaymentWebView(checkoutUrl: checkoutUrl),
           fullscreenDialog: true,
         );
 
-        // Step 3: If payment successful, call paymentSuccess API first,
+        // Step 4: If payment successful, call paymentSuccess API first,
         // then claim the ZIP code
         if (paymentSuccess == true) {
           if (sessionId != null && sessionId.isNotEmpty) {
@@ -1536,7 +1543,7 @@ class LoanOfficerController extends GetxController {
             // Provide user-friendly message for Stripe price errors
             if (errorMessage.contains('No such price')) {
               errorMessage =
-                  'Payment configuration error. The selected price is not available in the payment system. Please contact support to resolve this issue.';
+              'Payment configuration error. The selected price is not available in the payment system. Please contact support to resolve this issue.';
             }
           }
         } else if (responseData is Map) {
@@ -1553,7 +1560,7 @@ class LoanOfficerController extends GetxController {
             lowerErrorMessage.contains('already claimed by another')) {
           isAlreadyClaimed = true;
           errorMessage =
-              'This ZIP code is already claimed by another loan officer.';
+          'This ZIP code is already claimed by another loan officer.';
         }
 
         if (e.response?.statusCode == 401) {
@@ -1562,11 +1569,11 @@ class LoanOfficerController extends GetxController {
           if (!isAlreadyClaimed &&
               errorMessage == 'Failed to initiate payment. Please try again.') {
             errorMessage =
-                'Invalid request. The payment could not be processed. Please contact support.';
+            'Invalid request. The payment could not be processed. Please contact support.';
           }
         } else if (e.response?.statusCode == 500) {
           errorMessage =
-              'Server error. Please try again later or contact support.';
+          'Server error. Please try again later or contact support.';
         }
       }
 
@@ -1576,7 +1583,7 @@ class LoanOfficerController extends GetxController {
       }
 
       if (isAlreadyClaimed) {
-        _availableZipCodes.removeWhere((zip) => zip.zipCode == zipCode.zipCode);
+        _availableZipCodes.removeWhere((zip) => zip.postalCode == zipCode.postalCode);
       }
 
       _showSnackbarSafely(
@@ -1591,56 +1598,53 @@ class LoanOfficerController extends GetxController {
       NetworkErrorHandler.handleError(
         e,
         defaultMessage:
-            'Unable to process payment. Please check your internet connection and try again.',
+        'Unable to process payment. Please check your internet connection and try again.',
       );
     } finally {
       // Remove from loading set
-      _loadingZipCodeIds.remove(zipCode.zipCode);
+      _loadingZipCodeIds.remove(zipCode.postalCode);
     }
   }
 
   Future<void> _completeZipCodeClaim(
-    ZipCodeModel zipCode,
-    String loanOfficerId,
-    CurrentLoanOfficerController? currentLoanOfficerController,
-  ) async {
+      LoanOfficerZipCodeModel zipCode,
+      String loanOfficerId,
+      CurrentLoanOfficerController? currentLoanOfficerController,
+      ) async {
     try {
       // Prepare claim API body with all required fields
       // Required: id, zipcode, price, state, population
-      final price = (zipCode.price ?? zipCode.calculatedPrice).toStringAsFixed(
-        0,
-      );
+      final price = zipCode.calculatedPrice.toStringAsFixed(0);
       final population = zipCode.population.toString();
       final state = zipCode.state;
 
-      await _zipCodeService.claimZipCode(
+      await _loanOfficerZipCodeService.claimZipCode(
         loanOfficerId,
-        zipCode.zipCode,
+        zipCode.postalCode,
         price,
         state,
         population,
       );
 
       // IMPORTANT: Mark as pending claim to preserve instant update
-      _pendingClaimedZipCodes.add(zipCode.zipCode);
-      _pendingReleasedZipCodes.remove(zipCode.zipCode);
+      _pendingClaimedZipCodes.add(zipCode.postalCode);
+      _pendingReleasedZipCodes.remove(zipCode.postalCode);
 
       // Update local state IMMEDIATELY for instant UI update
       final claimedZip = zipCode.copyWith(
-        claimedByLoanOfficer: loanOfficerId,
-        claimedAt: DateTime.now(),
-        isAvailable: false,
+        claimedByOfficer: true,
+        updatedAt: DateTime.now(),
       );
 
       // INSTANTLY move from available to claimed (reactive update)
-      _availableZipCodes.removeWhere((zip) => zip.zipCode == zipCode.zipCode);
-      if (!_claimedZipCodes.any((z) => z.zipCode == zipCode.zipCode)) {
+      _availableZipCodes.removeWhere((zip) => zip.postalCode == zipCode.postalCode);
+      if (!_claimedZipCodes.any((z) => z.postalCode == zipCode.postalCode)) {
         _claimedZipCodes.add(claimedZip);
       }
 
       // Update the zip code in all zip codes list efficiently
       final index = _allZipCodes.indexWhere(
-        (zip) => zip.zipCode == zipCode.zipCode,
+            (zip) => zip.postalCode == zipCode.postalCode,
       );
       if (index != -1) {
         _allZipCodes[index] = claimedZip;
@@ -1672,38 +1676,38 @@ class LoanOfficerController extends GetxController {
         currentLoanOfficerController
             .refreshData(loanOfficerId, true)
             .then((_) {
-              final refreshedOfficer =
-                  currentLoanOfficerController.currentLoanOfficer.value;
-              if (refreshedOfficer != null) {
-                final refreshedClaimed = refreshedOfficer.claimedZipCodes;
-                if (refreshedClaimed.contains(zipCode.zipCode)) {
-                  if (kDebugMode) {
-                    print(
-                      '✅ Backend confirmed claimed zip code: ${zipCode.zipCode}',
-                    );
-                  }
-                  _pendingClaimedZipCodes.remove(zipCode.zipCode);
-                } else {
-                  if (kDebugMode) {
-                    print(
-                      '⚠️ Backend does not have claimed zip code yet: ${zipCode.zipCode} - keeping as pending',
-                    );
-                  }
-                }
-                _updateZipCodeLists();
-              }
-            })
-            .catchError((e) {
+          final refreshedOfficer =
+              currentLoanOfficerController.currentLoanOfficer.value;
+          if (refreshedOfficer != null) {
+            final refreshedClaimed = refreshedOfficer.claimedZipCodes;
+            if (refreshedClaimed.contains(zipCode.postalCode)) {
               if (kDebugMode) {
-                print('⚠️ Failed to refresh loan officer data after claim: $e');
+                print(
+                  '✅ Backend confirmed claimed zip code: ${zipCode.postalCode}',
+                );
               }
-            });
+              _pendingClaimedZipCodes.remove(zipCode.postalCode);
+            } else {
+              if (kDebugMode) {
+                print(
+                  '⚠️ Backend does not have claimed zip code yet: ${zipCode.postalCode} - keeping as pending',
+                );
+              }
+            }
+            _updateZipCodeLists();
+          }
+        })
+            .catchError((e) {
+          if (kDebugMode) {
+            print('⚠️ Failed to refresh loan officer data after claim: $e');
+          }
+        });
       }
 
       SnackbarHelper.showSuccess(
-        'ZIP code ${zipCode.zipCode} claimed successfully!',
+        'ZIP code ${zipCode.postalCode} claimed successfully!',
       );
-    } on ZipCodeServiceException catch (e) {
+    } on LoanOfficerZipCodeServiceException catch (e) {
       SnackbarHelper.showError(e.message);
     } catch (e) {
       SnackbarHelper.showError('Failed to claim ZIP code: ${e.toString()}');
@@ -1739,9 +1743,9 @@ class LoanOfficerController extends GetxController {
 
   /// Calls the paymentSuccess API after successful payment
   Future<bool> _callPaymentSuccessAPI(
-    String checkoutSessionId,
-    String? authToken,
-  ) async {
+      String checkoutSessionId,
+      String? authToken,
+      ) async {
     try {
       if (kDebugMode) {
         print('📡 Calling paymentSuccess API');
@@ -1806,10 +1810,10 @@ class LoanOfficerController extends GetxController {
 
   /// Helper method to show snackbar safely with proper context handling
   void _showSnackbarSafely(
-    String message, {
-    bool isError = true,
-    bool isAlreadyClaimed = false,
-  }) {
+      String message, {
+        bool isError = true,
+        bool isAlreadyClaimed = false,
+      }) {
     if (isAlreadyClaimed) {
       SnackbarHelper.showWarning(message);
       return;
@@ -1823,15 +1827,144 @@ class LoanOfficerController extends GetxController {
     SnackbarHelper.showSuccess(message);
   }
 
-  Future<void> releaseZipCode(ZipCodeModel zipCode) async {
+  /// Shows a promo code dialog before payment
+  /// Returns the promo code if entered, or null if skipped/cancelled
+  /// Shows a bottom sheet for entering promo code
+  /// Returns the promo code if entered, null otherwise
+  Future<String?> showPromoCodeBottomSheet() async {
+    final promoCodeController = TextEditingController();
+    
+    final result = await Get.bottomSheet<String>(
+      Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(20),
+            topRight: Radius.circular(20),
+          ),
+        ),
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header with title and close button
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Promo code',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.black,
+                  ),
+                ),
+                IconButton(
+                  onPressed: () {
+                    promoCodeController.dispose();
+                    Get.back(result: null);
+                  },
+                  icon: Icon(
+                    Icons.close,
+                    color: AppTheme.black,
+                  ),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            // Text input field
+            TextField(
+              controller: promoCodeController,
+              decoration: InputDecoration(
+                hintText: 'Enter promo code',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(
+                    color: AppTheme.mediumGray.withOpacity(0.3),
+                  ),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(
+                    color: AppTheme.mediumGray.withOpacity(0.3),
+                  ),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(
+                    color: AppTheme.primaryBlue,
+                    width: 2,
+                  ),
+                ),
+                filled: true,
+                fillColor: Colors.white,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 16,
+                ),
+              ),
+              textCapitalization: TextCapitalization.characters,
+            ),
+            const SizedBox(height: 16),
+            // Apply button
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () {
+                  final code = promoCodeController.text.trim();
+                  promoCodeController.dispose();
+                  Get.back(result: code.isEmpty ? null : code);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primaryBlue,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                ),
+                child: const Text(
+                  'Apply',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            // Informational text
+            Text(
+              'Promo codes are optional. Apply before claiming to lock in 70% off.',
+              style: TextStyle(
+                fontSize: 12,
+                color: AppTheme.mediumGray,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+      isScrollControlled: true,
+      isDismissible: true,
+      enableDrag: true,
+    );
+
+    return result;
+  }
+
+  Future<void> releaseZipCode(LoanOfficerZipCodeModel zipCode) async {
     // Prevent multiple simultaneous releases of the same zip code
-    if (_loadingZipCodeIds.contains(zipCode.zipCode)) {
+    if (_loadingZipCodeIds.contains(zipCode.postalCode)) {
       return;
     }
 
     // Declare variables outside try block so they're accessible in catch block
     final currentLoanOfficerController =
-        Get.isRegistered<CurrentLoanOfficerController>()
+    Get.isRegistered<CurrentLoanOfficerController>()
         ? Get.find<CurrentLoanOfficerController>()
         : null;
 
@@ -1840,7 +1973,7 @@ class LoanOfficerController extends GetxController {
 
     try {
       // Add to loading set for this specific zip code
-      _loadingZipCodeIds.add(zipCode.zipCode);
+      _loadingZipCodeIds.add(zipCode.postalCode);
 
       if (loanOfficerId == null) {
         Get.snackbar(
@@ -1854,58 +1987,48 @@ class LoanOfficerController extends GetxController {
       // IMPORTANT: Verify zip code is actually claimed before attempting release
       // Check both local state and backend state
       final isClaimedLocally = _claimedZipCodes.any(
-        (z) => z.zipCode == zipCode.zipCode,
+            (z) => z.postalCode == zipCode.postalCode,
       );
       final loanOfficer =
           currentLoanOfficerController?.currentLoanOfficer.value;
       final isClaimedOnBackend =
-          loanOfficer?.claimedZipCodes.contains(zipCode.zipCode) ?? false;
+          loanOfficer?.claimedZipCodes.contains(zipCode.postalCode) ?? false;
 
       if (!isClaimedOnBackend && !isClaimedLocally) {
         // Not claimed anywhere, just remove from local state if it's there
-        _claimedZipCodes.removeWhere((zip) => zip.zipCode == zipCode.zipCode);
+        _claimedZipCodes.removeWhere((zip) => zip.postalCode == zipCode.postalCode);
         Get.snackbar(
           'Info',
-          'ZIP code ${zipCode.zipCode} is not claimed',
+          'ZIP code ${zipCode.postalCode} is not claimed',
           snackPosition: SnackPosition.TOP,
         );
         return;
       }
 
       // Call API to release zip code
-      await _zipCodeService.releaseZipCode(loanOfficerId, zipCode.zipCode);
+      await _loanOfficerZipCodeService.releaseZipCode(loanOfficerId, zipCode.postalCode);
 
       // IMPORTANT: Mark as pending release to preserve instant update
-      _pendingReleasedZipCodes.add(zipCode.zipCode);
+      _pendingReleasedZipCodes.add(zipCode.postalCode);
       _pendingClaimedZipCodes.remove(
-        zipCode.zipCode,
+        zipCode.postalCode,
       ); // Remove from pending claims if there
 
       // Update local state - mark as available and remove claim
-      // Create new instance directly to properly set nullable fields to null
-      final availableZip = ZipCodeModel(
-        zipCode: zipCode.zipCode,
-        state: zipCode.state,
-        population: zipCode.population,
-        claimedByAgent: zipCode.claimedByAgent,
-        claimedByLoanOfficer: null, // Explicitly set to null
-        claimedAt: null, // Explicitly set to null
-        price: zipCode.price,
-        isAvailable: true,
-        createdAt: zipCode.createdAt,
-        lastSearchedAt: zipCode.lastSearchedAt,
-        searchCount: zipCode.searchCount,
+      final availableZip = zipCode.copyWith(
+        claimedByOfficer: false,
+        updatedAt: DateTime.now(),
       );
 
       // INSTANTLY move from claimed to available (reactive update)
-      _claimedZipCodes.removeWhere((zip) => zip.zipCode == zipCode.zipCode);
-      if (!_availableZipCodes.any((z) => z.zipCode == zipCode.zipCode)) {
+      _claimedZipCodes.removeWhere((zip) => zip.postalCode == zipCode.postalCode);
+      if (!_availableZipCodes.any((z) => z.postalCode == zipCode.postalCode)) {
         _availableZipCodes.add(availableZip);
       }
 
       // Update the zip code in all zip codes list efficiently
       final index = _allZipCodes.indexWhere(
-        (zip) => zip.zipCode == zipCode.zipCode,
+            (zip) => zip.postalCode == zipCode.postalCode,
       );
       if (index != -1) {
         _allZipCodes[index] = availableZip;
@@ -1944,46 +2067,46 @@ class LoanOfficerController extends GetxController {
         currentLoanOfficerController
             .refreshData(loanOfficerId, true)
             .then((_) {
-              // Sync with backend - pending release will be preserved
-              final refreshedOfficer =
-                  currentLoanOfficerController.currentLoanOfficer.value;
-              if (refreshedOfficer != null) {
-                final refreshedClaimed = refreshedOfficer.claimedZipCodes;
-                // If backend confirmed the release (not in claimed list), remove from pending
-                if (!refreshedClaimed.contains(zipCode.zipCode)) {
-                  if (kDebugMode) {
-                    print(
-                      '✅ Backend confirmed released zip code: ${zipCode.zipCode}',
-                    );
-                  }
-                  _pendingReleasedZipCodes.remove(zipCode.zipCode);
-                } else {
-                  if (kDebugMode) {
-                    print(
-                      '⚠️ Backend still has released zip code: ${zipCode.zipCode} - keeping as pending',
-                    );
-                  }
-                  // Keep as pending - backend might have a delay
-                }
-                // Update lists - pending releases will be preserved
-                _updateZipCodeLists();
-              }
-            })
-            .catchError((e) {
+          // Sync with backend - pending release will be preserved
+          final refreshedOfficer =
+              currentLoanOfficerController.currentLoanOfficer.value;
+          if (refreshedOfficer != null) {
+            final refreshedClaimed = refreshedOfficer.claimedZipCodes;
+            // If backend confirmed the release (not in claimed list), remove from pending
+            if (!refreshedClaimed.contains(zipCode.postalCode)) {
               if (kDebugMode) {
                 print(
-                  '⚠️ Failed to refresh loan officer data after release: $e',
+                  '✅ Backend confirmed released zip code: ${zipCode.postalCode}',
                 );
               }
-            });
+              _pendingReleasedZipCodes.remove(zipCode.postalCode);
+            } else {
+              if (kDebugMode) {
+                print(
+                  '⚠️ Backend still has released zip code: ${zipCode.postalCode} - keeping as pending',
+                );
+              }
+              // Keep as pending - backend might have a delay
+            }
+            // Update lists - pending releases will be preserved
+            _updateZipCodeLists();
+          }
+        })
+            .catchError((e) {
+          if (kDebugMode) {
+            print(
+              '⚠️ Failed to refresh loan officer data after release: $e',
+            );
+          }
+        });
       }
 
       Get.snackbar(
         'Success',
-        'ZIP code ${zipCode.zipCode} released successfully!',
+        'ZIP code ${zipCode.postalCode} released successfully!',
         snackPosition: SnackPosition.TOP,
       );
-    } on ZipCodeServiceException catch (e) {
+    } on LoanOfficerZipCodeServiceException catch (e) {
       // If backend says zip code is not claimed, sync local state with backend
       if (e.message.contains('not claimed') ||
           e.message.contains('You have not claimed')) {
@@ -1994,7 +2117,7 @@ class LoanOfficerController extends GetxController {
         }
 
         // Remove from local claimed list
-        _claimedZipCodes.removeWhere((zip) => zip.zipCode == zipCode.zipCode);
+        _claimedZipCodes.removeWhere((zip) => zip.postalCode == zipCode.postalCode);
 
         // IMPORTANT: Force refresh loan officer data to get accurate state from backend
         // Clear all claimed zip codes first, then refresh
@@ -2007,18 +2130,18 @@ class LoanOfficerController extends GetxController {
           currentLoanOfficerController
               .refreshData(loanOfficerId, true)
               .then((_) {
-                // Update zip code lists with fresh data from backend
-                _updateZipCodeLists();
-              })
+            // Update zip code lists with fresh data from backend
+            _updateZipCodeLists();
+          })
               .catchError((refreshError) {
-                if (kDebugMode) {
-                  print(
-                    '⚠️ Failed to refresh after release error: $refreshError',
-                  );
-                }
-                // Even if refresh fails, update lists to reflect cleared state
-                _updateZipCodeLists();
-              });
+            if (kDebugMode) {
+              print(
+                '⚠️ Failed to refresh after release error: $refreshError',
+              );
+            }
+            // Even if refresh fails, update lists to reflect cleared state
+            _updateZipCodeLists();
+          });
         } else {
           // If no controller, just update lists to reflect cleared state
           _updateZipCodeLists();
@@ -2026,7 +2149,7 @@ class LoanOfficerController extends GetxController {
 
         Get.snackbar(
           'Info',
-          'ZIP code ${zipCode.zipCode} is not claimed on the server. Local state has been updated.',
+          'ZIP code ${zipCode.postalCode} is not claimed on the server. Local state has been updated.',
           snackPosition: SnackPosition.TOP,
         );
       } else {
@@ -2040,7 +2163,7 @@ class LoanOfficerController extends GetxController {
       );
     } finally {
       // Remove from loading set
-      _loadingZipCodeIds.remove(zipCode.zipCode);
+      _loadingZipCodeIds.remove(zipCode.postalCode);
     }
   }
 
@@ -2102,9 +2225,9 @@ class LoanOfficerController extends GetxController {
 
   /// Loads zip codes for a specific state
   Future<void> _loadZipCodesForState(
-    String stateName, {
-    bool forceRefresh = false,
-  }) async {
+      String stateName, {
+        bool forceRefresh = false,
+      }) async {
     // Prevent multiple simultaneous loads
     if (_isLoadingZipCodes.value && !forceRefresh) {
       if (kDebugMode) {
@@ -2114,6 +2237,15 @@ class LoanOfficerController extends GetxController {
     }
 
     try {
+      // Get user ID for API call
+      final userId = _userId;
+      if (userId == null || userId.isEmpty) {
+        if (kDebugMode) {
+          print('⚠️ Cannot load zip codes: User ID is null or empty');
+        }
+        return;
+      }
+
       // Country is always US, only state changes
       const country = 'US';
       final state = stateName;
@@ -2147,8 +2279,8 @@ class LoanOfficerController extends GetxController {
                 final cachedZipCodes = cachedList
                     .map(
                       (json) =>
-                          ZipCodeModel.fromJson(json as Map<String, dynamic>),
-                    )
+                      LoanOfficerZipCodeModel.fromJson(json as Map<String, dynamic>),
+                )
                     .toList();
 
                 _allZipCodes.value = cachedZipCodes;
@@ -2186,7 +2318,7 @@ class LoanOfficerController extends GetxController {
         print('   Force refresh: $forceRefresh');
       }
 
-      final zipCodes = await _zipCodeService.getZipCodes(country, state);
+      final zipCodes = await _loanOfficerZipCodeService.getZipCodes(country, state, userId);
 
       if (zipCodes.isEmpty) {
         if (kDebugMode) {
@@ -2229,7 +2361,7 @@ class LoanOfficerController extends GetxController {
 
   double calculateMonthlyCost() {
     // Calculate base cost from ZIP codes using population-based pricing tiers
-    final zipCodeCost = ZipCodePricingService.calculateTotalMonthlyPrice(
+    final zipCodeCost = LoanOfficerZipCodePricingService.calculateTotalMonthlyPrice(
       _claimedZipCodes,
     );
 
@@ -2250,7 +2382,7 @@ class LoanOfficerController extends GetxController {
     if (_subscription.value == null) return;
 
     // Calculate new base price from claimed zip codes using population-based pricing
-    final newBasePrice = ZipCodePricingService.calculateTotalMonthlyPrice(
+    final newBasePrice = LoanOfficerZipCodePricingService.calculateTotalMonthlyPrice(
       _claimedZipCodes,
     );
 
@@ -2325,7 +2457,7 @@ class LoanOfficerController extends GetxController {
       final currentSub = _subscription.value!;
 
       // Ensure base price is up to date before applying promo
-      final basePrice = ZipCodePricingService.calculateTotalMonthlyPrice(
+      final basePrice = LoanOfficerZipCodePricingService.calculateTotalMonthlyPrice(
         _claimedZipCodes,
       );
       final finalBasePrice = basePrice > 0 ? basePrice : standardMonthlyPrice;
@@ -2422,7 +2554,7 @@ class LoanOfficerController extends GetxController {
 
       // Find the subscription to check its status
       final subscription = _subscriptions.firstWhere(
-        (sub) => sub['stripeCustomerId']?.toString() == customerId,
+            (sub) => sub['stripeCustomerId']?.toString() == customerId,
         orElse: () => <String, dynamic>{},
       );
 
@@ -2512,13 +2644,13 @@ class LoanOfficerController extends GetxController {
       NetworkErrorHandler.handleError(
         e,
         defaultMessage:
-            'Unable to cancel subscription. Please try again later.',
+        'Unable to cancel subscription. Please try again later.',
       );
     } catch (e) {
       NetworkErrorHandler.handleError(
         e,
         defaultMessage:
-            'Unable to cancel subscription. Please try again later.',
+        'Unable to cancel subscription. Please try again later.',
       );
     } finally {
       _isLoading.value = false;
@@ -2534,7 +2666,7 @@ class LoanOfficerController extends GetxController {
     if (sub?.isInFreePeriod == true && sub?.freePeriodEndsAt != null) {
       if (DateTime.now().isAfter(sub!.freePeriodEndsAt!)) {
         // Free period ended, transition to normal pricing
-        final zipCodeCost = ZipCodePricingService.calculateTotalMonthlyPrice(
+        final zipCodeCost = LoanOfficerZipCodePricingService.calculateTotalMonthlyPrice(
           _claimedZipCodes,
         );
         _subscription.value = sub.copyWith(

@@ -49,6 +49,8 @@ import 'package:getrebate/app/modules/rebate_checklist/bindings/rebate_checklist
 import 'package:getrebate/app/modules/rebate_checklist/views/rebate_checklist_view.dart';
 import 'package:getrebate/app/modules/checklist/bindings/checklist_binding.dart';
 import 'package:getrebate/app/modules/checklist/views/checklist_view.dart';
+import 'package:getrebate/app/modules/loan_officer_checklist/bindings/loan_officer_checklist_binding.dart';
+import 'package:getrebate/app/modules/loan_officer_checklist/views/loan_officer_checklist_view.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/models/loan_officer_model.dart';
 import 'package:getrebate/app/models/agent_model.dart';
@@ -97,6 +99,7 @@ class AppPages {
   static const SIMPLE_SURVEY = '/simple-survey';
   static const REBATE_CHECKLIST = '/rebate-checklist';
   static const CHECKLIST = '/checklist';
+  static const LOAN_OFFICER_CHECKLIST = '/loan-officer-checklist';
   static const PRIVACY_POLICY = '/privacy-policy';
   static const HELP_SUPPORT = '/help-support';
   static const TERMS_OF_SERVICE = '/terms-of-service';
@@ -236,6 +239,11 @@ class AppPages {
       name: CHECKLIST,
       page: () => const ChecklistView(),
       binding: ChecklistBinding(),
+    ),
+    GetPage(
+      name: LOAN_OFFICER_CHECKLIST,
+      page: () => const LoanOfficerChecklistView(),
+      binding: LoanOfficerChecklistBinding(),
     ),
     GetPage(
       name: PRIVACY_POLICY,
