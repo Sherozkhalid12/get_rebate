@@ -224,6 +224,9 @@ class ApiConstants {
     return "$apiBaseUrl/notifications/mark-all-read/$userId";
   }
 
+  // Survey endpoints
+  static String get submitSurveyEndpoint => "$apiBaseUrl/survey/submit";
+
   // Helper to get ngrok headers if using ngrok
   static Map<String, String> get ngrokHeaders {
     if (_useNgrok) {

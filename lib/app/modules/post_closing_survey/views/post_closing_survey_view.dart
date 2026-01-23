@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
+import 'package:getrebate/app/utils/api_constants.dart';
 import '../controllers/post_closing_survey_controller.dart';
 
 class PostClosingSurveyView extends GetView<PostClosingSurveyController> {
@@ -14,19 +16,260 @@ class PostClosingSurveyView extends GetView<PostClosingSurveyController> {
     return Scaffold(
       backgroundColor: AppTheme.lightGray,
       appBar: AppBar(
-        title: Text(
-          controller.isAgentSurvey ? 'Rate Your Agent' : 'Rate Loan Officer',
-        ),
+        title: Obx(() => Text(
+          controller.showSelectionScreen 
+            ? 'Select Professional to Review'
+            : (controller.isAgentSurvey ? 'Rate Your Agent' : 'Rate Loan Officer'),
+        )),
         backgroundColor: AppTheme.primaryBlue,
         foregroundColor: Colors.white,
         elevation: 0,
       ),
-      body: Column(
+      body: Obx(() {
+        if (controller.showSelectionScreen) {
+          return _buildSelectionScreen(context);
+        } else {
+          return Column(
+            children: [
+              _buildProgress(),
+              Expanded(child: _buildQuestion()),
+              _buildNavButtons(),
+            ],
+          );
+        }
+      }),
+    );
+  }
+
+  /// Build the professional selection screen (first screen)
+  Widget _buildSelectionScreen(BuildContext context) {
+    return Obx(() {
+      if (controller.isLoadingProfessionals) {
+        return Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              SpinKitFadingCircle(
+                color: AppTheme.primaryBlue,
+                size: 50,
+              ),
+              const SizedBox(height: 20),
+              Text(
+                'Loading completed professionals...',
+                style: TextStyle(
+                  color: AppTheme.darkGray,
+                  fontSize: 16,
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+
+      if (controller.completedProfessionals.isEmpty) {
+        return Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.info_outline,
+                  size: 64,
+                  color: AppTheme.mediumGray,
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  'No Completed Transactions',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.darkGray,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'You don\'t have any completed transactions yet.\nComplete a service with an agent or loan officer to leave a review.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: AppTheme.mediumGray,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+
+      return Column(
         children: [
-          _buildProgress(),
-          Expanded(child: _buildQuestion()),
-          _buildNavButtons(),
+          // Header
+          Container(
+            padding: const EdgeInsets.all(20),
+            color: Colors.white,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Select a Professional to Review',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.darkGray,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Choose an agent or loan officer you worked with to submit your review',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: AppTheme.mediumGray,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
+          // Professionals List
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: controller.completedProfessionals.length,
+              itemBuilder: (context, index) {
+                final professional = controller.completedProfessionals[index];
+                return _buildProfessionalCard(context, professional);
+              },
+            ),
+          ),
         ],
+      );
+    });
+  }
+
+  /// Build a card for a professional (agent or loan officer)
+  Widget _buildProfessionalCard(BuildContext context, CompletedProfessional professional) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: InkWell(
+        onTap: () => controller.selectProfessional(professional),
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              // Profile Image
+              ClipRRect(
+                borderRadius: BorderRadius.circular(40),
+                child: professional.profileImage != null &&
+                        professional.profileImage!.isNotEmpty
+                    ? CachedNetworkImage(
+                        imageUrl: ApiConstants.getImageUrl(professional.profileImage),
+                        width: 60,
+                        height: 60,
+                        fit: BoxFit.cover,
+                        placeholder: (context, url) => Container(
+                          width: 60,
+                          height: 60,
+                          color: AppTheme.lightGray,
+                          child: Icon(
+                            Icons.person,
+                            color: AppTheme.mediumGray,
+                            size: 30,
+                          ),
+                        ),
+                        errorWidget: (context, url, error) => Container(
+                          width: 60,
+                          height: 60,
+                          color: AppTheme.lightGray,
+                          child: Icon(
+                            Icons.person,
+                            color: AppTheme.mediumGray,
+                            size: 30,
+                          ),
+                        ),
+                      )
+                    : Container(
+                        width: 60,
+                        height: 60,
+                        color: AppTheme.lightGray,
+                        child: Icon(
+                          Icons.person,
+                          color: AppTheme.mediumGray,
+                          size: 30,
+                        ),
+                      ),
+              ),
+              const SizedBox(width: 16),
+              
+              // Name and Type
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      professional.name,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.darkGray,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: professional.type == 'agent'
+                                ? AppTheme.primaryBlue.withOpacity(0.1)
+                                : AppTheme.lightGreen.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            professional.type == 'agent' ? 'Agent' : 'Loan Officer',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              color: professional.type == 'agent'
+                                  ? AppTheme.primaryBlue
+                                  : AppTheme.lightGreen,
+                            ),
+                          ),
+                        ),
+                        if (professional.company != null &&
+                            professional.company!.isNotEmpty) ...[
+                          const SizedBox(width: 8),
+                          Text(
+                            professional.company!,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: AppTheme.mediumGray,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              
+              // Arrow Icon
+              Icon(
+                Icons.arrow_forward_ios,
+                size: 16,
+                color: AppTheme.mediumGray,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -95,7 +338,7 @@ class PostClosingSurveyView extends GetView<PostClosingSurveyController> {
       _moneyField(
         'How much was your rebate from your agent?',
         controller.rebateAmountController,
-        (v) => controller.agentRebateAmount(double.tryParse(v) ?? 0),
+        (v) => controller.agentRebateAmount.value = double.tryParse(v) ?? 0,
       ),
       _radioGroup(
         'Did you receive the rebate you expected?',
