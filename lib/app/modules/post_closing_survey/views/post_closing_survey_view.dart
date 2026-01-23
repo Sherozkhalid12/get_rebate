@@ -89,7 +89,7 @@ class PostClosingSurveyView extends GetView<PostClosingSurveyController> {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  'You don\'t have any completed transactions yet.\nComplete a service with an agent or loan officer to leave a review.',
+                  'You don\'t have any completed transactions with agents yet.\nComplete a service with an agent to leave a review.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 14,
@@ -112,7 +112,7 @@ class PostClosingSurveyView extends GetView<PostClosingSurveyController> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Select a Professional to Review',
+                  'Select an Agent to Review',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w600,
@@ -121,7 +121,7 @@ class PostClosingSurveyView extends GetView<PostClosingSurveyController> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Choose an agent or loan officer you worked with to submit your review',
+                  'Choose an agent you worked with to submit your review',
                   style: TextStyle(
                     fontSize: 14,
                     color: AppTheme.mediumGray,
@@ -254,13 +254,11 @@ class PostClosingSurveyView extends GetView<PostClosingSurveyController> {
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(
-                            professional.type == 'agent' ? 'Agent' : 'Loan Officer',
+                            'Agent',
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w500,
-                              color: professional.type == 'agent'
-                                  ? AppTheme.primaryBlue
-                                  : AppTheme.lightGreen,
+                              color: AppTheme.primaryBlue,
                             ),
                           ),
                         ),

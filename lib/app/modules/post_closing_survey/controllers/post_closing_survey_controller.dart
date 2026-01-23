@@ -130,25 +130,29 @@ class PostClosingSurveyController extends GetxController {
 
       if (kDebugMode) {
         print('📡 Loading completed leads for user: ${currentUser.id}');
-        print('   Using endpoint: ${ApiConstants.getListingsByUserIdEndpoint(currentUser.id)}');
+        print('   Using endpoint: ${ApiConstants.getLeadsByBuyerIdEndpoint(currentUser.id)}');
       }
 
-      // Fetch leads using getListingsByUserId endpoint
+      // Fetch leads using getLeadsByAgentId endpoint (for buyer's own leads)
+      // Note: The endpoint is /buyer/getLeadsByAgentId/{userId} - same endpoint used in proposals
       final leadsResponse = await _leadsService.getLeadsByBuyerId(currentUser.id);
       
-      // Filter to only completed leads
+      // Filter to only completed leads with agents (not loan officers)
       final completedLeads = leadsResponse.leads.where((lead) {
         final isCompleted = lead.isCompleted || 
                            lead.leadStatus?.toLowerCase() == 'completed';
-        return isCompleted && lead.agentId != null;
+        // Only include leads with agents (role should be 'agent' or null, not 'loan_officer')
+        final hasAgent = lead.agentId != null;
+        final isAgent = lead.agentId?.role?.toLowerCase() != 'loan_officer';
+        return isCompleted && hasAgent && isAgent;
       }).toList();
 
       if (kDebugMode) {
-        print('✅ Found ${completedLeads.length} completed leads');
+        print('✅ Found ${completedLeads.length} completed leads with agents');
       }
 
-      // Extract unique agents/loan officers from completed leads
-      final professionalsMap = <String, CompletedProfessional>{};
+      // Extract unique agents from completed leads (only agents, not loan officers)
+      final agentsMap = <String, CompletedProfessional>{};
       
       for (final lead in completedLeads) {
         if (lead.agentId != null) {
@@ -157,16 +161,14 @@ class PostClosingSurveyController extends GetxController {
           final profileImage = lead.agentId!.profilePic;
           final role = lead.agentId!.role?.toLowerCase() ?? 'agent';
           
-          // Only add if not already added
-          if (!professionalsMap.containsKey(agentId)) {
-            professionalsMap[agentId] = CompletedProfessional(
+          // Only add agents (skip loan officers)
+          if (role != 'loan_officer' && !agentsMap.containsKey(agentId)) {
+            agentsMap[agentId] = CompletedProfessional(
               id: agentId,
               name: agentName,
-              type: role == 'loan_officer' ? 'loanOfficer' : 'agent',
+              type: 'agent', // Always agent for this flow
               profileImage: profileImage,
-              company: lead.agentId!.role == 'loan_officer' 
-                  ? null // Company info would need to be fetched separately if needed
-                  : null, // Agent brokerage would need to be fetched separately if needed
+              company: null, // Company info would need to be fetched separately if needed
               leadId: lead.id,
               completedAt: lead.updatedAt,
             );
@@ -174,7 +176,7 @@ class PostClosingSurveyController extends GetxController {
         }
       }
 
-      _completedProfessionals.value = professionalsMap.values.toList();
+      _completedProfessionals.value = agentsMap.values.toList();
       
       // Sort by completion date (most recent first)
       _completedProfessionals.sort((a, b) {
@@ -185,15 +187,15 @@ class PostClosingSurveyController extends GetxController {
       });
 
       if (kDebugMode) {
-        print('✅ Loaded ${_completedProfessionals.length} completed professionals');
-        for (final prof in _completedProfessionals) {
-          print('   - ${prof.name} (${prof.type})');
+        print('✅ Loaded ${_completedProfessionals.length} completed agents');
+        for (final agent in _completedProfessionals) {
+          print('   - ${agent.name} (Agent)');
         }
       }
 
       if (_completedProfessionals.isEmpty) {
         SnackbarHelper.showInfo(
-          'You don\'t have any completed transactions yet. Complete a service with an agent or loan officer to leave a review.',
+          'You don\'t have any completed transactions with agents yet. Complete a service with an agent to leave a review.',
           duration: const Duration(seconds: 4),
         );
       }
@@ -208,25 +210,16 @@ class PostClosingSurveyController extends GetxController {
     }
   }
 
-  /// Select a professional and start survey
+  /// Select an agent and start survey
   void selectProfessional(CompletedProfessional professional) {
     _selectedProfessional.value = professional;
     
-    // Set survey parameters
-    if (professional.type == 'agent') {
-      agentId = professional.id;
-      agentName = professional.name;
-      surveyType = 'agent';
-      loanOfficerId = null;
-      loanOfficerName = null;
-    } else {
-      loanOfficerId = professional.id;
-      loanOfficerName = professional.name;
-      surveyType = 'loanOfficer';
-      agentId = ''; // Not used for loan officer surveys
-      agentName = '';
-    }
-    
+    // Set survey parameters (always agent for this flow)
+    agentId = professional.id;
+    agentName = professional.name;
+    surveyType = 'agent';
+    loanOfficerId = null;
+    loanOfficerName = null;
     transactionId = professional.leadId ?? '';
     
     // Hide selection screen and start survey
@@ -234,8 +227,8 @@ class PostClosingSurveyController extends GetxController {
     _currentStep.value = 0;
     
     if (kDebugMode) {
-      print('✅ Selected ${professional.type}: ${professional.name}');
-      print('   Starting survey for: ${professional.id}');
+      print('✅ Selected agent: ${professional.name}');
+      print('   Starting survey for agent: ${professional.id}');
     }
   }
 
