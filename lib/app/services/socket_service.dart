@@ -22,13 +22,26 @@ class SocketService extends GetxService {
 
   /// Connects to the socket server
   Future<void> connect(String userId) async {
+    // If socket is connected but userId changed, disconnect and reconnect
     if (_socket?.connected == true) {
-      if (kDebugMode) {
-        print('✅ Socket already connected');
+      if (_currentUserId != null && _currentUserId != userId) {
+        if (kDebugMode) {
+          print('⚠️ User ID changed, disconnecting old socket connection');
+          print('   Old user ID: $_currentUserId');
+          print('   New user ID: $userId');
+        }
+        _socket!.disconnect();
+        _socket!.dispose();
+        _socket = null;
+        _isConnected.value = false;
+      } else {
+        if (kDebugMode) {
+          print('✅ Socket already connected');
+        }
+        // Re-emit user_online in case server needs it
+        _socket!.emit('user_online', userId);
+        return;
       }
-      // Re-emit userConnected in case server needs it
-      _socket!.emit('userConnected', userId);
-      return;
     }
 
     if (_isConnecting.value) {
@@ -100,7 +113,20 @@ class SocketService extends GetxService {
       _socket!.connect();
       
       // Wait a moment for connection to establish
-      await Future.delayed(const Duration(milliseconds: 500));
+      await Future.delayed(const Duration(milliseconds: 1000));
+      
+      // Verify connection after delay
+      if (_socket?.connected == true) {
+        _isConnected.value = true;
+        if (kDebugMode) {
+          print('✅ Socket connection verified');
+        }
+      } else {
+        _isConnected.value = false;
+        if (kDebugMode) {
+          print('⚠️ Socket connection not established after delay');
+        }
+      }
       
     } catch (e) {
       _isConnected.value = false;
@@ -108,6 +134,8 @@ class SocketService extends GetxService {
       if (kDebugMode) {
         print('❌ Failed to initialize socket: $e');
       }
+    } finally {
+      _isConnecting.value = false;
     }
   }
 
