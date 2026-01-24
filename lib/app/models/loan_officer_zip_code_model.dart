@@ -11,6 +11,7 @@ class LoanOfficerZipCodeModel {
   final String country;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final List<String> waitingUsers; // User IDs in waiting list (from API WaitingUsers)
 
   LoanOfficerZipCodeModel({
     this.id,
@@ -22,9 +23,26 @@ class LoanOfficerZipCodeModel {
     this.country = 'US',
     required this.createdAt,
     required this.updatedAt,
+    this.waitingUsers = const [],
   });
 
   factory LoanOfficerZipCodeModel.fromJson(Map<String, dynamic> json) {
+    List<String> waitingUsersList = [];
+    final wu = json['WaitingUsers'] ?? json['waitingUsers'];
+    if (wu != null && wu is List) {
+      for (final e in wu) {
+        if (e == null) continue;
+        if (e is String && e.isNotEmpty) {
+          waitingUsersList.add(e);
+        } else if (e is Map) {
+          final id = (e['_id'] ?? e['id'])?.toString();
+          if (id != null && id.isNotEmpty) waitingUsersList.add(id);
+        } else {
+          final s = e.toString();
+          if (s.isNotEmpty) waitingUsersList.add(s);
+        }
+      }
+    }
     return LoanOfficerZipCodeModel(
       id: json['_id']?.toString() ?? json['id']?.toString(),
       postalCode: json['postalCode']?.toString() ?? '',
@@ -43,6 +61,7 @@ class LoanOfficerZipCodeModel {
       updatedAt: json['updatedAt'] != null
           ? DateTime.parse(json['updatedAt'])
           : DateTime.now(),
+      waitingUsers: waitingUsersList,
     );
   }
 
@@ -57,6 +76,7 @@ class LoanOfficerZipCodeModel {
       'country': country,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
+      'WaitingUsers': waitingUsers,
     };
   }
 
@@ -70,6 +90,7 @@ class LoanOfficerZipCodeModel {
     String? country,
     DateTime? createdAt,
     DateTime? updatedAt,
+    List<String>? waitingUsers,
   }) {
     return LoanOfficerZipCodeModel(
       id: id ?? this.id,
@@ -81,6 +102,7 @@ class LoanOfficerZipCodeModel {
       country: country ?? this.country,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      waitingUsers: waitingUsers ?? this.waitingUsers,
     );
   }
 

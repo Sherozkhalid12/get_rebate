@@ -76,6 +76,7 @@ class AgentController extends GetxController {
   final _waitingListRequests = <String>{}.obs;
   final _waitingListEntries = <String, List<WaitingListEntry>>{}.obs;
   final _waitingListLoading = <String>{}.obs;
+  final RxSet<String> _joinedWaitingListZipCodes = <String>{}.obs;
   static const String _selectedStateStorageKey = 'agent_selected_state';
   static const String _claimedZipCodesStorageKey = 'agent_claimed_zip_codes';
 
@@ -104,6 +105,8 @@ class AgentController extends GetxController {
       _waitingListLoading.contains(zipCodeId);
   bool hasWaitingListEntries(String zipCodeId) =>
       (_waitingListEntries[zipCodeId]?.isNotEmpty ?? false);
+  bool hasJoinedWaitingList(String zipCodeId) =>
+      _joinedWaitingListZipCodes.contains(zipCodeId);
   List<WaitingListEntry> waitingListEntries(String zipCodeId) =>
       _waitingListEntries[zipCodeId] ?? [];
 
@@ -399,7 +402,9 @@ class AgentController extends GetxController {
       }
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        await fetchWaitingListEntries(zipCode.id ?? zipCode.zipCode);
+        final zipId = zipCode.id ?? zipCode.zipCode;
+        await fetchWaitingListEntries(zipId);
+        _markJoinedWaitingList(zipId);
         return true;
       }
 
@@ -446,6 +451,7 @@ class AgentController extends GetxController {
             .map((json) => WaitingListEntry.fromJson(json))
             .toList();
         _waitingListEntries[zipCodeId] = entries;
+        _syncJoinedWaitingList(zipCodeId, entries);
         return entries;
       }
 
@@ -472,6 +478,26 @@ class AgentController extends GetxController {
           !_waitingListEntries.containsKey(zipId)) {
         unawaited(fetchWaitingListEntries(zipId));
       }
+    }
+  }
+
+  void _markJoinedWaitingList(String zipCodeId) {
+    if (zipCodeId.isEmpty) return;
+    _joinedWaitingListZipCodes.add(zipCodeId);
+  }
+
+  void _syncJoinedWaitingList(
+    String zipCodeId,
+    List<WaitingListEntry> entries,
+  ) {
+    if (zipCodeId.isEmpty) return;
+    final authController = Get.find<global.AuthController>();
+    final currentUserId = authController.currentUser?.id;
+    if (currentUserId == null) return;
+
+    final userEntry = entries.any((entry) => entry.userId == currentUserId);
+    if (userEntry) {
+      _markJoinedWaitingList(zipCodeId);
     }
   }
 

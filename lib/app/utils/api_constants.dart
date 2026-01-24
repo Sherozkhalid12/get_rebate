@@ -28,12 +28,6 @@ class ApiConstants {
   // ============================================================================
 
   // Server URL
-  static String get zipCodeClaimEndpoint => "$apiBaseUrl/zip-codes/claim";
-  static String get zipCodeReleaseEndpoint => "$apiBaseUrl/zip-codes/release";
-  static String getZipCodesEndpoint(String country, String state) {
-    return "$apiBaseUrl/zip-codes/$country/$state";
-  }
-
   static const String _serverUrl = 'http://98.93.16.113:3001';
 
   // Ngrok URL (update this when ngrok restarts)
@@ -46,7 +40,11 @@ class ApiConstants {
       true; // Set to true to use server URL, false for ngrok/local
   static const bool _useNgrok =
       false; // Set to true to use ngrok, false for server URL
-
+  static String getZipCodesEndpoint(String country, String state) {
+    return "$apiBaseUrl/zip-codes/$country/$state";
+  }
+  static String get zipCodeClaimEndpoint => "$apiBaseUrl/zip-codes/claim";
+  static String get zipCodeReleaseEndpoint => "$apiBaseUrl/zip-codes/release";
   // API version prefix
   static const String _apiVersion = '/api/v1';
 

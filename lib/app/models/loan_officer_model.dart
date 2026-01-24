@@ -105,9 +105,22 @@ class LoanOfficerModel {
                                [];
     final licensedStates = List<String>.from(licensedStatesList);
     
-    // Service areas/ZIP codes
-    final serviceAreasList = json['serviceAreas'] ?? json['claimedZipCodes'] ?? [];
-    final claimedZipCodes = List<String>.from(serviceAreasList);
+    // Parse claimedZipCodes - can be array of objects with postalCode or array of strings
+    List<String> claimedZipCodesList = [];
+    final claimedZipCodesData = json['claimedZipCodes'];
+    if (claimedZipCodesData != null && claimedZipCodesData is List) {
+      for (var item in claimedZipCodesData) {
+        if (item is Map) {
+          final postalCode = item['postalCode']?.toString();
+          if (postalCode != null && postalCode.isNotEmpty) {
+            claimedZipCodesList.add(postalCode);
+          }
+        } else if (item is String && item.isNotEmpty) {
+          claimedZipCodesList.add(item);
+        }
+      }
+    }
+    final claimedZipCodes = claimedZipCodesList;
     
     // Specialty products
     final specialtyList = json['specialtyProducts'] ?? [];

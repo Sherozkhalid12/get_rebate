@@ -19,7 +19,11 @@ import 'package:getrebate/app/modules/rebate_checklist/views/rebate_checklist_vi
 import 'package:getrebate/app/routes/app_pages.dart';
 import 'package:getrebate/app/modules/messages/views/messages_view.dart';
 import 'package:getrebate/app/modules/messages/bindings/messages_binding.dart';
+import 'package:getrebate/app/utils/snackbar_helper.dart';
+import 'package:getrebate/app/modules/loan_officer/views/waiting_list_page.dart';
 import 'package:getrebate/app/modules/messages/controllers/messages_controller.dart';
+
+
 
 class LoanOfficerView extends GetView<LoanOfficerController> {
   const LoanOfficerView({super.key});
@@ -1153,11 +1157,7 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
 
               // State Selector for ZIP Codes - Always show, but only show licensed states in dropdown
               Obx(() {
-                final loanOfficer =
-                    currentLoanOfficerController.currentLoanOfficer.value;
-                final licensedStates = loanOfficer?.licensedStates ?? [];
-                final uniqueStates = licensedStates.toSet().toList()
-                  ..sort((a, b) => a.compareTo(b));
+                final uniqueStates = controller.licensedStateCodes;
 
                 return Card(
                   child: Padding(
@@ -1383,7 +1383,57 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
 
   // Removed _buildZipCodeList - now using SliverList directly for better performance
 
+  Widget _buildWaitingListControls(BuildContext context, LoanOfficerZipCodeModel zip) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        const SizedBox(height: 12),
+        Obx(() {
+          final showSeeWaitingList = controller.isCurrentUserInWaitingList(zip);
+          final isProcessing = controller.isWaitingListProcessing(zip.postalCode);
+
+          if (showSeeWaitingList) {
+            return CustomButton(
+              text: 'See waiting list',
+              onPressed: () => Get.to(
+                () => WaitingListPage(zipCode: zip),
+                transition: Transition.rightToLeft,
+              ),
+              isOutlined: true,
+            );
+          }
+
+          return CustomButton(
+            text: isProcessing ? 'Joining...' : 'Join waiting list',
+            onPressed: isProcessing
+                ? null
+                : () async {
+                    final added = await controller.joinWaitingList(zip);
+                    if (added) {
+                      SnackbarHelper.showSuccess(
+                        'Added to waiting list',
+                        title: 'Success',
+                      );
+                    }
+                  },
+            isOutlined: true,
+            isLoading: isProcessing,
+          );
+        }),
+        const SizedBox(height: 4),
+        Text(
+          'Claimed by another loan officer',
+          style: Theme.of(
+            context,
+          ).textTheme.bodySmall?.copyWith(color: AppTheme.mediumGray),
+        ),
+      ],
+    );
+  }
+
   Widget _buildZipCodeCard(
+
     BuildContext context,
     LoanOfficerZipCodeModel zip,
     bool isClaimed,
@@ -1443,6 +1493,8 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                   isLoading: controller.isZipCodeLoading(zip.postalCode),
                 ),
               )
+            else if (zip.claimedByOfficer)
+              _buildWaitingListControls(context, zip)
             else
               Obx(
                 () => Column(
@@ -1461,22 +1513,17 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                       onTap: controller.isZipCodeLoading(zip.postalCode)
                           ? null
                           : () async {
-                              // Show promo code bottom sheet
                               final promoCode = await controller
                                   .showPromoCodeBottomSheet();
-                              if (promoCode != null && promoCode.isNotEmpty) {
-                                if (kDebugMode) {
-                                  print(
-                                    '📝 Promo code entered (frontend only): $promoCode',
-                                  );
-                                }
-                                // Store promo code locally (frontend only, not sent to backend)
-                                // This is just for user reference
+                              if (promoCode == null || promoCode.isEmpty) {
+                                return;
                               }
-                              // Proceed with claim after promo code entry (or skip)
-                              if (!controller.isZipCodeLoading(
-                                zip.postalCode,
-                              )) {
+                              if (kDebugMode) {
+                                print(
+                                  '📝 Promo code entered (frontend only): $promoCode',
+                                );
+                              }
+                              if (!controller.isZipCodeLoading(zip.postalCode)) {
                                 controller.claimZipCode(zip);
                               }
                             },
