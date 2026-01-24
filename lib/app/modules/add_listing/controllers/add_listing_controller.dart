@@ -212,6 +212,15 @@ class AddListingController extends GetxController {
       final formData = FormData();
 
       // Add text fields (matching API exactly)
+      final listingCommissionPercent =
+          (_dualAgencyTotalCommissionPercent.value - _bacPercent.value).clamp(
+            0.0,
+            double.infinity,
+          );
+      final listingSideCommissionPayload = {
+        'totalCommission': _dualAgencyTotalCommissionPercent.value,
+        'listingCommission': listingCommissionPercent,
+      };
       formData.fields.addAll([
         MapEntry('propertyTitle', titleController.text.trim()),
         MapEntry('description', descriptionController.text.trim()),
@@ -219,6 +228,10 @@ class AddListingController extends GetxController {
         MapEntry('BACPercentage', _bacPercent.value.toString()),
         MapEntry('listingAgent', (_isListingAgent.value ?? false).toString()),
         MapEntry('dualAgencyAllowed', _dualAgencyAllowed.value.toString()),
+        MapEntry(
+          'listingSideCommission',
+          jsonEncode(listingSideCommissionPayload),
+        ),
         MapEntry('streetAddress', addressController.text.trim()),
         MapEntry('city', cityController.text.trim()),
         MapEntry('state', stateController.text.trim()),

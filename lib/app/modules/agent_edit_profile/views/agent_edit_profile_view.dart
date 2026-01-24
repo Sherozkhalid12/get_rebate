@@ -10,8 +10,46 @@ import 'package:getrebate/app/widgets/custom_text_field.dart';
 import 'package:getrebate/app/widgets/gradient_card.dart';
 import 'package:getrebate/app/models/agent_expertise.dart';
 
-class AgentEditProfileView extends GetView<AgentEditProfileController> {
+class AgentEditProfileView extends StatefulWidget {
   const AgentEditProfileView({super.key});
+
+  @override
+  State<AgentEditProfileView> createState() => _AgentEditProfileViewState();
+}
+
+class _AgentEditProfileViewState extends State<AgentEditProfileView> {
+  final AgentEditProfileController controller =
+      Get.find<AgentEditProfileController>();
+  final ScrollController _scrollController = ScrollController();
+  final GlobalKey _licensedStatesKey = GlobalKey();
+  bool _hasAutoScrolled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _maybeScrollToLicensedStates();
+    });
+  }
+
+  void _maybeScrollToLicensedStates() {
+    if (!mounted || _hasAutoScrolled) return;
+    final args = Get.arguments;
+    final shouldScroll =
+        args is Map && args['scrollTo'] == 'licensedStates';
+    if (!shouldScroll) return;
+
+    final contextKey = _licensedStatesKey.currentContext;
+    if (contextKey != null) {
+      Scrollable.ensureVisible(
+        contextKey,
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeInOut,
+        alignment: 0.3,
+      );
+      _hasAutoScrolled = true;
+    }
+  }
 
   void _handleBackButton() {
     // Don't allow back navigation while saving
@@ -36,7 +74,7 @@ class AgentEditProfileView extends GetView<AgentEditProfileController> {
       } catch (_) {
         // Ignore snackbar close errors
       }
-      
+
       try {
         Get.back();
       } catch (e2) {
@@ -62,48 +100,49 @@ class AgentEditProfileView extends GetView<AgentEditProfileController> {
             );
           }
         },
-      child: Scaffold(
-        backgroundColor: AppTheme.lightGray,
-        appBar: AppBar(
-          backgroundColor: AppTheme.primaryBlue,
-          elevation: 0,
-          automaticallyImplyLeading: false,
-          flexibleSpace: Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: AppTheme.primaryGradient,
+        child: Scaffold(
+          backgroundColor: AppTheme.lightGray,
+          appBar: AppBar(
+            backgroundColor: AppTheme.primaryBlue,
+            elevation: 0,
+            automaticallyImplyLeading: false,
+            flexibleSpace: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: AppTheme.primaryGradient,
+                ),
+              ),
+            ),
+            title: Text(
+              'Edit Profile',
+              style: TextStyle(
+                color: AppTheme.white,
+                fontSize: 18.sp,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            centerTitle: true,
+            leading: Obx(
+              () => IconButton(
+                onPressed: controller.isLoading ? null : _handleBackButton,
+                icon: Icon(
+                  Icons.arrow_back,
+                  color: controller.isLoading
+                      ? AppTheme.white.withOpacity(0.5)
+                      : AppTheme.white,
+                ),
               ),
             ),
           ),
-          title: Text(
-            'Edit Profile',
-            style: TextStyle(
-              color: AppTheme.white,
-              fontSize: 18.sp,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          centerTitle: true,
-          leading: Obx(
-            () => IconButton(
-              onPressed: controller.isLoading ? null : _handleBackButton,
-              icon: Icon(
-                Icons.arrow_back,
-                color: controller.isLoading
-                    ? AppTheme.white.withOpacity(0.5)
-                    : AppTheme.white,
-              ),
-            ),
-          ),
-        ),
-        body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
+          body: SafeArea(
+            child: SingleChildScrollView(
+              controller: _scrollController,
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
               // Profile Picture Section
               _buildProfilePictureSection(context)
                   .animate()
@@ -397,6 +436,7 @@ class AgentEditProfileView extends GetView<AgentEditProfileController> {
 
   Widget _buildDualAgencySection(BuildContext context) {
     return GradientCard(
+      key: _licensedStatesKey,
       gradientColors: AppTheme.cardGradient,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -791,5 +831,11 @@ class AgentEditProfileView extends GetView<AgentEditProfileController> {
         ],
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 }
