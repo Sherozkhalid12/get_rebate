@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
@@ -341,7 +343,9 @@ class MessagesController extends GetxController {
           if (kDebugMode) {
             print('⚠️ Socket not connected, reinitializing...');
             print('   Socket exists: ${_socketService!.socket != null}');
-            print('   Socket connected: ${_socketService!.socket?.connected ?? false}');
+            print(
+              '   Socket connected: ${_socketService!.socket?.connected ?? false}',
+            );
           }
           _initializeSocket();
         }
@@ -415,7 +419,7 @@ class MessagesController extends GetxController {
           }
         }
       }
-      
+
       // Create fresh socket service instance for this user
       Get.put(SocketService(), permanent: true);
       _socketService = Get.find<SocketService>();
@@ -1361,7 +1365,7 @@ class MessagesController extends GetxController {
         // Remove optimistic message on error
         _messages.removeWhere((m) => m.id == tempId);
       }
-      
+
       // Try to reconnect socket if not connected
       if (_socketService != null && !_socketService!.isConnected) {
         if (kDebugMode) {
@@ -1370,6 +1374,46 @@ class MessagesController extends GetxController {
         _initializeSocket();
       }
     }
+  }
+
+  Future<String?> _ensureRealThreadId(ConversationModel conversation) async {
+    if (!conversation.id.startsWith('temp_')) return conversation.id;
+
+    final completer = Completer<String?>();
+    StreamSubscription<ConversationModel?>? subscription;
+
+    subscription = selectedConversationRx.stream.listen((updated) {
+      if (updated == null) return;
+      if (!updated.id.startsWith('temp_') &&
+          updated.senderId == conversation.senderId) {
+        if (!completer.isCompleted) {
+          completer.complete(updated.id);
+        }
+        subscription?.cancel();
+      }
+    });
+
+    return completer.future
+        .timeout(
+          const Duration(seconds: 6),
+          onTimeout: () {
+            subscription?.cancel();
+            return conversation.id;
+          },
+        )
+        .whenComplete(() => subscription?.cancel());
+  }
+
+  Future<void> sendMessageWithText(String text) async {
+    if (text.trim().isEmpty) return;
+    final conversation = _selectedConversation.value;
+    if (conversation == null) return;
+
+    final realThreadId = await _ensureRealThreadId(conversation);
+    if (realThreadId == null) return;
+
+    messageController.text = text;
+    sendMessage();
   }
 
   void searchConversations(String query) {
@@ -2038,12 +2082,12 @@ class MessagesController extends GetxController {
     if (kDebugMode) {
       print('🧹 MessagesController: Clearing all data for logout');
     }
-    
+
     // Leave socket room if in conversation
     if (_selectedConversation.value != null && _socketService != null) {
       _socketService!.leaveRoom(_selectedConversation.value!.id);
     }
-    
+
     // Clear all observable data
     _conversations.clear();
     _allConversations.clear();
@@ -2054,35 +2098,19 @@ class MessagesController extends GetxController {
     _isLoading.value = false;
     _isLoadingThreads.value = false;
     _isLoadingMessages.value = false;
-    
+
     // Clear message input
     messageController.clear();
-    
+
     // Reset initialization flag so controller loads fresh data on next login
     _hasInitialized = false;
-    
+
     // Disconnect and remove socket service completely
     if (_socketService != null) {
       _socketService!.disconnect();
       _socketService = null;
     }
-    
-    // Remove the permanent SocketService instance so a fresh one is created for next user
-    if (Get.isRegistered<SocketService>()) {
-      try {
-        final socketService = Get.find<SocketService>();
-        socketService.disconnect();
-        Get.delete<SocketService>(force: true);
-        if (kDebugMode) {
-          print('✅ Removed SocketService instance for logout');
-        }
-      } catch (e) {
-        if (kDebugMode) {
-          print('⚠️ Error removing SocketService: $e');
-        }
-      }
-    }
-    
+
     if (kDebugMode) {
       print('✅ MessagesController: All data cleared for logout');
     }

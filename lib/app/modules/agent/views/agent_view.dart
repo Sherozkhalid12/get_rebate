@@ -1077,9 +1077,11 @@ class AgentView extends GetView<AgentController> {
         Obx(() {
           final zipId = zip.id ?? zip.zipCode;
           final hasEntries = controller.hasWaitingListEntries(zipId);
+          final isJoined = controller.hasJoinedWaitingList(zipId);
           final isProcessing = controller.isWaitingListProcessing(zip.zipCode);
+          final showSeeWaitingList = isJoined && hasEntries;
 
-          if (hasEntries) {
+          if (showSeeWaitingList) {
             return CustomButton(
               text: 'See waiting list',
               onPressed: () => Get.to(
@@ -3306,8 +3308,11 @@ class AgentView extends GetView<AgentController> {
           const SizedBox(height: 20),
 
           // Promo Code Input Section
-          Obx(
-            () => Card(
+          Obx(() {
+            if (controller.claimedZipCodes.isEmpty) {
+              return const SizedBox.shrink();
+            }
+            return Card(
               child: Padding(
                 padding: const EdgeInsets.all(20),
                 child: Column(
@@ -3368,7 +3373,6 @@ class AgentView extends GetView<AgentController> {
                       const SizedBox(height: 16),
                     ],
 
-                    // Generate Promo Code for Loan Officers
                     Text(
                       'Share with Loan Officers',
                       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
@@ -3392,7 +3396,6 @@ class AgentView extends GetView<AgentController> {
                       width: double.infinity,
                     ),
 
-                    // Display Generated Codes
                     if (controller.generatedPromoCodes.isNotEmpty) ...[
                       const SizedBox(height: 12),
                       Text(
@@ -3444,8 +3447,6 @@ class AgentView extends GetView<AgentController> {
                                 IconButton(
                                   icon: const Icon(Icons.copy),
                                   onPressed: () {
-                                    // Copy to clipboard
-                                    // Clipboard.setData(ClipboardData(text: promo.code));
                                     SnackbarHelper.showSuccess(
                                       'Promo code copied to clipboard',
                                       title: 'Copied',
@@ -3461,8 +3462,8 @@ class AgentView extends GetView<AgentController> {
                   ],
                 ),
               ),
-            ),
-          ),
+            );
+          }),
 
           const SizedBox(height: 20),
 
