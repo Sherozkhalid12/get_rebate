@@ -18,6 +18,7 @@ class AgentModel {
   final int profileViews;
   final int contacts;
   final List<String> serviceZipCodes;
+  final List<String> activeListingZipCodes; // Parsed from listings array
   final List<String> featuredListings;
   final DateTime createdAt;
   final DateTime? lastActiveAt;
@@ -59,6 +60,7 @@ class AgentModel {
     this.profileViews = 0,
     this.contacts = 0,
     this.serviceZipCodes = const [],
+    this.activeListingZipCodes = const [],
     this.featuredListings = const [],
     required this.createdAt,
     this.lastActiveAt,
@@ -138,6 +140,20 @@ class AgentModel {
     final serviceAreasList =
         json['serviceAreas'] ?? json['serviceZipCodes'] ?? [];
     final serviceZipCodes = List<String>.from(serviceAreasList);
+
+    // Parse active listing ZIP codes from 'listings' array
+    List<String> activeListingZipCodes = [];
+    final listingsData = json['listings'];
+    if (listingsData != null && listingsData is List) {
+      for (var item in listingsData) {
+        if (item is Map) {
+          final zip = item['zipCode']?.toString();
+          if (zip != null && zip.isNotEmpty && zip != '0') {
+            activeListingZipCodes.add(zip);
+          }
+        }
+      }
+    }
 
     // Rating - can be number or calculated from reviews
     double rating = 0.0;
@@ -240,6 +256,7 @@ class AgentModel {
       profileViews: json['views'] is int ? json['views'] : 0,
       contacts: json['contacts'] is int ? json['contacts'] : 0,
       serviceZipCodes: serviceZipCodes,
+      activeListingZipCodes: activeListingZipCodes,
       featuredListings: const [], // Not in API response
       createdAt: createdAt,
       lastActiveAt: lastActiveAt,
@@ -294,6 +311,7 @@ class AgentModel {
       'profileViews': profileViews,
       'contacts': contacts,
       'serviceZipCodes': serviceZipCodes,
+      'activeListingZipCodes': activeListingZipCodes,
       'featuredListings': featuredListings,
       'createdAt': createdAt.toIso8601String(),
       'lastActiveAt': lastActiveAt?.toIso8601String(),
@@ -336,6 +354,7 @@ class AgentModel {
     int? profileViews,
     int? contacts,
     List<String>? serviceZipCodes,
+    List<String>? activeListingZipCodes,
     List<String>? featuredListings,
     DateTime? createdAt,
     DateTime? lastActiveAt,
@@ -366,16 +385,17 @@ class AgentModel {
       companyLogoUrl: companyLogoUrl ?? this.companyLogoUrl,
       brokerage: brokerage ?? this.brokerage,
       licenseNumber: licenseNumber ?? this.licenseNumber,
-      licensedStates: licensedStates ?? this.licensedStates,
-      claimedZipCodes: claimedZipCodes ?? this.claimedZipCodes,
+      licensedStates: licensedStates ?? this.licensedStates ?? const [],
+      claimedZipCodes: claimedZipCodes ?? this.claimedZipCodes ?? const [],
       bio: bio ?? this.bio,
       rating: rating ?? this.rating,
       reviewCount: reviewCount ?? this.reviewCount,
       searchesAppearedIn: searchesAppearedIn ?? this.searchesAppearedIn,
       profileViews: profileViews ?? this.profileViews,
       contacts: contacts ?? this.contacts,
-      serviceZipCodes: serviceZipCodes ?? this.serviceZipCodes,
-      featuredListings: featuredListings ?? this.featuredListings,
+      serviceZipCodes: serviceZipCodes ?? this.serviceZipCodes ?? const [],
+      activeListingZipCodes: activeListingZipCodes ?? this.activeListingZipCodes ?? const [],
+      featuredListings: featuredListings ?? this.featuredListings ?? const [],
       createdAt: createdAt ?? this.createdAt,
       lastActiveAt: lastActiveAt ?? this.lastActiveAt,
       isVerified: isVerified ?? this.isVerified,

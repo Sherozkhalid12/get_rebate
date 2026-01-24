@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/services.dart';
 import 'package:getrebate/app/models/agent_model.dart';
 import 'package:getrebate/app/controllers/main_navigation_controller.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart';
@@ -559,9 +560,12 @@ class AgentProfileController extends GetxController {
               subtitle: Text(_agent.value!.phone ?? 'No phone number'),
               onTap: () {
                 Navigator.pop(Get.context!);
-                // Record contact when user taps to call
-                _recordContact(_agent.value!.id);
-                SnackbarHelper.showInfo('Opening phone dialer...', title: 'Calling');
+                if (_agent.value!.phone != null) {
+                  Clipboard.setData(ClipboardData(text: _agent.value!.phone!));
+                  SnackbarHelper.showInfo('Phone number copied to clipboard');
+                  // Record contact when user taps to call
+                  _recordContact(_agent.value!.id);
+                }
               },
             ),
             ListTile(
@@ -570,7 +574,8 @@ class AgentProfileController extends GetxController {
               subtitle: Text(_agent.value!.email),
               onTap: () {
                 Navigator.pop(Get.context!);
-                SnackbarHelper.showInfo('Opening email client...', title: 'Emailing');
+                Clipboard.setData(ClipboardData(text: _agent.value!.email));
+                SnackbarHelper.showInfo('Email copied to clipboard');
               },
             ),
             ListTile(

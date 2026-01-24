@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/services.dart';
 import 'package:getrebate/app/models/loan_officer_model.dart';
 import 'package:getrebate/app/models/mortgage_types.dart';
 import 'package:getrebate/app/controllers/main_navigation_controller.dart';
@@ -285,7 +286,10 @@ class LoanOfficerProfileController extends GetxController {
               subtitle: Text(_loanOfficer.value!.phone ?? 'No phone number'),
               onTap: () {
                 Navigator.pop(Get.context!);
-                SnackbarHelper.showInfo('Opening phone dialer...', title: 'Calling');
+                if (_loanOfficer.value!.phone != null) {
+                  Clipboard.setData(ClipboardData(text: _loanOfficer.value!.phone!));
+                  SnackbarHelper.showInfo('Phone number copied to clipboard');
+                }
               },
             ),
             ListTile(
@@ -294,7 +298,8 @@ class LoanOfficerProfileController extends GetxController {
               subtitle: Text(_loanOfficer.value!.email),
               onTap: () {
                 Navigator.pop(Get.context!);
-                SnackbarHelper.showInfo('Opening email client...', title: 'Emailing');
+                Clipboard.setData(ClipboardData(text: _loanOfficer.value!.email));
+                SnackbarHelper.showInfo('Email copied to clipboard');
               },
             ),
             ListTile(

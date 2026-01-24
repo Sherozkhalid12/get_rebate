@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "260409603868",
+    "project_id": "getarebate-68344",
+    "storage_bucket": "getarebate-68344.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:260409603868:android:1960485b3f56a0a0f16cd9",
+        "android_client_info": {
+          "package_name": "com.example.getrebate"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDYvfCk0UN9my1fcUyhPLtQzamx5XYfKng"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

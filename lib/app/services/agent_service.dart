@@ -103,12 +103,44 @@ class AgentService {
     }
   }
 
-  /// Fetches all agents from the API (backward compatibility - uses page 1)
+  /// Fetches ALL agents from the API by iterating through pagination
   /// 
   /// Throws [AgentServiceException] if the request fails
   Future<List<AgentModel>> getAllAgents() async {
-    final result = await getAllAgentsPaginated(page: 1);
-    return result.agents;
+    List<AgentModel> allAgents = [];
+    int page = 1;
+    bool hasMore = true;
+
+    if (kDebugMode) {
+      print('📡 Fetching ALL agents (iterating through pages)...');
+    }
+
+    try {
+      while (hasMore) {
+        final result = await getAllAgentsPaginated(page: page);
+        allAgents.addAll(result.agents);
+        
+        if (result.page >= result.totalPages) {
+          hasMore = false;
+        } else {
+          page++;
+        }
+      }
+      
+      if (kDebugMode) {
+        print('✅ Successfully fetched total ${allAgents.length} agents across $page pages');
+      }
+      return allAgents;
+    } catch (e) {
+      // If we fail during pagination, at least return what we have if not empty
+      if (allAgents.isNotEmpty) {
+        if (kDebugMode) {
+          print('⚠️ Error during getAllAgents pagination: $e. Returning ${allAgents.length} agents.');
+        }
+        return allAgents;
+      }
+      rethrow;
+    }
   }
 
   /// Fetches agents from the API with pagination
@@ -542,7 +574,7 @@ class AgentService {
     }
 
     try {
-      final response = await _dio.post(
+      final response = await _dio.get(
         endpoint,
         options: Options(
           headers: ApiConstants.ngrokHeaders,

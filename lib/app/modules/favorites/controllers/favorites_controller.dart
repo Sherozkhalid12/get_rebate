@@ -6,6 +6,7 @@ import 'package:getrebate/app/models/loan_officer_model.dart';
 import 'package:getrebate/app/models/listing.dart';
 import 'package:getrebate/app/models/open_house_model.dart';
 import 'package:getrebate/app/services/loan_officer_service.dart';
+import 'package:getrebate/app/services/agent_service.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart';
 import 'package:getrebate/app/modules/buyer_v2/controllers/buyer_v2_controller.dart';
 
@@ -24,6 +25,10 @@ class FavoritesController extends GetxController {
 
   // Controllers
   final AuthController _authController = Get.find<AuthController>();
+  
+  // Services
+  final AgentService _agentService = AgentService();
+  final LoanOfficerService _loanOfficerService = LoanOfficerService();
 
   // Getters
   List<AgentModel> get favoriteAgents => _favoriteAgents;
@@ -53,7 +58,7 @@ class FavoritesController extends GetxController {
   }
 
   /// Loads favorites by checking the likes array from agents/loan officers
-  void _loadFavorites({int retryCount = 0}) {
+  Future<void> _loadFavorites({int retryCount = 0}) async {
     try {
       _isLoading.value = true;
       
@@ -75,50 +80,88 @@ class FavoritesController extends GetxController {
         print('❤️ Loading favorites for user: $userId (attempt ${retryCount + 1})');
       }
       
-      // Try to get agents and loan officers from buyer_controller
+      // Fetch ALL agents from API to ensure we get all favorites (not just first page)
+      List<AgentModel> allAgents = [];
+      List<LoanOfficerModel> allLoanOfficers = [];
+      
       try {
-        final buyerController = Get.find<BuyerV2Controller>();
-        
-        final agents = buyerController.agents;
-        final loanOfficers = buyerController.loanOfficers;
+        if (kDebugMode) {
+          print('   📡 Fetching ALL agents from API to find favorites...');
+        }
+        // Fetch all agents from API (iterates through all pages)
+        allAgents = await _agentService.getAllAgents();
         
         if (kDebugMode) {
-          print('   📊 Found ${agents.length} agents and ${loanOfficers.length} loan officers');
+          print('   ✅ Fetched ${allAgents.length} total agents from API');
         }
-        
-        // If lists are empty and we haven't retried too many times, wait and retry
-        // Check if either list is empty (they load independently)
-        if ((agents.isEmpty || loanOfficers.isEmpty) && retryCount < 5) {
+      } catch (e) {
+        if (kDebugMode) {
+          print('   ⚠️ Error fetching all agents: $e. Trying to use BuyerV2Controller agents as fallback...');
+        }
+        // Fallback: Try to get agents from buyer_controller if API fails
+        try {
+          final buyerController = Get.find<BuyerV2Controller>();
+          allAgents = buyerController.agents;
           if (kDebugMode) {
-            print('⏳ Data not fully loaded yet (Agents: ${agents.length}, Loan Officers: ${loanOfficers.length}), retrying in 300ms... (attempt ${retryCount + 1}/5)');
+            print('   📊 Using ${allAgents.length} agents from BuyerV2Controller as fallback');
           }
-          _isLoading.value = false;
-          Future.delayed(const Duration(milliseconds: 300), () {
-            _loadFavorites(retryCount: retryCount + 1);
-          });
-          return;
+        } catch (e2) {
+          if (kDebugMode) {
+            print('   ❌ Could not get agents from BuyerV2Controller either: $e2');
+          }
         }
+      }
+      
+      // Fetch ALL loan officers from API to ensure we get all favorites
+      try {
+        if (kDebugMode) {
+          print('   📡 Fetching ALL loan officers from API to find favorites...');
+        }
+        // Fetch all loan officers from API
+        allLoanOfficers = await _loanOfficerService.getAllLoanOfficers();
         
-        // Even if lists are empty, still try to load (they might have been loaded but empty)
-        // This ensures we don't show stale data
-        
-        // Filter agents where current user ID is in the likes array
-        final favoritedAgents = <AgentModel>[];
-        for (final agent in agents) {
-          final likes = agent.likes;
-          if (likes != null) {
-            // Check if user ID is in the likes array
-            final isLiked = likes.contains(userId);
-            if (isLiked) {
-              favoritedAgents.add(agent);
-              if (kDebugMode) {
-                print('   ✅ Agent ${agent.id} (${agent.name}) is favorited - likes: $likes contains userId: $userId');
-              }
-            } else if (kDebugMode && likes.isNotEmpty) {
-              print('   ❌ Agent ${agent.id} (${agent.name}) NOT favorited - likes: $likes, userId: $userId');
+        if (kDebugMode) {
+          print('   ✅ Fetched ${allLoanOfficers.length} total loan officers from API');
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          print('   ⚠️ Error fetching all loan officers: $e. Trying to use BuyerV2Controller loan officers as fallback...');
+        }
+        // Fallback: Try to get loan officers from buyer_controller if API fails
+        try {
+          final buyerController = Get.find<BuyerV2Controller>();
+          allLoanOfficers = buyerController.loanOfficers;
+          if (kDebugMode) {
+            print('   📊 Using ${allLoanOfficers.length} loan officers from BuyerV2Controller as fallback');
+          }
+        } catch (e2) {
+          if (kDebugMode) {
+            print('   ❌ Could not get loan officers from BuyerV2Controller either: $e2');
+          }
+        }
+      }
+      
+      if (kDebugMode) {
+        print('   📊 Total agents to check: ${allAgents.length}, Total loan officers: ${allLoanOfficers.length}');
+      }
+      
+      // Filter agents where current user ID is in the likes array
+      final favoritedAgents = <AgentModel>[];
+      for (final agent in allAgents) {
+        final likes = agent.likes;
+        if (likes != null) {
+          // Check if user ID is in the likes array
+          final isLiked = likes.contains(userId);
+          if (isLiked) {
+            favoritedAgents.add(agent);
+            if (kDebugMode) {
+              print('   ✅ Agent ${agent.id} (${agent.name}) is favorited - likes: $likes contains userId: $userId');
             }
+          } else if (kDebugMode && likes.isNotEmpty) {
+            print('   ❌ Agent ${agent.id} (${agent.name}) NOT favorited - likes: $likes, userId: $userId');
           }
         }
+      }
         
         // Sort agents by most recently liked first
         // Priority: 1) Recently liked (within 10 seconds), 2) Higher index in likes array
@@ -153,7 +196,7 @@ class FavoritesController extends GetxController {
         
         // Filter loan officers where current user ID is in the likes array
         final favoritedLoanOfficers = <LoanOfficerModel>[];
-        for (final loanOfficer in loanOfficers) {
+        for (final loanOfficer in allLoanOfficers) {
           final likes = loanOfficer.likes;
           if (likes != null) {
             // Check if user ID is in the likes array
@@ -210,9 +253,21 @@ class FavoritesController extends GetxController {
         );
         
         // Load favorite listings - separate into "Houses for Sale" and "Open Houses"
-        final listings = buyerController.listings;
-        final openHouses = buyerController.openHouses;
-        final favoriteListingIds = buyerController.favoriteListings;
+        // Try to get listings from BuyerV2Controller
+        List<Listing> listings = [];
+        List<OpenHouseModel> openHouses = [];
+        List<String> favoriteListingIds = [];
+        
+        try {
+          final buyerController = Get.find<BuyerV2Controller>();
+          listings = buyerController.listings;
+          openHouses = buyerController.openHouses;
+          favoriteListingIds = buyerController.favoriteListings;
+        } catch (e) {
+          if (kDebugMode) {
+            print('   ⚠️ Could not get listings from BuyerV2Controller: $e');
+          }
+        }
         final favoritedListings = <Listing>[]; // Houses for Sale
         final favoritedOpenHouses = <OpenHouseModel>[]; // Open Houses
         
@@ -243,9 +298,11 @@ class FavoritesController extends GetxController {
         // Then add other favorites from API that aren't already preserved
         for (final listing in listings) {
           if (favoriteListingIds.contains(listing.id) && !preservedListingIds.contains(listing.id)) {
-            // Check if this listing has an open house
-            if (listingsWithOpenHouses.contains(listing.id)) {
-              // Find the open house for this listing
+            final hasOpenHouse = listingsWithOpenHouses.contains(listing.id);
+            
+            // If listing has open houses, add to BOTH tabs (Houses for Sale AND Open Houses)
+            if (hasOpenHouse) {
+              // Add to Open Houses tab
               final openHouse = openHouses.firstWhere(
                 (oh) => oh.listingId == listing.id,
                 orElse: () => openHouses.first,
@@ -256,8 +313,16 @@ class FavoritesController extends GetxController {
                   print('      ✅ Found favorite open house: ${listing.id} - ${listing.address}');
                 }
               }
+              
+              // ALSO add to Houses for Sale tab (since it can appear in both)
+              if (!favoritedListings.any((l) => l.id == listing.id)) {
+                favoritedListings.add(listing);
+                if (kDebugMode) {
+                  print('      ✅ Found favorite listing with open house (added to both tabs): ${listing.id} - ${listing.address}');
+                }
+              }
             } else {
-              // Regular listing (House for Sale)
+              // Regular listing (House for Sale only, no open houses)
               if (!favoritedListings.any((l) => l.id == listing.id)) {
                 favoritedListings.add(listing);
                 if (kDebugMode) {
@@ -277,27 +342,18 @@ class FavoritesController extends GetxController {
           print('✅ Loaded ${favoritedAgents.length} favorite agents, ${favoritedLoanOfficers.length} favorite loan officers, ${favoritedListings.length} favorite listings (Houses for Sale), and ${favoritedOpenHouses.length} favorite open houses');
         }
       } catch (e) {
-        // BuyerV2Controller might not be available (e.g., if user is a seller)
+        // Error loading favorites
         if (kDebugMode) {
-          print('⚠️ BuyerV2Controller not available: $e');
+          print('❌ Error loading favorites: $e');
         }
-        // Fallback: clear favorites if buyer controller is not available
+        // Clear favorites on error
         _favoriteAgents.clear();
         _favoriteLoanOfficers.clear();
         _favoriteListings.clear();
         _favoriteOpenHouses.clear();
+      } finally {
+        _isLoading.value = false;
       }
-    } catch (e) {
-      if (kDebugMode) {
-        print('❌ Error loading favorites: $e');
-      }
-      _favoriteAgents.clear();
-      _favoriteLoanOfficers.clear();
-      _favoriteListings.clear();
-      _favoriteOpenHouses.clear();
-    } finally {
-      _isLoading.value = false;
-    }
   }
   
   /// Adds a newly liked agent to the top of favorites list immediately
@@ -360,31 +416,35 @@ class FavoritesController extends GetxController {
       _favoriteListings.removeWhere((l) => l.id == listing.id);
       _favoriteOpenHouses.removeWhere((oh) => oh.listingId == listing.id);
       
-      // Determine which list to add to based on the tab it was liked from
-      if (isFromOpenHousesTab) {
-        // Liked from Open Houses tab - add to Open Houses in favorites
-        try {
-          final buyerController = Get.find<BuyerV2Controller>();
-          final openHouses = buyerController.openHouses;
+      // Check if this listing has open houses
+      bool hasOpenHouse = false;
+      try {
+        final buyerController = Get.find<BuyerV2Controller>();
+        final openHouses = buyerController.openHouses;
+        hasOpenHouse = openHouses.any((oh) => oh.listingId == listing.id);
+        
+        if (hasOpenHouse) {
+          // Listing has open houses - add to BOTH tabs
           final openHouse = openHouses.firstWhere((oh) => oh.listingId == listing.id);
           _favoriteOpenHouses.insert(0, openHouse);
+          _favoriteListings.insert(0, listing);
           
           if (kDebugMode) {
-            print('✅ Added listing ${listing.id} to Open Houses in favorites (liked from Open Houses tab)');
+            print('✅ Added listing ${listing.id} to BOTH tabs in favorites (has open houses)');
           }
-        } catch (e) {
-          // If open house not found, add to Houses for Sale as fallback
+        } else {
+          // No open houses - add only to Houses for Sale tab
           _favoriteListings.insert(0, listing);
+          
           if (kDebugMode) {
-            print('⚠️ Open house not found for listing ${listing.id}, added to Houses for Sale instead');
+            print('✅ Added listing ${listing.id} to Houses for Sale in favorites (no open houses)');
           }
         }
-      } else {
-        // Liked from Houses for Sale tab - add to Houses for Sale in favorites
+      } catch (e) {
+        // Fallback: add to Houses for Sale tab if we can't check for open houses
         _favoriteListings.insert(0, listing);
-        
         if (kDebugMode) {
-          print('✅ Added listing ${listing.id} to Houses for Sale in favorites (liked from Houses for Sale tab)');
+          print('⚠️ Could not check for open houses for listing ${listing.id}, added to Houses for Sale: $e');
         }
       }
     } catch (e) {
@@ -449,13 +509,13 @@ class FavoritesController extends GetxController {
       }
       
       // Now load favorites (will retry internally if needed)
-      _loadFavorites();
+      await _loadFavorites();
     } catch (e) {
       if (kDebugMode) {
         print('⚠️ Could not refresh buyer data: $e');
       }
       // Still try to load favorites
-      _loadFavorites();
+      await _loadFavorites();
     }
   }
 

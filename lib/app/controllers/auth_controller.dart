@@ -3,6 +3,9 @@ import 'package:flutter/foundation.dart';
 import 'package:get/get.dart' hide FormData, MultipartFile;
 import 'package:get_storage/get_storage.dart';
 import 'package:dio/dio.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:firebase_core/firebase_core.dart'; // Added for initialization check
+import 'package:getrebate/firebase_options.dart'; // Added to access DefaultFirebaseOptions
 import 'dart:io';
 import 'dart:convert';
 import 'package:getrebate/app/models/user_model.dart';
@@ -116,6 +119,12 @@ class AuthController extends GetxController {
       if (authToken != null) {
         _dio.options.headers['Authorization'] = 'Bearer $authToken';
       }
+
+      // Refresh FCM token on app start
+      if (kDebugMode) {
+        print('🔄 Refreshing FCM token on app start');
+      }
+      setFCM(user.id);
 
       print('✅ User session restored from storage');
       print('   User ID: ${_currentUser.value?.id}');
@@ -312,8 +321,11 @@ class AuthController extends GetxController {
           _storage.write('current_user', user.toJson());
           if (token != null) {
             _storage.write('auth_token', token);
-            print('🔑 Auth token stored');
+            print('🔑 Auth token stored $token');
           }
+          
+          // Set FCM token
+          setFCM(user.id);
 
           print('✅ Login successful!');
           print('   User ID: ${user.id}');
@@ -864,6 +876,9 @@ class AuthController extends GetxController {
         _isLoggedIn.value = true;
         _storage.write('current_user', user.toJson());
 
+        // Set FCM token
+        setFCM(user.id);
+
         print('✅ User created successfully!');
         print('   User ID: ${user.id}');
         print('   Email: ${user.email}');
@@ -1227,7 +1242,12 @@ class AuthController extends GetxController {
     }
   }
 
-  void logout() {
+  void logout() async {
+    // Remove FCM token before clearing user data
+    if (_currentUser.value != null) {
+      await removeFCM(_currentUser.value!.id);
+    }
+
     _currentUser.value = null;
     _isLoggedIn.value = false;
     _storage.remove('current_user');
@@ -1259,6 +1279,8 @@ class AuthController extends GetxController {
   void updateUser(UserModel user) {
     _currentUser.value = user;
     _storage.write('current_user', user.toJson());
+    // Set FCM token
+    setFCM(user.id);
   }
 
   void _navigateToRoleBasedScreen() {
@@ -1304,6 +1326,148 @@ class AuthController extends GetxController {
         return UserRole.buyerSeller;
       default:
         return UserRole.buyerSeller;
+    }
+  }
+
+  Future<void> setFCM(String userId) async {
+    if (kDebugMode) {
+      print('🔥 setFCM called for user: $userId');
+    }
+    
+    // Wait for Firebase to be initialized if it hasn't been yet
+    try {
+      if (Firebase.apps.isEmpty) {
+        if (kDebugMode) {
+          print('⏳ Firebase not initialized yet, waiting...');
+        }
+        await Firebase.initializeApp(
+          options: DefaultFirebaseOptions.currentPlatform,
+        );
+        if (kDebugMode) {
+          print('✅ Firebase initialized inside AuthController');
+        }
+      } else {
+        if (kDebugMode) {
+          print('✅ Firebase was already initialized');
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('⚠️ Failed to auto-initialize Firebase in setFCM: $e');
+      }
+      return; // Exit if init failed
+    }
+
+    try {
+      // Check if Firebase is initialized and Messaging is available
+      if (kDebugMode) {
+        print('📡 Getting FirebaseMessaging instance...');
+      }
+      final messaging = FirebaseMessaging.instance;
+      
+      // Request notification permissions
+      if (kDebugMode) {
+        print('🔔 Requesting notification permissions...');
+      }
+      NotificationSettings settings = await messaging.requestPermission(
+        alert: true,
+        announcement: false,
+        badge: true,
+        carPlay: false,
+        criticalAlert: false,
+        provisional: false,
+        sound: true,
+      );
+
+      if (kDebugMode) {
+        print('🔔 User granted permission: ${settings.authorizationStatus}');
+      }
+
+      if (settings.authorizationStatus == AuthorizationStatus.denied) {
+        print('⚠️ Notification permissions denied by user');
+        // We can still try to get the token, but notifications won't show
+      }
+      
+      if (kDebugMode) {
+        print('📡 Requesting FCM token...');
+      }
+      
+      String? token;
+      try {
+        token = await messaging.getToken();
+        if (kDebugMode) {
+          print('🔑 FCM Token retrieved: ${token?.substring(0, 10)}...');
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          print('⚠️ Error getting FCM token: $e');
+        }
+        return;
+      }
+
+      if (token == null) {
+        print('⚠️ FCM Token is null');
+        return;
+      }
+
+      final authToken = _storage.read('auth_token');
+      if (kDebugMode) {
+        print('🚀 Sending FCM token to backend...');
+      }
+      
+      final response = await _dio.patch(
+        ApiConstants.setFCMEndpoint,
+        data: {
+          'userId': userId,
+          'fcmToken': token,
+        },
+        options: Options(
+          headers: {
+            'ngrok-skip-browser-warning': 'true',
+            'Content-Type': 'application/json',
+            if (authToken != null) 'Authorization': 'Bearer $authToken',
+          },
+        ),
+      );
+      if (kDebugMode) {
+        print('✅ FCM Token set: ${response.statusCode}');
+        print('   Response: ${response.data}');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Error setting FCM Token: $e');
+      }
+    }
+  }
+
+  Future<void> removeFCM(String userId) async {
+    try {
+      final url = ApiConstants.removeFCMEndpoint(userId);
+      final authToken = _storage.read('auth_token');
+      
+      if (kDebugMode) {
+        print('📡 Removing FCM Token for user: $userId');
+        print('   URL: $url');
+      }
+      
+      final response = await _dio.get(
+        url,
+        options: Options(
+          headers: {
+            'ngrok-skip-browser-warning': 'true',
+            'Content-Type': 'application/json',
+            if (authToken != null) 'Authorization': 'Bearer $authToken',
+          },
+        ),
+      );
+      if (kDebugMode) {
+        print('✅ FCM Token removed: ${response.statusCode}');
+        print('   Response: ${response.data}');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Error removing FCM Token: $e');
+      }
     }
   }
 }

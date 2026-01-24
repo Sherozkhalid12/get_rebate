@@ -429,6 +429,14 @@ class AuthViewController extends GetxController {
           SnackbarHelper.showError('Please select at least one licensed state');
           return false;
         }
+        if (serviceZipCodesController.text.trim().isEmpty) {
+          SnackbarHelper.showError('Please enter your office ZIP code');
+          return false;
+        }
+        if (!RegExp(r'^\d{5}$').hasMatch(serviceZipCodesController.text.trim())) {
+          SnackbarHelper.showError('Office ZIP code must be exactly 5 digits');
+          return false;
+        }
         if (isDualAgencyAllowedInState == null) {
           SnackbarHelper.showError(
             'Please answer if dual agency is allowed in your state',

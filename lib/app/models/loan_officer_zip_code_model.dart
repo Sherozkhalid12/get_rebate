@@ -29,11 +29,11 @@ class LoanOfficerZipCodeModel {
       id: json['_id']?.toString() ?? json['id']?.toString(),
       postalCode: json['postalCode']?.toString() ?? '',
       state: json['state']?.toString() ?? '',
-      population: json['population'] is int 
+      population: json['population'] is int
           ? json['population'] as int
-          : (json['population'] is String 
-              ? int.tryParse(json['population'] as String) ?? 0
-              : 0),
+          : (json['population'] is String
+          ? int.tryParse(json['population'] as String) ?? 0
+          : 0),
       claimedByAgent: json['claimedByAgent'] == true || json['claimedByAgent'] == 'true',
       claimedByOfficer: json['claimedByOfficer'] == true || json['claimedByOfficer'] == 'true',
       country: json['country']?.toString() ?? 'US',

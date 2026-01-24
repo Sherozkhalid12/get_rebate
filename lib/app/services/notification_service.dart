@@ -1,106 +1,166 @@
 import 'package:dio/dio.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
-import 'package:getrebate/app/models/notification_model.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:get_storage/get_storage.dart';
+import 'package:getrebate/app/models/notification_model.dart' as model;
 import 'package:getrebate/app/utils/api_constants.dart';
 
-/// Custom exception for notification service errors
 class NotificationServiceException implements Exception {
   final String message;
   final int? statusCode;
-  final dynamic originalError;
 
-  NotificationServiceException({
-    required this.message,
-    this.statusCode,
-    this.originalError,
-  });
+  NotificationServiceException({required this.message, this.statusCode});
 
   @override
-  String toString() => message;
+  String toString() => 'NotificationServiceException: $message (Status: $statusCode)';
 }
 
-/// Service for handling notification-related API calls
 class NotificationService {
-  late final Dio _dio;
+  static final NotificationService _instance = NotificationService._internal();
+  factory NotificationService() => _instance;
+  NotificationService._internal();
 
-  NotificationService() {
+  final FlutterLocalNotificationsPlugin _localNotifications = FlutterLocalNotificationsPlugin();
+  late final Dio _dio;
+  
+  bool _isInitialized = false;
+
+  Future<void> initialize() async {
+    if (_isInitialized) return;
+
     _dio = Dio(
       BaseOptions(
         baseUrl: ApiConstants.baseUrl,
-        connectTimeout: const Duration(seconds: 15),
-        receiveTimeout: const Duration(seconds: 15),
-        sendTimeout: const Duration(seconds: 15),
+        connectTimeout: const Duration(seconds: 30),
+        receiveTimeout: const Duration(seconds: 30),
+        sendTimeout: const Duration(seconds: 30),
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          ...ApiConstants.ngrokHeaders,
         },
       ),
     );
 
-    // Add interceptors for error handling
-    _dio.interceptors.add(
-      InterceptorsWrapper(
-        onError: (error, handler) {
-          _handleError(error);
-          handler.next(error);
-        },
-      ),
+    // Android initialization settings
+    const AndroidInitializationSettings initializationSettingsAndroid =
+        AndroidInitializationSettings('@mipmap/ic_launcher');
+
+    // iOS initialization settings
+    const DarwinInitializationSettings initializationSettingsDarwin =
+        DarwinInitializationSettings(
+      requestAlertPermission: true,
+      requestBadgePermission: true,
+      requestSoundPermission: true,
     );
+
+    // General initialization settings
+    const InitializationSettings initializationSettings = InitializationSettings(
+      android: initializationSettingsAndroid,
+      iOS: initializationSettingsDarwin,
+    );
+
+    // Initialize local notifications
+    await _localNotifications.initialize(
+      initializationSettings,
+      onDidReceiveNotificationResponse: (NotificationResponse details) {
+        // Handle notification tap
+        if (kDebugMode) {
+          print('🔔 Notification tapped: ${details.payload}');
+        }
+      },
+    );
+
+    // Create high importance channel for Android
+    const AndroidNotificationChannel channel = AndroidNotificationChannel(
+      'high_importance_channel', // id
+      'High Importance Notifications', // title
+      description: 'This channel is used for important notifications.', // description
+      importance: Importance.max,
+    );
+
+    await _localNotifications
+        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannel(channel);
+
+    // Listen for foreground messages
+    FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
+
+    _isInitialized = true;
+    if (kDebugMode) {
+      print('✅ NotificationService initialized');
+    }
   }
 
-  /// Handles Dio errors and converts them to NotificationServiceException
-  void _handleError(DioException error) {
+  void _handleForegroundMessage(RemoteMessage message) {
     if (kDebugMode) {
-      print('❌ Notification Service Error:');
-      print('   Type: ${error.type}');
-      print('   Message: ${error.message}');
-      print('   Response: ${error.response?.data}');
-      print('   Status Code: ${error.response?.statusCode}');
+      print('🔔 Received foreground notification: ${message.notification?.title}');
+    }
+
+    RemoteNotification? notification = message.notification;
+    AndroidNotification? android = message.notification?.android;
+
+    // If `onMessage` is triggered with a notification, construct our own
+    // local notification to show to users using the created channel.
+    if (notification != null && android != null) {
+      _localNotifications.show(
+        notification.hashCode,
+        notification.title,
+        notification.body,
+        NotificationDetails(
+          android: AndroidNotificationDetails(
+            'high_importance_channel',
+            'High Importance Notifications',
+            channelDescription: 'This channel is used for important notifications.',
+            icon: android.smallIcon,
+            importance: Importance.max,
+            priority: Priority.high,
+          ),
+          iOS: const DarwinNotificationDetails(
+            presentAlert: true,
+            presentBadge: true,
+            presentSound: true,
+          ),
+        ),
+      );
     }
   }
 
   /// Fetches notifications for a given user ID
-  /// 
-  /// Throws [NotificationServiceException] if the request fails
-  Future<NotificationResponse> getNotifications(String userId) async {
-    if (userId.isEmpty) {
-      throw NotificationServiceException(
-        message: 'User ID cannot be empty',
-        statusCode: 400,
-      );
-    }
-
+  Future<model.NotificationResponse> getNotifications(String userId) async {
     try {
-      if (kDebugMode) {
-        print('📡 Fetching notifications for userId: $userId');
-        print('   URL: ${ApiConstants.getNotificationsEndpoint(userId)}');
+      final storage = GetStorage();
+      final authToken = storage.read('auth_token');
+
+      final headers = <String, String>{
+        ...ApiConstants.ngrokHeaders,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      };
+
+      if (authToken != null && authToken.isNotEmpty) {
+        headers['Authorization'] = 'Bearer $authToken';
       }
 
-        final response = await _dio.get(
-          ApiConstants.getNotificationsEndpoint(userId),
-          options: Options(
-            headers: ApiConstants.ngrokHeaders,
-          ),
-        );
+      final endpoint = ApiConstants.getNotificationsEndpoint(userId);
+      // Remove base URL if present to get relative path
+      final path = endpoint.replaceFirst(ApiConstants.apiBaseUrl, '/api/v1');
 
-      if (kDebugMode) {
-        print('✅ Notifications response received');
-        print('   Status Code: ${response.statusCode}');
-        print('   Response: ${response.data}');
-      }
+      final response = await _dio.get(
+        path,
+        options: Options(headers: headers),
+      );
 
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        final notificationResponse =
-            NotificationResponse.fromJson(response.data as Map<String, dynamic>);
-
-        if (kDebugMode) {
-          print('✅ Successfully parsed ${notificationResponse.notifications.length} notifications');
-          print('   Unread Count: ${notificationResponse.unreadCount}');
-          print('   Total: ${notificationResponse.total}');
+      if (response.statusCode == 200) {
+        final data = response.data;
+        if (data is Map<String, dynamic>) {
+          return model.NotificationResponse.fromJson(data);
+        } else {
+          throw NotificationServiceException(
+            message: 'Invalid response format',
+            statusCode: response.statusCode,
+          );
         }
-
-        return notificationResponse;
       } else {
         throw NotificationServiceException(
           message: 'Failed to fetch notifications: ${response.statusCode}',
@@ -108,253 +168,80 @@ class NotificationService {
         );
       }
     } on DioException catch (e) {
-      String errorMessage;
-      int? statusCode;
-
-      switch (e.type) {
-        case DioExceptionType.connectionTimeout:
-        case DioExceptionType.sendTimeout:
-        case DioExceptionType.receiveTimeout:
-          errorMessage = 'Connection timeout. Please check your internet connection.';
-          statusCode = 408;
-          break;
-        case DioExceptionType.connectionError:
-          errorMessage = 'Cannot connect to server. Please ensure the server is running.';
-          break;
-        case DioExceptionType.badResponse:
-          statusCode = e.response?.statusCode;
-          if (statusCode == 404) {
-            errorMessage = 'Notifications endpoint not found.';
-          } else if (statusCode == 401) {
-            errorMessage = 'Unauthorized. Please login again.';
-          } else if (statusCode == 403) {
-            errorMessage = 'Access forbidden.';
-          } else if (statusCode == 500) {
-            errorMessage = 'Server error. Please try again later.';
-          } else {
-            errorMessage = e.response?.data?['message']?.toString() ??
-                e.response?.data?['error']?.toString() ??
-                'Failed to fetch notifications.';
-          }
-          break;
-        case DioExceptionType.cancel:
-          errorMessage = 'Request was cancelled.';
-          break;
-        case DioExceptionType.unknown:
-          errorMessage = 'Network error. Please try again.';
-          break;
-        default:
-          errorMessage = 'An unexpected error occurred.';
-      }
-
       throw NotificationServiceException(
-        message: errorMessage,
-        statusCode: statusCode,
-        originalError: e,
+        message: e.message ?? 'Network error occurred',
+        statusCode: e.response?.statusCode,
       );
     } catch (e) {
-      if (e is NotificationServiceException) {
-        rethrow;
-      }
-
       throw NotificationServiceException(
-        message: 'An unexpected error occurred: ${e.toString()}',
-        originalError: e,
+        message: 'Unexpected error: $e',
       );
     }
   }
 
-  /// Marks a notification as read
-  /// 
-  /// Throws [NotificationServiceException] if the request fails
+  /// Marks a specific notification as read
   Future<bool> markNotificationAsRead(String notificationId) async {
-    if (notificationId.isEmpty) {
-      throw NotificationServiceException(
-        message: 'Notification ID cannot be empty',
-        statusCode: 400,
-      );
-    }
-
     try {
-      if (kDebugMode) {
-        print('📡 Marking notification as read');
-        print('   Notification ID: $notificationId');
-        print('   URL: ${ApiConstants.getMarkNotificationReadEndpoint(notificationId)}');
+      final storage = GetStorage();
+      final authToken = storage.read('auth_token');
+
+      final headers = <String, String>{
+        ...ApiConstants.ngrokHeaders,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      };
+
+      if (authToken != null && authToken.isNotEmpty) {
+        headers['Authorization'] = 'Bearer $authToken';
       }
 
-      final response = await _dio.put(
-        ApiConstants.getMarkNotificationReadEndpoint(notificationId),
-        options: Options(
-          headers: ApiConstants.ngrokHeaders,
-        ),
+      final endpoint = ApiConstants.getMarkNotificationReadEndpoint(notificationId);
+      final path = endpoint.replaceFirst(ApiConstants.apiBaseUrl, '/api/v1');
+
+      final response = await _dio.patch(
+        path,
+        options: Options(headers: headers),
       );
 
-      if (kDebugMode) {
-        print('✅ Mark as read response received');
-        print('   Status Code: ${response.statusCode}');
-        print('   Response: ${response.data}');
-      }
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        return true;
-      } else {
-        throw NotificationServiceException(
-          message: 'Failed to mark notification as read: ${response.statusCode}',
-          statusCode: response.statusCode,
-        );
-      }
-    } on DioException catch (e) {
-      String errorMessage;
-      int? statusCode;
-
-      switch (e.type) {
-        case DioExceptionType.connectionTimeout:
-        case DioExceptionType.sendTimeout:
-        case DioExceptionType.receiveTimeout:
-          errorMessage = 'Connection timeout. Please check your internet connection.';
-          statusCode = 408;
-          break;
-        case DioExceptionType.connectionError:
-          errorMessage = 'Cannot connect to server. Please ensure the server is running.';
-          break;
-        case DioExceptionType.badResponse:
-          statusCode = e.response?.statusCode;
-          if (statusCode == 404) {
-            errorMessage = 'Mark as read endpoint not found.';
-          } else if (statusCode == 401) {
-            errorMessage = 'Unauthorized. Please login again.';
-          } else if (statusCode == 500) {
-            errorMessage = 'Server error. Please try again later.';
-          } else {
-            errorMessage = e.response?.data?['message']?.toString() ??
-                e.response?.data?['error']?.toString() ??
-                'Failed to mark notification as read.';
-          }
-          break;
-        case DioExceptionType.cancel:
-          errorMessage = 'Request was cancelled.';
-          break;
-        case DioExceptionType.unknown:
-          errorMessage = 'Network error. Please try again.';
-          break;
-        default:
-          errorMessage = 'An unexpected error occurred.';
-      }
-
-      throw NotificationServiceException(
-        message: errorMessage,
-        statusCode: statusCode,
-        originalError: e,
-      );
+      return response.statusCode == 200;
     } catch (e) {
-      if (e is NotificationServiceException) {
-        rethrow;
-      }
-
-      throw NotificationServiceException(
-        message: 'An unexpected error occurred: ${e.toString()}',
-        originalError: e,
-      );
+      print('Error marking notification as read: $e');
+      return false;
     }
   }
 
   /// Marks all notifications as read for a user
-  /// 
-  /// Throws [NotificationServiceException] if the request fails
   Future<bool> markAllNotificationsAsRead(String userId) async {
-    if (userId.isEmpty) {
-      throw NotificationServiceException(
-        message: 'User ID cannot be empty',
-        statusCode: 400,
-      );
-    }
-
     try {
-      if (kDebugMode) {
-        print('📡 Marking all notifications as read');
-        print('   User ID: $userId');
-        print('   URL: ${ApiConstants.getMarkAllNotificationsReadEndpoint(userId)}');
+      final storage = GetStorage();
+      final authToken = storage.read('auth_token');
+
+      final headers = <String, String>{
+        ...ApiConstants.ngrokHeaders,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      };
+
+      if (authToken != null && authToken.isNotEmpty) {
+        headers['Authorization'] = 'Bearer $authToken';
       }
 
-      final response = await _dio.put(
-        ApiConstants.getMarkAllNotificationsReadEndpoint(userId),
-        options: Options(
-          headers: ApiConstants.ngrokHeaders,
-        ),
+      final endpoint = ApiConstants.getMarkAllNotificationsReadEndpoint(userId);
+      final path = endpoint.replaceFirst(ApiConstants.apiBaseUrl, '/api/v1');
+
+      final response = await _dio.patch(
+        path,
+        options: Options(headers: headers),
       );
 
-      if (kDebugMode) {
-        print('✅ Mark all as read response received');
-        print('   Status Code: ${response.statusCode}');
-        print('   Response: ${response.data}');
-      }
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        return true;
-      } else {
-        throw NotificationServiceException(
-          message: 'Failed to mark all notifications as read: ${response.statusCode}',
-          statusCode: response.statusCode,
-        );
-      }
-    } on DioException catch (e) {
-      String errorMessage;
-      int? statusCode;
-
-      switch (e.type) {
-        case DioExceptionType.connectionTimeout:
-        case DioExceptionType.sendTimeout:
-        case DioExceptionType.receiveTimeout:
-          errorMessage = 'Connection timeout. Please check your internet connection.';
-          statusCode = 408;
-          break;
-        case DioExceptionType.connectionError:
-          errorMessage = 'Cannot connect to server. Please ensure the server is running.';
-          break;
-        case DioExceptionType.badResponse:
-          statusCode = e.response?.statusCode;
-          if (statusCode == 404) {
-            errorMessage = 'Mark all as read endpoint not found.';
-          } else if (statusCode == 401) {
-            errorMessage = 'Unauthorized. Please login again.';
-          } else if (statusCode == 500) {
-            errorMessage = 'Server error. Please try again later.';
-          } else {
-            errorMessage = e.response?.data?['message']?.toString() ??
-                e.response?.data?['error']?.toString() ??
-                'Failed to mark all notifications as read.';
-          }
-          break;
-        case DioExceptionType.cancel:
-          errorMessage = 'Request was cancelled.';
-          break;
-        case DioExceptionType.unknown:
-          errorMessage = 'Network error. Please try again.';
-          break;
-        default:
-          errorMessage = 'An unexpected error occurred.';
-      }
-
-      throw NotificationServiceException(
-        message: errorMessage,
-        statusCode: statusCode,
-        originalError: e,
-      );
+      return response.statusCode == 200;
     } catch (e) {
-      if (e is NotificationServiceException) {
-        rethrow;
-      }
-
-      throw NotificationServiceException(
-        message: 'An unexpected error occurred: ${e.toString()}',
-        originalError: e,
-      );
+      print('Error marking all notifications as read: $e');
+      return false;
     }
   }
 
-  /// Disposes the Dio instance
   void dispose() {
-    _dio.close();
+    // Clean up resources if needed
   }
 }
-

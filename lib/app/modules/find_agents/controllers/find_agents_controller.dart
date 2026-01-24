@@ -104,51 +104,62 @@ class FindAgentsController extends GetxController {
     currentPage.value = 1; // Reset to first page
 
     try {
-      if (kDebugMode) {
-        print('📡 Fetching agents from API (page ${currentPage.value})...');
+      if (selectedZipCode.value.isNotEmpty) {
+        // FILTER MODE: Fetch ALL agents to ensure client-side filtering works correctly
+        if (kDebugMode) {
+          print('📡 ZIP filter active (${selectedZipCode.value}) - Fetching ALL agents...');
+        }
+        
+        // This method iterates all pages until it has all agents
+        final allAgents = await _agentService.getAllAgents();
+        
+        if (kDebugMode) {
+          print('✅ Successfully fetched ${allAgents.length} total agents for filtering');
+        }
+
+        // Set pagination to show everything as one page since we have all data
+        currentPage.value = 1;
+        totalPages.value = 1;
+        totalAgents.value = allAgents.length;
+        
+        _allLoadedAgents.clear();
+        _allLoadedAgents.addAll(allAgents);
+      } else {
+        // NORMAL MODE: Paginated fetch (only first page initially)
+        if (kDebugMode) {
+          print('📡 Fetching agents from API (page ${currentPage.value})...');
+        }
+
+        // Use paginated endpoint to get first page of agents
+        final response = await _agentService.getAllAgentsPaginated(page: currentPage.value);
+
+        if (kDebugMode) {
+          print('✅ Successfully fetched ${response.agents.length} agents from API');
+          print('   Page: ${response.page}/${response.totalPages}');
+          print('   Total agents: ${response.totalAgents}');
+        }
+
+        // Store pagination metadata (reactive)
+        currentPage.value = response.page;
+        totalPages.value = response.totalPages;
+        totalAgents.value = response.totalAgents;
+        
+        _allLoadedAgents.clear();
+        _allLoadedAgents.addAll(response.agents);
       }
-
-      // Use paginated endpoint to get first page of agents
-      final response = await _agentService.getAllAgentsPaginated(page: currentPage.value);
-
-      if (kDebugMode) {
-        print('✅ Successfully fetched ${response.agents.length} agents from API');
-        print('   Page: ${response.page}/${response.totalPages}');
-        print('   Total agents: ${response.totalAgents}');
-        print('   Can load more: ${response.page < response.totalPages}');
-      }
-
-      // Store pagination metadata (reactive) - USE PUBLIC OBSERVABLES
-      currentPage.value = response.page;
-      totalPages.value = response.totalPages;
-      totalAgents.value = response.totalAgents;
       
-      if (kDebugMode) {
-        print('📊 After setting values:');
-        print('   currentPage.value: ${currentPage.value}');
-        print('   totalPages.value: ${totalPages.value}');
-        print('   canLoadMore: $canLoadMore');
-        print('   Agents in list: ${agents.length}');
-        print('   Should show button: ${canLoadMore && agents.isNotEmpty}');
-      }
-
-      // Store all agents without filtering
-      _allLoadedAgents.clear();
-      _allLoadedAgents.addAll(response.agents);
-      
-      // Apply ZIP code filtering and sorting if ZIP code is provided
+      // Apply ZIP code filtering and sorting
       _applyZipCodeFilterAndSort();
       
-      // Show all agents initially (no search query applied)
+      // Update UI
       if (searchQuery.value.isEmpty) {
         _updateDisplayedAgents();
       } else {
-        // If there's a search query, apply it
         searchAgents(searchQuery.value);
       }
       
-      // Record search for all displayed agents
       _recordSearchesForDisplayedAgents();
+    } on AgentServiceException catch (e) {
     } on AgentServiceException catch (e) {
       if (kDebugMode) {
         print('❌ AgentServiceException: ${e.message}');
@@ -283,27 +294,51 @@ class FindAgentsController extends GetxController {
       return;
     }
     
-    final zipCode = selectedZipCode.value;
+    final zipCode = selectedZipCode.value.trim();
     
     // Filter agents that work in or near the ZIP code
     final matchingAgents = _allLoadedAgents.where((agent) {
       // Check 1: claimedZipCodes (agents who have claimed this ZIP)
-      final hasClaimedZip = agent.claimedZipCodes.contains(zipCode);
+      final hasClaimedZip = agent.claimedZipCodes.any((claimedZip) => 
+        claimedZip.trim() == zipCode
+      );
       
       // Check 2: serviceZipCodes (agents who serve this ZIP)
-      final hasServiceZip = agent.serviceZipCodes.contains(zipCode);
+      final hasServiceZip = agent.serviceZipCodes.any((serviceZip) => 
+        serviceZip.trim() == zipCode
+      );
       
       // Check 3: serviceAreas (can contain ZIP codes)
-      final hasServiceArea = agent.serviceAreas?.contains(zipCode) ?? false;
+      final hasServiceArea = agent.serviceAreas?.any((area) => 
+        area.trim() == zipCode
+      ) ?? false;
+
+      // Check 4: activeListingZipCodes (agents with listings in this ZIP)
+      final hasListingZip = agent.activeListingZipCodes.any((listingZip) => 
+        listingZip.trim() == zipCode
+      );
       
-      return hasClaimedZip || hasServiceZip || hasServiceArea;
+      return hasClaimedZip || hasServiceZip || hasServiceArea || hasListingZip;
     }).toList();
+    
+    if (kDebugMode && matchingAgents.isEmpty) {
+      // DEBUG: Why no matches? Print first few agents' zip codes
+      print('⚠️ No agents matched ZIP $zipCode out of ${_allLoadedAgents.length} agents.');
+      if (_allLoadedAgents.isNotEmpty) {
+        final sample = _allLoadedAgents.take(3).toList();
+        for (var agent in sample) {
+          print('   Agent ${agent.name}: Claimed=${agent.claimedZipCodes}, Listings=${agent.activeListingZipCodes}');
+        }
+      }
+    }
     
     // Sort agents: local agents first, then by proximity
     matchingAgents.sort((a, b) {
-      // Priority 1: Agents with ZIP in claimedZipCodes come first (local agents)
-      final aIsLocal = a.claimedZipCodes.contains(zipCode);
-      final bIsLocal = b.claimedZipCodes.contains(zipCode);
+      // Priority 1: Agents with ZIP in claimedZipCodes or listings come first (local agents)
+      final aIsLocal = a.claimedZipCodes.any((z) => z.trim() == zipCode) || 
+                       a.activeListingZipCodes.any((z) => z.trim() == zipCode);
+      final bIsLocal = b.claimedZipCodes.any((z) => z.trim() == zipCode) || 
+                       b.activeListingZipCodes.any((z) => z.trim() == zipCode);
       
       if (aIsLocal && !bIsLocal) return -1;
       if (!aIsLocal && bIsLocal) return 1;
@@ -322,7 +357,7 @@ class FindAgentsController extends GetxController {
     if (kDebugMode) {
       print('📍 Filtered by ZIP code: $zipCode');
       print('   Total matching agents: ${_filteredAndSortedAgents.length}');
-      print('   Local agents (claimed ZIP): ${_filteredAndSortedAgents.where((a) => a.claimedZipCodes.contains(zipCode)).length}');
+      print('   Local agents (claimed/listing ZIP): ${_filteredAndSortedAgents.where((a) => a.claimedZipCodes.any((z) => z.trim() == zipCode) || a.activeListingZipCodes.any((z) => z.trim() == zipCode)).length}');
     }
   }
   
@@ -349,6 +384,17 @@ class FindAgentsController extends GetxController {
       
       // Check service ZIP codes
       for (final zip in agent.serviceZipCodes) {
+        final zipNum = int.tryParse(zip) ?? 0;
+        if (zipNum > 0) {
+          final distance = (targetZipNum - zipNum).abs();
+          if (distance < minDistance) {
+            minDistance = distance;
+          }
+        }
+      }
+      
+      // Check active listing ZIP codes
+      for (final zip in agent.activeListingZipCodes) {
         final zipNum = int.tryParse(zip) ?? 0;
         if (zipNum > 0) {
           final distance = (targetZipNum - zipNum).abs();

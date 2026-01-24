@@ -137,6 +137,8 @@ class ApiConstants {
   // Auth specific endpoints
   static String get createUserEndpoint => "${authEndPoint}createUser";
   static String get loginEndpoint => "${authEndPoint}login";
+  static String get setFCMEndpoint => "${authEndPoint}setFCM";
+  static String removeFCMEndpoint(String userId) => "${authEndPoint}removeFCM/$userId";
 
   // Lead specific endpoints - Using same endpoint for both buyer and seller leads
   static String get createLeadEndpoint => "$apiBaseUrl/buyer/createLead";
@@ -186,7 +188,7 @@ class ApiConstants {
   }
 
   static String getAddProfileViewEndpoint(String id) {
-    return "$apiBaseUrl/api/v1/agent/addProfileView/$id";
+    return "$apiBaseUrl/agent/addProfileView/$id";
   }
 
   // Listing specific endpoints

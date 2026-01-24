@@ -87,6 +87,9 @@ dependencies:
   
   # Socket.IO
   socket_io_client: ^2.0.3+1
+  firebase_core: ^4.4.0
+  firebase_messaging: ^16.1.1
+  flutter_local_notifications: ^19.5.0
 
 dev_dependencies:
   flutter_test:
