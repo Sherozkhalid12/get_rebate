@@ -6,6 +6,7 @@ import 'package:dio/dio.dart' as dio show FormData, MultipartFile;
 import 'package:get_storage/get_storage.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
+import 'package:getrebate/app/models/waiting_list_entry_model.dart';
 import 'package:getrebate/app/models/zip_code_model.dart';
 import 'package:getrebate/app/models/agent_listing_model.dart';
 import 'package:getrebate/app/models/subscription_model.dart';
@@ -25,6 +26,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'dart:math';
 import 'dart:io';
 import 'dart:convert';
+import 'dart:async';
 
 class AgentController extends GetxController {
   // API
@@ -70,11 +72,10 @@ class AgentController extends GetxController {
   // State selection for ZIP codes
   final _selectedState = Rxn<String>();
   final _isLoadingZipCodes = false.obs;
+  final _waitingListRequests = <String>{}.obs;
+  final _waitingListEntries = <String, List<WaitingListEntry>>{}.obs;
+  final _waitingListLoading = <String>{}.obs;
   static const String _selectedStateStorageKey = 'agent_selected_state';
-  static const String _zipCodesCachePrefix = 'agent_zip_codes_cache_';
-  static const String _zipCodesCacheTimestampPrefix =
-      'agent_zip_codes_timestamp_';
-  static const Duration _cacheExpirationDuration = Duration(hours: 24);
   static const String _claimedZipCodesStorageKey = 'agent_claimed_zip_codes';
 
   // Standard pricing (deprecated - now using zip code population-based pricing)
@@ -96,6 +97,14 @@ class AgentController extends GetxController {
   String? get recentlyActivatedListingId => _recentlyActivatedListingId.value;
   MarketStatus? get selectedStatusFilter => _selectedStatusFilter.value;
   String get searchQuery => _searchQuery.value;
+  bool isWaitingListProcessing(String zipCode) =>
+      _waitingListRequests.contains(zipCode);
+  bool isWaitingListLoading(String zipCodeId) =>
+      _waitingListLoading.contains(zipCodeId);
+  bool hasWaitingListEntries(String zipCodeId) =>
+      (_waitingListEntries[zipCodeId]?.isNotEmpty ?? false);
+  List<WaitingListEntry> waitingListEntries(String zipCodeId) =>
+      _waitingListEntries[zipCodeId] ?? [];
 
   // Filter methods
   void setStatusFilter(MarketStatus? status) {
@@ -225,18 +234,13 @@ class AgentController extends GetxController {
     _preloadThreads();
   }
 
-  /// Restores the selected state from storage and loads ZIP codes from cache if available
+  /// Restores the selected state from storage
   Future<void> _restoreSelectedState() async {
     final savedState = _storage.read(_selectedStateStorageKey) as String?;
     if (savedState != null && savedState.isNotEmpty) {
       _selectedState.value = savedState;
-      // Load ZIP codes from cache first (instant), then refresh in background if needed
       final stateCode = _getStateCodeFromName(savedState);
-      await _loadZipCodesFromCache(stateCode);
-      // Refresh in background if cache is expired or empty
-      Future.microtask(
-        () => fetchZipCodesForState(stateCode, forceRefresh: false),
-      );
+      Future.microtask(() => fetchZipCodesForState(stateCode));
     }
   }
 
@@ -268,53 +272,6 @@ class AgentController extends GetxController {
     }
   }
 
-  /// Loads ZIP codes from cache for the given state
-  Future<List<ZipCodeModel>?> _loadZipCodesFromCache(String stateCode) async {
-    try {
-      final cacheKey = '$_zipCodesCachePrefix$stateCode';
-      final timestampKey = '$_zipCodesCacheTimestampPrefix$stateCode';
-
-      final cachedData = _storage.read(cacheKey) as List<dynamic>?;
-      final cachedTimestamp = _storage.read(timestampKey) as String?;
-
-      if (cachedData != null && cachedTimestamp != null) {
-        final cacheTime = DateTime.parse(cachedTimestamp);
-        final now = DateTime.now();
-
-        // Check if cache is still valid (not expired)
-        if (now.difference(cacheTime) < _cacheExpirationDuration) {
-          // Load from cache
-          final zipCodes = cachedData
-              .map(
-                (json) => ZipCodeModel.fromJson(json as Map<String, dynamic>),
-              )
-              .toList();
-
-          // Filter out invalid ZIP codes (zero population / already claimed)
-          final availableZips = _filterAvailableZipCodes(zipCodes);
-          _availableZipCodes.value = availableZips;
-
-          if (kDebugMode) {
-            print(
-              '✅ Loaded ${availableZips.length} ZIP codes from cache for $stateCode',
-            );
-          }
-          return availableZips;
-        } else {
-          if (kDebugMode) {
-            print('⏰ Cache expired for $stateCode, will fetch from API');
-          }
-        }
-      }
-    } catch (e) {
-      if (kDebugMode) {
-        print('⚠️ Error loading ZIP codes from cache: $e');
-      }
-    }
-
-    return null;
-  }
-
   void _persistClaimedZipCodesToStorage() {
     try {
       final jsonData = _claimedZipCodes.map((zip) => zip.toJson()).toList();
@@ -329,34 +286,129 @@ class AgentController extends GetxController {
     }
   }
 
-  /// Saves ZIP codes to cache for the given state
-  void _saveZipCodesToCache(String stateCode, List<ZipCodeModel> zipCodes) {
+  List<ZipCodeModel> _filterAvailableZipCodes(List<ZipCodeModel> zipCodes) {
+    return zipCodes.where((zip) => zip.population > 0).toList();
+  }
+
+  Future<bool> joinWaitingList(ZipCodeModel zipCode) async {
+    if (_waitingListRequests.contains(zipCode.zipCode)) {
+      return false;
+    }
+
+    final authController = Get.find<global.AuthController>();
+    final user = authController.currentUser;
+
+    if (user == null) {
+      Get.snackbar('Error', 'Please log in to join the waiting list');
+      return false;
+    }
+
+    _waitingListRequests.add(zipCode.zipCode);
     try {
-      final cacheKey = '$_zipCodesCachePrefix$stateCode';
-      final timestampKey = '$_zipCodesCacheTimestampPrefix$stateCode';
-
-      final jsonData = zipCodes.map((zip) => zip.toJson()).toList();
-      _storage.write(cacheKey, jsonData);
-      _storage.write(timestampKey, DateTime.now().toIso8601String());
+      final requestBody = {
+        'name': user.name.isNotEmpty ? user.name : 'Agent',
+        'email': user.email,
+        'zipCodeId': zipCode.id ?? zipCode.zipCode,
+        'userId': user.id,
+      };
 
       if (kDebugMode) {
-        print('💾 Cached ${zipCodes.length} ZIP codes for $stateCode');
+        print('📡 Joining waiting list for ZIP ${zipCode.zipCode}');
+        print('   Payload: $requestBody');
       }
+
+      final response = await _dio.post(
+        '/waiting-list',
+        data: requestBody,
+        options: Options(
+          headers: {
+            ...ApiConstants.ngrokHeaders,
+            'Content-Type': 'application/json',
+          },
+        ),
+      );
+
+      if (kDebugMode) {
+        print(
+          '📥 Waiting list response: ${response.statusCode} ${response.data}',
+        );
+      }
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        await fetchWaitingListEntries(zipCode.id ?? zipCode.zipCode);
+        return true;
+      }
+
+      throw Exception('Unexpected response: ${response.statusCode}');
     } catch (e) {
-      if (kDebugMode) {
-        print('⚠️ Error saving ZIP codes to cache: $e');
-      }
+      NetworkErrorHandler.handleError(
+        e,
+        defaultMessage:
+            'Unable to join the waiting list right now. Please try again.',
+      );
+      return false;
+    } finally {
+      _waitingListRequests.remove(zipCode.zipCode);
     }
   }
 
-  List<ZipCodeModel> _filterAvailableZipCodes(List<ZipCodeModel> zipCodes) {
-    final claimedZipCodesSet = _claimedZipCodes.map((z) => z.zipCode).toSet();
-    return zipCodes
-        .where(
-          (zip) =>
-              zip.population > 0 && !claimedZipCodesSet.contains(zip.zipCode),
-        )
-        .toList();
+  Future<List<WaitingListEntry>> fetchWaitingListEntries(
+    String zipCodeId,
+  ) async {
+    if (zipCodeId.isEmpty) {
+      return [];
+    }
+
+    if (_waitingListLoading.contains(zipCodeId)) {
+      return _waitingListEntries[zipCodeId] ?? [];
+    }
+
+    _waitingListLoading.add(zipCodeId);
+    try {
+      final response = await _dio.get(
+        '/waiting-list/$zipCodeId',
+        options: Options(
+          headers: {
+            ...ApiConstants.ngrokHeaders,
+            'Content-Type': 'application/json',
+          },
+        ),
+      );
+
+      final data = response.data;
+      if (data is List) {
+        final entries = data
+            .whereType<Map<String, dynamic>>()
+            .map((json) => WaitingListEntry.fromJson(json))
+            .toList();
+        _waitingListEntries[zipCodeId] = entries;
+        return entries;
+      }
+
+      return _waitingListEntries[zipCodeId] ?? [];
+    } on DioException catch (e) {
+      if (kDebugMode) {
+        print('❌ Waiting list fetch error: ${e.message}');
+      }
+      throw e;
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Waiting list fetch unexpected: $e');
+      }
+      throw e;
+    } finally {
+      _waitingListLoading.remove(zipCodeId);
+    }
+  }
+
+  Future<void> _prefetchWaitingLists(List<ZipCodeModel> zipCodes) async {
+    for (final zip in zipCodes) {
+      final zipId = zip.id ?? zip.zipCode;
+      if (zip.claimedByAgent == true &&
+          !_waitingListEntries.containsKey(zipId)) {
+        unawaited(fetchWaitingListEntries(zipId));
+      }
+    }
   }
 
   /// Preloads chat threads for instant access when agent opens messages
@@ -532,7 +584,13 @@ class AgentController extends GetxController {
                 final zipCode = zipJson['postalCode']?.toString() ?? '';
                 if (zipCode.isEmpty) return null;
 
+                final id =
+                    zipJson['_id']?.toString() ??
+                    zipJson['id']?.toString() ??
+                    zipJson['zipCodeId']?.toString();
+
                 return ZipCodeModel(
+                  id: id,
                   zipCode: zipCode,
                   state: zipJson['state']?.toString() ?? '',
                   population: _parseInt(zipJson['population']),
@@ -826,7 +884,9 @@ class AgentController extends GetxController {
               sessionId,
               authToken,
             );
-            if (!paymentSuccessResult) {
+            final successFlag =
+                paymentSuccessResult?['success'] as bool? ?? true;
+            if (!successFlag) {
               SnackbarHelper.showError(
                 'Payment verification failed. Please contact support.',
               );
@@ -976,7 +1036,7 @@ class AgentController extends GetxController {
 
   /// Calls the paymentSuccess API after successful payment
   /// Returns true if successful, false otherwise
-  Future<bool> _callPaymentSuccessAPI(
+  Future<Map<String, dynamic>?> _callPaymentSuccessAPI(
     String checkoutSessionId,
     String? authToken,
   ) async {
@@ -1005,19 +1065,9 @@ class AgentController extends GetxController {
       }
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        // Check if response indicates success
         final responseData = response.data;
         if (responseData is Map) {
-          final success = responseData['success'] as bool? ?? true;
-          if (success) {
-            if (kDebugMode) {
-              print('✅ PaymentSuccess API completed successfully');
-            }
-            return true;
-          }
-        } else {
-          // If response is not a map, assume success for 200/201 status
-          return true;
+          return Map<String, dynamic>.from(responseData);
         }
       }
 
@@ -1026,7 +1076,7 @@ class AgentController extends GetxController {
           '⚠️ PaymentSuccess API returned non-success status: ${response.statusCode}',
         );
       }
-      return false;
+      return null;
     } on DioException catch (e) {
       if (kDebugMode) {
         print('❌ Error calling paymentSuccess API:');
@@ -1035,12 +1085,12 @@ class AgentController extends GetxController {
         print('   Response: ${e.response?.data}');
         print('   Status Code: ${e.response?.statusCode}');
       }
-      return false;
+      return null;
     } catch (e) {
       if (kDebugMode) {
         print('❌ Unexpected error calling paymentSuccess API: $e');
       }
-      return false;
+      return null;
     }
   }
 
@@ -1058,6 +1108,7 @@ class AgentController extends GetxController {
       final requestBody = {
         'id': userId, // agent's Mongo user _id
         'zipcode': zipCode.zipCode,
+        'zipCodeId': zipCode.id ?? zipCode.zipCode,
         'price': formattedPrice,
         'state': zipCode.state,
         'population': zipCode.population.toString(),
@@ -1100,11 +1151,6 @@ class AgentController extends GetxController {
 
         // Update subscription price based on new zip code
         _updateSubscriptionPrice();
-
-        // Invalidate cache for this state to ensure fresh data
-        final stateCode = zipCode.state;
-        _storage.remove('$_zipCodesCachePrefix$stateCode');
-        _storage.remove('$_zipCodesCacheTimestampPrefix$stateCode');
 
         SnackbarHelper.showSuccess(
           'ZIP code ${zipCode.zipCode} claimed successfully!',
@@ -1214,7 +1260,11 @@ class AgentController extends GetxController {
 
       // Prepare request body according to API specification
       // Backend expects current agent ID and the zipcode being released
-      final requestBody = {'id': userId, 'zipcode': zipCode.zipCode};
+      final requestBody = {
+        'id': userId,
+        'zipcode': zipCode.zipCode,
+        'zipCodeId': zipCode.id ?? zipCode.zipCode,
+      };
 
       if (kDebugMode) {
         print('📡 Releasing ZIP code: ${zipCode.zipCode}');
@@ -1359,9 +1409,7 @@ class AgentController extends GetxController {
     // Convert state name to code for API call
     // Load from cache first (instant), then refresh in background if needed
     final stateCode = _getStateCodeFromName(stateName);
-    await _loadZipCodesFromCache(stateCode);
-    // Fetch from API in background (will use cache if valid, otherwise fetch)
-    await fetchZipCodesForState(stateCode, forceRefresh: false);
+    await fetchZipCodesForState(stateCode);
   }
 
   /// Forces fetching ZIP codes from the API regardless of cache
@@ -1370,55 +1418,13 @@ class AgentController extends GetxController {
     if (stateName == null || stateName.isEmpty) return;
 
     final stateCode = _getStateCodeFromName(stateName);
-    await fetchZipCodesForState(stateCode, forceRefresh: true);
+    await fetchZipCodesForState(stateCode);
   }
 
-  /// Fetches ZIP codes from API for the selected state
-  /// [forceRefresh] if true, will skip cache and fetch from API
-  Future<void> fetchZipCodesForState(
-    String stateCode, {
-    bool forceRefresh = false,
-  }) async {
+  /// Fetches ZIP codes from API for the selected state (always live data)
+  Future<void> fetchZipCodesForState(String stateCode) async {
     if (stateCode.isEmpty) return;
 
-    // Check cache first unless force refresh is requested
-    if (!forceRefresh) {
-      final cacheKey = '$_zipCodesCachePrefix$stateCode';
-      final timestampKey = '$_zipCodesCacheTimestampPrefix$stateCode';
-
-      final cachedData = _storage.read(cacheKey) as List<dynamic>?;
-      final cachedTimestamp = _storage.read(timestampKey) as String?;
-
-      if (cachedData != null &&
-          cachedTimestamp != null &&
-          cachedData.isNotEmpty) {
-        final cacheTime = DateTime.parse(cachedTimestamp);
-        final now = DateTime.now();
-
-        // Check if cache is still valid (not expired)
-        if (now.difference(cacheTime) < _cacheExpirationDuration) {
-          // Load from cache - instant, no API call (unless cache yields zero available entries)
-          final availableFromCache = await _loadZipCodesFromCache(stateCode);
-          if (availableFromCache != null && availableFromCache.isNotEmpty) {
-            if (kDebugMode) {
-              print('✅ Using cached ZIP codes for $stateCode (instant load)');
-            }
-            return;
-          }
-          if (kDebugMode) {
-            print(
-              'ℹ️ Cache had 0 available ZIP codes for $stateCode, fetching from API.',
-            );
-          }
-        }
-      } else {
-        if (kDebugMode) {
-          print('ℹ️ ZIP code cache empty for $stateCode – fetching from API');
-        }
-      }
-    }
-
-    // Cache miss or expired, fetch from API
     try {
       _isLoadingZipCodes.value = true;
 
@@ -1434,12 +1440,9 @@ class AgentController extends GetxController {
         userId: userId,
       );
 
-      // Save to cache
-      _saveZipCodesToCache(stateCode, zipCodes);
-
-      // Filter out invalid ZIP codes (zero population / already claimed)
       final availableZips = _filterAvailableZipCodes(zipCodes);
       _availableZipCodes.value = availableZips;
+      Future.microtask(() => _prefetchWaitingLists(availableZips));
 
       if (kDebugMode) {
         print(
@@ -1450,22 +1453,14 @@ class AgentController extends GetxController {
       if (kDebugMode) {
         print('❌ Error fetching ZIP codes: ${e.message}');
       }
-      // Try to load from cache even if expired as fallback
-      await _loadZipCodesFromCache(stateCode);
-      if (_availableZipCodes.isEmpty) {
-        Get.snackbar('Error', 'Failed to fetch ZIP codes: ${e.message}');
-        _availableZipCodes.clear();
-      }
+      Get.snackbar('Error', 'Failed to fetch ZIP codes: ${e.message}');
+      _availableZipCodes.clear();
     } catch (e) {
       if (kDebugMode) {
         print('❌ Unexpected error fetching ZIP codes: $e');
       }
-      // Try to load from cache even if expired as fallback
-      await _loadZipCodesFromCache(stateCode);
-      if (_availableZipCodes.isEmpty) {
-        Get.snackbar('Error', 'Failed to fetch ZIP codes: ${e.toString()}');
-        _availableZipCodes.clear();
-      }
+      Get.snackbar('Error', 'Failed to fetch ZIP codes: ${e.toString()}');
+      _availableZipCodes.clear();
     } finally {
       _isLoadingZipCodes.value = false;
     }
@@ -1480,10 +1475,10 @@ class AgentController extends GetxController {
     try {
       // Filter available ZIP codes by query
       if (query.isEmpty) {
-        // If query is empty, reload ZIP codes for selected state (from cache)
+        // If query is empty, reload ZIP codes for selected state
         if (_selectedState.value != null) {
           final stateCode = _getStateCodeFromName(_selectedState.value!);
-          await fetchZipCodesForState(stateCode, forceRefresh: false);
+          await fetchZipCodesForState(stateCode);
         }
         return;
       }
@@ -1506,13 +1501,6 @@ class AgentController extends GetxController {
     } finally {
       _isLoading.value = false;
     }
-  }
-
-  void notifyMeWhenAvailable(String zipCode) {
-    Get.snackbar(
-      'Notification Set',
-      'You will be notified when ZIP code $zipCode becomes available',
-    );
   }
 
   double calculateMonthlyCost() {
@@ -2513,13 +2501,11 @@ class AgentController extends GetxController {
         return;
       }
 
+      final authToken = _storage.read('auth_token');
+
       final response = await _dio.post(
         '/subscription/create-listing-checkout',
-        data: {
-          'role': 'agent',
-          'userId': userId,
-          'price': 9.99.toStringAsFixed(2),
-        },
+        data: {'userId': userId},
         options: Options(
           headers: {
             'ngrok-skip-browser-warning': 'true',
@@ -2534,17 +2520,38 @@ class AgentController extends GetxController {
         throw Exception('Invalid checkout URL received from server');
       }
 
+      final listingSessionId = _extractCheckoutSessionId(checkoutUrl);
+      if (listingSessionId == null || listingSessionId.isEmpty) {
+        throw Exception(
+          'Unable to extract checkout session ID for listing payment',
+        );
+      }
+
       final paymentSuccess = await Get.to<bool>(
         () => PaymentWebView(checkoutUrl: checkoutUrl),
         fullscreenDialog: true,
       );
 
       if (paymentSuccess == true) {
-        SnackbarHelper.showSuccess(
-          'Payment completed! You can now add your listing.',
+        final paymentSuccessResult = await _callPaymentSuccessAPI(
+          listingSessionId,
+          authToken,
         );
-        await Future.delayed(const Duration(milliseconds: 200));
-        Get.toNamed('/add-listing');
+        final listingFeePaid =
+            paymentSuccessResult?['listingFeePaid'] as bool? ?? false;
+
+        if (listingFeePaid) {
+          SnackbarHelper.showSuccess(
+            'Payment completed! You can now add your listing.',
+          );
+          await Future.delayed(const Duration(milliseconds: 200));
+          Get.toNamed('/add-listing');
+        } else {
+          final failureMessage =
+              paymentSuccessResult?['message']?.toString() ??
+              'Listing fee registration failed. Please contact support.';
+          SnackbarHelper.showError(failureMessage);
+        }
       } else {
         SnackbarHelper.showInfo('Payment was cancelled.');
       }

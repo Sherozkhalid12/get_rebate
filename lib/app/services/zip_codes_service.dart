@@ -265,11 +265,11 @@ class ZipCodesService {
     }
   }
 
-  /// Only includes zip codes that are unclaimed by agents and have a non-zero population
-  List<ZipCodeModel> _filterUnclaimedByAgent(List<ZipCodeModel> zipCodes) {
-    return zipCodes
-        .where((zip) => zip.claimedByAgent != true && zip.population > 0)
-        .toList();
+  /// Only includes ZIP codes that have a valid population
+  ///
+  /// Claim status is preserved so callers can show claimed vs available states.
+  List<ZipCodeModel> _filterValidZipCodes(List<ZipCodeModel> zipCodes) {
+    return zipCodes.where((zip) => zip.population > 0).toList();
   }
 
   /// Fetches ZIP codes for a given country and state
@@ -380,10 +380,10 @@ class ZipCodesService {
                 );
               }
 
-              final filtered = _filterUnclaimedByAgent(parsed);
+              final filtered = _filterValidZipCodes(parsed);
               if (kDebugMode) {
                 print(
-                  '   Filtered to ${filtered.length} ZIP codes with claimedByAgent=false',
+                  '   Filtered to ${filtered.length} ZIP codes with population>0',
                 );
               }
               return filtered;
@@ -480,10 +480,10 @@ class ZipCodesService {
                 }
               }
 
-              final filtered = _filterUnclaimedByAgent(zipCodes);
+              final filtered = _filterValidZipCodes(zipCodes);
               if (kDebugMode) {
                 print(
-                  '   Filtered to ${filtered.length} ZIP codes with claimedByAgent=false',
+                  '   Filtered to ${filtered.length} ZIP codes with population>0',
                 );
               }
               return filtered;
@@ -504,10 +504,10 @@ class ZipCodesService {
             }
           }
 
-          final filtered = _filterUnclaimedByAgent(zipCodes);
+          final filtered = _filterValidZipCodes(zipCodes);
           if (kDebugMode) {
             print(
-              '   Filtered to ${filtered.length} ZIP codes with claimedByAgent=false',
+              '   Filtered to ${filtered.length} ZIP codes with population>0',
             );
           }
           return filtered;

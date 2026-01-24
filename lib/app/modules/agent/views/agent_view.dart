@@ -15,6 +15,7 @@ import 'package:getrebate/app/widgets/custom_button.dart';
 import 'package:getrebate/app/widgets/custom_text_field.dart';
 import 'package:getrebate/app/widgets/gradient_card.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
+import 'package:getrebate/app/modules/agent/views/waiting_list_page.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 
@@ -976,6 +977,56 @@ class AgentView extends GetView<AgentController> {
                     ),
                     child: const Text('Have a promo code?'),
                   ),
+                  if (controller.claimedZipCodes.isNotEmpty &&
+                      zip.claimedByAgent == true) ...[
+                    const SizedBox(height: 12),
+                    Obx(() {
+                      final zipId = zip.id ?? zip.zipCode;
+                      final hasEntries = controller.hasWaitingListEntries(
+                        zipId,
+                      );
+                      final isProcessing = controller.isWaitingListProcessing(
+                        zip.zipCode,
+                      );
+
+                      if (hasEntries) {
+                        return CustomButton(
+                          text: 'See waiting list',
+                          onPressed: () => Get.to(
+                            () => WaitingListPage(zipCode: zip),
+                            transition: Transition.rightToLeft,
+                          ),
+                          isOutlined: true,
+                        );
+                      }
+
+                      return CustomButton(
+                        text: isProcessing ? 'Joining...' : 'Join waiting list',
+                        onPressed: isProcessing
+                            ? null
+                            : () async {
+                                final added = await controller.joinWaitingList(
+                                  zip,
+                                );
+                                if (added) {
+                                  SnackbarHelper.showSuccess(
+                                    'Added to waiting list',
+                                    title: 'Success',
+                                  );
+                                }
+                              },
+                        isOutlined: true,
+                        isLoading: isProcessing,
+                      );
+                    }),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Claimed by another agent',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppTheme.mediumGray,
+                      ),
+                    ),
+                  ],
                 ],
               ),
           ],

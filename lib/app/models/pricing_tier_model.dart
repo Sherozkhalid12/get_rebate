@@ -123,7 +123,10 @@ class PricingTierConfig {
   }
 
   /// Get tier for a specific population
-  static PricingTier? getTierForPopulation(int population, List<PricingTier> tiers) {
+  static PricingTier? getTierForPopulation(
+    int population,
+    List<PricingTier> tiers,
+  ) {
     for (final tier in tiers) {
       if (tier.matches(population)) {
         return tier;
@@ -138,4 +141,3 @@ class PricingTierConfig {
     return tier?.monthlyPrice ?? 0.0;
   }
 }
-
