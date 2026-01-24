@@ -9,6 +9,7 @@ import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:getrebate/app/models/waiting_list_entry_model.dart';
 import 'package:getrebate/app/models/zip_code_model.dart';
 import 'package:getrebate/app/models/agent_listing_model.dart';
+import 'package:getrebate/app/models/activity_item_model.dart';
 import 'package:getrebate/app/models/subscription_model.dart';
 import 'package:getrebate/app/models/promo_code_model.dart';
 import 'package:getrebate/app/models/lead_model.dart';
@@ -166,6 +167,9 @@ class AgentController extends GetxController {
   int get websiteClicks => _websiteClicks.value;
   double get totalRevenue => _totalRevenue.value;
 
+  List<ActivityItem> get recentActivityItems =>
+      _buildRecentActivityItems().take(3).toList();
+
   // Subscription & Promo Code Getters
   SubscriptionModel? get subscription => _subscription.value;
   List<PromoCodeModel> get generatedPromoCodes => _generatedPromoCodes;
@@ -212,6 +216,66 @@ class AgentController extends GetxController {
       (freeListingLimit - currentListingCount).clamp(0, freeListingLimit);
   bool get canAddFreeListing => remainingFreeListings > 0;
   double get additionalListingPrice => 9.99;
+
+  List<ActivityItem> _buildRecentActivityItems() {
+    final List<ActivityItem> items = [];
+    if (_claimedZipCodes.isNotEmpty) {
+      final lastZip = _claimedZipCodes.last;
+      items.add(
+        ActivityItem(
+          title: 'Claimed ZIP ${lastZip.zipCode}',
+          timeLabel: 'Just now',
+          icon: Icons.location_on,
+        ),
+      );
+    }
+
+    if (_recentlyActivatedListingId.value != null) {
+      items.add(
+        ActivityItem(
+          title: 'Activated listing ${_recentlyActivatedListingId.value}',
+          timeLabel: 'Moments ago',
+          icon: Icons.home_outlined,
+        ),
+      );
+    }
+
+    if (_subscriptions.isNotEmpty) {
+      final sub = _subscriptions.first;
+      items.add(
+        ActivityItem(
+          title: 'Listing slot paid',
+          timeLabel: _formatRelativeTime(
+            sub['createdAt']?.toString() ??
+                sub['subscriptionStart']?.toString(),
+          ),
+          icon: Icons.attach_money,
+        ),
+      );
+    }
+
+    if (items.isEmpty) {
+      items.add(
+        ActivityItem(
+          title: 'No recent actions yet',
+          timeLabel: 'Today',
+          icon: Icons.info_outline,
+        ),
+      );
+    }
+
+    return items;
+  }
+
+  String _formatRelativeTime(String? iso) {
+    if (iso == null) return 'Today';
+    final parsed = DateTime.tryParse(iso);
+    if (parsed == null) return 'Today';
+    final difference = DateTime.now().difference(parsed);
+    if (difference.inMinutes < 60) return '${difference.inMinutes}m ago';
+    if (difference.inHours < 24) return '${difference.inHours}h ago';
+    return '${difference.inDays}d ago';
+  }
 
   @override
   void onInit() {
@@ -1396,18 +1460,11 @@ class AgentController extends GetxController {
       return;
     }
 
-    // Only fetch if state actually changed
-    if (_selectedState.value == stateName) {
-      // State hasn't changed, don't refetch (will use cache if available)
-      return;
-    }
-
     _selectedState.value = stateName;
     // Save selected state to storage for persistence
     _storage.write(_selectedStateStorageKey, stateName);
 
     // Convert state name to code for API call
-    // Load from cache first (instant), then refresh in background if needed
     final stateCode = _getStateCodeFromName(stateName);
     await fetchZipCodesForState(stateCode);
   }

@@ -9,6 +9,7 @@ import 'package:getrebate/app/modules/agent/controllers/agent_controller.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart' as global;
 import 'package:getrebate/app/models/zip_code_model.dart';
 import 'package:getrebate/app/models/agent_listing_model.dart';
+import 'package:getrebate/app/models/activity_item_model.dart';
 import 'package:getrebate/app/models/lead_model.dart';
 import 'package:getrebate/app/utils/image_url_helper.dart';
 import 'package:getrebate/app/widgets/custom_button.dart';
@@ -454,46 +455,40 @@ class AgentView extends GetView<AgentController> {
   Widget _buildRecentActivity(BuildContext context) {
     return GradientCard(
       gradientColors: AppTheme.cardGradient,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Recent Activity',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              color: AppTheme.black,
-              fontWeight: FontWeight.w600,
+      child: Obx(() {
+        final activities = controller.recentActivityItems;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Recent Activity',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                color: AppTheme.black,
+                fontWeight: FontWeight.w600,
+              ),
             ),
-          ),
-          const SizedBox(height: 16),
-          _buildActivityItem(
-            context,
-            'New search in ZIP 10001',
-            '2 hours ago',
-            Icons.search,
-          ),
-          _buildActivityItem(
-            context,
-            'Profile viewed by buyer',
-            '4 hours ago',
-            Icons.visibility,
-          ),
-          _buildActivityItem(
-            context,
-            'Contact request received',
-            '6 hours ago',
-            Icons.phone,
-          ),
-        ],
-      ),
+            const SizedBox(height: 16),
+            if (activities.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 24),
+                child: Text(
+                  'No recent activity yet. New leads and updates will appear here.',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: AppTheme.mediumGray),
+                ),
+              )
+            else
+              ...activities.map(
+                (activity) => _buildActivityItem(context, activity),
+              ),
+          ],
+        );
+      }),
     );
   }
 
-  Widget _buildActivityItem(
-    BuildContext context,
-    String title,
-    String time,
-    IconData icon,
-  ) {
+  Widget _buildActivityItem(BuildContext context, ActivityItem activity) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
@@ -505,7 +500,7 @@ class AgentView extends GetView<AgentController> {
               color: AppTheme.primaryBlue.withOpacity(0.1),
               borderRadius: BorderRadius.circular(20),
             ),
-            child: Icon(icon, color: AppTheme.primaryBlue, size: 20),
+            child: Icon(activity.icon, color: AppTheme.primaryBlue, size: 20),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -513,14 +508,14 @@ class AgentView extends GetView<AgentController> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  title,
+                  activity.title,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: AppTheme.darkGray,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
                 Text(
-                  time,
+                  activity.timeLabel,
                   style: Theme.of(
                     context,
                   ).textTheme.bodySmall?.copyWith(color: AppTheme.mediumGray),
@@ -949,8 +944,7 @@ class AgentView extends GetView<AgentController> {
                   isLoading: controller.isZipProcessing(zip.zipCode),
                 ),
               )
-            else if (controller.claimedZipCodes.isNotEmpty &&
-                zip.claimedByAgent == true)
+            else if (zip.claimedByAgent == true)
               _buildWaitingListControls(context, zip)
             else
               _buildClaimControls(context, zip),
