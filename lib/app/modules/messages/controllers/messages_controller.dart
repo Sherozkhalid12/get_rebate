@@ -399,13 +399,29 @@ class MessagesController extends GetxController {
       }
 
       // Get or create socket service
-      if (!Get.isRegistered<SocketService>()) {
-        Get.put(SocketService(), permanent: true);
-        if (kDebugMode) {
-          print('✅ Created new SocketService instance');
+      // Always create a fresh instance for new user to avoid stale connections
+      if (Get.isRegistered<SocketService>()) {
+        // Remove existing instance if it exists (from previous user)
+        try {
+          final existingService = Get.find<SocketService>();
+          existingService.disconnect();
+          Get.delete<SocketService>(force: true);
+          if (kDebugMode) {
+            print('🔄 Removed existing SocketService instance');
+          }
+        } catch (e) {
+          if (kDebugMode) {
+            print('⚠️ Error removing existing SocketService: $e');
+          }
         }
       }
+      
+      // Create fresh socket service instance for this user
+      Get.put(SocketService(), permanent: true);
       _socketService = Get.find<SocketService>();
+      if (kDebugMode) {
+        print('✅ Created new SocketService instance for user: ${user.id}');
+      }
 
       // Register listeners FIRST (before connecting)
       // This ensures we don't miss any events
@@ -2045,9 +2061,27 @@ class MessagesController extends GetxController {
     // Reset initialization flag so controller loads fresh data on next login
     _hasInitialized = false;
     
-    // Disconnect socket
-    _socketService?.disconnect();
-    _socketService = null;
+    // Disconnect and remove socket service completely
+    if (_socketService != null) {
+      _socketService!.disconnect();
+      _socketService = null;
+    }
+    
+    // Remove the permanent SocketService instance so a fresh one is created for next user
+    if (Get.isRegistered<SocketService>()) {
+      try {
+        final socketService = Get.find<SocketService>();
+        socketService.disconnect();
+        Get.delete<SocketService>(force: true);
+        if (kDebugMode) {
+          print('✅ Removed SocketService instance for logout');
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          print('⚠️ Error removing SocketService: $e');
+        }
+      }
+    }
     
     if (kDebugMode) {
       print('✅ MessagesController: All data cleared for logout');

@@ -471,6 +471,11 @@ class SocketService extends GetxService {
       _socket = null;
       _isConnected.value = false;
       _isConnecting.value = false;
+      _currentUserId = null; // Clear user ID
+      // Clear callbacks to prevent stale callbacks
+      _newMessageCallback = null;
+      _newThreadCallback = null;
+      _unreadCountCallback = null;
       if (kDebugMode) {
         print('🔌 Socket disconnected and disposed');
       }
