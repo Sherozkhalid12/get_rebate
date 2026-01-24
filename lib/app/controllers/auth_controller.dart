@@ -14,6 +14,8 @@ import 'package:getrebate/app/utils/snackbar_helper.dart';
 import 'package:getrebate/app/controllers/current_loan_officer_controller.dart';
 import 'package:getrebate/app/modules/messages/controllers/messages_controller.dart';
 
+import '../modules/messages/controllers/messages_controller.dart';
+
 class AuthController extends GetxController {
   final _storage = GetStorage();
   final Dio _dio = Dio();
@@ -1383,7 +1385,6 @@ class AuthController extends GetxController {
     if (kDebugMode) {
       print('🔥 setFCM called for user: $userId');
     }
-    
     // Wait for Firebase to be initialized if it hasn't been yet
     try {
       if (Firebase.apps.isEmpty) {

@@ -396,6 +396,28 @@ class MessagesView extends GetView<MessagesController> {
               ],
             ),
           ),
+          PopupMenuButton<String>(
+            onSelected: (value) {
+              if (value == 'delete') {
+                controller.deleteConversation(
+                  controller.selectedConversation!.id,
+                );
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'delete',
+                child: Row(
+                  children: [
+                    Icon(Icons.delete, color: Colors.red),
+                    SizedBox(width: 8),
+                    Text('Delete Conversation'),
+                  ],
+                ),
+              ),
+            ],
+            child: const Icon(Icons.more_vert, color: AppTheme.darkGray),
+          ),
         ],
       ),
     );

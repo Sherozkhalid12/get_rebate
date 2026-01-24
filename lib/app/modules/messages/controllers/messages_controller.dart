@@ -336,9 +336,12 @@ class MessagesController extends GetxController {
         }
 
         // Check if socket is connected, reconnect if needed
+        // Check actual socket state, not just reactive value
         if (_socketService != null && !_socketService!.isConnected) {
           if (kDebugMode) {
             print('⚠️ Socket not connected, reinitializing...');
+            print('   Socket exists: ${_socketService!.socket != null}');
+            print('   Socket connected: ${_socketService!.socket?.connected ?? false}');
           }
           _initializeSocket();
         }
@@ -379,7 +382,7 @@ class MessagesController extends GetxController {
   }
 
   /// Initializes socket connection
-  void _initializeSocket() async {
+  Future<void> _initializeSocket() async {
     final user = _authController.currentUser;
     if (user == null || user.id.isEmpty) {
       if (kDebugMode) {
@@ -434,6 +437,19 @@ class MessagesController extends GetxController {
         _handleUnreadCountUpdate(data);
       });
 
+      // Listen for reconnection events to rejoin active conversation room
+      _socketService!.onReconnect(() {
+        if (kDebugMode) {
+          print('🔄 Socket reconnected, rejoining active conversation room...');
+        }
+        if (_selectedConversation.value != null && _socketService!.isConnected) {
+          _socketService!.joinRoom(_selectedConversation.value!.id);
+          if (kDebugMode) {
+            print('🚪 Rejoined conversation room: ${_selectedConversation.value!.id}');
+          }
+        }
+      });
+
       if (kDebugMode) {
         print('✅ All socket listeners registered');
       }
@@ -443,7 +459,7 @@ class MessagesController extends GetxController {
       await _socketService!.connect(user.id);
 
       // Wait a bit to ensure connection is established
-      await Future.delayed(const Duration(milliseconds: 500));
+      await Future.delayed(const Duration(milliseconds: 1000));
 
       if (kDebugMode) {
         print('✅ Socket initialization complete');
@@ -456,6 +472,14 @@ class MessagesController extends GetxController {
           print('   Socket connected: ${_socketService!.socket!.connected}');
         } else {
           print('   Socket exists: false');
+        }
+      }
+
+      // Rejoin active conversation room if socket is connected
+      if (_socketService!.isConnected && _selectedConversation.value != null) {
+        _socketService!.joinRoom(_selectedConversation.value!.id);
+        if (kDebugMode) {
+          print('🚪 Rejoined conversation room: ${_selectedConversation.value!.id}');
         }
       }
     } catch (e) {
@@ -997,8 +1021,23 @@ class MessagesController extends GetxController {
     _loadMessagesForConversation(conversation.id);
 
     // Join socket room for this conversation
-    if (_socketService != null && _socketService!.isConnected) {
-      _socketService!.joinRoom(conversation.id);
+    if (_socketService != null) {
+      if (_socketService!.isConnected) {
+        _socketService!.joinRoom(conversation.id);
+      } else {
+        // Try to reconnect and join room after connection
+        if (kDebugMode) {
+          print('⚠️ Socket not connected, attempting to reconnect...');
+        }
+        _initializeSocket().then((_) {
+          // Wait a bit for connection to establish
+          Future.delayed(const Duration(milliseconds: 500), () {
+            if (_socketService != null && _socketService!.isConnected) {
+              _socketService!.joinRoom(conversation.id);
+            }
+          });
+        });
+      }
     }
 
     // Mark as read
@@ -1204,7 +1243,7 @@ class MessagesController extends GetxController {
     }
   }
 
-  void sendMessage() {
+  Future<void> sendMessage() async {
     if (messageController.text.trim().isEmpty) return;
     if (_selectedConversation.value == null) return;
 
@@ -1298,10 +1337,42 @@ class MessagesController extends GetxController {
         senderId: user.id,
         text: text,
       );
-    } else {
-      // TODO: Send via API if socket not available
       if (kDebugMode) {
-        print('⚠️ Socket not connected, message not sent');
+        print('📤 Message sent via socket');
+      }
+    } else {
+      // Fallback to API if socket not available
+      if (kDebugMode) {
+        print('⚠️ Socket not connected, sending via API fallback');
+      }
+      try {
+        final result = await _chatService.sendMessage(
+          threadId: conversation.id,
+          senderId: user.id,
+          text: text,
+        );
+        if (kDebugMode) {
+          print('✅ Message sent via API');
+          print('   Response: $result');
+        }
+        // Refresh messages to get the server response
+        await _loadMessagesForConversation(conversation.id);
+      } catch (e) {
+        if (kDebugMode) {
+          print('❌ Failed to send message via API: $e');
+        }
+        // Show error to user
+        SnackbarHelper.showError('Failed to send message. Please try again.');
+        // Remove optimistic message on error
+        _messages.removeWhere((m) => m.id == tempId);
+      }
+      
+      // Try to reconnect socket if not connected
+      if (_socketService != null && !_socketService!.isConnected) {
+        if (kDebugMode) {
+          print('🔄 Attempting to reconnect socket...');
+        }
+        _initializeSocket();
       }
     }
   }
