@@ -1386,6 +1386,7 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
   Widget _buildWaitingListControls(BuildContext context, LoanOfficerZipCodeModel zip) {
     return Column(
       mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
       children: [
         const SizedBox(height: 12),
         Obx(() {
