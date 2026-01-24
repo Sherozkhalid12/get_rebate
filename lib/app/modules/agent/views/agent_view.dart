@@ -949,86 +949,11 @@ class AgentView extends GetView<AgentController> {
                   isLoading: controller.isZipProcessing(zip.zipCode),
                 ),
               )
+            else if (controller.claimedZipCodes.isNotEmpty &&
+                zip.claimedByAgent == true)
+              _buildWaitingListControls(context, zip)
             else
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Obx(
-                    () => CustomButton(
-                      text: 'Claim',
-                      onPressed: controller.isZipProcessing(zip.zipCode)
-                          ? null
-                          : () => controller.claimZipCode(zip),
-                      isLoading: controller.isZipProcessing(zip.zipCode),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  TextButton(
-                    onPressed: () => _showPromoCodeEntrySheet(context),
-                    style: TextButton.styleFrom(
-                      minimumSize: Size.zero,
-                      padding: EdgeInsets.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      textStyle: Theme.of(context).textTheme.bodySmall
-                          ?.copyWith(
-                            color: AppTheme.primaryBlue,
-                            fontWeight: FontWeight.w500,
-                          ),
-                    ),
-                    child: const Text('Have a promo code?'),
-                  ),
-                  if (controller.claimedZipCodes.isNotEmpty &&
-                      zip.claimedByAgent == true) ...[
-                    const SizedBox(height: 12),
-                    Obx(() {
-                      final zipId = zip.id ?? zip.zipCode;
-                      final hasEntries = controller.hasWaitingListEntries(
-                        zipId,
-                      );
-                      final isProcessing = controller.isWaitingListProcessing(
-                        zip.zipCode,
-                      );
-
-                      if (hasEntries) {
-                        return CustomButton(
-                          text: 'See waiting list',
-                          onPressed: () => Get.to(
-                            () => WaitingListPage(zipCode: zip),
-                            transition: Transition.rightToLeft,
-                          ),
-                          isOutlined: true,
-                        );
-                      }
-
-                      return CustomButton(
-                        text: isProcessing ? 'Joining...' : 'Join waiting list',
-                        onPressed: isProcessing
-                            ? null
-                            : () async {
-                                final added = await controller.joinWaitingList(
-                                  zip,
-                                );
-                                if (added) {
-                                  SnackbarHelper.showSuccess(
-                                    'Added to waiting list',
-                                    title: 'Success',
-                                  );
-                                }
-                              },
-                        isOutlined: true,
-                        isLoading: isProcessing,
-                      );
-                    }),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Claimed by another agent',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppTheme.mediumGray,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
+              _buildClaimControls(context, zip),
           ],
         ),
       ),
@@ -1116,6 +1041,86 @@ class AgentView extends GetView<AgentController> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       isScrollControlled: true,
+    );
+  }
+
+  Widget _buildClaimControls(BuildContext context, ZipCodeModel zip) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Obx(
+          () => CustomButton(
+            text: 'Claim',
+            onPressed: controller.isZipProcessing(zip.zipCode)
+                ? null
+                : () => controller.claimZipCode(zip),
+            isLoading: controller.isZipProcessing(zip.zipCode),
+          ),
+        ),
+        const SizedBox(height: 4),
+        TextButton(
+          onPressed: () => _showPromoCodeEntrySheet(context),
+          style: TextButton.styleFrom(
+            minimumSize: Size.zero,
+            padding: EdgeInsets.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            textStyle: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: AppTheme.primaryBlue,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          child: const Text('Have a promo code?'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildWaitingListControls(BuildContext context, ZipCodeModel zip) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const SizedBox(height: 12),
+        Obx(() {
+          final zipId = zip.id ?? zip.zipCode;
+          final hasEntries = controller.hasWaitingListEntries(zipId);
+          final isProcessing = controller.isWaitingListProcessing(zip.zipCode);
+
+          if (hasEntries) {
+            return CustomButton(
+              text: 'See waiting list',
+              onPressed: () => Get.to(
+                () => WaitingListPage(zipCode: zip),
+                transition: Transition.rightToLeft,
+              ),
+              isOutlined: true,
+            );
+          }
+
+          return CustomButton(
+            text: isProcessing ? 'Joining...' : 'Join waiting list',
+            onPressed: isProcessing
+                ? null
+                : () async {
+                    final added = await controller.joinWaitingList(zip);
+                    if (added) {
+                      SnackbarHelper.showSuccess(
+                        'Added to waiting list',
+                        title: 'Success',
+                      );
+                    }
+                  },
+            isOutlined: true,
+            isLoading: isProcessing,
+          );
+        }),
+        const SizedBox(height: 4),
+        Text(
+          'Claimed by another agent',
+          style: Theme.of(
+            context,
+          ).textTheme.bodySmall?.copyWith(color: AppTheme.mediumGray),
+        ),
+      ],
     );
   }
 
