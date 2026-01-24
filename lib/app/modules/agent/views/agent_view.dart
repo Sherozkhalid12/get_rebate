@@ -710,28 +710,6 @@ class AgentView extends GetView<AgentController> {
                               },
                             );
                           }),
-                        const SizedBox(height: 8),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: TextButton(
-                            onPressed: controller.refreshZipCodesFromApi,
-                            style: TextButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 6,
-                              ),
-                              minimumSize: Size.zero,
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            ),
-                            child: Text(
-                              'Fetch from API',
-                              style: TextStyle(
-                                color: AppTheme.primaryBlue,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ),
-                        ),
                         if (controller.isLoadingZipCodes) ...[
                           const SizedBox(height: 12),
                           Row(

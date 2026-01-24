@@ -181,6 +181,7 @@ class MessagesController extends GetxController {
   SocketService? _socketService;
 
   bool _hasInitialized = false;
+  String? _currentUserIdForSocket; // Track which user the socket is connected for
 
   // Scroll controller for messages list
   final ScrollController _messagesScrollController = ScrollController();
@@ -312,12 +313,46 @@ class MessagesController extends GetxController {
 
     // Always initialize socket if user is logged in (socket can reconnect)
     if (_authController.isLoggedIn && _authController.currentUser != null) {
-      if (!_hasInitialized) {
+      final currentUserId = _authController.currentUser!.id;
+      
+      // Check if this is a different user (account switch)
+      final isDifferentUser = _hasInitialized && 
+          _socketService != null && 
+          _socketService!.socket != null &&
+          _currentUserIdForSocket != null &&
+          _currentUserIdForSocket != currentUserId;
+      
+      if (!_hasInitialized || isDifferentUser) {
+        if (isDifferentUser) {
+          if (kDebugMode) {
+            print('🔄 Different user detected, reinitializing socket...');
+            print('   Previous user ID: $_currentUserIdForSocket');
+            print('   New user ID: $currentUserId');
+          }
+          // Clear socket service for new user
+          if (_socketService != null) {
+            _socketService!.disconnect();
+            _socketService = null;
+          }
+          if (Get.isRegistered<SocketService>()) {
+            try {
+              Get.delete<SocketService>(force: true);
+            } catch (e) {
+              if (kDebugMode) {
+                print('⚠️ Error removing SocketService: $e');
+              }
+            }
+          }
+        }
+        
         _hasInitialized = true;
+        _currentUserIdForSocket = currentUserId;
+        
         if (kDebugMode) {
           print(
-            '📱 MessagesController: First initialization - loading threads and socket',
+            '📱 MessagesController: Initialization - loading threads and socket',
           );
+          print('   User ID: $currentUserId');
         }
         // Load threads immediately in background - don't wait
         // This ensures threads are ready when user opens messages screen
@@ -328,7 +363,7 @@ class MessagesController extends GetxController {
         // Initialize socket in parallel
         _initializeSocket();
       } else {
-        // Already initialized - ensure socket is still connected
+        // Already initialized for same user - ensure socket is still connected
         if (kDebugMode) {
           print(
             '📱 MessagesController: Re-initialization - checking socket connection',
@@ -1357,7 +1392,7 @@ class MessagesController extends GetxController {
         }
         // Refresh messages to get the server response
         await _loadMessagesForConversation(conversation.id);
-
+        
         // Try to reconnect socket in background after successful API send
         if (_socketService == null || !_socketService!.isConnected) {
           if (kDebugMode) {
@@ -1373,7 +1408,7 @@ class MessagesController extends GetxController {
         SnackbarHelper.showError('Failed to send message. Please try again.');
         // Remove optimistic message on error
         _messages.removeWhere((m) => m.id == tempId);
-
+        
         // Try to reconnect socket even on error
         if (_socketService == null || !_socketService!.isConnected) {
           if (kDebugMode) {
@@ -1382,55 +1417,7 @@ class MessagesController extends GetxController {
           _initializeSocket();
         }
       }
-
-      // Try to reconnect socket if not connected
-      if (_socketService != null && !_socketService!.isConnected) {
-        if (kDebugMode) {
-          print('🔄 Attempting to reconnect socket...');
-        }
-        _initializeSocket();
-      }
     }
-  }
-
-  Future<String?> _ensureRealThreadId(ConversationModel conversation) async {
-    if (!conversation.id.startsWith('temp_')) return conversation.id;
-
-    final completer = Completer<String?>();
-    StreamSubscription<ConversationModel?>? subscription;
-
-    subscription = selectedConversationRx.stream.listen((updated) {
-      if (updated == null) return;
-      if (!updated.id.startsWith('temp_') &&
-          updated.senderId == conversation.senderId) {
-        if (!completer.isCompleted) {
-          completer.complete(updated.id);
-        }
-        subscription?.cancel();
-      }
-    });
-
-    return completer.future
-        .timeout(
-          const Duration(seconds: 6),
-          onTimeout: () {
-            subscription?.cancel();
-            return conversation.id;
-          },
-        )
-        .whenComplete(() => subscription?.cancel());
-  }
-
-  Future<void> sendMessageWithText(String text) async {
-    if (text.trim().isEmpty) return;
-    final conversation = _selectedConversation.value;
-    if (conversation == null) return;
-
-    final realThreadId = await _ensureRealThreadId(conversation);
-    if (realThreadId == null) return;
-
-    messageController.text = text;
-    sendMessage();
   }
 
   void searchConversations(String query) {
@@ -2121,6 +2108,7 @@ class MessagesController extends GetxController {
     
     // Reset initialization flag so controller loads fresh data on next login
     _hasInitialized = false;
+    _currentUserIdForSocket = null; // Clear user ID tracking
     
     // Disconnect and remove socket service completely
     if (_socketService != null) {

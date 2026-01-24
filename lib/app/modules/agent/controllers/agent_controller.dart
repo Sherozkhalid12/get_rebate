@@ -354,7 +354,22 @@ class AgentController extends GetxController {
   }
 
   List<ZipCodeModel> _filterAvailableZipCodes(List<ZipCodeModel> zipCodes) {
-    return zipCodes.where((zip) => zip.population > 0).toList();
+    // Get list of claimed zip code strings for quick lookup (only current user's claimed zip codes)
+    final claimedZipCodeStrings = _claimedZipCodes
+        .map((zip) => zip.zipCode)
+        .toSet();
+    
+    return zipCodes.where((zip) {
+      // Exclude zip codes with zero population
+      if (zip.population <= 0) return false;
+      
+      // Only exclude zip codes that are claimed by the CURRENT user
+      // Don't filter by zip.claimedByAgent == true because that indicates ANY agent claimed it,
+      // not necessarily the current user. Other users should still see zip codes claimed by other agents.
+      if (claimedZipCodeStrings.contains(zip.zipCode)) return false;
+      
+      return true;
+    }).toList();
   }
 
   Future<bool> joinWaitingList(ZipCodeModel zipCode) async {
@@ -472,9 +487,15 @@ class AgentController extends GetxController {
   }
 
   Future<void> _prefetchWaitingLists(List<ZipCodeModel> zipCodes) async {
+    // Only prefetch waiting lists for zip codes claimed by the CURRENT user
+    final claimedZipCodeStrings = _claimedZipCodes
+        .map((zip) => zip.zipCode)
+        .toSet();
+    
     for (final zip in zipCodes) {
       final zipId = zip.id ?? zip.zipCode;
-      if (zip.claimedByAgent == true &&
+      // Only prefetch if this zip code is claimed by the current user
+      if (claimedZipCodeStrings.contains(zip.zipCode) &&
           !_waitingListEntries.containsKey(zipId)) {
         unawaited(fetchWaitingListEntries(zipId));
       }
@@ -577,6 +598,15 @@ class AgentController extends GetxController {
 
   void setSelectedTab(int index) {
     _selectedTab.value = index;
+
+    // Refresh ZIP codes when "ZIP Management" tab is selected
+    if (index == 1) {
+      final stateName = _selectedState.value;
+      if (stateName != null && stateName.isNotEmpty) {
+        final stateCode = _getStateCodeFromName(stateName);
+        Future.microtask(() => fetchZipCodesForState(stateCode));
+      }
+    }
 
     // Refresh listings when "My Listings" tab is selected
     if (index == 2) {
@@ -708,6 +738,17 @@ class AgentController extends GetxController {
             ..clear()
             ..addAll(claimedZips);
           _persistClaimedZipCodesToStorage();
+          
+          // Remove only zip codes claimed by the CURRENT user from available list
+          // Don't remove zip codes claimed by other users (zip.claimedByAgent == true)
+          // because other users should still see those zip codes as available
+          final claimedZipCodeStrings = _claimedZipCodes
+              .map((zip) => zip.zipCode)
+              .toSet();
+          _availableZipCodes.removeWhere(
+            (zip) => claimedZipCodeStrings.contains(zip.zipCode),
+          );
+          
           if (kDebugMode) {
             print(
               '✅ Claimed ZIP codes synced from API: '
