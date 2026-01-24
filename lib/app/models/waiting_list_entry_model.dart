@@ -7,6 +7,7 @@ class WaitingListEntry {
   final String zipCodeId;
   final String userId;
   final DateTime? createdAt;
+  final String? role;
 
   WaitingListEntry({
     required this.id,
@@ -15,6 +16,7 @@ class WaitingListEntry {
     required this.zipCodeId,
     required this.userId,
     this.createdAt,
+    this.role,
   });
 
   factory WaitingListEntry.fromJson(Map<String, dynamic> json) {
@@ -27,6 +29,7 @@ class WaitingListEntry {
       userId: json['userId']?.toString() ?? '',
       createdAt:
           createdAtRaw != null ? DateTime.tryParse(createdAtRaw) : null,
+      role: json['role']?.toString(),
     );
   }
 

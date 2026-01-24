@@ -16,7 +16,9 @@ import 'package:getrebate/app/services/loan_officer_zip_code_service.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart' as global;
 import 'package:getrebate/app/controllers/current_loan_officer_controller.dart';
 import 'package:getrebate/app/modules/messages/controllers/messages_controller.dart';
+import 'package:getrebate/app/models/waiting_list_entry_model.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
+
 import 'package:getrebate/app/utils/network_error_handler.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
 import 'package:getrebate/app/widgets/payment_web_view.dart';
@@ -78,6 +80,11 @@ class LoanOfficerController extends GetxController {
   final Set<String> _profileClaimedZipCodes =
       <String>{}; // Claimed ZIPs from user profile
 
+  // Waiting List State
+  final _waitingListRequests = <String>{}.obs;
+  final _waitingListEntries = <String, List<WaitingListEntry>>{}.obs;
+  final _waitingListLoading = <String>{}.obs;
+
   // Standard pricing (deprecated - now using zip code population-based pricing)
   // Kept for backward compatibility, but pricing is now calculated from zip codes
   @Deprecated('Use LoanOfficerZipCodePricingService instead')
@@ -95,6 +102,26 @@ class LoanOfficerController extends GetxController {
   bool get isLoadingZipCodes => _isLoadingZipCodes.value;
   bool get hasLoadedZipCodes => _hasLoadedZipCodes.value;
   String get searchQuery => _searchQuery.value;
+
+  // Waiting List Getters
+  bool isWaitingListProcessing(String zipCode) =>
+      _waitingListRequests.contains(zipCode);
+
+  bool isWaitingListLoading(String zipCodeId) =>
+      _waitingListLoading.contains(zipCodeId);
+
+  bool hasWaitingListEntries(String zipCodeId) =>
+      (_waitingListEntries[zipCodeId]?.isNotEmpty ?? false);
+
+  List<WaitingListEntry> waitingListEntries(String zipCodeId) =>
+      _waitingListEntries[zipCodeId] ?? [];
+
+  /// True if current user's ID is in the zip's WaitingUsers list (from API).
+  bool isCurrentUserInWaitingList(LoanOfficerZipCodeModel zip) {
+    final uid = _userId;
+    if (uid == null || uid.isEmpty) return false;
+    return zip.waitingUsers.contains(uid);
+  }
 
   /// Check if a specific zip code is being processed
   bool isZipCodeLoading(String zipCode) => _loadingZipCodeIds.contains(zipCode);
@@ -325,6 +352,39 @@ class LoanOfficerController extends GetxController {
     return '$_zipCodesCacheKeyPrefix${country}_$state';
   }
 
+  static const Map<String, String> _stateNameToCode = {
+    'Alabama': 'AL', 'Alaska': 'AK', 'Arizona': 'AZ', 'Arkansas': 'AR',
+    'California': 'CA', 'Colorado': 'CO', 'Connecticut': 'CT', 'Delaware': 'DE',
+    'Florida': 'FL', 'Georgia': 'GA', 'Hawaii': 'HI', 'Idaho': 'ID',
+    'Illinois': 'IL', 'Indiana': 'IN', 'Iowa': 'IA', 'Kansas': 'KS',
+    'Kentucky': 'KY', 'Louisiana': 'LA', 'Maine': 'ME', 'Maryland': 'MD',
+    'Massachusetts': 'MA', 'Michigan': 'MI', 'Minnesota': 'MN', 'Mississippi': 'MS',
+    'Missouri': 'MO', 'Montana': 'MT', 'Nebraska': 'NE', 'Nevada': 'NV',
+    'New Hampshire': 'NH', 'New Jersey': 'NJ', 'New Mexico': 'NM', 'New York': 'NY',
+    'North Carolina': 'NC', 'North Dakota': 'ND', 'Ohio': 'OH', 'Oklahoma': 'OK',
+    'Oregon': 'OR', 'Pennsylvania': 'PA', 'Rhode Island': 'RI', 'South Carolina': 'SC',
+    'South Dakota': 'SD', 'Tennessee': 'TN', 'Texas': 'TX', 'Utah': 'UT',
+    'Vermont': 'VT', 'Virginia': 'VA', 'Washington': 'WA', 'West Virginia': 'WV',
+    'Wisconsin': 'WI', 'Wyoming': 'WY',
+  };
+
+  /// Normalize state to two-letter code. Prevents wrong zips (e.g. AL vs Alaska).
+  String _normalizeStateToCode(String s) {
+    if (s.trim().length == 2) return s.trim().toUpperCase();
+    return _stateNameToCode[s.trim()] ?? s.trim().toUpperCase();
+  }
+
+  /// Licensed states as two-letter codes for dropdown and API. Use these instead of raw licensedStates.
+  List<String> get licensedStateCodes {
+    final currentLoanOfficerController =
+        Get.isRegistered<CurrentLoanOfficerController>()
+            ? Get.find<CurrentLoanOfficerController>()
+            : null;
+    final states = currentLoanOfficerController?.currentLoanOfficer.value?.licensedStates ?? [];
+    final codes = states.map((s) => _normalizeStateToCode(s)).toList();
+    return codes.toSet().toList()..sort((a, b) => a.compareTo(b));
+  }
+
   /// Loads zip codes from cache or API using the new loan officer endpoint
   /// ALWAYS checks GetStorage first, only fetches from API if cache is empty or invalid
   /// Uses GetX reactive state management for optimal performance
@@ -356,11 +416,12 @@ class LoanOfficerController extends GetxController {
       final loanOfficer =
           currentLoanOfficerController?.currentLoanOfficer.value;
 
-      // Country is always US, only state changes
+      // Country is always US, only state changes. Use selected state or first licensed (as code).
       const country = 'US';
-      final state = (loanOfficer?.licensedStates.isNotEmpty == true)
-          ? loanOfficer!.licensedStates.first
-          : 'CA'; // Default to CA if no licensed states
+      final codes = licensedStateCodes;
+      final state = _selectedState.value != null && _selectedState.value!.isNotEmpty
+          ? _normalizeStateToCode(_selectedState.value!)
+          : (codes.isNotEmpty ? codes.first : 'CA');
 
       final stateKey = '${country}_$state';
       final cacheKey = _getCacheKey(country, state);
@@ -852,15 +913,15 @@ class LoanOfficerController extends GetxController {
       // First, process all zip codes from _allZipCodes
       for (final zip in _allZipCodes) {
         // Check if this zip code is claimed by the current loan officer
-        // Check both: 1) claimedByOfficer field, 2) claimedZipCodes array from loan officer model
-        final isClaimedByField = zip.claimedByOfficer;
+        // Only use the model's claimed zip codes list as the source of truth for what *I* have claimed
         final isClaimedInModel = effectiveClaimedZipCodes.contains(
           zip.postalCode,
         );
 
-        if (isClaimedByField || isClaimedInModel) {
-          // If claimed in model but not in field, update the zip code model
-          if (!isClaimedByField && isClaimedInModel) {
+        if (isClaimedInModel) {
+          // If claimed in model, ensure the zip code object has claimedByOfficer=true
+          // even if the API didn't return it that way (e.g. slight sync delay)
+          if (!zip.claimedByOfficer) {
             final updatedZip = zip.copyWith(claimedByOfficer: true);
             final index = _allZipCodes.indexWhere(
               (z) => z.postalCode == zip.postalCode,
@@ -873,7 +934,7 @@ class LoanOfficerController extends GetxController {
             claimed.add(zip);
           }
         } else {
-          // Available if not claimed or claimed by someone else
+          // Available (or claimed by someone else)
           available.add(zip);
         }
       }
@@ -1006,6 +1067,9 @@ class LoanOfficerController extends GetxController {
 
       // Apply search filter if active
       _applySearchFilter();
+
+      // Prefetch waiting lists for claimed zip codes
+      _prefetchWaitingLists(_allZipCodes);
     } catch (e, stackTrace) {
       if (kDebugMode) {
         print('❌ Error updating zip code lists: $e');
@@ -1128,6 +1192,12 @@ class LoanOfficerController extends GetxController {
     // Refresh subscription data when "Billing" tab is selected
     if (index == 3) {
       Future.microtask(() => fetchUserStats());
+    } else if (index == 2) {
+      // Refresh user stats (claimed ZIPs from /auth/users) then zip codes when ZIP tab is selected
+      Future.microtask(() async {
+        await fetchUserStats();
+        await refreshZipCodes();
+      });
     }
   }
 
@@ -1377,10 +1447,16 @@ class LoanOfficerController extends GetxController {
           final zipCode = zipJson['postalCode']?.toString() ?? '';
           if (zipCode.isEmpty) return null;
 
+          final pop = zipJson['population'];
+          final population = pop is int
+              ? pop
+              : (pop is num
+                    ? pop.toInt()
+                    : (int.tryParse(pop?.toString() ?? '') ?? 0));
           return LoanOfficerZipCodeModel(
             postalCode: zipCode,
             state: zipJson['state']?.toString() ?? '',
-            population: (zipJson['population'] as num?)?.toInt() ?? 0,
+            population: population,
             claimedByOfficer: true,
             createdAt:
                 DateTime.tryParse(zipJson['createdAt']?.toString() ?? '') ??
@@ -2253,18 +2329,11 @@ class LoanOfficerController extends GetxController {
       return;
     }
 
-    // Only fetch if state actually changed
-    if (_selectedState.value == stateName) {
-      // State hasn't changed, don't refetch (will use cache if available)
-      return;
-    }
+    final code = _normalizeStateToCode(stateName);
+    if (_selectedState.value == code) return;
 
-    _selectedState.value = stateName;
-
-    // Load zip codes for the selected state
-    // The _loadZipCodes method will use the first licensed state if available
-    // We need to modify it to use the selected state instead
-    await _loadZipCodesForState(stateName, forceRefresh: false);
+    _selectedState.value = code;
+    await _loadZipCodesForState(code, forceRefresh: false);
   }
 
   /// Loads zip codes for a specific state
@@ -2290,14 +2359,12 @@ class LoanOfficerController extends GetxController {
         return;
       }
 
-      // Country is always US, only state changes
       const country = 'US';
-      final state = stateName;
+      final state = _normalizeStateToCode(stateName);
 
       final stateKey = '${country}_$state';
       final cacheKey = _getCacheKey(country, state);
 
-      // ALWAYS check memory cache first (fastest)
       if (!forceRefresh &&
           _hasLoadedZipCodes.value &&
           _currentState.value == stateKey) {
@@ -2309,8 +2376,6 @@ class LoanOfficerController extends GetxController {
           return;
         }
       }
-
-      // ALWAYS check GetStorage cache second (before API)
 
       if (!forceRefresh) {
         try {
@@ -2736,7 +2801,160 @@ class LoanOfficerController extends GetxController {
     ];
   }
 
+  Future<bool> joinWaitingList(LoanOfficerZipCodeModel zipCode) async {
+    if (_waitingListRequests.contains(zipCode.postalCode)) {
+      return false;
+    }
+
+    final authController = Get.find<global.AuthController>();
+    final user = authController.currentUser;
+
+    if (user == null) {
+      Get.snackbar('Error', 'Please log in to join the waiting list');
+      return false;
+    }
+
+    _waitingListRequests.add(zipCode.postalCode);
+    try {
+      final zipCodeId = zipCode.id ?? zipCode.postalCode;
+      final requestBody = {
+        'name': user.name.isNotEmpty ? user.name : 'Loan Officer',
+        'email': user.email,
+        'zipCodeId': zipCodeId,
+        'userId': user.id,
+      };
+
+      if (kDebugMode) {
+        print('📡 Joining waiting list for ZIP ${zipCode.postalCode}');
+        print('   Payload: $requestBody');
+      }
+
+      final authToken = _storage.read('auth_token');
+      final response = await _dio.post(
+        '/waiting-list',
+        data: requestBody,
+        options: Options(
+          headers: {
+            ...ApiConstants.ngrokHeaders,
+            'Content-Type': 'application/json',
+            if (authToken != null) 'Authorization': 'Bearer $authToken',
+          },
+        ),
+      );
+
+      if (kDebugMode) {
+        print(
+          '📥 Waiting list response: ${response.statusCode} ${response.data}',
+        );
+      }
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        await fetchWaitingListEntries(zipCodeId);
+        _addCurrentUserToZipWaitingUsers(zipCode, user.id);
+        return true;
+      }
+
+      throw Exception('Unexpected response: ${response.statusCode}');
+    } catch (e) {
+      NetworkErrorHandler.handleError(
+        e,
+        defaultMessage:
+            'Unable to join the waiting list right now. Please try again.',
+      );
+      return false;
+    } finally {
+      _waitingListRequests.remove(zipCode.postalCode);
+    }
+  }
+
+  void _addCurrentUserToZipWaitingUsers(LoanOfficerZipCodeModel zip, String userId) {
+    if (zip.waitingUsers.contains(userId)) return;
+    final updated = zip.copyWith(
+      waitingUsers: [...zip.waitingUsers, userId],
+    );
+    final key = zip.postalCode;
+    for (var i = 0; i < _allZipCodes.length; i++) {
+      if (_allZipCodes[i].postalCode == key) {
+        _allZipCodes[i] = updated;
+        break;
+      }
+    }
+    for (var i = 0; i < _availableZipCodes.length; i++) {
+      if (_availableZipCodes[i].postalCode == key) {
+        _availableZipCodes[i] = updated;
+        break;
+      }
+    }
+    _allZipCodes.refresh();
+    _availableZipCodes.refresh();
+    _applySearchFilter();
+  }
+
+  Future<List<WaitingListEntry>> fetchWaitingListEntries(
+    String zipCodeId,
+  ) async {
+    if (zipCodeId.isEmpty) {
+      return [];
+    }
+
+    if (_waitingListLoading.contains(zipCodeId)) {
+      return _waitingListEntries[zipCodeId] ?? [];
+    }
+
+    _waitingListLoading.add(zipCodeId);
+    try {
+      final authToken = _storage.read('auth_token');
+      final response = await _dio.get(
+        '/waiting-list/$zipCodeId',
+        options: Options(
+          headers: {
+            ...ApiConstants.ngrokHeaders,
+            'Content-Type': 'application/json',
+            if (authToken != null) 'Authorization': 'Bearer $authToken',
+          },
+        ),
+      );
+
+      final data = response.data;
+      if (data is List) {
+        final entries = data
+            .whereType<Map<String, dynamic>>()
+            .map((json) => WaitingListEntry.fromJson(json))
+            .toList();
+        _waitingListEntries[zipCodeId] = entries;
+        return entries;
+      }
+
+      return _waitingListEntries[zipCodeId] ?? [];
+    } on DioException catch (e) {
+      if (kDebugMode) {
+        print('❌ Waiting list fetch error: ${e.message}');
+      }
+      throw e;
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Waiting list fetch unexpected: $e');
+      }
+      throw e;
+    } finally {
+      _waitingListLoading.remove(zipCodeId);
+    }
+  }
+
+  Future<void> _prefetchWaitingLists(List<LoanOfficerZipCodeModel> zipCodes) async {
+    for (final zip in zipCodes) {
+      final zipId = zip.id ?? zip.postalCode;
+      if (zip.claimedByOfficer == true &&
+          !_waitingListEntries.containsKey(zipId)) {
+        // Use Future.microtask or just call it without await to not block
+        fetchWaitingListEntries(zipId);
+      }
+    }
+  }
+
   Future<void> addLoan(LoanModel loan) async {
+
+
     try {
       _isLoading.value = true;
       // Simulate API call

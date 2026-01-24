@@ -1,7 +1,9 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import 'package:get/get.dart';
 import 'package:getrebate/app/models/loan_officer_model.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
+import 'package:getrebate/app/controllers/auth_controller.dart';
 
 /// Custom exception for loan officer service errors
 class LoanOfficerServiceException implements Exception {
@@ -22,25 +24,14 @@ class LoanOfficerServiceException implements Exception {
 /// Service for handling loan officer-related API calls
 class LoanOfficerService {
   late final Dio _dio;
-  
-  // Cache to prevent duplicate API calls within a short time window
-  final Map<String, DateTime> _searchCallCache = {};
-  final Map<String, DateTime> _profileViewCallCache = {};
-  final Map<String, DateTime> _contactCallCache = {};
-  static const Duration _cacheDuration = Duration(minutes: 5); // Cache for 5 minutes
-  
-  // Track 404 errors to reduce logging noise
-  static bool _hasLogged404ForSearch = false;
-  static bool _hasLogged404ForProfileView = false;
-  static bool _hasLogged404ForContact = false;
 
   LoanOfficerService() {
     _dio = Dio(
       BaseOptions(
         baseUrl: ApiConstants.baseUrl,
-        connectTimeout: const Duration(seconds: 10), // Reduced from 30 to 10
-        receiveTimeout: const Duration(seconds: 10), // Reduced from 30 to 10
-        sendTimeout: const Duration(seconds: 10), // Reduced from 30 to 10
+        connectTimeout: const Duration(seconds: 30),
+        receiveTimeout: const Duration(seconds: 30),
+        sendTimeout: const Duration(seconds: 30),
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
@@ -48,9 +39,33 @@ class LoanOfficerService {
       ),
     );
 
-    // Add interceptors for error handling
+    // Add interceptors for error handling and auth token
     _dio.interceptors.add(
       InterceptorsWrapper(
+        onRequest: (options, handler) {
+          // Automatically add auth token to all requests
+          try {
+            if (Get.isRegistered<AuthController>()) {
+              final authController = Get.find<AuthController>();
+              final token = authController.token;
+              if (token != null && token.isNotEmpty) {
+                options.headers['Authorization'] = 'Bearer $token';
+                if (kDebugMode) {
+                  print('🔑 LoanOfficerService: Added auth token to request');
+                }
+              }
+            }
+          } catch (e) {
+            if (kDebugMode) {
+              print('⚠️ LoanOfficerService: Could not add auth token: $e');
+            }
+          }
+
+          // Add ngrok headers if needed
+          options.headers.addAll(ApiConstants.ngrokHeaders);
+
+          handler.next(options);
+        },
         onError: (error, handler) {
           _handleError(error);
           handler.next(error);
@@ -61,37 +76,26 @@ class LoanOfficerService {
 
   /// Handles Dio errors
   void _handleError(DioException error) {
-    // Suppress 404 errors for tracking endpoints (they're expected if endpoints don't exist)
-    final path = error.requestOptions.path.toLowerCase();
-    final isTrackingEndpoint = path.contains('addsearch') || 
-                               path.contains('addprofileview') || 
-                               path.contains('addcontact');
-    
-    if (error.response?.statusCode == 404 && isTrackingEndpoint) {
-      // Suppress 404s for tracking endpoints - they're already handled in individual methods
-      return;
-    }
-    
     if (kDebugMode) {
       print('❌ Loan Officer Service Error:');
       print('   Type: ${error.type}');
       print('   Message: ${error.message}');
+      print('   Request URL: ${error.requestOptions.uri}');
+      print('   Request Headers: ${error.requestOptions.headers}');
       print('   Response: ${error.response?.data}');
       print('   Status Code: ${error.response?.statusCode}');
-      print('   Path: ${error.requestOptions.path}');
+      print('   Error: ${error.error}');
+      print('   Stack Trace: ${error.stackTrace}');
     }
   }
 
   /// Fetches all loan officers from the API
-  /// 
+  ///
   /// Throws [LoanOfficerServiceException] if the request fails
   Future<List<LoanOfficerModel>> getAllLoanOfficers() async {
     try {
       final response = await _dio.get(
         ApiConstants.allLoanOfficersEndpoint,
-        options: Options(
-          headers: ApiConstants.ngrokHeaders,
-        ),
       );
 
       if (kDebugMode) {
@@ -101,7 +105,7 @@ class LoanOfficerService {
 
       // Handle different response formats
       List<dynamic> loanOfficersData;
-      
+
       if (response.data is Map) {
         final responseMap = response.data as Map<String, dynamic>;
         // Check for the format with 'success' and 'loanOfficers'
@@ -121,11 +125,11 @@ class LoanOfficerService {
       }
 
       final loanOfficers = <LoanOfficerModel>[];
-      
+
       for (int i = 0; i < loanOfficersData.length; i++) {
         try {
           final json = loanOfficersData[i];
-          
+
           // Skip if not a Map
           if (json is! Map<String, dynamic>) {
             if (kDebugMode) {
@@ -133,7 +137,7 @@ class LoanOfficerService {
             }
             continue;
           }
-          
+
           final loanOfficer = LoanOfficerModel.fromJson(json);
           loanOfficers.add(loanOfficer);
         } catch (e) {
@@ -173,9 +177,9 @@ class LoanOfficerService {
           } else if (statusCode == 500) {
             errorMessage = 'Server error. Please try again later.';
           } else {
-            errorMessage = e.response?.data?['message']?.toString() ?? 
-                          e.response?.data?['error']?.toString() ?? 
-                          'Failed to fetch loan officers.';
+            errorMessage = e.response?.data?['message']?.toString() ??
+                e.response?.data?['error']?.toString() ??
+                'Failed to fetch loan officers.';
           }
           break;
         case DioExceptionType.cancel:
@@ -206,25 +210,40 @@ class LoanOfficerService {
   }
 
   /// Fetches the currently authenticated loan officer by ID
-  /// 
+  ///
   /// Calls `/api/v1/loan-officers/{id}` and returns a single [LoanOfficerModel]
   /// from the `loanOfficer` field in the response.
-  /// 
+  ///
   /// Throws [LoanOfficerServiceException] if the request fails.
   Future<LoanOfficerModel> getCurrentLoanOfficer(String loanOfficerId) async {
     try {
+      final endpoint = ApiConstants.getLoanOfficerByIdEndpoint(loanOfficerId);
+
       if (kDebugMode) {
         print('📡 Fetching current loan officer from API...');
         print('   ID: $loanOfficerId');
-        print('   URL: ${ApiConstants.getLoanOfficerByIdEndpoint(loanOfficerId)}');
+        print('   Endpoint: $endpoint');
+        print('   Base URL: ${_dio.options.baseUrl}');
+
+        // Check if auth token is available
+        try {
+          if (Get.isRegistered<AuthController>()) {
+            final authController = Get.find<AuthController>();
+            final token = authController.token;
+            if (token != null && token.isNotEmpty) {
+              print('   Auth Token: Present (${token.substring(0, 10)}...)');
+            } else {
+              print('   ⚠️ Auth Token: Missing or empty');
+            }
+          } else {
+            print('   ⚠️ AuthController: Not registered');
+          }
+        } catch (e) {
+          print('   ⚠️ Could not check auth token: $e');
+        }
       }
 
-      final response = await _dio.get(
-        ApiConstants.getLoanOfficerByIdEndpoint(loanOfficerId),
-        options: Options(
-          headers: ApiConstants.ngrokHeaders,
-        ),
-      );
+      final response = await _dio.get(endpoint);
 
       if (kDebugMode) {
         print('✅ Current loan officer response received');
@@ -241,7 +260,7 @@ class LoanOfficerService {
       }
 
       final Map<String, dynamic> responseMap =
-          response.data as Map<String, dynamic>;
+      response.data as Map<String, dynamic>;
 
       // Expecting: { success: true, loanOfficer: { ... } }
       final dynamic loanOfficerJson = responseMap['loanOfficer'] ?? responseMap['data'];
@@ -256,13 +275,18 @@ class LoanOfficerService {
 
       try {
         final loanOfficer =
-            LoanOfficerModel.fromJson(loanOfficerJson as Map<String, dynamic>);
+        LoanOfficerModel.fromJson(loanOfficerJson as Map<String, dynamic>);
+
+        // Build full URLs for profile picture and company logo
+        final loanOfficerWithUrls = _buildImageUrls(loanOfficer);
 
         if (kDebugMode) {
-          print('✅ Successfully parsed current loan officer: ${loanOfficer.id}');
+          print('✅ Successfully parsed current loan officer: ${loanOfficerWithUrls.id}');
+          print('   Profile Image URL: ${loanOfficerWithUrls.profileImage ?? "Not set"}');
+          print('   Company Logo URL: ${loanOfficerWithUrls.companyLogoUrl ?? "Not set"}');
         }
 
-        return loanOfficer;
+        return loanOfficerWithUrls;
       } catch (e) {
         if (kDebugMode) {
           print('⚠️ Error parsing current loan officer: $e');
@@ -284,12 +308,12 @@ class LoanOfficerService {
         case DioExceptionType.sendTimeout:
         case DioExceptionType.receiveTimeout:
           errorMessage =
-              'Connection timeout. Please check your internet connection.';
+          'Connection timeout. Please check your internet connection.';
           statusCode = 408;
           break;
         case DioExceptionType.connectionError:
           errorMessage =
-              'Cannot connect to server. Please ensure the server is running.';
+          'Cannot connect to server. Please ensure the server is running.';
           break;
         case DioExceptionType.badResponse:
           statusCode = e.response?.statusCode;
@@ -337,27 +361,89 @@ class LoanOfficerService {
     }
   }
 
-  /// Records a search for a loan officer
-  /// Returns the response data
-  Future<Map<String, dynamic>?> recordSearch(String loanOfficerId, {String? loanOfficerName}) async {
-    if (kDebugMode) {
-      print('📊 recordSearch called with:');
-      print('   Loan Officer ID: $loanOfficerId');
-      print('   Loan Officer Name: $loanOfficerName');
+  /// Builds full URLs for profile images
+  LoanOfficerModel _buildImageUrls(LoanOfficerModel loanOfficer) {
+    String? profileImage = loanOfficer.profileImage;
+    if (profileImage != null && profileImage.isNotEmpty) {
+      if (!profileImage.startsWith('http://') && !profileImage.startsWith('https://')) {
+        // Build full URL with base URL
+        final baseUrl = ApiConstants.baseUrl;
+        profileImage = profileImage.startsWith('/')
+            ? '$baseUrl$profileImage'
+            : '$baseUrl/$profileImage';
+      }
     }
 
-    // Get loan officer name if not provided
-    String? name = loanOfficerName;
-    if (name == null || name.isEmpty) {
-      // Try to get name from cached loan officers if available
-      // For now, we'll require the name to be passed
-      if (kDebugMode) {
-        print('⚠️ Loan officer name not provided, cannot record search');
+    String? companyLogoUrl = loanOfficer.companyLogoUrl;
+    if (companyLogoUrl != null && companyLogoUrl.isNotEmpty) {
+      if (!companyLogoUrl.startsWith('http://') && !companyLogoUrl.startsWith('https://')) {
+        // Build full URL with base URL
+        final baseUrl = ApiConstants.baseUrl;
+        companyLogoUrl = companyLogoUrl.startsWith('/')
+            ? '$baseUrl$companyLogoUrl'
+            : '$baseUrl/$companyLogoUrl';
       }
+    }
+
+    return loanOfficer.copyWith(
+      profileImage: profileImage,
+      companyLogoUrl: companyLogoUrl,
+    );
+  }
+
+  // Cache to prevent duplicate API calls within a short time window
+  final Map<String, DateTime> _searchCallCache = {};
+  final Map<String, DateTime> _profileViewCallCache = {};
+  final Map<String, DateTime> _contactCallCache = {};
+  static const Duration _cacheDuration = Duration(minutes: 5); // Cache for 5 minutes
+
+  // Track 404 errors to reduce logging noise
+  static bool _hasLogged404ForSearch = false;
+  static bool _hasLogged404ForProfileView = false;
+  static bool _hasLogged404ForContact = false;
+
+  /// Records a search appearance for a loan officer
+  /// Returns the response data
+  Future<Map<String, dynamic>?> recordSearch(String loanOfficerId, {String? loanOfficerName}) async {
+    if (loanOfficerId.isEmpty) {
       return null;
     }
-    
-    if (name.isEmpty) {
+
+    // Get loan officer name - use provided name or fetch by ID
+    String? name = loanOfficerName?.trim();
+    if (kDebugMode) {
+      print('📊 LoanOfficerService.recordSearch called with:');
+      print('   Loan Officer ID: $loanOfficerId');
+      print('   Loan Officer Name provided: ${loanOfficerName ?? "null"}');
+    }
+
+    if (name == null || name.isEmpty) {
+      if (kDebugMode) {
+        print('📊 Loan officer name not provided, fetching by ID: $loanOfficerId');
+      }
+      try {
+        // Try to get loan officer by ID to get the name
+        final loanOfficer = await getCurrentLoanOfficer(loanOfficerId);
+        name = loanOfficer.name.trim();
+        if (kDebugMode) {
+          if (name.isNotEmpty) {
+            print('✅ Fetched loan officer name: "$name" for ID: $loanOfficerId');
+          } else {
+            print('⚠️ Loan officer found but name is empty for ID: $loanOfficerId');
+          }
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          print('❌ Could not fetch loan officer name for ID: $loanOfficerId - $e');
+        }
+      }
+    } else {
+      if (kDebugMode) {
+        print('✅ Using provided loan officer name: "$name" for ID: $loanOfficerId');
+      }
+    }
+
+    if (name == null || name.isEmpty) {
       if (kDebugMode) {
         print('❌ Cannot record search: Loan officer name not available for ID: $loanOfficerId');
         print('   Skipping search recording - API requires loan officer name, not ID');
@@ -374,10 +460,10 @@ class LoanOfficerService {
         return null;
       }
     }
-    
+
     // Update cache
     _searchCallCache[name] = now;
-    
+
     // Clean old cache entries (keep only last 100)
     if (_searchCallCache.length > 100) {
       final entries = _searchCallCache.entries.toList()
@@ -388,12 +474,11 @@ class LoanOfficerService {
       }
     }
 
-    // Use loan officer name in the endpoint instead of ID
+    // Use loan officer name in the endpoint (following agent pattern)
     // URL encode the name to handle spaces and special characters
-    // Use the same agent endpoint for loan officers
     final encodedName = Uri.encodeComponent(name);
-    final endpoint = ApiConstants.getAddSearchEndpoint(encodedName);
-    
+    final endpoint = '${ApiConstants.apiBaseUrl}/loan-officers/addSearch/$encodedName';
+
     if (kDebugMode) {
       print('📊 Recording search for loan officer: "$name" (ID: $loanOfficerId)');
       print('   Encoded name: $encodedName');
@@ -439,7 +524,7 @@ class LoanOfficerService {
       if (e.response?.statusCode == 404 && _hasLogged404ForSearch) {
         return null;
       }
-      
+
       if (kDebugMode && (!_hasLogged404ForSearch || e.response?.statusCode != 404)) {
         print('⚠️ Error recording search for loan officer: $name');
         print('   Status Code: ${e.response?.statusCode}');
@@ -473,20 +558,19 @@ class LoanOfficerService {
         return null;
       }
     }
-    
+
     // Update cache
     _contactCallCache[loanOfficerId] = now;
 
-    // Use the same agent endpoint for loan officers
-    final endpoint = ApiConstants.getAddContactEndpoint(loanOfficerId);
-    
+    final endpoint = '${ApiConstants.apiBaseUrl}/loan-officers/addContact/$loanOfficerId';
+
     if (kDebugMode && !_hasLogged404ForContact) {
       print('📞 Recording contact for loan officer: $loanOfficerId');
       print('   URL: $endpoint');
     }
 
     try {
-      // API expects GET request, not POST
+      // API expects GET request, not POST (following agent pattern)
       final response = await _dio.get(
         endpoint,
         options: Options(
@@ -522,7 +606,7 @@ class LoanOfficerService {
       if (e.response?.statusCode == 404 && _hasLogged404ForContact) {
         return null;
       }
-      
+
       if (kDebugMode && (!_hasLogged404ForContact || e.response?.statusCode != 404)) {
         print('⚠️ Error recording contact for loan officer: $loanOfficerId');
         print('   Status Code: ${e.response?.statusCode}');
@@ -547,11 +631,12 @@ class LoanOfficerService {
       return null;
     }
 
-    // Prevent duplicate calls within cache duration
+    // Check cache to prevent duplicate calls
     final now = DateTime.now();
     if (_profileViewCallCache.containsKey(loanOfficerId)) {
       final lastCall = _profileViewCallCache[loanOfficerId]!;
       if (now.difference(lastCall) < _cacheDuration) {
+        // Already called recently, skip
         return null;
       }
     }
@@ -559,19 +644,19 @@ class LoanOfficerService {
     // Update cache
     _profileViewCallCache[loanOfficerId] = now;
 
-    final endpoint = ApiConstants.getAddProfileViewEndpoint(loanOfficerId);
+    final endpoint = '${ApiConstants.apiBaseUrl}/loan-officers/addProfileView/$loanOfficerId';
 
     if (kDebugMode && !_hasLogged404ForProfileView) {
-      print('👁️ Recording profile view (GET) for loan officer: $loanOfficerId');
+      print('👁️ Recording profile view for loan officer: $loanOfficerId');
       print('   URL: $endpoint');
     }
 
     try {
-      final response = await _dio.get(
+      final response = await _dio.post(
         endpoint,
         options: Options(
           headers: ApiConstants.ngrokHeaders,
-          validateStatus: (status) => true, // handle manually
+          validateStatus: (status) => true,
         ),
       );
 
@@ -580,31 +665,31 @@ class LoanOfficerService {
           print('✅ Profile view recorded successfully for loan officer: $loanOfficerId');
         }
         return response.data as Map<String, dynamic>?;
-      }
-
-      if (response.statusCode == 404) {
-        // Log once, then suppress
+      } else if (response.statusCode == 404) {
+        // Endpoint doesn't exist - log once and suppress future logs
         if (kDebugMode && !_hasLogged404ForProfileView) {
-          print('⚠️ Profile view endpoint not found (404)');
+          print('⚠️ Profile view endpoint not found (404) - endpoint may not exist on server');
           print('   Endpoint: $endpoint');
+          print('   Future 404 errors for this endpoint will be suppressed');
           _hasLogged404ForProfileView = true;
         }
         return null;
+      } else {
+        if (kDebugMode) {
+          print('⚠️ Profile view recording failed for loan officer: $loanOfficerId');
+          print('   Status Code: ${response.statusCode}');
+          print('   Response: ${response.data}');
+        }
+        return null;
       }
-
-      if (kDebugMode) {
-        print('⚠️ Profile view recording failed');
-        print('   Status Code: ${response.statusCode}');
-        print('   Response: ${response.data}');
-      }
-      return null;
     } on DioException catch (e) {
+      // Suppress 404 errors after first log
       if (e.response?.statusCode == 404 && _hasLogged404ForProfileView) {
         return null;
       }
 
       if (kDebugMode && (!_hasLogged404ForProfileView || e.response?.statusCode != 404)) {
-        print('⚠️ Error recording profile view');
+        print('⚠️ Error recording profile view for loan officer: $loanOfficerId');
         print('   Status Code: ${e.response?.statusCode}');
         print('   Response: ${e.response?.data}');
         if (e.response?.statusCode == 404) {
@@ -625,8 +710,6 @@ class LoanOfficerService {
     _dio.close();
   }
 }
-
-
 
 
 

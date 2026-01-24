@@ -198,15 +198,14 @@ class LoanOfficerZipCodeService {
           print('   Zip codes count: ${zipCodesList.length}');
         }
 
-        // Parse zip codes and filter by claimedByOfficer == false and population >= 10
+        // Include ALL zip codes (claimedByOfficer true and false). When true, show "Join waiting list".
+        // Only exclude very low population zips.
         final List<LoanOfficerZipCodeModel> zipCodes = [];
         for (final zipCodeData in zipCodesList) {
           try {
             if (zipCodeData is Map<String, dynamic>) {
               final zipCode = LoanOfficerZipCodeModel.fromJson(zipCodeData);
-              
-              // Only include zip codes where claimedByOfficer is false and population >= 10
-              if (!zipCode.claimedByOfficer && zipCode.population >= 10) {
+              if (zipCode.population >= 10) {
                 zipCodes.add(zipCode);
               }
             }
@@ -214,12 +213,11 @@ class LoanOfficerZipCodeService {
             if (kDebugMode) {
               print('⚠️ Failed to parse zip code: $e');
             }
-            // Continue processing other zip codes
           }
         }
 
         if (kDebugMode) {
-          print('✅ Parsed ${zipCodes.length} available zip codes (filtered by claimedByOfficer == false)');
+          print('✅ Parsed ${zipCodes.length} zip codes (includes claimed-by-other for waiting list)');
         }
 
         return zipCodes;
