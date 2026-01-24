@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:get/get.dart';
@@ -8,15 +7,8 @@ class SocketService extends GetxService {
   IO.Socket? _socket;
   final _isConnected = false.obs;
   final _isConnecting = false.obs;
-  Timer? _reconnectTimer;
-  Timer? _healthCheckTimer;
-  int _reconnectAttempts = 0;
-  static const int _maxReconnectAttempts = 10;
-  static const Duration _reconnectDelay = Duration(seconds: 3);
-  static const Duration _healthCheckInterval = Duration(seconds: 30);
 
-  // Check actual socket state, not just reactive value
-  bool get isConnected => _socket?.connected == true;
+  bool get isConnected => _isConnected.value;
   bool get isConnecting => _isConnecting.value;
   IO.Socket? get socket => _socket;
 
@@ -26,49 +18,6 @@ class SocketService extends GetxService {
     if (kDebugMode) {
       print('🔌 SocketService initialized');
     }
-    _startHealthCheck();
-  }
-
-  /// Starts periodic health check to ensure connection is maintained
-  void _startHealthCheck() {
-    _healthCheckTimer?.cancel();
-    _healthCheckTimer = Timer.periodic(_healthCheckInterval, (timer) {
-      if (_currentUserId != null && !isConnected && !_isConnecting.value) {
-        if (kDebugMode) {
-          print('🔍 Health check: Socket disconnected, attempting reconnect...');
-        }
-        _attemptReconnect();
-      } else if (isConnected) {
-        // Sync reactive value with actual socket state
-        if (!_isConnected.value) {
-          _isConnected.value = true;
-        }
-      }
-    });
-  }
-
-  /// Attempts to reconnect to the socket server
-  Future<void> _attemptReconnect() async {
-    if (_isConnecting.value) {
-      return;
-    }
-
-    if (_reconnectAttempts >= _maxReconnectAttempts) {
-      if (kDebugMode) {
-        print('❌ Max reconnection attempts reached. Stopping reconnection.');
-      }
-      _reconnectTimer?.cancel();
-      return;
-    }
-
-    _reconnectAttempts++;
-    if (kDebugMode) {
-      print('🔄 Attempting reconnection (attempt $_reconnectAttempts/$_maxReconnectAttempts)...');
-    }
-
-    if (_currentUserId != null) {
-      await connect(_currentUserId!);
-    }
   }
 
   /// Connects to the socket server
@@ -77,11 +26,8 @@ class SocketService extends GetxService {
       if (kDebugMode) {
         print('✅ Socket already connected');
       }
-      // Sync reactive value
-      _isConnected.value = true;
-      // Re-emit user_online in case server needs it
-      _socket!.emit('user_online', userId);
-      _reconnectAttempts = 0; // Reset attempts on successful connection
+      // Re-emit userConnected in case server needs it
+      _socket!.emit('userConnected', userId);
       return;
     }
 
@@ -123,8 +69,8 @@ class SocketService extends GetxService {
             .disableAutoConnect() // We'll connect manually after setting up listeners
             .enableReconnection()
             .setReconnectionDelay(1000)
-            .setReconnectionDelayMax(10000) // Increased max delay
-            .setReconnectionAttempts(999) // Unlimited attempts (we handle it ourselves)
+            .setReconnectionDelayMax(5000)
+            .setReconnectionAttempts(5)
             .setTimeout(20000)
             .setExtraHeaders({
               if (ApiConstants.ngrokHeaders.containsKey('ngrok-skip-browser-warning'))
@@ -154,21 +100,7 @@ class SocketService extends GetxService {
       _socket!.connect();
       
       // Wait a moment for connection to establish
-      await Future.delayed(const Duration(milliseconds: 1000));
-      
-      // Verify connection after delay
-      if (_socket?.connected == true) {
-        _isConnected.value = true;
-        _reconnectAttempts = 0; // Reset on successful connection
-        if (kDebugMode) {
-          print('✅ Socket connection verified');
-        }
-      } else {
-        _isConnected.value = false;
-        if (kDebugMode) {
-          print('⚠️ Socket connection not established after delay');
-        }
-      }
+      await Future.delayed(const Duration(milliseconds: 500));
       
     } catch (e) {
       _isConnected.value = false;
@@ -176,20 +108,6 @@ class SocketService extends GetxService {
       if (kDebugMode) {
         print('❌ Failed to initialize socket: $e');
       }
-      // Schedule reconnection attempt
-      _scheduleReconnect();
-    } finally {
-      _isConnecting.value = false;
-    }
-  }
-
-  /// Schedules a reconnection attempt
-  void _scheduleReconnect() {
-    _reconnectTimer?.cancel();
-    if (_reconnectAttempts < _maxReconnectAttempts && _currentUserId != null) {
-      _reconnectTimer = Timer(_reconnectDelay, () {
-        _attemptReconnect();
-      });
     }
   }
 
@@ -203,8 +121,6 @@ class SocketService extends GetxService {
     _socket!.onConnect((_) {
       _isConnected.value = true;
       _isConnecting.value = false;
-      _reconnectAttempts = 0; // Reset attempts on successful connection
-      _reconnectTimer?.cancel(); // Cancel any pending reconnection
       if (kDebugMode) {
         print('✅ Socket connected successfully');
         print('   Socket ID: ${_socket!.id}');
@@ -230,10 +146,6 @@ class SocketService extends GetxService {
         print('   Reason: $reason');
         print('   Socket ID: ${_socket?.id ?? "N/A"}');
       }
-      // Schedule reconnection attempt if we have a userId
-      if (_currentUserId != null) {
-        _scheduleReconnect();
-      }
     });
 
     // Error event
@@ -244,10 +156,6 @@ class SocketService extends GetxService {
         print('❌ Socket error occurred');
         print('   Error: $error');
         print('   Type: ${error.runtimeType}');
-      }
-      // Schedule reconnection attempt if we have a userId
-      if (_currentUserId != null && _socket?.connected != true) {
-        _scheduleReconnect();
       }
     });
 
@@ -261,15 +169,11 @@ class SocketService extends GetxService {
         print('   Server URL: ${ApiConstants.socketUrl}');
         print('   User ID: $userId');
       }
-      // Schedule reconnection attempt
-      _scheduleReconnect();
     });
 
     // Reconnection events
     _socket!.onReconnect((attemptNumber) {
       _isConnected.value = true;
-      _reconnectAttempts = 0; // Reset attempts on successful reconnect
-      _reconnectTimer?.cancel(); // Cancel any pending reconnection
       if (kDebugMode) {
         print('🔄 Socket reconnected');
         print('   Attempt number: $attemptNumber');
@@ -292,17 +196,6 @@ class SocketService extends GetxService {
       if (_unreadCountCallback != null) {
         onUnreadCountUpdated(_unreadCountCallback!);
       }
-      
-      // Notify reconnection callback
-      if (_onReconnectCallback != null) {
-        try {
-          _onReconnectCallback!();
-        } catch (e) {
-          if (kDebugMode) {
-            print('❌ Error in reconnection callback: $e');
-          }
-        }
-      }
     });
 
     _socket!.onReconnectAttempt((_) {
@@ -322,10 +215,6 @@ class SocketService extends GetxService {
       _isConnecting.value = false;
       if (kDebugMode) {
         print('❌ Reconnection failed');
-      }
-      // Try our own reconnection logic
-      if (_currentUserId != null) {
-        _scheduleReconnect();
       }
     });
   }
@@ -409,7 +298,6 @@ class SocketService extends GetxService {
   Function(Map<String, dynamic>)? _newMessageCallback;
   Function(Map<String, dynamic>)? _newThreadCallback;
   Function(Map<String, dynamic>)? _unreadCountCallback;
-  VoidCallback? _onReconnectCallback;
 
   /// Listens for new messages
   void onNewMessage(Function(Map<String, dynamic>) callback) {
@@ -570,11 +458,6 @@ class SocketService extends GetxService {
     }
   }
 
-  /// Sets a callback to be called when socket reconnects
-  void onReconnect(VoidCallback callback) {
-    _onReconnectCallback = callback;
-  }
-
   /// Removes a listener
   void off(String event) {
     _socket?.off(event);
@@ -582,9 +465,6 @@ class SocketService extends GetxService {
 
   /// Disconnects from the socket server
   void disconnect() {
-    _reconnectTimer?.cancel();
-    _reconnectAttempts = 0;
-    _currentUserId = null;
     if (_socket != null) {
       _socket!.disconnect();
       _socket!.dispose();
@@ -599,10 +479,7 @@ class SocketService extends GetxService {
 
   @override
   void onClose() {
-    _healthCheckTimer?.cancel();
-    _reconnectTimer?.cancel();
     disconnect();
     super.onClose();
   }
 }
-

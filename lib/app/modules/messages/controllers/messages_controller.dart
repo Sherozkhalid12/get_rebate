@@ -437,19 +437,6 @@ class MessagesController extends GetxController {
         _handleUnreadCountUpdate(data);
       });
 
-      // Listen for reconnection events to rejoin active conversation room
-      _socketService!.onReconnect(() {
-        if (kDebugMode) {
-          print('🔄 Socket reconnected, rejoining active conversation room...');
-        }
-        if (_selectedConversation.value != null && _socketService!.isConnected) {
-          _socketService!.joinRoom(_selectedConversation.value!.id);
-          if (kDebugMode) {
-            print('🚪 Rejoined conversation room: ${_selectedConversation.value!.id}');
-          }
-        }
-      });
-
       if (kDebugMode) {
         print('✅ All socket listeners registered');
       }
@@ -459,7 +446,7 @@ class MessagesController extends GetxController {
       await _socketService!.connect(user.id);
 
       // Wait a bit to ensure connection is established
-      await Future.delayed(const Duration(milliseconds: 1000));
+      await Future.delayed(const Duration(milliseconds: 500));
 
       if (kDebugMode) {
         print('✅ Socket initialization complete');
@@ -472,14 +459,6 @@ class MessagesController extends GetxController {
           print('   Socket connected: ${_socketService!.socket!.connected}');
         } else {
           print('   Socket exists: false');
-        }
-      }
-
-      // Rejoin active conversation room if socket is connected
-      if (_socketService!.isConnected && _selectedConversation.value != null) {
-        _socketService!.joinRoom(_selectedConversation.value!.id);
-        if (kDebugMode) {
-          print('🚪 Rejoined conversation room: ${_selectedConversation.value!.id}');
         }
       }
     } catch (e) {
