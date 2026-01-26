@@ -22,13 +22,38 @@ class SocketService extends GetxService {
 
   /// Connects to the socket server
   Future<void> connect(String userId) async {
-    if (_socket?.connected == true) {
+    // Check if already connected for the same user
+    if (_socket?.connected == true && _currentUserId == userId) {
       if (kDebugMode) {
-        print('✅ Socket already connected');
+        print('✅ Socket already connected for user: $userId');
       }
-      // Re-emit userConnected in case server needs it
-      _socket!.emit('userConnected', userId);
+      // Re-emit user_online in case server needs it
+      try {
+        _socket!.emit('user_online', userId);
+      } catch (e) {
+        if (kDebugMode) {
+          print('⚠️ Error re-emitting user_online: $e');
+        }
+      }
       return;
+    }
+
+    // If connecting for different user, disconnect first
+    if (_socket != null && _currentUserId != null && _currentUserId != userId) {
+      if (kDebugMode) {
+        print('🔄 Different user detected, disconnecting old socket...');
+        print('   Old user: $_currentUserId');
+        print('   New user: $userId');
+      }
+      try {
+        _socket!.disconnect();
+        _socket!.dispose();
+        _socket = null;
+      } catch (e) {
+        if (kDebugMode) {
+          print('⚠️ Error disconnecting old socket: $e');
+        }
+      }
     }
 
     if (_isConnecting.value) {
@@ -49,10 +74,16 @@ class SocketService extends GetxService {
       // Store userId for reconnection
       _currentUserId = userId;
 
-      // Disconnect existing socket if any
+      // Disconnect existing socket if any (safety check)
       if (_socket != null) {
-        _socket!.disconnect();
-        _socket!.dispose();
+        try {
+          _socket!.disconnect();
+          _socket!.dispose();
+        } catch (e) {
+          if (kDebugMode) {
+            print('⚠️ Error disposing old socket: $e');
+          }
+        }
         _socket = null;
       }
 
@@ -102,11 +133,33 @@ class SocketService extends GetxService {
       // Wait a moment for connection to establish
       await Future.delayed(const Duration(milliseconds: 500));
       
+      // Verify connection
+      if (!_socket!.connected && !_isConnecting.value) {
+        if (kDebugMode) {
+          print('⚠️ Socket connection may have failed, checking status...');
+        }
+        // Connection might still be in progress, wait a bit more
+        await Future.delayed(const Duration(milliseconds: 1000));
+      }
+      
     } catch (e) {
       _isConnected.value = false;
       _isConnecting.value = false;
       if (kDebugMode) {
         print('❌ Failed to initialize socket: $e');
+        print('   Stack trace: ${StackTrace.current}');
+      }
+      // Clear socket on error
+      try {
+        if (_socket != null) {
+          _socket!.disconnect();
+          _socket!.dispose();
+          _socket = null;
+        }
+      } catch (disposeError) {
+        if (kDebugMode) {
+          print('⚠️ Error disposing socket after error: $disposeError');
+        }
       }
     }
   }
@@ -129,11 +182,37 @@ class SocketService extends GetxService {
       }
       
       // Notify server that user is connected (matching HTML tester)
-      _socket!.emit('user_online', userId);
-      if (kDebugMode) {
-        print('📤 Emitted user_online event');
-        print('   Event: user_online');
-        print('   Payload: $userId');
+      try {
+        _socket!.emit('user_online', userId);
+        if (kDebugMode) {
+          print('📤 Emitted user_online event');
+          print('   Event: user_online');
+          print('   Payload: $userId');
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          print('❌ Error emitting user_online: $e');
+        }
+      }
+      
+      // Ensure listeners are registered after connection
+      try {
+        if (_newMessageCallback != null) {
+          onNewMessage(_newMessageCallback!);
+        }
+        if (_newThreadCallback != null) {
+          onNewThread(_newThreadCallback!);
+        }
+        if (_unreadCountCallback != null) {
+          onUnreadCountUpdated(_unreadCountCallback!);
+        }
+        if (kDebugMode) {
+          print('✅ Verified listeners are registered after connection');
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          print('❌ Error verifying listeners after connection: $e');
+        }
       }
     });
 
@@ -174,6 +253,7 @@ class SocketService extends GetxService {
     // Reconnection events
     _socket!.onReconnect((attemptNumber) {
       _isConnected.value = true;
+      _isConnecting.value = false;
       if (kDebugMode) {
         print('🔄 Socket reconnected');
         print('   Attempt number: $attemptNumber');
@@ -186,15 +266,30 @@ class SocketService extends GetxService {
         }
       }
       
-      // Re-register listeners after reconnect
-      if (_newMessageCallback != null) {
-        onNewMessage(_newMessageCallback!);
-      }
-      if (_newThreadCallback != null) {
-        onNewThread(_newThreadCallback!);
-      }
-      if (_unreadCountCallback != null) {
-        onUnreadCountUpdated(_unreadCountCallback!);
+      // Re-register listeners after reconnect to ensure they're active
+      try {
+        if (_newMessageCallback != null) {
+          onNewMessage(_newMessageCallback!);
+          if (kDebugMode) {
+            print('✅ Re-registered newMessage listener after reconnect');
+          }
+        }
+        if (_newThreadCallback != null) {
+          onNewThread(_newThreadCallback!);
+          if (kDebugMode) {
+            print('✅ Re-registered newThread listener after reconnect');
+          }
+        }
+        if (_unreadCountCallback != null) {
+          onUnreadCountUpdated(_unreadCountCallback!);
+          if (kDebugMode) {
+            print('✅ Re-registered unreadCountUpdated listener after reconnect');
+          }
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          print('❌ Error re-registering listeners after reconnect: $e');
+        }
       }
     });
 

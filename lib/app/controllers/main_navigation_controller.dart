@@ -16,6 +16,7 @@ import 'package:getrebate/app/modules/profile/views/profile_view.dart';
 import 'package:getrebate/app/modules/profile/bindings/profile_binding.dart';
 import 'package:getrebate/app/modules/notifications/bindings/notifications_binding.dart';
 import 'package:getrebate/app/modules/notifications/controllers/notifications_controller.dart';
+import 'package:getrebate/app/modules/messages/controllers/messages_controller.dart';
 // import 'package:getrebate/app/modules/property_listings/bindings/property_listings_binding.dart';
 import 'package:circle_nav_bar/circle_nav_bar.dart';
 
@@ -125,6 +126,39 @@ class MainNavigationController extends GetxController {
     ProfileBinding().dependencies();
     // Initialize notifications controller globally
     NotificationsBinding().dependencies();
+    
+    // Initialize socket connection early so messages are received even when not in messages screen
+    _initializeSocketEarly();
+  }
+  
+  /// Initializes socket connection early so messages are received on home screen
+  void _initializeSocketEarly() {
+    // Wait a bit for bindings to initialize
+    Future.delayed(const Duration(milliseconds: 800), () {
+      try {
+        if (Get.isRegistered<MessagesController>()) {
+          final messagesController = Get.find<MessagesController>();
+          // Force initialization if not already done
+          // This ensures socket connects and joins all rooms even when not in messages screen
+          if (kDebugMode) {
+            print('🔌 Initializing socket early from MainNavigationController');
+          }
+          // The MessagesController.onInit will handle initialization
+          // But we can also ensure threads are loaded and rooms are joined
+          if (!messagesController.isLoadingThreads && messagesController.allConversations.isEmpty) {
+            messagesController.loadThreads();
+          }
+        } else {
+          if (kDebugMode) {
+            print('⚠️ MessagesController not registered yet, will initialize when available');
+          }
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          print('❌ Error initializing socket early: $e');
+        }
+      }
+    });
   }
 
   Widget buildBottomNavigationBar() {
@@ -150,17 +184,42 @@ class MainNavigationController extends GetxController {
           print('⚠️ CircleNavBar: Corrected index from ${_currentIndex.value} to $safeIndex');
         }
         
+        // Get unread count for messages badge (reactive)
+        int unreadCount = 0;
+        try {
+          if (Get.isRegistered<MessagesController>()) {
+            final messagesController = Get.find<MessagesController>();
+            // Access allConversations to make this reactive
+            messagesController.allConversations; // This makes Obx reactive to changes
+            unreadCount = messagesController.totalUnreadCount;
+          }
+        } catch (e) {
+          if (kDebugMode) {
+            print('⚠️ Error getting unread count: $e');
+          }
+        }
+        
+        // Hide badge when user is on messages tab (index 2)
+        final isOnMessagesTab = safeIndex == 2;
+        final badgeUnreadCount = isOnMessagesTab ? 0 : unreadCount;
+        
         return CircleNavBar(
           activeIcons: [
             Icon(Icons.home, color: AppTheme.primaryBlue, size: 24.sp),      // Icon 0 -> Page 0: Home
             Icon(Icons.favorite, color: AppTheme.primaryBlue, size: 24.sp),  // Icon 1 -> Page 1: Favorites
-            Icon(Icons.message, color: AppTheme.primaryBlue, size: 24.sp),   // Icon 2 -> Page 2: Messages
+            _buildMessageIconWithBadge(
+              Icon(Icons.message, color: AppTheme.primaryBlue, size: 24.sp),
+              badgeUnreadCount,
+            ),   // Icon 2 -> Page 2: Messages
             Icon(Icons.person, color: AppTheme.primaryBlue, size: 24.sp),    // Icon 3 -> Page 3: Profile
           ],
           inactiveIcons: [
             Icon(Icons.home_outlined, color: AppTheme.mediumGray, size: 24.sp),      // Icon 0 -> Page 0: Home
             Icon(Icons.favorite_border, color: AppTheme.mediumGray, size: 24.sp),    // Icon 1 -> Page 1: Favorites
-            Icon(Icons.message_outlined, color: AppTheme.mediumGray, size: 24.sp),   // Icon 2 -> Page 2: Messages
+            _buildMessageIconWithBadge(
+              Icon(Icons.message_outlined, color: AppTheme.mediumGray, size: 24.sp),
+              badgeUnreadCount,
+            ),   // Icon 2 -> Page 2: Messages
             Icon(Icons.person_outline, color: AppTheme.mediumGray, size: 24.sp),     // Icon 3 -> Page 3: Profile
           ],
           color: Colors.white,
@@ -200,6 +259,46 @@ class MainNavigationController extends GetxController {
         );
       },
     );
+  }
+  
+  /// Builds message icon with badge showing unread count
+  Widget _buildMessageIconWithBadge(Widget icon, int unreadCount) {
+    if (unreadCount > 0) {
+      return Stack(
+        clipBehavior: Clip.none,
+        children: [
+          icon,
+          Positioned(
+            right: -6.w,
+            top: -6.h,
+            child: Container(
+              padding: EdgeInsets.symmetric(horizontal: 4.w, vertical: 2.h),
+              decoration: BoxDecoration(
+                color: Colors.red,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 1.5.w),
+              ),
+              constraints: BoxConstraints(
+                minWidth: 16.w,
+                minHeight: 16.h,
+              ),
+              child: Center(
+                child: Text(
+                  unreadCount > 99 ? '99+' : unreadCount.toString(),
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 9.sp,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+    return icon;
   }
   
   String _getPageName(int index) {

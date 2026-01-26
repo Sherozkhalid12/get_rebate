@@ -104,6 +104,26 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
         }),
         centerTitle: true,
         actions: [
+          Obx(() {
+            int unreadCount = 0;
+            try {
+              if (Get.isRegistered<MessagesController>()) {
+                final messagesController = Get.find<MessagesController>();
+                messagesController.allConversations; // Make reactive
+                unreadCount = messagesController.totalUnreadCount;
+              }
+            } catch (e) {
+              // Ignore errors
+            }
+            return IconButton(
+              icon: _buildMessageIconWithBadge(
+                const Icon(Icons.message, color: AppTheme.white),
+                unreadCount,
+              ),
+              onPressed: () => Get.toNamed('/messages'),
+              tooltip: 'Messages',
+            );
+          }),
           IconButton(
             icon: const Icon(Icons.logout, color: AppTheme.white),
             onPressed: () => _showLogoutDialog(context),
@@ -1007,6 +1027,46 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
     );
   }
   */
+
+  /// Builds message icon with badge showing unread count
+  Widget _buildMessageIconWithBadge(Widget icon, int unreadCount) {
+    if (unreadCount > 0) {
+      return Stack(
+        clipBehavior: Clip.none,
+        children: [
+          icon,
+          Positioned(
+            right: -6.w,
+            top: -6.h,
+            child: Container(
+              padding: EdgeInsets.symmetric(horizontal: 4.w, vertical: 2.h),
+              decoration: BoxDecoration(
+                color: Colors.red,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 1.5.w),
+              ),
+              constraints: BoxConstraints(
+                minWidth: 16.w,
+                minHeight: 16.h,
+              ),
+              child: Center(
+                child: Text(
+                  unreadCount > 99 ? '99+' : unreadCount.toString(),
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 9.sp,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+    return icon;
+  }
 
   void _showLogoutDialog(BuildContext context) {
     Get.dialog(

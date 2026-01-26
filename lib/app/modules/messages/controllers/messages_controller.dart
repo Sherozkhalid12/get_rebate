@@ -15,7 +15,7 @@ class MessageModel {
   final String id;
   final String senderId;
   final String senderName;
-  final String senderType; // 'agent', 'loan_officer', 'user'
+  final String senderType;
   final String? senderImage;
   final String message;
   final DateTime timestamp;
@@ -160,6 +160,14 @@ class MessagesController extends GetxController {
   bool get isLoadingMessages => _isLoadingMessages.value;
   String get searchQuery => _searchQuery.value;
   String? get error => _error.value;
+  
+  // Total unread count across all conversations
+  int get totalUnreadCount {
+    return _allConversations.fold<int>(
+      0,
+      (sum, conversation) => sum + conversation.unreadCount,
+    );
+  }
 
   // Check if current user is a loan officer
   bool get isLoanOfficer {
@@ -315,28 +323,47 @@ class MessagesController extends GetxController {
     if (_authController.isLoggedIn && _authController.currentUser != null) {
       final currentUserId = _authController.currentUser!.id;
       
-      // Check if this is a different user (account switch)
+      // Check if this is a different user (account switch) OR if not initialized yet
       final isDifferentUser = _hasInitialized && 
-          _socketService != null && 
-          _socketService!.socket != null &&
           _currentUserIdForSocket != null &&
           _currentUserIdForSocket != currentUserId;
       
-      if (!_hasInitialized || isDifferentUser) {
-        if (isDifferentUser) {
+      // Also check if socket service exists but is not connected (logout/login scenario)
+      final needsReinit = !_hasInitialized || 
+          isDifferentUser ||
+          _socketService == null ||
+          (!_socketService!.isConnected && !_socketService!.isConnecting);
+      
+      if (needsReinit) {
+        if (isDifferentUser || _socketService == null) {
           if (kDebugMode) {
-            print('🔄 Different user detected, reinitializing socket...');
-            print('   Previous user ID: $_currentUserIdForSocket');
-            print('   New user ID: $currentUserId');
+            if (isDifferentUser) {
+              print('🔄 Different user detected, reinitializing socket...');
+              print('   Previous user ID: $_currentUserIdForSocket');
+              print('   New user ID: $currentUserId');
+            } else {
+              print('🔄 Socket service not initialized, initializing now...');
+            }
           }
-          // Clear socket service for new user
+          // Clear socket service for new user or if not initialized
           if (_socketService != null) {
-            _socketService!.disconnect();
+            try {
+              _socketService!.disconnect();
+            } catch (e) {
+              if (kDebugMode) {
+                print('⚠️ Error disconnecting socket: $e');
+              }
+            }
             _socketService = null;
           }
           if (Get.isRegistered<SocketService>()) {
             try {
+              final existingService = Get.find<SocketService>();
+              existingService.disconnect();
               Get.delete<SocketService>(force: true);
+              if (kDebugMode) {
+                print('✅ Removed existing SocketService instance');
+              }
             } catch (e) {
               if (kDebugMode) {
                 print('⚠️ Error removing SocketService: $e');
@@ -345,6 +372,7 @@ class MessagesController extends GetxController {
           }
         }
         
+        // Reset initialization flags to ensure fresh start
         _hasInitialized = true;
         _currentUserIdForSocket = currentUserId;
         
@@ -408,12 +436,47 @@ class MessagesController extends GetxController {
     _isLoadingThreads.value = false;
     _isLoadingMessages.value = false;
     _previousMessageCount = 0;
+    
+    // CRITICAL: Reset initialization flags so socket reinitializes on next login
     _hasInitialized = false;
+    _currentUserIdForSocket = null;
+    
+    // Disconnect and clear socket service
     if (_socketService != null) {
-      _socketService!.disconnect();
+      try {
+        _socketService!.disconnect();
+        if (kDebugMode) {
+          print('✅ Disconnected socket service during logout');
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          print('⚠️ Error disconnecting socket during logout: $e');
+        }
+      }
       _socketService = null;
     }
+    
+    // Remove socket service from GetX
+    if (Get.isRegistered<SocketService>()) {
+      try {
+        final socketService = Get.find<SocketService>();
+        socketService.disconnect();
+        Get.delete<SocketService>(force: true);
+        if (kDebugMode) {
+          print('✅ Removed SocketService instance during logout');
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          print('⚠️ Error removing SocketService during logout: $e');
+        }
+      }
+    }
+    
     messageController.clear();
+    
+    if (kDebugMode) {
+      print('✅ MessagesController reset complete - ready for new login');
+    }
   }
 
   /// Initializes socket connection
@@ -431,12 +494,23 @@ class MessagesController extends GetxController {
         print('🔌 Initializing socket connection...');
         print('   User ID: ${user.id}');
         print('   Socket URL: ${ApiConstants.socketUrl}');
+        print('   Current user ID for socket: $_currentUserIdForSocket');
+      }
+
+      // Check if socket is already connected for this user
+      if (_socketService != null && 
+          _socketService!.isConnected && 
+          _currentUserIdForSocket == user.id) {
+        if (kDebugMode) {
+          print('✅ Socket already connected for this user');
+        }
+        return;
       }
 
       // Get or create socket service
       // Always create a fresh instance for new user to avoid stale connections
       if (Get.isRegistered<SocketService>()) {
-        // Remove existing instance if it exists (from previous user)
+        // Remove existing instance if it exists (from previous user or failed connection)
         try {
           final existingService = Get.find<SocketService>();
           existingService.disconnect();
@@ -458,65 +532,124 @@ class MessagesController extends GetxController {
         print('✅ Created new SocketService instance for user: ${user.id}');
       }
 
-      // Register listeners FIRST (before connecting)
-      // This ensures we don't miss any events
+      // Connect to socket first - this creates the socket
+      await _socketService!.connect(user.id);
+      
+      // Update current user ID tracking
+      _currentUserIdForSocket = user.id;
+      
+      // Wait a bit for socket to be created
+      await Future.delayed(const Duration(milliseconds: 300));
+
+      // NOW register listeners AFTER socket is created
+      // This ensures the socket exists when we register listeners
       if (kDebugMode) {
-        print('📡 Registering socket event listeners BEFORE connecting...');
+        print('📡 Registering socket event listeners AFTER socket creation...');
       }
 
-      // Listen for new messages - register BEFORE connecting
+      // Listen for new messages
       _socketService!.onNewMessage((data) {
-        if (kDebugMode) {
-          print('📨 onNewMessage callback triggered');
+        try {
+          if (kDebugMode) {
+            print('📨 onNewMessage callback triggered');
+          }
+          _handleNewMessage(data);
+        } catch (e) {
+          if (kDebugMode) {
+            print('❌ Error in onNewMessage callback: $e');
+            print('   Stack trace: ${StackTrace.current}');
+          }
         }
-        _handleNewMessage(data);
       });
 
       // Listen for new threads
       _socketService!.onNewThread((data) {
-        if (kDebugMode) {
-          print('💬 onNewThread callback triggered');
+        try {
+          if (kDebugMode) {
+            print('💬 onNewThread callback triggered');
+          }
+          _handleNewThread(data);
+        } catch (e) {
+          if (kDebugMode) {
+            print('❌ Error in onNewThread callback: $e');
+            print('   Stack trace: ${StackTrace.current}');
+          }
         }
-        _handleNewThread(data);
       });
 
       // Listen for unread count updates
       _socketService!.onUnreadCountUpdated((data) {
-        if (kDebugMode) {
-          print('🔔 onUnreadCountUpdated callback triggered');
+        try {
+          if (kDebugMode) {
+            print('🔔 onUnreadCountUpdated callback triggered');
+          }
+          _handleUnreadCountUpdate(data);
+        } catch (e) {
+          if (kDebugMode) {
+            print('❌ Error in onUnreadCountUpdated callback: $e');
+            print('   Stack trace: ${StackTrace.current}');
+          }
         }
-        _handleUnreadCountUpdate(data);
       });
 
       if (kDebugMode) {
         print('✅ All socket listeners registered');
       }
 
-      // NOW connect to socket (listeners are already set up)
-      // The connect() method will create the socket and register the listeners
-      await _socketService!.connect(user.id);
-
       // Wait a bit to ensure connection is established
-      await Future.delayed(const Duration(milliseconds: 500));
+      await Future.delayed(const Duration(milliseconds: 200));
 
-      if (kDebugMode) {
-        print('✅ Socket initialization complete');
-        print('   Connected: ${_socketService!.isConnected}');
-        print('   Socket ID: ${_socketService!.socket?.id ?? "N/A"}');
-
-        // Verify listeners are registered
-        if (_socketService!.socket != null) {
-          print('   Socket exists: true');
-          print('   Socket connected: ${_socketService!.socket!.connected}');
-        } else {
-          print('   Socket exists: false');
+      // Verify connection
+      if (_socketService!.isConnected) {
+        if (kDebugMode) {
+          print('✅ Socket initialization complete');
+          print('   Connected: ${_socketService!.isConnected}');
+          print('   Socket ID: ${_socketService!.socket?.id ?? "N/A"}');
         }
+        // Join all thread rooms after connection is established
+        // Wait a bit more to ensure connection is fully ready
+        Future.delayed(const Duration(milliseconds: 300), () {
+          _joinAllThreadRooms();
+          // Also ensure threads are loaded if not already
+          if (_allConversations.isEmpty && !_isLoadingThreads.value) {
+            loadThreads();
+          }
+        });
+      } else {
+        if (kDebugMode) {
+          print('⚠️ Socket initialization completed but not connected');
+          print('   Connected: ${_socketService!.isConnected}');
+          print('   Socket exists: ${_socketService!.socket != null}');
+          print('   Socket connected: ${_socketService!.socket?.connected ?? false}');
+        }
+        // Try to reconnect after a delay
+        Future.delayed(const Duration(seconds: 2), () {
+          if (_socketService != null && !_socketService!.isConnected) {
+            if (kDebugMode) {
+              print('🔄 Attempting to reconnect socket...');
+            }
+            _initializeSocket();
+          }
+        });
       }
     } catch (e) {
       if (kDebugMode) {
         print('❌ Error initializing socket: $e');
         print('   Stack trace: ${StackTrace.current}');
       }
+      
+      // Try to reconnect after a delay on error
+      Future.delayed(const Duration(seconds: 3), () {
+        final currentUser = _authController.currentUser;
+        if (currentUser != null && 
+            currentUser.id.isNotEmpty &&
+            (_socketService == null || !_socketService!.isConnected)) {
+          if (kDebugMode) {
+            print('🔄 Retrying socket initialization after error...');
+          }
+          _initializeSocket();
+        }
+      });
     }
   }
 
@@ -602,18 +735,23 @@ class MessagesController extends GetxController {
               ? existingConversation.unreadCount
               : existingConversation.unreadCount + 1,
         );
-        _allConversations[conversationIndex] = updatedConversation;
-        _allConversations.sort(
+        // Use reactive update to trigger UI updates
+        final updatedAll = List<ConversationModel>.from(_allConversations);
+        updatedAll[conversationIndex] = updatedConversation;
+        updatedAll.sort(
           (a, b) => b.lastMessageTime.compareTo(a.lastMessageTime),
         );
+        _allConversations.value = updatedAll;
 
         // Also update in filtered conversations list
         final filteredIndex = _conversations.indexWhere((c) => c.id == chatId);
         if (filteredIndex != -1) {
-          _conversations[filteredIndex] = updatedConversation;
-          _conversations.sort(
+          final updatedFiltered = List<ConversationModel>.from(_conversations);
+          updatedFiltered[filteredIndex] = updatedConversation;
+          updatedFiltered.sort(
             (a, b) => b.lastMessageTime.compareTo(a.lastMessageTime),
           );
+          _conversations.value = updatedFiltered;
         }
 
         if (kDebugMode) {
@@ -759,10 +897,72 @@ class MessagesController extends GetxController {
   /// Handles new thread from socket
   void _handleNewThread(Map<String, dynamic> data) {
     try {
-      // Refresh threads to get the new one
-      refreshThreads();
+      if (kDebugMode) {
+        print('💬 Handling new thread from socket');
+        print('   Data: $data');
+        print('   Current conversations count: ${_allConversations.length}');
+        print('   Is loading threads: ${_isLoadingThreads.value}');
+      }
+
+      // Extract thread ID if available for immediate room joining
+      final threadId = data['threadId']?.toString() ?? 
+                       data['id']?.toString() ?? 
+                       data['_id']?.toString() ?? '';
+
+      // Always refresh threads immediately when new thread arrives
+      // This ensures we get the complete thread data from the API
+      // and all rooms are properly joined
+      if (kDebugMode) {
+        print('🔄 Refreshing threads immediately to get new thread data');
+      }
+      
+      // Force load threads even if already loading (new thread takes priority)
+      // Use microtask to ensure it runs after current execution
+      Future.microtask(() async {
+        // If already loading, wait for it to complete first
+        if (_isLoadingThreads.value) {
+          if (kDebugMode) {
+            print('⏳ Threads already loading, waiting for completion...');
+          }
+          // Wait up to 3 seconds for current load to complete
+          int attempts = 0;
+          while (_isLoadingThreads.value && attempts < 30) {
+            await Future.delayed(const Duration(milliseconds: 100));
+            attempts++;
+          }
+        }
+        
+        // Now load threads (this will join all rooms including the new one)
+        await loadThreads();
+        
+        // If we have a thread ID, ensure we join that specific room
+        if (threadId.isNotEmpty && _socketService != null && _socketService!.isConnected) {
+          try {
+            _socketService!.joinRoom(threadId);
+            if (kDebugMode) {
+              print('🚪 Joined new thread room: $threadId');
+            }
+          } catch (e) {
+            if (kDebugMode) {
+              print('⚠️ Error joining room $threadId: $e');
+            }
+          }
+        }
+      });
+      
     } catch (e) {
-      print('❌ Error handling new thread: $e');
+      if (kDebugMode) {
+        print('❌ Error handling new thread: $e');
+        print('   Stack trace: ${StackTrace.current}');
+      }
+      // Fallback to API refresh on error
+      try {
+        Future.microtask(() => loadThreads());
+      } catch (refreshError) {
+        if (kDebugMode) {
+          print('❌ Error refreshing threads: $refreshError');
+        }
+      }
     }
   }
 
@@ -1017,6 +1217,9 @@ class MessagesController extends GetxController {
         _conversations.value = finalConversations;
       }
 
+      // Join all thread rooms so user receives messages for all conversations
+      _joinAllThreadRooms();
+
       if (kDebugMode) {
         print(
           '✅ Loaded ${finalConversations.length} conversations (${conversations.length} from API, ${finalConversations.length - conversations.length} preserved)',
@@ -1041,6 +1244,77 @@ class MessagesController extends GetxController {
     }
   }
 
+  /// Joins all thread rooms so user receives messages for all conversations
+  void _joinAllThreadRooms() {
+    if (_socketService == null) {
+      if (kDebugMode) {
+        print('⚠️ Cannot join thread rooms: Socket service not initialized');
+        print('   Attempting to initialize socket...');
+      }
+      // Try to initialize socket if not available
+      _initializeSocket().then((_) {
+        // Wait a bit for connection, then retry
+        Future.delayed(const Duration(milliseconds: 800), () {
+          _joinAllThreadRooms();
+        });
+      });
+      return;
+    }
+
+    if (!_socketService!.isConnected) {
+      if (kDebugMode) {
+        print('⚠️ Cannot join thread rooms: Socket not connected');
+        print('   Socket exists: ${_socketService!.socket != null}');
+        print('   Is connecting: ${_socketService!.isConnecting}');
+        print('   Attempting to wait for connection...');
+      }
+      // Wait for socket to connect, then retry
+      int attempts = 0;
+      Future.doWhile(() async {
+        if (_socketService == null) return false;
+        if (_socketService!.isConnected) {
+          _joinAllThreadRooms();
+          return false;
+        }
+        attempts++;
+        if (attempts >= 20) {
+          // Give up after 2 seconds
+          if (kDebugMode) {
+            print('⚠️ Socket did not connect in time, skipping room join');
+          }
+          return false;
+        }
+        await Future.delayed(const Duration(milliseconds: 100));
+        return true;
+      });
+      return;
+    }
+
+    // Join all thread rooms (skip temp threads)
+    int joinedCount = 0;
+    for (final conversation in _allConversations) {
+      if (!conversation.id.startsWith('temp_')) {
+        try {
+          _socketService!.joinRoom(conversation.id);
+          joinedCount++;
+          if (kDebugMode) {
+            print('🚪 Joined thread room: ${conversation.id}');
+          }
+        } catch (e) {
+          if (kDebugMode) {
+            print('⚠️ Error joining room ${conversation.id}: $e');
+          }
+        }
+      }
+    }
+
+    if (kDebugMode) {
+      print('✅ Joined $joinedCount thread rooms');
+      print('   Total conversations: ${_allConversations.length}');
+      print('   Real threads: ${_allConversations.where((c) => !c.id.startsWith('temp_')).length}');
+    }
+  }
+
   void selectConversation(ConversationModel conversation) {
     _selectedConversation.value = conversation;
 
@@ -1050,7 +1324,7 @@ class MessagesController extends GetxController {
 
     _loadMessagesForConversation(conversation.id);
 
-    // Join socket room for this conversation
+    // Join socket room for this conversation (also ensures it's joined)
     if (_socketService != null) {
       if (_socketService!.isConnected) {
         _socketService!.joinRoom(conversation.id);
@@ -1064,6 +1338,8 @@ class MessagesController extends GetxController {
           Future.delayed(const Duration(milliseconds: 500), () {
             if (_socketService != null && _socketService!.isConnected) {
               _socketService!.joinRoom(conversation.id);
+              // Also join all other rooms
+              _joinAllThreadRooms();
             }
           });
         });
@@ -1360,63 +1636,113 @@ class MessagesController extends GetxController {
       print('✅ Moved conversation to top of list instantly');
     }
 
-    // Send via socket if connected, otherwise via API
+    // Ensure socket is connected before sending
+    // If socket is connecting, wait a bit for it to connect
+    if (_socketService != null && _socketService!.isConnecting) {
+      if (kDebugMode) {
+        print('⏳ Socket is connecting, waiting for connection...');
+      }
+      // Wait up to 3 seconds for socket to connect
+      int attempts = 0;
+      while (_socketService!.isConnecting && attempts < 15) {
+        await Future.delayed(const Duration(milliseconds: 200));
+        attempts++;
+      }
+    }
+    
+    // Initialize socket if it doesn't exist or isn't connected
+    if (_socketService == null || (!_socketService!.isConnected && !_socketService!.isConnecting)) {
+      if (kDebugMode) {
+        print('⚠️ Socket not initialized or disconnected, initializing now...');
+      }
+      await _initializeSocket();
+      // Wait a bit for connection to establish
+      await Future.delayed(const Duration(milliseconds: 500));
+    }
+
+    // Send via socket if connected
     if (_socketService != null && _socketService!.isConnected) {
-      _socketService!.sendMessage(
-        threadId: conversation.id,
-        senderId: user.id,
-        text: text,
-      );
-      if (kDebugMode) {
-        print('📤 Message sent via socket');
-      }
-    } else {
-      // Fallback to API if socket not available
-      if (kDebugMode) {
-        print('⚠️ Socket not connected, sending via API fallback');
-        print('   Socket service exists: ${_socketService != null}');
-        if (_socketService != null) {
-          print('   Socket connected: ${_socketService!.isConnected}');
-          print('   Actual socket connected: ${_socketService!.socket?.connected ?? false}');
-        }
-      }
       try {
-        final result = await _chatService.sendMessage(
+        _socketService!.sendMessage(
           threadId: conversation.id,
           senderId: user.id,
           text: text,
         );
         if (kDebugMode) {
-          print('✅ Message sent via API');
-          print('   Response: $result');
-        }
-        // Refresh messages to get the server response
-        await _loadMessagesForConversation(conversation.id);
-        
-        // Try to reconnect socket in background after successful API send
-        if (_socketService == null || !_socketService!.isConnected) {
-          if (kDebugMode) {
-            print('🔄 Attempting to reconnect socket after API send...');
-          }
-          _initializeSocket();
+          print('📤 Message sent via socket');
+          print('   Thread ID: ${conversation.id}');
+          print('   Socket ID: ${_socketService!.socket?.id ?? "N/A"}');
         }
       } catch (e) {
         if (kDebugMode) {
-          print('❌ Failed to send message via API: $e');
+          print('❌ Error sending via socket: $e');
+          print('   Falling back to API...');
         }
-        // Show error to user
+        // Fall through to API fallback
+        await _sendMessageViaApiFallback(conversation.id, user.id, text, tempId);
+      }
+    } else {
+      // Socket still not connected after initialization attempt
+      if (kDebugMode) {
+        print('⚠️ Socket still not connected after initialization attempt');
+        print('   Socket service exists: ${_socketService != null}');
+        if (_socketService != null) {
+          print('   Socket connected: ${_socketService!.isConnected}');
+          print('   Socket connecting: ${_socketService!.isConnecting}');
+          print('   Actual socket connected: ${_socketService!.socket?.connected ?? false}');
+        }
+        print('   Using API fallback...');
+      }
+      await _sendMessageViaApiFallback(conversation.id, user.id, text, tempId);
+    }
+  }
+
+  /// Helper method to send message via API fallback
+  Future<void> _sendMessageViaApiFallback(
+    String threadId,
+    String senderId,
+    String text,
+    String tempMessageId,
+  ) async {
+    try {
+      final result = await _chatService.sendMessage(
+        threadId: threadId,
+        senderId: senderId,
+        text: text,
+      );
+      if (kDebugMode) {
+        print('✅ Message sent via API');
+        print('   Response: $result');
+      }
+      // Refresh messages to get the server response
+      await _loadMessagesForConversation(threadId);
+      
+      // Try to reconnect socket in background after successful API send
+      if (_socketService == null || (!_socketService!.isConnected && !_socketService!.isConnecting)) {
+        if (kDebugMode) {
+          print('🔄 Attempting to reconnect socket after API send...');
+        }
+        _initializeSocket();
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Failed to send message via API: $e');
+      }
+      // Show error to user only if it's not a 404 (endpoint not found)
+      final errorMessage = e.toString();
+      if (!errorMessage.contains('404') && !errorMessage.contains('not found') && !errorMessage.contains('Endpoint not found')) {
         SnackbarHelper.showError('Failed to send message. Please try again.');
-        // Remove optimistic message on error
-        _messages.removeWhere((m) => m.id == tempId);
-        
-        // Try to reconnect socket even on error
-        if (_socketService == null || !_socketService!.isConnected) {
-          if (kDebugMode) {
-            print('🔄 Attempting to reconnect socket after API error...');
-          }
+      } else {
+        // For 404 errors, try to ensure socket is connected for next time
+        if (kDebugMode) {
+          print('⚠️ API endpoint not found (404), ensuring socket is connected for future messages');
+        }
+        if (_socketService == null || (!_socketService!.isConnected && !_socketService!.isConnecting)) {
           _initializeSocket();
         }
       }
+      // Remove optimistic message on error
+      _messages.removeWhere((m) => m.id == tempMessageId);
     }
   }
 
@@ -1766,6 +2092,9 @@ class MessagesController extends GetxController {
         _conversations.value = finalConversations;
       }
 
+      // Join all thread rooms so user receives messages for all conversations
+      _joinAllThreadRooms();
+
       if (kDebugMode) {
         print(
           '✅ Silently refreshed ${finalConversations.length} conversations (${conversations.length} from API, ${finalConversations.length - conversations.length} preserved)',
@@ -2004,7 +2333,12 @@ class MessagesController extends GetxController {
         }
       } else {
         // If temp conversation not found, add the new one at the top
-        _conversations.insert(0, updatedConversation);
+        final updatedFiltered = List<ConversationModel>.from(_conversations);
+        updatedFiltered.insert(0, updatedConversation);
+        updatedFiltered.sort(
+          (a, b) => b.lastMessageTime.compareTo(a.lastMessageTime),
+        );
+        _conversations.value = updatedFiltered;
         if (kDebugMode) {
           print('✅ Added new conversation to list (temp not found)');
         }
@@ -2015,6 +2349,14 @@ class MessagesController extends GetxController {
         _selectedConversation.value = updatedConversation;
         if (kDebugMode) {
           print('✅ Updated selected conversation with real thread ID');
+        }
+      }
+
+      // Join the new thread room so user receives messages instantly
+      if (_socketService != null && _socketService!.isConnected) {
+        _socketService!.joinRoom(threadId);
+        if (kDebugMode) {
+          print('🚪 Joined new thread room: $threadId');
         }
       }
 
