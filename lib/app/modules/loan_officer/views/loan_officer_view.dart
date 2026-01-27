@@ -18,10 +18,8 @@ import 'package:getrebate/app/modules/rebate_checklist/controllers/rebate_checkl
 import 'package:getrebate/app/modules/rebate_checklist/views/rebate_checklist_view.dart';
 import 'package:getrebate/app/routes/app_pages.dart';
 import 'package:getrebate/app/modules/messages/views/messages_view.dart';
-import 'package:getrebate/app/modules/messages/bindings/messages_binding.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
 import 'package:getrebate/app/modules/loan_officer/views/waiting_list_page.dart';
-import 'package:getrebate/app/modules/messages/controllers/messages_controller.dart';
 
 
 
@@ -104,26 +102,11 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
         }),
         centerTitle: true,
         actions: [
-          Obx(() {
-            int unreadCount = 0;
-            try {
-              if (Get.isRegistered<MessagesController>()) {
-                final messagesController = Get.find<MessagesController>();
-                messagesController.allConversations; // Make reactive
-                unreadCount = messagesController.totalUnreadCount;
-              }
-            } catch (e) {
-              // Ignore errors
-            }
-            return IconButton(
-              icon: _buildMessageIconWithBadge(
-                const Icon(Icons.message, color: AppTheme.white),
-                unreadCount,
-              ),
-              onPressed: () => Get.toNamed('/messages'),
-              tooltip: 'Messages',
-            );
-          }),
+          IconButton(
+            icon: const Icon(Icons.message, color: AppTheme.white),
+            onPressed: () => Get.toNamed('/messages'),
+            tooltip: 'Messages',
+          ),
           IconButton(
             icon: const Icon(Icons.logout, color: AppTheme.white),
             onPressed: () => _showLogoutDialog(context),
@@ -266,11 +249,6 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
   }
 
   Widget _buildMessages(BuildContext context) {
-    // Initialize messages binding if not already initialized
-    if (!Get.isRegistered<MessagesController>()) {
-      MessagesBinding().dependencies();
-    }
-
     return const MessagesView();
   }
 

@@ -80,6 +80,9 @@ class AgentController extends GetxController {
   static const String _selectedStateStorageKey = 'agent_selected_state';
   static const String _claimedZipCodesStorageKey = 'agent_claimed_zip_codes';
 
+  // ZIP search input for state-based lookup
+  final TextEditingController zipSearchController = TextEditingController();
+
   // Standard pricing (deprecated - now using zip code population-based pricing)
   // Kept for backward compatibility, but pricing is now calculated from zip codes
   @Deprecated('Use ZipCodePricingService instead')
@@ -306,8 +309,6 @@ class AgentController extends GetxController {
     final savedState = _storage.read(_selectedStateStorageKey) as String?;
     if (savedState != null && savedState.isNotEmpty) {
       _selectedState.value = savedState;
-      final stateCode = _getStateCodeFromName(savedState);
-      Future.microtask(() => fetchZipCodesForState(stateCode));
     }
   }
 
@@ -598,15 +599,6 @@ class AgentController extends GetxController {
 
   void setSelectedTab(int index) {
     _selectedTab.value = index;
-
-    // Refresh ZIP codes when "ZIP Management" tab is selected
-    if (index == 1) {
-      final stateName = _selectedState.value;
-      if (stateName != null && stateName.isNotEmpty) {
-        final stateCode = _getStateCodeFromName(stateName);
-        Future.microtask(() => fetchZipCodesForState(stateCode));
-      }
-    }
 
     // Refresh listings when "My Listings" tab is selected
     if (index == 2) {
@@ -1524,44 +1516,47 @@ class AgentController extends GetxController {
       _availableZipCodes.clear();
       // Clear saved state from storage
       _storage.remove(_selectedStateStorageKey);
+      zipSearchController.clear();
       return;
     }
 
     _selectedState.value = stateName;
     // Save selected state to storage for persistence
     _storage.write(_selectedStateStorageKey, stateName);
-
-    // Convert state name to code for API call
-    final stateCode = _getStateCodeFromName(stateName);
-    await fetchZipCodesForState(stateCode);
+    // Clear previously loaded ZIP codes when state changes
+    _availableZipCodes.clear();
+    zipSearchController.clear();
   }
 
-  /// Forces fetching ZIP codes from the API regardless of cache
-  Future<void> refreshZipCodesFromApi() async {
-    final stateName = _selectedState.value;
-    if (stateName == null || stateName.isEmpty) return;
-
-    final stateCode = _getStateCodeFromName(stateName);
-    await fetchZipCodesForState(stateCode);
-  }
-
-  /// Fetches ZIP codes from API for the selected state (always live data)
-  Future<void> fetchZipCodesForState(String stateCode) async {
+  /// Fetches ZIP code data from API for the selected state and specific ZIP code
+  Future<void> fetchZipCodesForStateAndZip({
+    required String stateCode,
+    required String zipCode,
+  }) async {
     if (stateCode.isEmpty) return;
+    final trimmedZip = zipCode.trim();
+    if (trimmedZip.isEmpty) {
+      SnackbarHelper.showError('Please enter a ZIP code');
+      return;
+    }
+    if (!RegExp(r'^\d{5}$').hasMatch(trimmedZip)) {
+      SnackbarHelper.showError('ZIP code must be exactly 5 digits');
+      return;
+    }
 
     try {
       _isLoadingZipCodes.value = true;
 
       if (kDebugMode) {
-        print('📡 Fetching ZIP codes from API for state: $stateCode');
+        print('📡 Fetching ZIP code from API');
+        print('   State: $stateCode');
+        print('   ZIP: $trimmedZip');
       }
 
       final zipCodesService = ZipCodesService();
-      final authController = Get.find<global.AuthController>();
-      final userId = authController.currentUser?.id ?? '';
       final zipCodes = await zipCodesService.getZipCodesByState(
         state: stateCode,
-        userId: userId,
+        zipcode: trimmedZip,
       );
 
       final availableZips = _filterAvailableZipCodes(zipCodes);
@@ -1590,41 +1585,24 @@ class AgentController extends GetxController {
     }
   }
 
-  Future<void> searchZipCodes(String query) async {
-    // If no state is selected, show message
-    if (_selectedState.value == null) {
+  /// Public helper to search a ZIP code within the currently selected state
+  Future<void> searchZipCodeInSelectedState() async {
+    final stateName = _selectedState.value;
+    if (stateName == null || stateName.isEmpty) {
+      SnackbarHelper.showError('Please select a state first');
       return;
     }
+    final stateCode = _getStateCodeFromName(stateName);
+    await fetchZipCodesForStateAndZip(
+      stateCode: stateCode,
+      zipCode: zipSearchController.text,
+    );
+  }
 
-    try {
-      // Filter available ZIP codes by query
-      if (query.isEmpty) {
-        // If query is empty, reload ZIP codes for selected state
-        if (_selectedState.value != null) {
-          final stateCode = _getStateCodeFromName(_selectedState.value!);
-          await fetchZipCodesForState(stateCode);
-        }
-        return;
-      }
-
-      final filteredZips = _availableZipCodes
-          .where(
-            (zip) =>
-                zip.zipCode.contains(query) ||
-                zip.state.toLowerCase().contains(query.toLowerCase()),
-          )
-          .toList();
-
-      _availableZipCodes.value = filteredZips;
-    } catch (e) {
-      NetworkErrorHandler.handleError(
-        e,
-        defaultMessage:
-            'Unable to search ZIP codes. Please check your internet connection and try again.',
-      );
-    } finally {
-      _isLoading.value = false;
-    }
+  Future<void> searchZipCodes(String query) async {
+    // Deprecated: ZIP search is now handled via fetchZipCodesForStateAndZip
+    // This method is kept for backward compatibility but no longer used.
+    return;
   }
 
   double calculateMonthlyCost() {

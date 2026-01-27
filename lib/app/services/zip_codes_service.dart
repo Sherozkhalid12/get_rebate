@@ -272,16 +272,17 @@ class ZipCodesService {
     return zipCodes.where((zip) => zip.population > 0).toList();
   }
 
-  /// Fetches ZIP codes for a given country and state
+  /// Fetches ZIP code data for a given country, state and ZIP code
   ///
   /// [country] should be "US" (default)
   /// [state] should be a state code (e.g., "CA", "NY")
+  /// [zipcode] must be a 5-digit ZIP code string
   ///
   /// Throws [ZipCodesServiceException] if the request fails
   Future<List<ZipCodeModel>> getZipCodesByState({
     String country = 'US',
     required String state,
-    required String userId,
+    required String zipcode,
   }) async {
     if (state.isEmpty) {
       throw ZipCodesServiceException(
@@ -289,20 +290,27 @@ class ZipCodesService {
         statusCode: 400,
       );
     }
-    if (userId.isEmpty) {
+    if (zipcode.isEmpty) {
       throw ZipCodesServiceException(
-        message: 'User ID is required for fetching ZIP codes',
+        message: 'ZIP code is required',
+        statusCode: 400,
+      );
+    }
+    if (!RegExp(r'^\d{5}$').hasMatch(zipcode)) {
+      throw ZipCodesServiceException(
+        message: 'Invalid ZIP code format. ZIP code must be exactly 5 digits.',
         statusCode: 400,
       );
     }
 
     try {
       final endpoint =
-          '${ApiConstants.apiBaseUrl}/zip-codes/$country/$state/$userId';
+          '${ApiConstants.apiBaseUrl}/zip-codes/$country/$state/$zipcode';
 
       if (kDebugMode) {
-        print('📡 Fetching ZIP codes for state: $state');
-        print('   User ID: $userId');
+        print('📡 Fetching ZIP code data');
+        print('   State: $state');
+        print('   ZIP: $zipcode');
         print('   Endpoint: $endpoint');
       }
 

@@ -574,9 +574,11 @@ class AuthView extends GetView<AuthViewController> {
               // Service Areas (ZIP codes)
               CustomTextField(
                 controller: controller.serviceZipCodesController,
-                labelText: 'What ZIP code is your office located?',
+                labelText: 'Enter your ZIP code *',
                 prefixIcon: Icons.location_on_outlined,
                 hintText: 'Enter your office ZIP code',
+                keyboardType: TextInputType.number,
+                maxLength: 5,
               ),
               const SizedBox(height: 16),
 
@@ -660,6 +662,17 @@ class AuthView extends GetView<AuthViewController> {
               ),
               const SizedBox(height: 12),
               _buildLicensedStatesSelection(context),
+              const SizedBox(height: 16),
+
+              // Service Areas (ZIP codes)
+              CustomTextField(
+                controller: controller.loanOfficerOfficeZipController,
+                labelText: 'Enter your ZIP code *',
+                prefixIcon: Icons.location_on_outlined,
+                hintText: 'Enter your office ZIP code',
+                keyboardType: TextInputType.number,
+                maxLength: 5,
+              ),
               const SizedBox(height: 16),
 
               // Verification Agreement

@@ -48,52 +48,8 @@ class _NearbyAgentsWidgetState extends State<NearbyAgentsWidget> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppTheme.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.people_outline, color: AppTheme.lightGreen, size: 20),
-              const SizedBox(width: 8),
-              Text(
-                'Nearby Agents Offering Rebates',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: AppTheme.black,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-
-          if (_isLoading)
-            const Center(
-              child: Padding(
-                padding: EdgeInsets.all(20),
-                child: CircularProgressIndicator(),
-              ),
-            )
-          else if (_agents.isEmpty)
-            _buildEmptyState(context)
-          else
-            _buildAgentsList(context),
-        ],
-      ),
-    );
+    return
+        Container();
   }
 
   Widget _buildEmptyState(BuildContext context) {

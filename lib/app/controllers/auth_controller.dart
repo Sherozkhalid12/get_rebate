@@ -515,6 +515,13 @@ class AuthController extends GetxController {
           );
         }
 
+        // Office ZIP code (single)
+        if (additionalData['zipCode'] != null) {
+          formData.fields.add(
+            MapEntry('zipCode', additionalData['zipCode'].toString()),
+          );
+        }
+
         // Service Areas (as JSON array string)
         if (additionalData['serviceZipCodes'] != null &&
             additionalData['serviceZipCodes'] is List) {
@@ -667,6 +674,13 @@ class AuthController extends GetxController {
               'verificationStatement',
               additionalData['verificationAgreed'].toString(),
             ),
+          );
+        }
+
+        // Office ZIP code (single)
+        if (additionalData['zipCode'] != null) {
+          formData.fields.add(
+            MapEntry('zipCode', additionalData['zipCode'].toString()),
           );
         }
       }

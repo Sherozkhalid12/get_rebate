@@ -34,6 +34,7 @@ class AuthViewController extends GetxController {
   final loanOfficerWebsiteUrlController = TextEditingController();
   final mortgageApplicationUrlController = TextEditingController();
   final loanOfficerExternalReviewsUrlController = TextEditingController();
+  final loanOfficerOfficeZipController = TextEditingController();
 
   // Observable variables
   final _isLoginMode = true.obs;
@@ -115,6 +116,7 @@ class AuthViewController extends GetxController {
       loanOfficerWebsiteUrlController.clear();
       mortgageApplicationUrlController.clear();
       loanOfficerExternalReviewsUrlController.clear();
+      loanOfficerOfficeZipController.clear();
     }
     // Licensed states are shared, so we don't clear them when switching roles
     // Reset verification agreements when changing roles
@@ -252,6 +254,7 @@ class AuthViewController extends GetxController {
     loanOfficerWebsiteUrlController.clear();
     mortgageApplicationUrlController.clear();
     loanOfficerExternalReviewsUrlController.clear();
+    loanOfficerOfficeZipController.clear();
     _selectedSpecialtyProducts.clear();
     // Clear video file
     _selectedVideo.value = null;
@@ -307,6 +310,10 @@ class AuthViewController extends GetxController {
             'verificationAgreed': _agentVerificationAgreed.value,
           };
         } else if (selectedRole == UserRole.loanOfficer) {
+          final officeZipCode = loanOfficerOfficeZipController.text.trim();
+          final officeZipCodesList = officeZipCode.isNotEmpty
+              ? [officeZipCode]
+              : null;
           additionalData = {
             'company': companyController.text.trim(),
             'licenseNumber': loanOfficerLicenseNumberController.text.trim(),
@@ -323,6 +330,8 @@ class AuthViewController extends GetxController {
             if (loanOfficerExternalReviewsUrlController.text.trim().isNotEmpty)
               'externalReviewsUrl': loanOfficerExternalReviewsUrlController.text
                   .trim(),
+            if (officeZipCode.isNotEmpty) 'zipCode': officeZipCode,
+            if (officeZipCodesList != null) 'serviceAreas': officeZipCodesList,
             'verificationAgreed': _loanOfficerVerificationAgreed.value,
           };
         }
@@ -467,6 +476,15 @@ class AuthViewController extends GetxController {
         }
         if (_selectedLicensedStates.isEmpty) {
           SnackbarHelper.showError('Please select at least one licensed state');
+          return false;
+        }
+        if (loanOfficerOfficeZipController.text.trim().isEmpty) {
+          SnackbarHelper.showError('Please enter your office ZIP code');
+          return false;
+        }
+        if (!RegExp(r'^\d{5}$')
+            .hasMatch(loanOfficerOfficeZipController.text.trim())) {
+          SnackbarHelper.showError('Office ZIP code must be exactly 5 digits');
           return false;
         }
         if (!_loanOfficerVerificationAgreed.value) {

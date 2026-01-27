@@ -17,7 +17,6 @@ import 'package:getrebate/app/widgets/custom_text_field.dart';
 import 'package:getrebate/app/widgets/gradient_card.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
 import 'package:getrebate/app/modules/agent/views/waiting_list_page.dart';
-import 'package:getrebate/app/modules/messages/controllers/messages_controller.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 
@@ -50,26 +49,11 @@ class AgentView extends GetView<AgentController> {
         ),
         centerTitle: true,
         actions: [
-          Obx(() {
-            int unreadCount = 0;
-            try {
-              if (Get.isRegistered<MessagesController>()) {
-                final messagesController = Get.find<MessagesController>();
-                messagesController.allConversations; // Make reactive
-                unreadCount = messagesController.totalUnreadCount;
-              }
-            } catch (e) {
-              // Ignore errors
-            }
-            return IconButton(
-              icon: _buildMessageIconWithBadge(
-                const Icon(Icons.message, color: AppTheme.white),
-                unreadCount,
-              ),
-              onPressed: () => Get.toNamed('/messages'),
-              tooltip: 'Messages',
-            );
-          }),
+          IconButton(
+            icon: const Icon(Icons.message, color: AppTheme.white),
+            onPressed: () => Get.toNamed('/messages'),
+            tooltip: 'Messages',
+          ),
           IconButton(
             icon: const Icon(Icons.logout, color: AppTheme.white),
             onPressed: () => _showLogoutDialog(context),
@@ -553,12 +537,27 @@ class AgentView extends GetView<AgentController> {
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
           sliver: SliverList(
             delegate: SliverChildListDelegate([
-              // Search
-              CustomTextField(
-                controller: TextEditingController(),
-                labelText: 'Search ZIP codes',
-                prefixIcon: Icons.search,
-                onChanged: (value) => controller.searchZipCodes(value),
+              // ZIP search within selected state
+              Row(
+                children: [
+                  Expanded(
+                    child: CustomTextField(
+                      controller: controller.zipSearchController,
+                      labelText: 'Enter ZIP code in selected state',
+                      prefixIcon: Icons.location_searching,
+                      keyboardType: TextInputType.number,
+                      maxLength: 5,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  CustomButton(
+                    text: 'Find ZIP',
+                    onPressed: () {
+                      controller.searchZipCodeInSelectedState();
+                    },
+                    height: 56,
+                  ),
+                ],
               ),
 
               const SizedBox(height: 20),

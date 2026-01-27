@@ -257,7 +257,7 @@ class EditListingController extends GetxController {
       return false;
     }
     if (zipCodeController.text.trim().isEmpty) {
-      CustomSnackbar.showValidation('Please enter a ZIP code');
+      CustomSnackbar.showValidation('Please enter any ZIP code of selected state');
       return false;
     }
     if (_existingImages.isEmpty && _newPhotos.isEmpty) {
