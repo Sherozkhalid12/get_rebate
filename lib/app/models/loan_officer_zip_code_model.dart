@@ -5,6 +5,7 @@ class LoanOfficerZipCodeModel {
   final String? id; // MongoDB ID from API
   final String postalCode; // API uses "postalCode" not "zipCode"
   final String state;
+  final String? city;
   final int population;
   final bool claimedByAgent;
   final bool claimedByOfficer; // API uses "claimedByOfficer" not "claimedByLoanOfficer"
@@ -17,6 +18,7 @@ class LoanOfficerZipCodeModel {
     this.id,
     required this.postalCode,
     required this.state,
+    this.city,
     required this.population,
     this.claimedByAgent = false,
     this.claimedByOfficer = false,
@@ -43,10 +45,12 @@ class LoanOfficerZipCodeModel {
         }
       }
     }
+    final city = json['city']?.toString();
     return LoanOfficerZipCodeModel(
       id: json['_id']?.toString() ?? json['id']?.toString(),
       postalCode: json['postalCode']?.toString() ?? '',
       state: json['state']?.toString() ?? '',
+      city: city != null && city.isNotEmpty ? city : null,
       population: json['population'] is int
           ? json['population'] as int
           : (json['population'] is String
@@ -70,6 +74,7 @@ class LoanOfficerZipCodeModel {
       if (id != null) '_id': id,
       'postalCode': postalCode,
       'state': state,
+      if (city != null) 'city': city,
       'population': population,
       'claimedByAgent': claimedByAgent,
       'claimedByOfficer': claimedByOfficer,
@@ -84,6 +89,7 @@ class LoanOfficerZipCodeModel {
     String? id,
     String? postalCode,
     String? state,
+    String? city,
     int? population,
     bool? claimedByAgent,
     bool? claimedByOfficer,
@@ -96,6 +102,7 @@ class LoanOfficerZipCodeModel {
       id: id ?? this.id,
       postalCode: postalCode ?? this.postalCode,
       state: state ?? this.state,
+      city: city ?? this.city,
       population: population ?? this.population,
       claimedByAgent: claimedByAgent ?? this.claimedByAgent,
       claimedByOfficer: claimedByOfficer ?? this.claimedByOfficer,

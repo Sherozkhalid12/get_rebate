@@ -231,6 +231,10 @@ class AgentProfileView extends GetView<AgentProfileController> {
 
             const SizedBox(height: 20),
 
+            // Claimed ZIP Codes (Testing)
+            _buildClaimedZipCodesSection(context, agent.claimedZipCodes),
+            const SizedBox(height: 20),
+
             // Video Introduction
             if (agent.videoUrl != null && agent.videoUrl!.isNotEmpty) ...[
               _buildVideoSection(context, agent.videoUrl!),
@@ -290,6 +294,61 @@ class AgentProfileView extends GetView<AgentProfileController> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildClaimedZipCodesSection(BuildContext context, List<String> claimedZipCodes) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppTheme.primaryBlue.withOpacity(0.06),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppTheme.primaryBlue.withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.pin_drop, size: 18, color: AppTheme.primaryBlue),
+              const SizedBox(width: 8),
+              Text(
+                'Claimed ZIP Codes (Testing)',
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  color: AppTheme.primaryBlue,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          if (claimedZipCodes.isEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              'None',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: AppTheme.mediumGray,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ] else ...[
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: claimedZipCodes
+                  .map((z) => Chip(
+                        label: Text(z, style: const TextStyle(fontSize: 13)),
+                        backgroundColor: AppTheme.white,
+                        side: BorderSide(color: AppTheme.primaryBlue.withOpacity(0.3)),
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ))
+                  .toList(),
+            ),
+          ],
+        ],
       ),
     );
   }

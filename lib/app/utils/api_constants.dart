@@ -43,6 +43,27 @@ class ApiConstants {
   static String getZipCodesEndpoint(String country, String state) {
     return "$apiBaseUrl/zip-codes/$country/$state";
   }
+
+  /// GET /api/v1/zip-codes/getstateZip/:country/:state — list zip codes for a state
+  static String getStateZipCodesEndpoint(String country, String state) {
+    return "$apiBaseUrl/zip-codes/getstateZip/$country/$state";
+  }
+
+  /// GET /api/v1/zip-codes/validate/:zipcode/:state — validate zip for state
+  static String validateZipCodeEndpoint(String zipcode, String state) {
+    return "$apiBaseUrl/zip-codes/validate/$zipcode/$state";
+  }
+
+  /// GET /api/v1/zip-codes/:country/:state/:zipcode — fetch results for verified zip
+  static String verifyZipCodeEndpoint(String country, String state, String zipcode) {
+    return "$apiBaseUrl/zip-codes/$country/$state/$zipcode";
+  }
+
+  /// GET /api/v1/zip-codes/within10miles/:zipcode/:miles — zips within X miles of searched zip
+  static String within10MilesEndpoint(String zipcode, String miles) {
+    return "$apiBaseUrl/zip-codes/within10miles/$zipcode/$miles";
+  }
+
   static String get zipCodeClaimEndpoint => "$apiBaseUrl/zip-codes/claim";
   static String get zipCodeReleaseEndpoint => "$apiBaseUrl/zip-codes/release";
   // API version prefix

@@ -13,6 +13,7 @@ import 'package:getrebate/app/models/agent_listing_model.dart';
 import 'package:getrebate/app/services/listing_service.dart';
 import 'package:getrebate/app/services/agent_service.dart';
 import 'package:getrebate/app/services/loan_officer_service.dart';
+import 'package:getrebate/app/services/zip_codes_service.dart';
 import 'package:getrebate/app/controllers/location_controller.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart';
 import 'package:getrebate/app/modules/messages/controllers/messages_controller.dart';
@@ -32,6 +33,11 @@ class BuyerV2Controller extends GetxController {
   final _selectedTab =
       0.obs; // 0: Agents, 1: Homes for Sale, 2: Open Houses, 3: Loan Officers
   final _currentZipCode = Rxn<String>(); // Current ZIP code filter
+  Map<String, double>? _within10MilesMap;
+  final _agentsDisplayCount = 10.obs;
+  final _loanOfficersDisplayCount = 10.obs;
+  final _listingsDisplayCount = 10.obs;
+  final _openHousesDisplayCount = 10.obs;
 
   // Data - Store original unfiltered data
   final _allAgents = <AgentModel>[].obs;
@@ -60,10 +66,27 @@ class BuyerV2Controller extends GetxController {
   bool get canLoadMoreAgents => currentPage.value < totalPages.value;
   bool get isLoadingMoreAgents => _isLoadingMoreAgents.value;
 
+  void showNext10Agents() {
+    _agentsDisplayCount.value = _agentsDisplayCount.value + 10;
+  }
+
+  void showNext10LoanOfficers() {
+    _loanOfficersDisplayCount.value = _loanOfficersDisplayCount.value + 10;
+  }
+
+  void showNext10Listings() {
+    _listingsDisplayCount.value = _listingsDisplayCount.value + 10;
+  }
+
+  void showNext10OpenHouses() {
+    _openHousesDisplayCount.value = _openHousesDisplayCount.value + 10;
+  }
+
   // Services
   final ListingService _listingService = InMemoryListingService();
   final AgentService _agentService = AgentService();
   final LoanOfficerService _loanOfficerService = LoanOfficerService();
+  final ZipCodesService _zipCodesService = ZipCodesService();
   
   // Dio for API calls
   final Dio _dio = Dio();
@@ -71,10 +94,39 @@ class BuyerV2Controller extends GetxController {
   // Getters
   String get searchQuery => _searchQuery.value;
   int get selectedTab => _selectedTab.value;
+  String? get currentZipCode => _currentZipCode.value;
   List<AgentModel> get agents => _agents;
   List<LoanOfficerModel> get loanOfficers => _loanOfficers;
+  List<AgentModel> get displayedAgents {
+    final n = _agentsDisplayCount.value;
+    if (_agents.length <= n) return _agents;
+    return _agents.take(n).toList();
+  }
+  List<LoanOfficerModel> get displayedLoanOfficers {
+    final n = _loanOfficersDisplayCount.value;
+    if (_loanOfficers.length <= n) return _loanOfficers;
+    return _loanOfficers.take(n).toList();
+  }
+  bool get canShowNext10Agents =>
+      _currentZipCode.value != null && _agents.length > _agentsDisplayCount.value;
+  bool get canShowNext10LoanOfficers =>
+      _currentZipCode.value != null && _loanOfficers.length > _loanOfficersDisplayCount.value;
   List<Listing> get listings => _listings;
   List<OpenHouseModel> get openHouses => _openHouses;
+  List<Listing> get displayedListings {
+    final n = _listingsDisplayCount.value;
+    if (_listings.length <= n) return _listings;
+    return _listings.take(n).toList();
+  }
+  List<OpenHouseModel> get displayedOpenHouses {
+    final n = _openHousesDisplayCount.value;
+    if (_openHouses.length <= n) return _openHouses;
+    return _openHouses.take(n).toList();
+  }
+  bool get canShowNext10Listings =>
+      _currentZipCode.value != null && _listings.length > _listingsDisplayCount.value;
+  bool get canShowNext10OpenHouses =>
+      _currentZipCode.value != null && _openHouses.length > _openHousesDisplayCount.value;
   List<String> get favoriteAgents => _favoriteAgents;
   List<String> get favoriteLoanOfficers => _favoriteLoanOfficers;
   List<String> get favoriteListings => _favoriteListings;
@@ -1147,145 +1199,131 @@ class BuyerV2Controller extends GetxController {
     }
   }
 
-  /// Applies ZIP code filter to all data
+  /// Applies ZIP code filter to all data (uses within10miles when available)
   void _applyZipCodeFilter() {
     final zipCode = _currentZipCode.value;
-    
+
     if (zipCode == null || zipCode.isEmpty) {
-      // No filter - show all data from original lists
-      // Use refresh() to ensure UI updates
       _agents.value = List.from(_allAgents);
       _loanOfficers.value = List.from(_allLoanOfficers);
       _listings.value = List.from(_allListings);
       _openHouses.value = List.from(_allOpenHouses);
-      
-      // Force refresh to ensure UI updates
       _agents.refresh();
       _loanOfficers.refresh();
       _listings.refresh();
       _openHouses.refresh();
-      
-      // Also update the search controller text if it's empty but we have a filter
-      if (zipCode == null && searchController.text.isNotEmpty) {
-        // Don't clear the text field, just clear the filter
-      }
-      
-      if (kDebugMode) {
-        print('📋 Showing all data (no filter)');
-        print('   All Agents: ${_allAgents.length}');
-        print('   All Loan Officers: ${_allLoanOfficers.length}');
-        print('   All Listings: ${_allListings.length}');
-        print('   All Open Houses: ${_allOpenHouses.length}');
-      }
+      if (kDebugMode) print('📋 Showing all data (no filter)');
+      _recordSearchesForDisplayedAgents();
+      _recordSearchesForDisplayedLoanOfficers();
       return;
     }
-    
-    // Normalize ZIP code for consistent comparison
+
     final normalizedZipCode = zipCode.trim();
-    
-    // Filter agents by ZIP code (comprehensive check like FindAgentsController)
-    _agents.value = _allAgents.where((agent) {
-      // Check 1: claimedZipCodes (array of strings - extracted from postalCode objects)
-      final hasClaimedZip = agent.claimedZipCodes.any((claimedZip) => 
-        claimedZip.trim() == normalizedZipCode
-      );
-      
-      // Check 2: serviceZipCodes (array of strings)
-      final hasServiceZip = agent.serviceZipCodes.any((serviceZip) => 
-        serviceZip.trim() == normalizedZipCode
-      );
-      
-      // Check 3: serviceAreas (array of strings - can contain ZIP codes)
-      final hasServiceArea = agent.serviceAreas?.any((area) => 
-        area.trim() == normalizedZipCode
-      ) ?? false;
-      
-      // Check 4: Check if agent has any listings with this ZIP code
-      final hasListingZip = _allListings.any((listing) {
-        final listingZip = listing.address.zip?.trim() ?? '';
-        return listing.agentId == agent.id && listingZip == normalizedZipCode;
-      });
-      
-      final matches = hasClaimedZip || hasServiceZip || hasServiceArea || hasListingZip;
-      
-      if (kDebugMode && matches) {
-        print('   ✅ Agent "${agent.name}" matches ZIP $normalizedZipCode');
-        print('      claimedZipCodes: ${agent.claimedZipCodes}');
-        print('      serviceZipCodes: ${agent.serviceZipCodes}');
-        print('      serviceAreas: ${agent.serviceAreas}');
-        print('      hasListingZip: $hasListingZip');
-      }
-      
-      return matches;
-    }).toList();
-    
-    // Filter listings by ZIP code first (needed for open houses filtering)
-    // Normalize ZIP codes for comparison (trim and ensure consistent format)
-    final filteredListingIds = _allListings
-        .where((listing) {
-          final listingZip = listing.address.zip?.trim() ?? '';
-          return listingZip == normalizedZipCode;
-        })
-        .map((l) => l.id)
-        .toSet();
-    
-    _listings.value = _allListings.where((listing) {
-      final listingZip = listing.address.zip?.trim() ?? '';
-      return listingZip == normalizedZipCode;
-    }).toList();
-    
-    // Filter loan officers by ZIP code (check claimedZipCodes)
-    _loanOfficers.value = _allLoanOfficers.where((loanOfficer) {
-      // Check if any claimed ZIP code matches (normalize for comparison)
-      final hasClaimedZip = loanOfficer.claimedZipCodes.any((claimedZip) => 
-        claimedZip.trim() == normalizedZipCode
-      );
-      
-      if (kDebugMode && hasClaimedZip) {
-        print('   ✅ Loan Officer "${loanOfficer.name}" matches ZIP $normalizedZipCode');
-        print('      claimedZipCodes: ${loanOfficer.claimedZipCodes}');
-      }
-      
-      return hasClaimedZip;
-    }).toList();
-    
-    // Filter open houses by listings in that ZIP code
-    // Open houses are linked to listings, so filter by listing ZIP codes
-    // Use the filtered listing IDs from all listings, not just the filtered _listings
-    _openHouses.value = _allOpenHouses.where((oh) {
-      final matches = filteredListingIds.contains(oh.listingId);
-      
-      if (kDebugMode && matches) {
-        final listing = _allListings.firstWhere(
-          (l) => l.id == oh.listingId,
-          orElse: () => Listing(
-            id: '',
-            agentId: '',
-            priceCents: 0,
-            address: const ListingAddress(street: '', city: '', state: '', zip: ''),
-            photoUrls: const [],
-            bacPercent: 0,
-            dualAgencyAllowed: false,
-            createdAt: DateTime.now(),
-          ),
-        );
-        if (listing.id.isNotEmpty) {
-          print('   ✅ Open House matches ZIP $normalizedZipCode (Listing: ${listing.address.zip})');
+    final map = _within10MilesMap;
+    final useWithin10 = map != null && map.isNotEmpty;
+
+    if (useWithin10) {
+      final mapNorm = map.map((k, v) => MapEntry(k.trim(), v));
+      final zipSet = mapNorm.keys.toSet();
+
+      double minDistAgent(AgentModel a) {
+        double best = double.infinity;
+        for (final z in [...a.claimedZipCodes, ...a.serviceZipCodes]) {
+          final t = z.trim();
+          if (zipSet.contains(t)) {
+            final d = mapNorm[t] ?? double.infinity;
+            if (d < best) best = d;
+          }
         }
+        for (final z in a.serviceAreas ?? []) {
+          final t = z.trim();
+          if (zipSet.contains(t)) {
+            final d = mapNorm[t] ?? double.infinity;
+            if (d < best) best = d;
+          }
+        }
+        for (final l in _allListings) {
+          if (l.agentId != a.id) continue;
+          final t = (l.address.zip ?? '').trim();
+          if (zipSet.contains(t)) {
+            final d = mapNorm[t] ?? double.infinity;
+            if (d < best) best = d;
+          }
+        }
+        return best;
       }
-      
-      return matches;
-    }).toList();
-    
-    if (kDebugMode) {
-      print('🔍 Applied ZIP code filter: $normalizedZipCode');
-      print('   Filtered Agents: ${_agents.length} / ${_allAgents.length}');
-      print('   Filtered Loan Officers: ${_loanOfficers.length} / ${_allLoanOfficers.length}');
-      print('   Filtered Listings: ${_listings.length} / ${_allListings.length}');
-      print('   Filtered Open Houses: ${_openHouses.length} / ${_allOpenHouses.length}');
+
+      double minDistLO(LoanOfficerModel lo) {
+        double best = double.infinity;
+        for (final z in lo.claimedZipCodes) {
+          final t = z.trim();
+          if (zipSet.contains(t)) {
+            final d = mapNorm[t] ?? double.infinity;
+            if (d < best) best = d;
+          }
+        }
+        return best;
+      }
+
+      final agentList = _allAgents.where((a) => minDistAgent(a) < double.infinity).toList();
+      agentList.sort((a, b) => minDistAgent(a).compareTo(minDistAgent(b)));
+      _agents.value = agentList;
+
+      final loList = _allLoanOfficers.where((lo) => minDistLO(lo) < double.infinity).toList();
+      loList.sort((a, b) => minDistLO(a).compareTo(minDistLO(b)));
+      _loanOfficers.value = loList;
+
+      final listingList = _allListings
+          .where((l) => zipSet.contains((l.address.zip ?? '').trim()))
+          .toList();
+      listingList.sort((a, b) {
+        final za = (a.address.zip ?? '').trim();
+        final zb = (b.address.zip ?? '').trim();
+        final da = mapNorm[za] ?? double.infinity;
+        final db = mapNorm[zb] ?? double.infinity;
+        return da.compareTo(db);
+      });
+      _listings.value = listingList;
+
+      final listingIdToDist = <String, double>{};
+      for (final l in listingList) {
+        final z = (l.address.zip ?? '').trim();
+        listingIdToDist[l.id] = mapNorm[z] ?? double.infinity;
+      }
+      final listingIds = listingIdToDist.keys.toSet();
+      final ohList = _allOpenHouses
+          .where((oh) => listingIds.contains(oh.listingId))
+          .toList();
+      ohList.sort((a, b) {
+        final da = listingIdToDist[a.listingId] ?? double.infinity;
+        final db = listingIdToDist[b.listingId] ?? double.infinity;
+        return da.compareTo(db);
+      });
+      _openHouses.value = ohList;
+    } else {
+      _agents.value = _allAgents.where((agent) {
+        final hasClaimed = agent.claimedZipCodes.any((z) => z.trim() == normalizedZipCode);
+        final hasService = agent.serviceZipCodes.any((z) => z.trim() == normalizedZipCode);
+        final hasArea = agent.serviceAreas?.any((z) => z.trim() == normalizedZipCode) ?? false;
+        final hasListing = _allListings.any((l) =>
+            l.agentId == agent.id && (l.address.zip ?? '').trim() == normalizedZipCode);
+        return hasClaimed || hasService || hasArea || hasListing;
+      }).toList();
+      _loanOfficers.value = _allLoanOfficers.where((lo) =>
+          lo.claimedZipCodes.any((z) => z.trim() == normalizedZipCode)).toList();
+      final filteredIds = _allListings
+          .where((l) => (l.address.zip ?? '').trim() == normalizedZipCode)
+          .map((l) => l.id)
+          .toSet();
+      _listings.value = _allListings.where((l) => filteredIds.contains(l.id)).toList();
+      _openHouses.value = _allOpenHouses.where((oh) => filteredIds.contains(oh.listingId)).toList();
     }
-    
-    // Force refresh to ensure UI updates for all tabs
+
+    if (kDebugMode) {
+      print('🔍 ZIP filter: $normalizedZipCode (within10mi: $useWithin10)');
+      print('   Agents: ${_agents.length} | LOs: ${_loanOfficers.length}');
+    }
+
     _agents.refresh();
     _loanOfficers.refresh();
     _listings.refresh();
@@ -1392,7 +1430,6 @@ class BuyerV2Controller extends GetxController {
 
   Future<void> searchByZipCode(String zipCode) async {
     try {
-      // Trim and validate ZIP code format (5 digits)
       final trimmedZipCode = zipCode.trim();
       if (trimmedZipCode.length != 5 || !RegExp(r'^\d+$').hasMatch(trimmedZipCode)) {
         SnackbarHelper.showError(
@@ -1402,30 +1439,35 @@ class BuyerV2Controller extends GetxController {
         );
         return;
       }
-      
-      if (kDebugMode) {
-        print('🔍 Starting ZIP code search: $trimmedZipCode');
-        print('   All Agents count: ${_allAgents.length}');
-        print('   All Loan Officers count: ${_allLoanOfficers.length}');
-        print('   All Listings count: ${_allListings.length}');
-        print('   All Open Houses count: ${_allOpenHouses.length}');
-      }
-      
-      // Set the ZIP code filter
+
       _currentZipCode.value = trimmedZipCode;
-      
-      // Apply filter to all data immediately (no loading state needed for instant filtering)
-      _applyZipCodeFilter();
-      
-      if (kDebugMode) {
-        print('🔍 Filtered by ZIP code: $trimmedZipCode');
-        print('   Filtered Agents: ${_agents.length} / ${_allAgents.length}');
-        print('   Filtered Loan Officers: ${_loanOfficers.length} / ${_allLoanOfficers.length}');
-        print('   Filtered Listings: ${_listings.length} / ${_allListings.length}');
-        print('   Filtered Open Houses: ${_openHouses.length} / ${_allOpenHouses.length}');
+      _agentsDisplayCount.value = 10;
+      _loanOfficersDisplayCount.value = 10;
+      _listingsDisplayCount.value = 10;
+      _openHousesDisplayCount.value = 10;
+
+      try {
+        _within10MilesMap = await _zipCodesService.getZipCodesWithinMiles(
+          zipcode: trimmedZipCode,
+          miles: 10,
+        );
+      } on ZipCodesServiceException catch (e) {
+        if (kDebugMode) print('❌ within10miles API: ${e.message}');
+        SnackbarHelper.showError(e.message);
+        _within10MilesMap = null;
+      } catch (e) {
+        if (kDebugMode) print('❌ within10miles API: $e');
+        SnackbarHelper.showError('Failed to fetch nearby ZIP codes: ${e.toString()}');
+        _within10MilesMap = null;
       }
-      
-      // Show feedback message
+
+      _applyZipCodeFilter();
+
+      if (kDebugMode) {
+        print('🔍 Filtered by ZIP $trimmedZipCode (within 10mi)');
+        print('   Agents: ${_agents.length} | Loan Officers: ${_loanOfficers.length}');
+      }
+
       final totalResults = _agents.length + _loanOfficers.length + _listings.length + _openHouses.length;
       if (totalResults > 0) {
         SnackbarHelper.showSuccess(
@@ -1446,31 +1488,16 @@ class BuyerV2Controller extends GetxController {
       SnackbarHelper.showError('Search failed: ${e.toString()}');
     }
   }
-  
-  /// Clears the ZIP code filter
+
   void clearZipCodeFilter() {
-    if (kDebugMode) {
-      print('🧹 Clearing ZIP code filter');
-      print('   Current ZIP: ${_currentZipCode.value}');
-      print('   All Agents count: ${_allAgents.length}');
-      print('   All Loan Officers count: ${_allLoanOfficers.length}');
-      print('   All Listings count: ${_allListings.length}');
-      print('   All Open Houses count: ${_allOpenHouses.length}');
-    }
-    
-    // Clear the ZIP code filter
     _currentZipCode.value = null;
-    
-    // Immediately apply filter (which will show all data since zipCode is null)
+    _within10MilesMap = null;
+    _agentsDisplayCount.value = 10;
+    _loanOfficersDisplayCount.value = 10;
+    _listingsDisplayCount.value = 10;
+    _openHousesDisplayCount.value = 10;
     _applyZipCodeFilter();
-    
-    if (kDebugMode) {
-      print('✅ Filter cleared - showing all data');
-      print('   Agents: ${_agents.length}');
-      print('   Loan Officers: ${_loanOfficers.length}');
-      print('   Listings: ${_listings.length}');
-      print('   Open Houses: ${_openHouses.length}');
-    }
+    if (kDebugMode) print('🧹 Cleared ZIP filter');
   }
 
   Future<void> toggleFavoriteAgent(String agentId) async {

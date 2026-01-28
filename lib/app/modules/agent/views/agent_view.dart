@@ -537,31 +537,6 @@ class AgentView extends GetView<AgentController> {
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
           sliver: SliverList(
             delegate: SliverChildListDelegate([
-              // ZIP search within selected state
-              Row(
-                children: [
-                  Expanded(
-                    child: CustomTextField(
-                      controller: controller.zipSearchController,
-                      labelText: 'Enter ZIP code in selected state',
-                      prefixIcon: Icons.location_searching,
-                      keyboardType: TextInputType.number,
-                      maxLength: 5,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  CustomButton(
-                    text: 'Find ZIP',
-                    onPressed: () {
-                      controller.searchZipCodeInSelectedState();
-                    },
-                    height: 56,
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 20),
-
               // Licensed States Section
               Obx(() {
                 final licensedStates =
@@ -753,6 +728,23 @@ class AgentView extends GetView<AgentController> {
               }),
               const SizedBox(height: 20),
 
+              // Search / verify ZIP (filter list or verify 5-digit)
+              Obx(() {
+                if (controller.selectedState == null) return const SizedBox.shrink();
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 20),
+                  child: CustomTextField(
+                    controller: controller.zipSearchController,
+                    labelText: 'Search or enter 5-digit ZIP',
+                    hintText: 'Filter by prefix, or type 5 digits to validate & fetch',
+                    prefixIcon: Icons.search,
+                    keyboardType: TextInputType.number,
+                    maxLength: 5,
+                    onChanged: (v) => controller.onZipSearchChanged(v),
+                  ),
+                );
+              }),
+
               // Claimed ZIP Codes
               Obx(() {
                 if (controller.claimedZipCodes.isEmpty) {
@@ -908,7 +900,7 @@ class AgentView extends GetView<AgentController> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${zip.state} • Population: $formattedPopulation',
+                    '${zip.city != null && zip.city!.isNotEmpty ? '${zip.city}, ' : ''}${zip.state} • Population: $formattedPopulation',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: AppTheme.mediumGray,
                     ),

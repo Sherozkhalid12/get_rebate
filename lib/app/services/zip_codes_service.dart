@@ -50,9 +50,10 @@ class ZipCodesResponse {
       for (final postalCode in result.postalCodes) {
         zipCodes.add(
           ZipCodeModel(
-            id: result.id, // Use result ID (may be shared across postal codes)
+            id: result.id,
             zipCode: postalCode,
             state: _getStateCodeFromName(result.state),
+            city: result.city.isNotEmpty ? result.city : null,
             population: result.population,
             price: result.price?.toDouble(),
             isAvailable: true,
@@ -272,6 +273,245 @@ class ZipCodesService {
     return zipCodes.where((zip) => zip.population > 0).toList();
   }
 
+  static void _logZipApi(String title, String method, String path, int? status, dynamic body) {
+    if (!kDebugMode) return;
+    const line = '─────────────────────────────────────────────────────────';
+    print('\n$line');
+    print('  $title');
+    print('$line');
+    print('  $method $path');
+    print('  Response: ${status ?? "—"}');
+    if (body != null) {
+      final str = body is Map ? body.toString() : body.toString();
+      print('  Body: $str');
+    }
+    print('$line\n');
+  }
+
+  /// Validates a 5-digit ZIP for a state via GET /api/v1/zip-codes/validate/:zipcode/:state
+  /// Returns true if valid. Throws [ZipCodesServiceException] on invalid or error.
+  Future<bool> validateZipCode({ required String zipcode, required String state }) async {
+    final trimmed = zipcode.trim();
+    if (!RegExp(r'^\d{5}$').hasMatch(trimmed)) {
+      throw ZipCodesServiceException(message: 'ZIP code must be exactly 5 digits', statusCode: 400);
+    }
+    if (state.isEmpty) {
+      throw ZipCodesServiceException(message: 'State is required', statusCode: 400);
+    }
+    final stateCode = _getStateCodeFromName(state);
+    if (stateCode.length != 2) {
+      throw ZipCodesServiceException(message: 'Invalid state', statusCode: 400);
+    }
+
+    final path = ApiConstants.validateZipCodeEndpoint(trimmed, stateCode);
+    try {
+      _logZipApi('ZIP Validate API', 'GET', path, null, null);
+      final response = await _dio.get(
+        path,
+        options: Options(
+          headers: { ...ApiConstants.ngrokHeaders, 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        ),
+      );
+      _logZipApi('ZIP Validate API', 'GET', path, response.statusCode, response.data);
+      if (response.statusCode == 200) {
+        final data = response.data;
+        final valid = data is Map && (data['valid'] == true || data['isValid'] == true);
+        if (!valid) throw ZipCodesServiceException(
+          message: (data is Map ? (data['message'] ?? data['error'])?.toString() : null) ?? 'ZIP code is not valid for this state',
+          statusCode: response.statusCode,
+        );
+        return true;
+      }
+      final msg = response.data is Map
+          ? (response.data['message'] ?? response.data['error'])?.toString()
+          : null;
+      throw ZipCodesServiceException(
+        message: msg ?? 'ZIP code is not valid for this state',
+        statusCode: response.statusCode,
+      );
+    } on DioException catch (e) {
+      final status = e.response?.statusCode;
+      final body = e.response?.data;
+      _logZipApi('ZIP Validate API', 'GET', path, status, body);
+      final msg = body is Map
+          ? (body['message'] ?? body['error'])?.toString()
+          : e.message;
+      throw ZipCodesServiceException(
+        message: msg ?? 'ZIP code is not valid for this state',
+        statusCode: status,
+        originalError: e,
+      );
+    }
+  }
+
+  /// Fetches ZIP codes within X miles of searched zip via GET /api/v1/zip-codes/within10miles/:zipcode/:miles
+  /// Returns map of postalCode -> distanceMiles (for filtering + sorting agents/LOs by proximity)
+  Future<Map<String, double>> getZipCodesWithinMiles({
+    required String zipcode,
+    int miles = 10,
+  }) async {
+    final trimmed = zipcode.trim();
+    if (!RegExp(r'^\d{5}$').hasMatch(trimmed)) {
+      throw ZipCodesServiceException(
+        message: 'ZIP code must be exactly 5 digits',
+        statusCode: 400,
+      );
+    }
+    final path = ApiConstants.within10MilesEndpoint(trimmed, miles.toString());
+    try {
+      _logZipApi('ZIP Within10Miles API', 'GET', path, null, null);
+      final response = await _dio.get(
+        path,
+        options: Options(
+          headers: {
+            ...ApiConstants.ngrokHeaders,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+        ),
+      );
+      _logZipApi('ZIP Within10Miles API', 'GET', path, response.statusCode, response.data);
+      if (response.statusCode != 200) {
+        throw ZipCodesServiceException(
+          message: 'Failed to fetch zip codes within $miles miles: ${response.statusCode}',
+          statusCode: response.statusCode,
+        );
+      }
+      final data = response.data;
+      if (data is! Map<String, dynamic>) {
+        throw ZipCodesServiceException(
+          message: 'Invalid response format from within10miles',
+          statusCode: response.statusCode,
+        );
+      }
+      final raw = data['zipCodes'];
+      if (raw is! List) {
+        return {};
+      }
+      final map = <String, double>{};
+      for (final e in raw) {
+        if (e is! Map) continue;
+        final pc = e['postalCode']?.toString().trim();
+        if (pc == null || pc.isEmpty) continue;
+        final d = e['distanceMiles'];
+        final dist = d is num ? d.toDouble() : (d is String ? double.tryParse(d) : null);
+        map[pc] = dist ?? 0.0;
+      }
+      if (kDebugMode) {
+        print('   Parsed ${map.length} zips within ${miles}mi of $trimmed');
+      }
+      return map;
+    } on DioException catch (e) {
+      final msg = e.response?.data?['message']?.toString() ??
+          e.response?.data?['error']?.toString() ??
+          e.message ??
+          'Failed to fetch zip codes within $miles miles';
+      throw ZipCodesServiceException(
+        message: msg,
+        statusCode: e.response?.statusCode,
+        originalError: e,
+      );
+    }
+  }
+
+  /// Fetches ZIP codes for a state via GET /api/v1/zip-codes/getstateZip/:country/:state
+  ///
+  /// [country] e.g. "US", [state] e.g. "CA" or "California"
+  /// Throws [ZipCodesServiceException] on failure
+  Future<List<ZipCodeModel>> getStateZipCodes({
+    String country = 'US',
+    required String state,
+  }) async {
+    if (state.isEmpty) {
+      throw ZipCodesServiceException(
+        message: 'State cannot be empty',
+        statusCode: 400,
+      );
+    }
+    final stateCode = _getStateCodeFromName(state);
+    if (stateCode.length != 2) {
+      throw ZipCodesServiceException(
+        message: 'Invalid state. Use code (e.g. CA) or full name.',
+        statusCode: 400,
+      );
+    }
+
+    try {
+      final endpoint = ApiConstants.getStateZipCodesEndpoint(country, stateCode);
+      if (kDebugMode) {
+        print('📡 ZipCodesService: getStateZipCodes');
+        print('   Endpoint: $endpoint');
+      }
+
+      final response = await _dio.get(
+        endpoint,
+        options: Options(
+          headers: {
+            ...ApiConstants.ngrokHeaders,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+        ),
+      );
+
+      if (kDebugMode) {
+        print('✅ getStateZipCodes response: ${response.statusCode}');
+      }
+
+      if (response.statusCode != 200) {
+        throw ZipCodesServiceException(
+          message: 'Failed to fetch state ZIP codes: ${response.statusCode}',
+          statusCode: response.statusCode,
+        );
+      }
+
+      final data = response.data;
+      if (data is! Map<String, dynamic>) {
+        throw ZipCodesServiceException(
+          message: 'Invalid response format from getstateZip',
+          statusCode: response.statusCode,
+        );
+      }
+
+      List<dynamic> raw = [];
+      if (data.containsKey('zipCodes') && data['zipCodes'] is List) {
+        raw = data['zipCodes'] as List<dynamic>;
+      } else if (data.containsKey('results') && data['results'] is List) {
+        raw = data['results'] as List<dynamic>;
+      }
+
+      final list = <ZipCodeModel>[];
+      for (final e in raw) {
+        if (e is! Map<String, dynamic>) continue;
+        try {
+          final z = ZipCodeModel.fromJson(e);
+          if (z.population > 0) list.add(z);
+        } catch (_) {}
+      }
+
+      if (kDebugMode) {
+        print('   Parsed ${list.length} ZIP codes for state $stateCode');
+      }
+      return list;
+    } on DioException catch (e) {
+      final msg = e.response?.data?['message']?.toString() ??
+          e.response?.data?['error']?.toString() ??
+          e.message ??
+          'Failed to fetch state ZIP codes';
+      throw ZipCodesServiceException(
+        message: msg,
+        statusCode: e.response?.statusCode,
+        originalError: e,
+      );
+    } catch (e) {
+      if (e is ZipCodesServiceException) rethrow;
+      throw ZipCodesServiceException(
+        message: 'Unexpected error: ${e.toString()}',
+        originalError: e,
+      );
+    }
+  }
+
   /// Fetches ZIP code data for a given country, state and ZIP code
   ///
   /// [country] should be "US" (default)
@@ -304,15 +544,8 @@ class ZipCodesService {
     }
 
     try {
-      final endpoint =
-          '${ApiConstants.apiBaseUrl}/zip-codes/$country/$state/$zipcode';
-
-      if (kDebugMode) {
-        print('📡 Fetching ZIP code data');
-        print('   State: $state');
-        print('   ZIP: $zipcode');
-        print('   Endpoint: $endpoint');
-      }
+      final endpoint = ApiConstants.verifyZipCodeEndpoint(country, state, zipcode);
+      _logZipApi('ZIP Fetch API', 'GET', endpoint, null, null);
 
       final response = await _dio.get(
         endpoint,
@@ -325,53 +558,10 @@ class ZipCodesService {
         ),
       );
 
-      if (kDebugMode) {
-        print('✅ ZIP codes response received');
-        print('   Status Code: ${response.statusCode}');
-      }
+      _logZipApi('ZIP Fetch API', 'GET', endpoint, response.statusCode, response.data);
 
       if (response.statusCode == 200) {
         final data = response.data;
-
-        if (kDebugMode) {
-          print('📥 Raw API response structure:');
-          print('   Type: ${data.runtimeType}');
-          if (data is Map) {
-            print('   Keys: ${data.keys.toList()}');
-            if (data.containsKey('results')) {
-              final results = data['results'];
-              if (results is List && results.isNotEmpty) {
-                print('   Results count: ${results.length}');
-                print('   First result type: ${results[0].runtimeType}');
-                if (results[0] is Map) {
-                  final firstResult = results[0] as Map;
-                  print('   First result keys: ${firstResult.keys.toList()}');
-                  print(
-                    '   First result has _id: ${firstResult.containsKey('_id')}',
-                  );
-                  print(
-                    '   First result has id: ${firstResult.containsKey('id')}',
-                  );
-                  if (firstResult.containsKey('_id')) {
-                    print('   First result _id: ${firstResult['_id']}');
-                  }
-                  if (firstResult.containsKey('id')) {
-                    print('   First result id: ${firstResult['id']}');
-                  }
-                  if (firstResult.containsKey('zipcode') ||
-                      firstResult.containsKey('zipCode')) {
-                    print('   First result is individual ZIP code');
-                  }
-                  if (firstResult.containsKey('postalCodes')) {
-                    print(
-                      '   First result is city-grouped (postalCodes: ${firstResult['postalCodes']})',
-                    );
-                  }
-                }
-              }
-            }
-          }
-        }
 
         if (data is Map<String, dynamic>) {
           if (data.containsKey('zipCodes')) {
@@ -459,6 +649,7 @@ class ZipCodesService {
                           id: zipCodeResult.id,
                           zipCode: postalCode,
                           state: stateCode,
+                          city: zipCodeResult.city.isNotEmpty ? zipCodeResult.city : null,
                           population: zipCodeResult.population,
                           price: zipCodeResult.price?.toDouble(),
                           isAvailable: true,

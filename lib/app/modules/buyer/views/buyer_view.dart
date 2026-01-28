@@ -308,7 +308,15 @@ class BuyerView extends GetView<BuyerV2Controller> {
 
   Widget _buildAgentsList(BuildContext context) {
     return Obx(() {
-      if (controller.agents.isEmpty) {
+      final useZipPagination = controller.currentZipCode != null;
+      final list = useZipPagination
+          ? controller.displayedAgents
+          : controller.agents;
+      final canShowNext10 = controller.canShowNext10Agents;
+      final canLoadMore = !useZipPagination &&
+          controller.currentPage.value < controller.totalPages.value;
+
+      if (list.isEmpty) {
         return _buildEmptyState(
           context,
           'No agents found',
@@ -317,21 +325,20 @@ class BuyerView extends GetView<BuyerV2Controller> {
         );
       }
 
-      // Access reactive values directly inside Obx
-      final currentPage = controller.currentPage.value;
-      final totalPages = controller.totalPages.value;
-      final canLoadMore = currentPage < totalPages;
+      final itemCount = list.length + (canShowNext10 ? 1 : 0) + (canLoadMore ? 1 : 0);
 
       return ListView.builder(
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
-        itemCount: controller.agents.length + (canLoadMore ? 1 : 0),
+        itemCount: itemCount,
         itemBuilder: (context, index) {
-          // Show Load More button at the end
-          if (index == controller.agents.length) {
+          if (index == list.length) {
+            if (canShowNext10) {
+              return _buildViewNext10Button(context, isAgents: true);
+            }
             return _buildLoadMoreButton(context);
           }
           
-          final agent = controller.agents[index];
+          final agent = list[index];
           return Padding(
             padding: const EdgeInsets.only(bottom: 16),
             child:
@@ -483,9 +490,81 @@ class BuyerView extends GetView<BuyerV2Controller> {
     });
   }
 
+  Widget _buildViewNext10Button(BuildContext context, {required bool isAgents}) {
+    return Obx(() {
+      final showing = isAgents
+          ? controller.displayedAgents.length
+          : controller.displayedLoanOfficers.length;
+      final total = isAgents
+          ? controller.agents.length
+          : controller.loanOfficers.length;
+      final label = isAgents ? 'agents' : 'loan officers';
+      return Padding(
+        padding: const EdgeInsets.only(top: 16, bottom: 24),
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                AppTheme.primaryBlue.withOpacity(0.05),
+                AppTheme.primaryBlue.withOpacity(0.02),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: AppTheme.primaryBlue.withOpacity(0.1),
+              width: 1,
+            ),
+          ),
+          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+          child: Column(
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    isAgents ? Icons.people_outline : Icons.account_balance,
+                    size: 18,
+                    color: AppTheme.mediumGray,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Showing $showing of $total closest $label',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppTheme.mediumGray,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              CustomButton(
+                text: 'View next 10 closest',
+                onPressed: isAgents
+                    ? () => controller.showNext10Agents()
+                    : () => controller.showNext10LoanOfficers(),
+                icon: Icons.expand_more,
+                height: 48,
+                isOutlined: false,
+              ),
+            ],
+          ),
+        ),
+      );
+    });
+  }
+
   Widget _buildLoanOfficersList(BuildContext context) {
     return Obx(() {
-      if (controller.loanOfficers.isEmpty) {
+      final useZipPagination = controller.currentZipCode != null;
+      final list = useZipPagination
+          ? controller.displayedLoanOfficers
+          : controller.loanOfficers;
+      final canShowNext10 = controller.canShowNext10LoanOfficers;
+
+      if (list.isEmpty && controller.loanOfficers.isEmpty) {
         return _buildEmptyState(
           context,
           'No loan officers found',
@@ -494,11 +573,16 @@ class BuyerView extends GetView<BuyerV2Controller> {
         );
       }
 
+      final itemCount = list.length + (canShowNext10 ? 1 : 0);
+
       return ListView.builder(
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
-        itemCount: controller.loanOfficers.length,
+        itemCount: itemCount,
         itemBuilder: (context, index) {
-          final loanOfficer = controller.loanOfficers[index];
+          if (index == list.length) {
+            return _buildViewNext10Button(context, isAgents: false);
+          }
+          final loanOfficer = list[index];
           return Padding(
             padding: const EdgeInsets.only(bottom: 16),
             child:
@@ -598,7 +682,13 @@ class BuyerView extends GetView<BuyerV2Controller> {
 
   Widget _buildListingsList(BuildContext context) {
     return Obx(() {
-      if (controller.listings.isEmpty) {
+      final useZipPagination = controller.currentZipCode != null;
+      final list = useZipPagination
+          ? controller.displayedListings
+          : controller.listings;
+      final canShowNext10 = controller.canShowNext10Listings;
+
+      if (list.isEmpty && controller.listings.isEmpty) {
         return _buildEmptyState(
           context,
           'No listings found',
@@ -607,11 +697,16 @@ class BuyerView extends GetView<BuyerV2Controller> {
         );
       }
 
+      final itemCount = list.length + (canShowNext10 ? 1 : 0);
+
       return ListView.builder(
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
-        itemCount: controller.listings.length,
+        itemCount: itemCount,
         itemBuilder: (context, index) {
-          final listing = controller.listings[index];
+          if (index == list.length) {
+            return _buildLoadNext10ListingsButton(context);
+          }
+          final listing = list[index];
           return Padding(
             padding: const EdgeInsets.only(bottom: 16),
             child: GestureDetector(
@@ -773,9 +868,125 @@ class BuyerView extends GetView<BuyerV2Controller> {
     });
   }
 
+  Widget _buildLoadNext10ListingsButton(BuildContext context) {
+    return Obx(() {
+      final showing = controller.displayedListings.length;
+      final total = controller.listings.length;
+      return Padding(
+        padding: const EdgeInsets.only(top: 16, bottom: 24),
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                Colors.deepPurple.withOpacity(0.05),
+                Colors.deepPurple.withOpacity(0.02),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: Colors.deepPurple.withOpacity(0.2),
+              width: 1,
+            ),
+          ),
+          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+          child: Column(
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.home, size: 18, color: AppTheme.mediumGray),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Showing $showing of $total closest listings',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppTheme.mediumGray,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              CustomButton(
+                text: 'Load next 10 closest',
+                onPressed: () => controller.showNext10Listings(),
+                icon: Icons.expand_more,
+                height: 48,
+                isOutlined: false,
+              ),
+            ],
+          ),
+        ),
+      );
+    });
+  }
+
+  Widget _buildLoadNext10OpenHousesButton(BuildContext context) {
+    return Obx(() {
+      final showing = controller.displayedOpenHouses.length;
+      final total = controller.openHouses.length;
+      return Padding(
+        padding: const EdgeInsets.only(top: 16, bottom: 24),
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                Colors.orange.withOpacity(0.08),
+                Colors.orange.withOpacity(0.03),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: Colors.orange.withOpacity(0.25),
+              width: 1,
+            ),
+          ),
+          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+          child: Column(
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.event, size: 18, color: AppTheme.mediumGray),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Showing $showing of $total closest open houses',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppTheme.mediumGray,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              CustomButton(
+                text: 'Load next 10 closest',
+                onPressed: () => controller.showNext10OpenHouses(),
+                icon: Icons.expand_more,
+                height: 48,
+                isOutlined: false,
+              ),
+            ],
+          ),
+        ),
+      );
+    });
+  }
+
   Widget _buildOpenHousesList(BuildContext context) {
     return Obx(() {
-      if (controller.openHouses.isEmpty) {
+      final useZipPagination = controller.currentZipCode != null;
+      final list = useZipPagination
+          ? controller.displayedOpenHouses
+          : controller.openHouses;
+      final canShowNext10 = controller.canShowNext10OpenHouses;
+
+      if (list.isEmpty && controller.openHouses.isEmpty) {
         return _buildEmptyState(
           context,
           'No open houses found',
@@ -784,11 +995,16 @@ class BuyerView extends GetView<BuyerV2Controller> {
         );
       }
 
+      final itemCount = list.length + (canShowNext10 ? 1 : 0);
+
       return ListView.builder(
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
-        itemCount: controller.openHouses.length,
+        itemCount: itemCount,
         itemBuilder: (context, index) {
-          final openHouse = controller.openHouses[index];
+          if (index == list.length) {
+            return _buildLoadNext10OpenHousesButton(context);
+          }
+          final openHouse = list[index];
           final listing = controller.getListingForOpenHouse(openHouse);
 
           return Padding(

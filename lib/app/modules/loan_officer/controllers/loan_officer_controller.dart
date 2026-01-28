@@ -50,11 +50,14 @@ class LoanOfficerController extends GetxController {
   final _availableZipCodes = <LoanOfficerZipCodeModel>[].obs;
   final _allZipCodes =
       <LoanOfficerZipCodeModel>[].obs; // All zip codes from API
+  final _stateZipCodesFromApi = <LoanOfficerZipCodeModel>[]; // getstateZip result
   final _filteredAvailableZipCodes = <LoanOfficerZipCodeModel>[]
       .obs; // Filtered available zip codes for search
   final _filteredClaimedZipCodes =
       <LoanOfficerZipCodeModel>[].obs; // Filtered claimed zip codes for search
   final _searchQuery = ''.obs; // Current search query
+  final zipSearchController = TextEditingController();
+  Timer? _zipVerifyDebounce;
   final _loans = <LoanModel>[].obs;
   final _isLoading = false.obs;
   final _isLoadingZipCodes = false.obs;
@@ -342,8 +345,9 @@ class LoanOfficerController extends GetxController {
 
   @override
   void onClose() {
-    // Cancel search debounce timer to prevent memory leaks
     _searchDebounceTimer?.cancel();
+    _zipVerifyDebounce?.cancel();
+    zipSearchController.dispose();
     super.onClose();
   }
 
@@ -398,15 +402,6 @@ class LoanOfficerController extends GetxController {
     }
 
     try {
-      // Get user ID for API call
-      final userId = _userId;
-      if (userId == null || userId.isEmpty) {
-        if (kDebugMode) {
-          print('⚠️ Cannot load zip codes: User ID is null or empty');
-        }
-        return;
-      }
-
       // Get current loan officer to determine state
       final currentLoanOfficerController =
           Get.isRegistered<CurrentLoanOfficerController>()
@@ -443,7 +438,9 @@ class LoanOfficerController extends GetxController {
         try {
           final cachedZipCodes = _readCachedZipCodes(cacheKey);
           if (cachedZipCodes != null && cachedZipCodes.isNotEmpty) {
-            _allZipCodes.value = cachedZipCodes;
+            _stateZipCodesFromApi.clear();
+            _stateZipCodesFromApi.addAll(cachedZipCodes);
+            _allZipCodes.value = List.from(_stateZipCodesFromApi);
             _currentState.value = stateKey;
             _updateZipCodeLists();
             _hasLoadedZipCodes.value = true;
@@ -494,16 +491,15 @@ class LoanOfficerController extends GetxController {
       _isLoadingZipCodes.value = true;
 
       if (kDebugMode) {
-        print('📡 Loading zip codes from API');
+        print('📡 Loading zip codes from API (getstateZip)');
         print('   Country: $country');
         print('   State: $state');
         print('   Force refresh: $forceRefresh');
       }
 
-      final zipCodes = await _loanOfficerZipCodeService.getZipCodes(
+      final zipCodes = await _loanOfficerZipCodeService.getStateZipCodes(
         country,
         state,
-        userId,
       );
 
       if (zipCodes.isEmpty) {
@@ -514,19 +510,17 @@ class LoanOfficerController extends GetxController {
         return;
       }
 
-      // Update reactive state using GetX
-      _allZipCodes.value = zipCodes;
+      _stateZipCodesFromApi.clear();
+      _stateZipCodesFromApi.addAll(zipCodes);
+      _allZipCodes.value = List.from(_stateZipCodesFromApi);
       _currentState.value = stateKey;
 
-      // Save to GetStorage (persistent cache) - do this in background to avoid blocking
       Future.microtask(() {
         _saveZipCodesToCache(cacheKey, zipCodes, stateKey);
       });
 
-      // Separate claimed and available zip codes
       _updateZipCodeLists();
 
-      // Mark as loaded
       _hasLoadedZipCodes.value = true;
 
       if (kDebugMode) {
@@ -540,12 +534,10 @@ class LoanOfficerController extends GetxController {
         print('   Stack trace: $stackTrace');
       }
 
-      // Show error only if no cached data available
       if (_allZipCodes.isEmpty) {
-        Get.snackbar(
-          'Error',
+        SnackbarHelper.showError(
           'Failed to load zip codes. Please check your connection.',
-          snackPosition: SnackPosition.TOP,
+          title: 'Error',
           duration: const Duration(seconds: 3),
         );
       }
@@ -701,21 +693,13 @@ class LoanOfficerController extends GetxController {
       // Add delay to avoid conflicts with initial load
       await Future.delayed(const Duration(seconds: 3));
 
-      // Check again after delay
       if (_isLoadingZipCodes.value) {
         return;
       }
 
-      // Get user ID for API call
-      final userId = _userId;
-      if (userId == null || userId.isEmpty) {
-        return;
-      }
-
-      final zipCodes = await _loanOfficerZipCodeService.getZipCodes(
+      final zipCodes = await _loanOfficerZipCodeService.getStateZipCodes(
         country,
         state,
-        userId,
       );
 
       if (zipCodes.isEmpty) {
@@ -725,14 +709,13 @@ class LoanOfficerController extends GetxController {
       final cacheKey = _getCacheKey(country, state);
       final stateKey = '${country}_$state';
 
-      // Only update if state hasn't changed (prevent race conditions)
       if (_currentState.value == stateKey && !_isLoadingZipCodes.value) {
-        // Update cache without updating UI (silent update to avoid blocking)
         _saveZipCodesToCache(cacheKey, zipCodes, stateKey);
 
-        // Only update UI if user is on zip codes tab and data changed significantly
         if (_selectedTab.value == 2 && zipCodes.length != _allZipCodes.length) {
-          _allZipCodes.value = zipCodes;
+          _stateZipCodesFromApi.clear();
+          _stateZipCodesFromApi.addAll(zipCodes);
+          _allZipCodes.value = List.from(_stateZipCodesFromApi);
           _updateZipCodeLists();
         }
 
@@ -2291,17 +2274,74 @@ class LoanOfficerController extends GetxController {
   Timer? _searchDebounceTimer;
 
   /// Searches zip codes with debouncing for optimal performance
-  /// Debounces search input to avoid excessive filtering operations
   void searchZipCodes(String query) {
     _searchQuery.value = query;
-
-    // Cancel previous timer
     _searchDebounceTimer?.cancel();
-
-    // Debounce search filtering by 300ms for better performance
     _searchDebounceTimer = Timer(const Duration(milliseconds: 300), () {
       _applySearchFilter();
     });
+  }
+
+  /// Filter displayed ZIPs by search prefix (from state list).
+  void filterZipCodesBySearch(String query) {
+    final q = query.trim().toLowerCase();
+    if (q.isEmpty) {
+      _allZipCodes.value = List.from(_stateZipCodesFromApi);
+      _updateZipCodeLists();
+      return;
+    }
+    final filtered = _stateZipCodesFromApi
+        .where((z) => z.postalCode.toLowerCase().startsWith(q))
+        .toList();
+    _allZipCodes.value = filtered;
+    _updateZipCodeLists();
+  }
+
+  /// Search bar onChanged: filter by prefix, or when 5 digits typed auto validate → fetch.
+  void onZipSearchChanged(String query) {
+    _zipVerifyDebounce?.cancel();
+    final q = query.trim();
+    if (q.length < 5) {
+      filterZipCodesBySearch(query);
+      return;
+    }
+    if (q.length == 5 && RegExp(r'^\d{5}$').hasMatch(q)) {
+      _zipVerifyDebounce = Timer(const Duration(milliseconds: 400), _validateAndFetchZip);
+      return;
+    }
+    filterZipCodesBySearch(query);
+  }
+
+  /// Validate ZIP via API, then fetch results. Show snackbar on invalid.
+  Future<void> _validateAndFetchZip() async {
+    final state = _selectedState.value;
+    if (state == null || state.isEmpty) {
+      SnackbarHelper.showError('Please select a state first');
+      return;
+    }
+    final zip = zipSearchController.text.trim();
+    if (zip.length != 5 || !RegExp(r'^\d{5}$').hasMatch(zip)) return;
+
+    try {
+      _isLoadingZipCodes.value = true;
+      await _loanOfficerZipCodeService.validateZipCode(zipcode: zip, state: state);
+      const country = 'US';
+      final list = await _loanOfficerZipCodeService.verifyZipCode(country, state, zip);
+      _allZipCodes.value = list;
+      _updateZipCodeLists();
+    } on LoanOfficerZipCodeServiceException catch (e) {
+      if (kDebugMode) print('❌ Validate ZIP: ${e.message}');
+      SnackbarHelper.showError(e.message);
+      _allZipCodes.value = List.from(_stateZipCodesFromApi);
+      _updateZipCodeLists();
+    } catch (e) {
+      if (kDebugMode) print('❌ Validate ZIP: $e');
+      SnackbarHelper.showError('Failed to validate or fetch ZIP: ${e.toString()}');
+      _allZipCodes.value = List.from(_stateZipCodesFromApi);
+      _updateZipCodeLists();
+    } finally {
+      _isLoadingZipCodes.value = false;
+    }
   }
 
   /// Refreshes zip codes from the API (forces reload)
@@ -2325,7 +2365,10 @@ class LoanOfficerController extends GetxController {
   Future<void> selectStateAndFetchZipCodes(String stateName) async {
     if (stateName.isEmpty) {
       _selectedState.value = null;
+      _stateZipCodesFromApi.clear();
+      _allZipCodes.clear();
       _availableZipCodes.clear();
+      zipSearchController.clear();
       return;
     }
 
@@ -2350,20 +2393,12 @@ class LoanOfficerController extends GetxController {
     }
 
     try {
-      // Get user ID for API call
-      final userId = _userId;
-      if (userId == null || userId.isEmpty) {
-        if (kDebugMode) {
-          print('⚠️ Cannot load zip codes: User ID is null or empty');
-        }
-        return;
-      }
-
       const country = 'US';
       final state = _normalizeStateToCode(stateName);
-
       final stateKey = '${country}_$state';
       final cacheKey = _getCacheKey(country, state);
+
+      zipSearchController.clear();
 
       if (!forceRefresh &&
           _hasLoadedZipCodes.value &&
@@ -2381,7 +2416,9 @@ class LoanOfficerController extends GetxController {
         try {
           final cachedZipCodes = _readCachedZipCodes(cacheKey);
           if (cachedZipCodes != null && cachedZipCodes.isNotEmpty) {
-            _allZipCodes.value = cachedZipCodes;
+            _stateZipCodesFromApi.clear();
+            _stateZipCodesFromApi.addAll(cachedZipCodes);
+            _allZipCodes.value = List.from(_stateZipCodesFromApi);
             _currentState.value = stateKey;
             _updateZipCodeLists();
             _hasLoadedZipCodes.value = true;
@@ -2389,6 +2426,7 @@ class LoanOfficerController extends GetxController {
             if (kDebugMode) {
               print('📦 Loaded ${cachedZipCodes.length} zip codes from cache');
             }
+            return;
           }
         } catch (e) {
           if (kDebugMode) {
@@ -2401,16 +2439,15 @@ class LoanOfficerController extends GetxController {
       _isLoadingZipCodes.value = true;
 
       if (kDebugMode) {
-        print('📡 Loading zip codes from API');
+        print('📡 Loading zip codes from API (getstateZip)');
         print('   Country: $country');
         print('   State: $state');
         print('   Force refresh: $forceRefresh');
       }
 
-      final zipCodes = await _loanOfficerZipCodeService.getZipCodes(
+      final zipCodes = await _loanOfficerZipCodeService.getStateZipCodes(
         country,
         state,
-        userId,
       );
 
       if (zipCodes.isEmpty) {
@@ -2421,19 +2458,17 @@ class LoanOfficerController extends GetxController {
         return;
       }
 
-      // Update reactive state using GetX
-      _allZipCodes.value = zipCodes;
+      _stateZipCodesFromApi.clear();
+      _stateZipCodesFromApi.addAll(zipCodes);
+      _allZipCodes.value = List.from(_stateZipCodesFromApi);
       _currentState.value = stateKey;
 
-      // Save to GetStorage (persistent cache) - do this in background to avoid blocking
       Future.microtask(() {
         _saveZipCodesToCache(cacheKey, zipCodes, stateKey);
       });
 
-      // Separate claimed and available zip codes
       _updateZipCodeLists();
 
-      // Mark as loaded
       _hasLoadedZipCodes.value = true;
 
       if (kDebugMode) {

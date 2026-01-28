@@ -5,6 +5,7 @@ class ZipCodeModel {
   final String? id; // MongoDB ID from API
   final String zipCode;
   final String state;
+  final String? city;
   final int population;
   final bool? claimedByAgent;
   final bool? claimedByLoanOfficer;
@@ -19,6 +20,7 @@ class ZipCodeModel {
     this.id,
     required this.zipCode,
     required this.state,
+    this.city,
     required this.population,
     this.claimedByAgent,
     this.claimedByLoanOfficer,
@@ -31,6 +33,7 @@ class ZipCodeModel {
   });
 
   factory ZipCodeModel.fromJson(Map<String, dynamic> json) {
+    final city = json['city']?.toString();
     return ZipCodeModel(
       id: json['_id']?.toString() ?? json['id']?.toString(),
       zipCode:
@@ -39,6 +42,7 @@ class ZipCodeModel {
           json['zipcode'] ??
           '',
       state: json['state'] ?? '',
+      city: city != null && city.isNotEmpty ? city : null,
       population: json['population'] is int
           ? json['population'] as int
           : (json['population'] is String
@@ -74,6 +78,7 @@ class ZipCodeModel {
       if (id != null) 'id': id,
       'zipCode': zipCode,
       'state': state,
+      if (city != null) 'city': city,
       'population': population,
       'claimedByAgent': claimedByAgent,
       'claimedByLoanOfficer': claimedByLoanOfficer,
@@ -90,6 +95,7 @@ class ZipCodeModel {
     String? id,
     String? zipCode,
     String? state,
+    String? city,
     int? population,
     bool? claimedByAgent,
     bool? claimedByLoanOfficer,
@@ -104,6 +110,7 @@ class ZipCodeModel {
       id: id ?? this.id,
       zipCode: zipCode ?? this.zipCode,
       state: state ?? this.state,
+      city: city ?? this.city,
       population: population ?? this.population,
       claimedByAgent: claimedByAgent ?? this.claimedByAgent,
       claimedByLoanOfficer: claimedByLoanOfficer ?? this.claimedByLoanOfficer,

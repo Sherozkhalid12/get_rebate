@@ -59,6 +59,14 @@ class LoanOfficerZipCodeService {
     );
   }
 
+  static Map<String, dynamic> _ensurePostalCode(Map<String, dynamic> m) {
+    final p = m['postalCode']?.toString() ?? '';
+    if (p.isEmpty) {
+      m['postalCode'] = m['zipCode']?.toString() ?? m['zipcode']?.toString() ?? '';
+    }
+    return m;
+  }
+
   /// Handles Dio errors
   void _handleError(DioException error) {
     if (kDebugMode) {
@@ -131,8 +139,242 @@ class LoanOfficerZipCodeService {
       return stateName.toUpperCase();
     }
 
-    // Try to find the abbreviation
     return stateMap[stateName] ?? stateName.toUpperCase();
+  }
+
+  static void _logZipApi(String title, String method, String path, int? status, dynamic body) {
+    if (!kDebugMode) return;
+    const line = '─────────────────────────────────────────────────────────';
+    print('\n$line');
+    print('  $title');
+    print('$line');
+    print('  $method $path');
+    print('  Response: ${status ?? "—"}');
+    if (body != null) {
+      final str = body is Map ? body.toString() : body.toString();
+      print('  Body: $str');
+    }
+    print('$line\n');
+  }
+
+  /// Validates a 5-digit ZIP for a state via GET /api/v1/zip-codes/validate/:zipcode/:state
+  /// Returns true if valid. Throws [LoanOfficerZipCodeServiceException] otherwise.
+  Future<bool> validateZipCode({ required String zipcode, required String state }) async {
+    final trimmed = zipcode.trim();
+    if (!RegExp(r'^\d{5}$').hasMatch(trimmed)) {
+      throw LoanOfficerZipCodeServiceException(message: 'ZIP code must be exactly 5 digits', statusCode: 400);
+    }
+    if (state.isEmpty) {
+      throw LoanOfficerZipCodeServiceException(message: 'State is required', statusCode: 400);
+    }
+    final stateAbbr = _convertStateNameToAbbreviation(state);
+    final path = ApiConstants.validateZipCodeEndpoint(trimmed, stateAbbr);
+    try {
+      _logZipApi('ZIP Validate API', 'GET', path, null, null);
+      final authToken = _storage.read('auth_token');
+      final response = await _dio.get(
+        path,
+        options: Options(
+          headers: {
+            ...ApiConstants.ngrokHeaders,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            if (authToken != null) 'Authorization': 'Bearer $authToken',
+          },
+        ),
+      );
+      _logZipApi('ZIP Validate API', 'GET', path, response.statusCode, response.data);
+      if (response.statusCode == 200) {
+        final data = response.data;
+        final valid = data is Map && (data['valid'] == true || data['isValid'] == true);
+        if (!valid) throw LoanOfficerZipCodeServiceException(
+          message: (data is Map ? (data['message'] ?? data['error'])?.toString() : null) ?? 'ZIP code is not valid for this state',
+          statusCode: response.statusCode,
+        );
+        return true;
+      }
+      final msg = response.data is Map ? (response.data['message'] ?? response.data['error'])?.toString() : null;
+      throw LoanOfficerZipCodeServiceException(
+        message: msg ?? 'ZIP code is not valid for this state',
+        statusCode: response.statusCode,
+      );
+    } on DioException catch (e) {
+      final status = e.response?.statusCode;
+      final body = e.response?.data;
+      _logZipApi('ZIP Validate API', 'GET', path, status, body);
+      final msg = body is Map ? (body['message'] ?? body['error'])?.toString() : e.message;
+      throw LoanOfficerZipCodeServiceException(
+        message: msg ?? 'ZIP code is not valid for this state',
+        statusCode: status,
+        originalError: e,
+      );
+    }
+  }
+
+  /// Fetches zip codes for a state via GET /api/v1/zip-codes/getstateZip/:country/:state
+  /// Used for both agent and loan officer ZIP flows.
+  Future<List<LoanOfficerZipCodeModel>> getStateZipCodes(
+    String country,
+    String state,
+  ) async {
+    try {
+      final stateAbbr = _convertStateNameToAbbreviation(state);
+      final endpoint = ApiConstants.getStateZipCodesEndpoint(country, stateAbbr);
+      if (kDebugMode) {
+        print('🚀 LoanOfficerZipCodeService: getStateZipCodes');
+        print('   Endpoint: $endpoint');
+      }
+
+      final authToken = _storage.read('auth_token');
+      final response = await _dio.get(
+        endpoint,
+        options: Options(
+          headers: {
+            ...ApiConstants.ngrokHeaders,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            if (authToken != null) 'Authorization': 'Bearer $authToken',
+          },
+        ),
+      );
+
+      if (response.statusCode != 200) {
+        throw LoanOfficerZipCodeServiceException(
+          message: 'Failed to fetch state ZIP codes: ${response.statusCode}',
+          statusCode: response.statusCode,
+        );
+      }
+
+      final data = response.data;
+      if (data is! Map) {
+        throw LoanOfficerZipCodeServiceException(
+          message: 'Invalid response format from getstateZip',
+        );
+      }
+
+      List<dynamic> raw = [];
+      if (data.containsKey('zipCodes') && data['zipCodes'] is List) {
+        raw = data['zipCodes'] as List<dynamic>;
+      } else if (data.containsKey('results') && data['results'] is List) {
+        raw = data['results'] as List<dynamic>;
+      }
+
+      final list = <LoanOfficerZipCodeModel>[];
+      for (final e in raw) {
+        if (e is! Map<String, dynamic>) continue;
+        try {
+          final m = _ensurePostalCode(Map<String, dynamic>.from(e));
+          final z = LoanOfficerZipCodeModel.fromJson(m);
+          if (z.population >= 10) list.add(z);
+        } catch (_) {}
+      }
+
+      if (kDebugMode) {
+        print('✅ getStateZipCodes: ${list.length} zip codes for $stateAbbr');
+      }
+      return list;
+    } on DioException catch (e) {
+      final msg = e.response?.data?['message']?.toString() ??
+          e.response?.data?['error']?.toString() ??
+          e.message ??
+          'Failed to fetch state ZIP codes';
+      throw LoanOfficerZipCodeServiceException(
+        message: msg,
+        statusCode: e.response?.statusCode,
+        originalError: e,
+      );
+    } catch (e) {
+      if (e is LoanOfficerZipCodeServiceException) rethrow;
+      throw LoanOfficerZipCodeServiceException(
+        message: 'Unexpected error: ${e.toString()}',
+        originalError: e,
+      );
+    }
+  }
+
+  /// Verifies a 5-digit ZIP via GET /api/v1/zip-codes/:country/:state/:zipcode
+  /// Returns list of zip code(s) from API; empty or error → throw.
+  Future<List<LoanOfficerZipCodeModel>> verifyZipCode(
+    String country,
+    String state,
+    String zipcode,
+  ) async {
+    if (!RegExp(r'^\d{5}$').hasMatch(zipcode)) {
+      throw LoanOfficerZipCodeServiceException(
+        message: 'ZIP code must be exactly 5 digits',
+        statusCode: 400,
+      );
+    }
+    try {
+      final stateAbbr = _convertStateNameToAbbreviation(state);
+      final endpoint = ApiConstants.verifyZipCodeEndpoint(country, stateAbbr, zipcode);
+      _logZipApi('ZIP Fetch API', 'GET', endpoint, null, null);
+
+      final authToken = _storage.read('auth_token');
+      final response = await _dio.get(
+        endpoint,
+        options: Options(
+          headers: {
+            ...ApiConstants.ngrokHeaders,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            if (authToken != null) 'Authorization': 'Bearer $authToken',
+          },
+        ),
+      );
+
+      _logZipApi('ZIP Fetch API', 'GET', endpoint, response.statusCode, response.data);
+
+      if (response.statusCode != 200) {
+        final msg = response.data is Map
+            ? (response.data['message'] ?? response.data['error'] ?? 'Invalid or unknown ZIP code')
+            : 'Invalid or unknown ZIP code';
+        throw LoanOfficerZipCodeServiceException(
+          message: msg.toString(),
+          statusCode: response.statusCode,
+        );
+      }
+
+      final data = response.data;
+      if (data is! Map) {
+        throw LoanOfficerZipCodeServiceException(
+          message: 'Invalid response format',
+        );
+      }
+
+      List<dynamic> raw = [];
+      if (data.containsKey('zipCodes') && data['zipCodes'] is List) {
+        raw = data['zipCodes'] as List<dynamic>;
+      } else if (data.containsKey('results') && data['results'] is List) {
+        raw = data['results'] as List<dynamic>;
+      }
+
+      final list = <LoanOfficerZipCodeModel>[];
+      for (final e in raw) {
+        if (e is! Map<String, dynamic>) continue;
+        try {
+          final m = _ensurePostalCode(Map<String, dynamic>.from(e));
+          list.add(LoanOfficerZipCodeModel.fromJson(m));
+        } catch (_) {}
+      }
+      return list;
+    } on DioException catch (e) {
+      final msg = e.response?.data?['message']?.toString() ??
+          e.response?.data?['error']?.toString() ??
+          e.message ??
+          'Invalid or unknown ZIP code';
+      throw LoanOfficerZipCodeServiceException(
+        message: msg,
+        statusCode: e.response?.statusCode,
+        originalError: e,
+      );
+    } catch (e) {
+      if (e is LoanOfficerZipCodeServiceException) rethrow;
+      throw LoanOfficerZipCodeServiceException(
+        message: 'Unexpected error: ${e.toString()}',
+        originalError: e,
+      );
+    }
   }
 
   /// Fetches zip codes for loan officers using the new endpoint

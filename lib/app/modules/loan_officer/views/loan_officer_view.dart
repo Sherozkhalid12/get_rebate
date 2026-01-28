@@ -1098,16 +1098,6 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
           sliver: SliverList(
             delegate: SliverChildListDelegate([
-              // Search
-              CustomTextField(
-                controller: TextEditingController(),
-                labelText: 'Search ZIP codes',
-                prefixIcon: Icons.search,
-                onChanged: (value) => controller.searchZipCodes(value),
-              ),
-
-              const SizedBox(height: 20),
-
               // Licensed States Section
               Obx(() {
                 final loanOfficer =
@@ -1296,6 +1286,23 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                 );
               }),
               const SizedBox(height: 20),
+
+              // Search / verify ZIP (filter list or verify 5-digit)
+              Obx(() {
+                if (controller.selectedState == null) return const SizedBox.shrink();
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 20),
+                  child: CustomTextField(
+                    controller: controller.zipSearchController,
+                    labelText: 'Search or enter 5-digit ZIP',
+                    hintText: 'Filter by prefix, or type 5 digits to validate & fetch',
+                    prefixIcon: Icons.search,
+                    keyboardType: TextInputType.number,
+                    maxLength: 5,
+                    onChanged: (v) => controller.onZipSearchChanged(v),
+                  ),
+                );
+              }),
 
               // Claimed ZIP Codes
               Obx(() {
@@ -1503,7 +1510,7 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${zip.state} • Population: $formattedPopulation',
+                    '${zip.city != null && zip.city!.isNotEmpty ? '${zip.city}, ' : ''}${zip.state} • Population: $formattedPopulation',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: AppTheme.mediumGray,
                     ),

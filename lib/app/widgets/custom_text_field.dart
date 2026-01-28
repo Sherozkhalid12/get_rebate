@@ -13,6 +13,7 @@ class CustomTextField extends StatelessWidget {
   final int? maxLength;
   final String? Function(String?)? validator;
   final void Function(String)? onChanged;
+  final void Function(String)? onSubmitted;
   final void Function()? onTap;
   final bool readOnly;
   final bool enabled;
@@ -32,6 +33,7 @@ class CustomTextField extends StatelessWidget {
     this.maxLength,
     this.validator,
     this.onChanged,
+    this.onSubmitted,
     this.onTap,
     this.readOnly = false,
     this.enabled = true,
@@ -47,15 +49,16 @@ class CustomTextField extends StatelessWidget {
       final _ = controller.text;
       return TextFormField(
         controller: controller,
-      obscureText: obscureText,
-      keyboardType: keyboardType,
-      maxLines: maxLines,
-      maxLength: maxLength,
-      validator: validator,
-      onChanged: onChanged,
-      onTap: onTap,
-      readOnly: readOnly,
-      enabled: enabled,
+        obscureText: obscureText,
+        keyboardType: keyboardType,
+        maxLines: maxLines,
+        maxLength: maxLength,
+        validator: validator,
+        onChanged: onChanged,
+        onFieldSubmitted: onSubmitted,
+        onTap: onTap,
+        readOnly: readOnly,
+        enabled: enabled,
       style: Theme.of(
         context,
       ).textTheme.bodyMedium?.copyWith(color: AppTheme.darkGray),
