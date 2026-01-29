@@ -728,6 +728,12 @@ class AgentView extends GetView<AgentController> {
               }),
               const SizedBox(height: 20),
 
+              _buildZipTabInfoNote(
+                context,
+                'To appear in multiple states, zip codes must be secured separately in each eligible state.',
+              ),
+              const SizedBox(height: 20),
+
               // Search / verify ZIP (filter list or verify 5-digit)
               Obx(() {
                 if (controller.selectedState == null) return const SizedBox.shrink();
@@ -865,6 +871,43 @@ class AgentView extends GetView<AgentController> {
           );
         }),
       ],
+    );
+  }
+
+  Widget _buildZipTabInfoNote(BuildContext context, String message) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: AppTheme.primaryBlue.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: AppTheme.primaryBlue.withOpacity(0.25),
+          ),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              Icons.info_outline_rounded,
+              color: AppTheme.primaryBlue,
+              size: 20,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                message,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppTheme.darkGray,
+                      height: 1.4,
+                    ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

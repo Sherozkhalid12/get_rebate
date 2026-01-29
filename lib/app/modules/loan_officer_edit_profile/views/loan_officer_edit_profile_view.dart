@@ -760,9 +760,7 @@ class _MortgageWebViewState extends State<_MortgageWebView> {
         ),
       )
       ..loadRequest(Uri.parse(widget.url));
-  }
-
-  @override
+  }  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Mortgage Application')),

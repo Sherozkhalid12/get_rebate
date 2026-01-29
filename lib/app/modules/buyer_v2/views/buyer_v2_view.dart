@@ -74,40 +74,39 @@ class BuyerV2View extends GetView<BuyerV2Controller> {
     return Container(
       padding: const EdgeInsets.all(20),
       color: AppTheme.white,
-      child: Column(
-        children: [
-          // Search Field - ZIP Code Only
-          CustomSearchField(
-            controller: controller.searchController,
-            hintText: 'Enter ZIP code (5 digits)',
-            onChanged: (value) {
-              // Handle empty or cleared input - always clear filter immediately
-              if (value.isEmpty || value.trim().isEmpty) {
-                controller.clearZipCodeFilter();
-                return;
-              }
-              // Only process if it's a valid 5-digit ZIP code
-              final trimmedValue = value.trim();
-              if (trimmedValue.length == 5 && RegExp(r'^\d+$').hasMatch(trimmedValue)) {
-                // Apply filter immediately when valid ZIP is entered
-                controller.searchByZipCode(trimmedValue);
-              }
-              // If user is typing but hasn't reached 5 digits yet, clear the filter
-              // This ensures partial input doesn't keep the old filter active
-              else if (value.length < 5) {
-                // Clear filter when user is deleting/typing partial ZIP
-                // This ensures that when user deletes characters, filter is cleared
-                controller.clearZipCodeFilter();
-              }
-            },
-            onLocationTap: () => controller.useCurrentLocation(),
-            onClear: () {
-              controller.searchController.clear();
-              controller.clearZipCodeFilter();
-            },
-          ),
-
-          const SizedBox(height: 20),
+      child: ListenableBuilder(
+        listenable: controller.searchController,
+        builder: (context, _) {
+          final hasSearch = controller.searchController.text.trim().isNotEmpty;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              CustomSearchField(
+                controller: controller.searchController,
+                hintText: 'Enter ZIP code (5 digits)',
+                onChanged: (value) {
+                  if (value.isEmpty || value.trim().isEmpty) {
+                    controller.clearZipCodeFilter();
+                    return;
+                  }
+                  final trimmedValue = value.trim();
+                  if (trimmedValue.length == 5 && RegExp(r'^\d+$').hasMatch(trimmedValue)) {
+                    controller.searchByZipCode(trimmedValue);
+                  } else if (value.length < 5) {
+                    controller.clearZipCodeFilter();
+                  }
+                },
+                onLocationTap: () => controller.useCurrentLocation(),
+                onClear: () {
+                  controller.searchController.clear();
+                  controller.clearZipCodeFilter();
+                },
+              ),
+              if (hasSearch) ...[
+                const SizedBox(height: 12),
+                _buildStateLimitNote(context),
+              ],
+              const SizedBox(height: 20),
 
           // 4 BUTTONS — 2×2 GRID — USING ONLY CustomButton
           GridView.count(
@@ -181,6 +180,42 @@ class BuyerV2View extends GetView<BuyerV2Controller> {
           ),
 
           const SizedBox(height: 16),
+        ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildStateLimitNote(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppTheme.primaryBlue.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: AppTheme.primaryBlue.withOpacity(0.25),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            Icons.info_outline_rounded,
+            color: AppTheme.primaryBlue,
+            size: 20,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'Searches are limited to one state at a time. Please search each state separately when exploring border areas.',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppTheme.darkGray,
+                    height: 1.4,
+                  ),
+            ),
+          ),
         ],
       ),
     );
