@@ -30,7 +30,8 @@ import 'dart:convert';
 import 'dart:async';
 
 class AgentController extends GetxController {
-  // API
+
+
   final Dio _dio = Dio();
   final _storage = GetStorage();
   // Using ApiConstants for centralized URL management
@@ -312,12 +313,6 @@ class AgentController extends GetxController {
   }
 
   /// Restores the selected state from storage
-  Future<void> _restoreSelectedState() async {
-    final savedState = _storage.read(_selectedStateStorageKey) as String?;
-    if (savedState != null && savedState.isNotEmpty) {
-      _selectedState.value = savedState;
-    }
-  }
 
   Future<void> _restoreClaimedZipCodesFromStorage() async {
     try {
