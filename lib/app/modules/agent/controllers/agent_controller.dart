@@ -1377,19 +1377,53 @@ class AgentController extends GetxController {
       _processingZipCodes.add(zipCode.zipCode);
       _isLoading.value = true;
 
-      // Get auth token from storage
-      final authToken = _storage.read('auth_token');
       final authController = Get.find<global.AuthController>();
       final userId = authController.currentUser?.id;
 
       if (userId == null || userId.isEmpty) {
         Get.snackbar('Error', 'User not authenticated. Please login again.');
-        _isLoading.value = false;
         return;
       }
 
-      // Prepare request body according to API specification
-      // Backend expects current agent ID and the zipcode being released
+      // Call cancelSubscription API first; only on 200 OK proceed to release
+      final activeSub = activeSubscriptionFromAPI;
+      final stripeSubscriptionId = activeSub?['stripeSubscriptionId']?.toString() ??
+          activeSub?['_id']?.toString() ??
+          '';
+
+      if (stripeSubscriptionId.isNotEmpty) {
+        try {
+          await _callCancelSubscriptionApi(stripeSubscriptionId, userId);
+        } on DioException catch (e) {
+          final statusCode = e.response?.statusCode;
+          final data = e.response?.data;
+          final message = data is Map
+              ? (data['message'] ?? data['error'] ?? data['msg'])?.toString()
+              : null;
+          if (kDebugMode) {
+            print('❌ Cancel subscription before release failed: $statusCode');
+            print('   Message: $message');
+            print('   Response: $data');
+          }
+          SnackbarHelper.showError(
+            message?.isNotEmpty == true
+                ? message!
+                : 'Could not cancel subscription. Release aborted. Please try again.',
+          );
+          return;
+        } catch (e) {
+          if (kDebugMode) {
+            print('❌ Cancel subscription before release failed: $e');
+          }
+          SnackbarHelper.showError(
+            'Could not cancel subscription. Release aborted. Please try again.',
+          );
+          return;
+        }
+      }
+
+      // Cancel succeeded (or no subscription) — call release API
+      final authToken = _storage.read('auth_token');
       final requestBody = {
         'id': userId,
         'zipcode': zipCode.zipCode,
@@ -1402,7 +1436,6 @@ class AgentController extends GetxController {
         print('   Request body: $requestBody');
       }
 
-      // Call release endpoint
       final response = await _dio.patch(
         '/zip-codes/release',
         data: requestBody,
@@ -1419,11 +1452,9 @@ class AgentController extends GetxController {
         throw Exception('Failed to release ZIP code: ${response.statusCode}');
       }
 
-      // Remove from claimed ZIP codes
       _claimedZipCodes.removeWhere((zip) => zip.zipCode == zipCode.zipCode);
       _persistClaimedZipCodesToStorage();
 
-      // Add back to available ZIP codes
       final availableZip = zipCode.copyWith(
         claimedByAgent: null,
         claimedAt: null,
@@ -1431,13 +1462,23 @@ class AgentController extends GetxController {
       );
 
       _availableZipCodes.add(availableZip);
-
-      // Update subscription price after releasing zip code
       _updateSubscriptionPrice();
 
-      Get.snackbar(
-        'Success',
-        'ZIP code ${zipCode.zipCode} released successfully!',
+      // Use SnackbarHelper + post-frame to avoid "No Overlay widget found" after async work
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        SnackbarHelper.showSuccess(
+          'ZIP code ${zipCode.zipCode} released successfully!',
+        );
+      });
+    } on DioException catch (e) {
+      final message = e.response?.data is Map &&
+              (e.response?.data as Map).containsKey('message')
+          ? (e.response!.data as Map)['message'].toString()
+          : null;
+      NetworkErrorHandler.handleError(
+        e,
+        defaultMessage: message ??
+            'Unable to release ZIP code. Please check your internet connection and try again.',
       );
     } catch (e) {
       NetworkErrorHandler.handleError(
@@ -1666,14 +1707,23 @@ class AgentController extends GetxController {
     }
   }
 
+  /// Parses amountPaid from a subscription map (may be num or double from JSON).
+  static double _amountPaidFromSub(Map<String, dynamic> sub) {
+    final v = sub['amountPaid'];
+    if (v == null) return 0.0;
+    if (v is num) return v.toDouble();
+    return 0.0;
+  }
+
+  /// Current Monthly = sum of amountPaid of all active subscriptions on this screen.
   double calculateMonthlyCost() {
-    // First, try to use amountPaid from active subscription in API
-    final activeSub = activeSubscriptionFromAPI;
-    if (activeSub != null) {
-      final amountPaid = activeSub['amountPaid'] as double?;
-      if (amountPaid != null && amountPaid > 0) {
-        return amountPaid;
+    final active = activeSubscriptions;
+    if (active.isNotEmpty) {
+      double sum = 0.0;
+      for (final sub in active) {
+        sum += _amountPaidFromSub(sub);
       }
+      if (sum > 0) return sum;
     }
 
     // Fallback: Calculate base cost from ZIP codes using population-based pricing tiers
@@ -1687,7 +1737,6 @@ class AgentController extends GetxController {
       final promo = _subscription.value!.activePromoCode!;
       if (promo.type == PromoCodeType.agent70Off &&
           promo.discountPercent != null) {
-        // Apply 70% discount
         return zipCodeCost * (1 - (promo.discountPercent! / 100));
       }
     }
@@ -1695,38 +1744,26 @@ class AgentController extends GetxController {
     return zipCodeCost;
   }
 
+  /// Standard = lowest price among active subscriptions on this screen.
   double getStandardMonthlyPrice() {
-    // Try to get standard price from active subscription's amountPaid
-    // This represents the base price before any discounts
-    final activeSub = activeSubscriptionFromAPI;
-    if (activeSub != null) {
-      final amountPaid = activeSub['amountPaid'] as double?;
-      if (amountPaid != null && amountPaid > 0) {
-        // If there's a promo active, the amountPaid might already be discounted
-        // So we calculate what the original price would be
-        if (_subscription.value?.isPromoActive == true &&
-            _subscription.value?.activePromoCode != null) {
-          final promo = _subscription.value!.activePromoCode!;
-          if (promo.type == PromoCodeType.agent70Off &&
-              promo.discountPercent != null) {
-            // Reverse calculate: if 70% off, then original = amountPaid / 0.3
-            return amountPaid / (1 - (promo.discountPercent! / 100));
-          }
+    final active = activeSubscriptions;
+    if (active.isNotEmpty) {
+      double? lowest;
+      for (final sub in active) {
+        final amount = _amountPaidFromSub(sub);
+        if (amount > 0) {
+          if (lowest == null || amount < lowest) lowest = amount;
         }
-        // If no promo, amountPaid is the standard price
-        return amountPaid;
       }
+      if (lowest != null && lowest > 0) return lowest;
     }
 
     // Fallback: Calculate from ZIP codes
     final zipCodeCost = ZipCodePricingService.calculateTotalMonthlyPrice(
       _claimedZipCodes,
     );
-    if (zipCodeCost > 0) {
-      return zipCodeCost;
-    }
+    if (zipCodeCost > 0) return zipCodeCost;
 
-    // Final fallback: use hardcoded price
     return standardMonthlyPrice;
   }
 
@@ -1913,38 +1950,83 @@ class AgentController extends GetxController {
     }
   }
 
-  /// Cancels a specific subscription by stripeCustomerId
+  /// Calls POST /api/v1/subscription/cancelSubscription with body { subscriptionId, userId }.
+  /// Returns response data on status 200, throws on failure.
+  Future<Map<String, dynamic>> _callCancelSubscriptionApi(
+    String subscriptionId,
+    String userId,
+  ) async {
+    final authToken = _storage.read('auth_token');
+    final path = ApiConstants.cancelSubscriptionEndpoint.replaceFirst(_baseUrl, '');
+    // Backend expects stripeSubscriptionId (e.g. sub_xxx or pi_xxx) in subscriptionId field
+    final body = {'subscriptionId': subscriptionId, 'userId': userId};
+    if (kDebugMode) {
+      print('📡 POST cancelSubscription: $_baseUrl$path');
+      print('   Body (subscriptionId = stripeSubscriptionId): $body');
+    }
+    final response = await _dio.post(
+      path,
+      data: body,
+      options: Options(
+        headers: {
+          'ngrok-skip-browser-warning': 'true',
+          'Content-Type': 'application/json',
+          if (authToken != null) 'Authorization': 'Bearer $authToken',
+        },
+      ),
+    );
+    if (response.statusCode == 200) {
+      final data = response.data;
+      return data is Map<String, dynamic>
+          ? data
+          : <String, dynamic>{};
+    }
+    throw Exception(
+      'Cancel subscription failed: ${response.statusCode}',
+    );
+  }
+
+  /// Cancels a specific subscription (by stripeCustomerId for UI, uses subscriptionId + userId for API).
   Future<void> cancelSubscription([String? stripeCustomerId]) async {
     try {
       _isLoading.value = true;
 
-      // If no stripeCustomerId provided, use active subscription
-      String? customerId = stripeCustomerId;
-
-      if (customerId == null || customerId.isEmpty) {
-        // Get active subscription from API to get stripeCustomerId
-        final activeSub = activeSubscriptionFromAPI;
-        if (activeSub == null) {
-          SnackbarHelper.showError('No active subscription found');
-          return;
-        }
-        customerId = activeSub['stripeCustomerId']?.toString();
-      }
-
-      if (customerId == null || customerId.isEmpty) {
-        SnackbarHelper.showError('Stripe customer ID not found');
+      final authController = Get.find<global.AuthController>();
+      final userId = authController.currentUser?.id;
+      if (userId == null || userId.isEmpty) {
+        SnackbarHelper.showError('User not authenticated. Please login again.');
         return;
       }
 
-      // Find the subscription to check its status
-      final subscription = _subscriptions.firstWhere(
-        (sub) => sub['stripeCustomerId']?.toString() == customerId,
-        orElse: () => <String, dynamic>{},
-      );
+      Map<String, dynamic>? activeSub;
+      if (stripeCustomerId != null && stripeCustomerId.isNotEmpty) {
+        try {
+          activeSub = _subscriptions.firstWhere(
+            (sub) =>
+                sub['stripeCustomerId']?.toString() == stripeCustomerId,
+          );
+        } catch (_) {
+          activeSub = null;
+        }
+      } else {
+        activeSub = activeSubscriptionFromAPI;
+      }
 
-      // Check if already cancelled
+      if (activeSub == null) {
+        SnackbarHelper.showError('No active subscription found');
+        return;
+      }
+
+      final stripeSubscriptionId = activeSub['stripeSubscriptionId']?.toString() ??
+          activeSub['_id']?.toString() ??
+          '';
+      if (stripeSubscriptionId.isEmpty) {
+        SnackbarHelper.showError('Stripe subscription ID not found');
+        return;
+      }
+
       final status =
-          subscription['subscriptionStatus']?.toString().toLowerCase() ?? '';
+          activeSub['subscriptionStatus']?.toString().toLowerCase() ?? '';
       if (status == 'canceled' || status == 'cancelled') {
         SnackbarHelper.showError('Subscription is already cancelled');
         return;
@@ -1952,80 +2034,39 @@ class AgentController extends GetxController {
 
       if (kDebugMode) {
         print('📡 Cancelling subscription');
-        print('   Stripe Customer ID: $customerId');
-        print('   Endpoint: /subscription/cancelSubscription');
+        print('   stripeSubscriptionId: $stripeSubscriptionId');
+        print('   userId: $userId');
       }
 
-      // Get auth token from storage
-      final authToken = _storage.read('auth_token');
-
-      // Call the cancel subscription API
-      final response = await _dio.post(
-        '/subscription/cancelSubscription',
-        data: {'customerId': customerId},
-        options: Options(
-          headers: {
-            'ngrok-skip-browser-warning': 'true',
-            'Content-Type': 'application/json',
-            if (authToken != null) 'Authorization': 'Bearer $authToken',
-          },
-        ),
-      );
+      final responseData =
+          await _callCancelSubscriptionApi(stripeSubscriptionId, userId);
 
       if (kDebugMode) {
-        print('📥 Cancel subscription response:');
-        print('   Status Code: ${response.statusCode}');
-        print('   Response: ${response.data}');
+        print('📥 Cancel subscription response: 200 OK');
+        print('   Response: $responseData');
       }
 
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        final responseData = response.data;
-        final billingPortalUrl = responseData['url'] as String?;
+      await fetchUserStats();
+      final billingPortalUrl = responseData['url'] as String?;
 
-        if (billingPortalUrl != null && billingPortalUrl.isNotEmpty) {
-          if (kDebugMode) {
-            print('🌐 Opening Stripe billing portal: $billingPortalUrl');
-          }
-
-          // Open billing portal in browser
-          // TODO: Replace with proper WebView widget when PaymentWebView is implemented
-          final uri = Uri.parse(billingPortalUrl);
-          if (await canLaunchUrl(uri)) {
-            await launchUrl(uri, mode: LaunchMode.externalApplication);
-          }
-
-          // Refresh user stats after user completes cancellation in portal
-          await fetchUserStats();
-
-          // Show success message safely using post-frame callback
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            Future.delayed(const Duration(milliseconds: 300), () {
-              SnackbarHelper.showSuccess(
-                'Subscription cancellation processed. Your subscription status has been updated.',
-                title: 'Success',
-              );
-            });
-          });
-        } else {
-          // If no URL, assume direct cancellation
-          // Refresh user stats to get updated subscription status from API
-          await fetchUserStats();
-
-          // Show success message safely using post-frame callback
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            Future.delayed(const Duration(milliseconds: 300), () {
-              SnackbarHelper.showSuccess(
-                'Subscription will be cancelled. You will continue to have access until the end of your billing period.',
-                title: 'Success',
-              );
-            });
-          });
+      if (billingPortalUrl != null && billingPortalUrl.isNotEmpty) {
+        if (kDebugMode) {
+          print('🌐 Opening Stripe billing portal: $billingPortalUrl');
         }
-      } else {
-        throw Exception(
-          'Failed to cancel subscription: ${response.statusCode}',
-        );
+        final uri = Uri.parse(billingPortalUrl);
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+        }
       }
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Future.delayed(const Duration(milliseconds: 300), () {
+          SnackbarHelper.showSuccess(
+            'Subscription cancellation processed. Your subscription status has been updated.',
+            title: 'Success',
+          );
+        });
+      });
     } on DioException catch (e) {
       if (kDebugMode) {
         print('❌ Error cancelling subscription:');
@@ -2045,7 +2086,16 @@ class AgentController extends GetxController {
         } else if (e.response?.statusCode == 404) {
           errorMessage = 'Subscription not found.';
         } else if (e.response?.statusCode == 400) {
-          errorMessage = 'Invalid request. Please contact support.';
+          errorMessage =
+              (responseData is Map && responseData.containsKey('message'))
+                  ? responseData['message'].toString()
+                  : 'Invalid request. Please contact support.';
+        } else if (e.type == DioExceptionType.connectionTimeout ||
+            e.type == DioExceptionType.receiveTimeout) {
+          errorMessage = 'Request timed out. Please try again.';
+        } else if (e.type == DioExceptionType.connectionError) {
+          errorMessage =
+              'Unable to connect. Please check your internet connection.';
         }
       }
 

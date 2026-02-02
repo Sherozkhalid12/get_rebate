@@ -336,14 +336,16 @@ class AuthViewController extends GetxController {
           };
         }
 
+        // Phone is optional for buyer/seller and others; only send when non-empty
+        final phoneValue = phoneController.text.trim();
+        final phoneToSend = phoneValue.isNotEmpty ? phoneValue : null;
+
         await _globalAuthController.signUp(
           email: emailController.text.trim(),
           password: passwordController.text,
           name: nameController.text.trim(),
           role: selectedRole,
-          phone: phoneController.text.trim().isNotEmpty
-              ? phoneController.text.trim()
-              : null,
+          phone: phoneToSend,
           licensedStates: licensedStatesList,
           additionalData: additionalData,
           profilePic: _selectedProfilePic.value,
@@ -423,6 +425,8 @@ class AuthViewController extends GetxController {
         SnackbarHelper.showError('Please enter your name');
         return false;
       }
+
+      // Phone is optional for all roles (including buyer/seller); do not require it when empty.
 
       // Validate required fields for agents
       if (selectedRole == UserRole.agent) {

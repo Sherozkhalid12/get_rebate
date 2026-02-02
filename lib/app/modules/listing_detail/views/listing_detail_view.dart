@@ -448,7 +448,7 @@ class ListingDetailView extends GetView<ListingDetailController> {
                       children: [
                         Expanded(
                           child: _RebateCard(
-                            title: 'With Your Own Agent',
+                            title: 'When you work with an Agent from this site',
                             amount: _formatMoney(rebate.ownAgentRebateCents),
                             icon: Icons.person,
                             color: AppTheme.primaryBlue,

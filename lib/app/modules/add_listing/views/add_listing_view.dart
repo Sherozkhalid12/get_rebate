@@ -971,7 +971,6 @@ class AddListingView extends GetView<AddListingController> {
         'rebate': '0% (rebate not available)',
       },
     ];
-
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),

@@ -66,6 +66,11 @@ class ApiConstants {
 
   static String get zipCodeClaimEndpoint => "$apiBaseUrl/zip-codes/claim";
   static String get zipCodeReleaseEndpoint => "$apiBaseUrl/zip-codes/release";
+
+  /// POST body: { "subscriptionId": "", "userId": "" }
+  static String get cancelSubscriptionEndpoint =>
+      "$apiBaseUrl/subscription/cancelSubscription";
+
   // API version prefix
   static const String _apiVersion = '/api/v1';
 

@@ -629,6 +629,7 @@ class AuthController extends GetxController {
           }
         }
 
+
         // Specialty Products (as JSON array string)
         if (additionalData['specialtyProducts'] != null &&
             additionalData['specialtyProducts'] is List) {
@@ -717,7 +718,6 @@ class AuthController extends GetxController {
         );
       }
 
-      // Make API call
       print('🚀 Sending POST request to: $_baseUrl/auth/createUser');
       print('📤 Request Data:');
       print('  - fullname: $name');
