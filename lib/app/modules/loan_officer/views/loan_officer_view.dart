@@ -1314,6 +1314,8 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
               ),
               const SizedBox(height: 20),
 
+
+
               // Search / verify ZIP (filter list or verify 5-digit)
               Obx(() {
                 if (controller.selectedState == null) return const SizedBox.shrink();

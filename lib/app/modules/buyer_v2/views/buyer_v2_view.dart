@@ -86,6 +86,8 @@ class BuyerV2View extends GetView<BuyerV2Controller> {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+
+
                 CustomSearchField(
                   controller: controller.searchController,
                   hintText: 'Enter ZIP code (5 digits)',
