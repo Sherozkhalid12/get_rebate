@@ -580,7 +580,11 @@ class AuthView extends GetView<AuthViewController> {
                 keyboardType: TextInputType.number,
                 maxLength: 5,
                 suffixIcon: IconButton(
-                  icon: Icon(Icons.my_location, color: AppTheme.primaryBlue, size: 20),
+                  icon: Icon(
+                    Icons.my_location,
+                    color: AppTheme.primaryBlue,
+                    size: 20,
+                  ),
                   onPressed: () => controller.useCurrentLocationForZip(
                     controller.serviceZipCodesController,
                   ),
@@ -679,7 +683,11 @@ class AuthView extends GetView<AuthViewController> {
                 keyboardType: TextInputType.number,
                 maxLength: 5,
                 suffixIcon: IconButton(
-                  icon: Icon(Icons.my_location, color: AppTheme.primaryBlue, size: 20),
+                  icon: Icon(
+                    Icons.my_location,
+                    color: AppTheme.primaryBlue,
+                    size: 20,
+                  ),
                   onPressed: () => controller.useCurrentLocationForZip(
                     controller.loanOfficerOfficeZipController,
                   ),

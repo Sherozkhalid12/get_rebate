@@ -49,8 +49,8 @@ class AgentView extends GetView<AgentController> {
         ),
         centerTitle: true,
         actions: [
-          Obx(() =>
-            controller.showZipSelectionFirst
+          Obx(
+            () => controller.showZipSelectionFirst
                 ? TextButton(
                     onPressed: controller.skipZipSelection,
                     child: Text(
@@ -80,9 +80,7 @@ class AgentView extends GetView<AgentController> {
         child: Obx(() {
           if (controller.showZipSelectionFirst) {
             return Column(
-              children: [
-                Expanded(child: _buildZipManagement(context)),
-              ],
+              children: [Expanded(child: _buildZipManagement(context))],
             );
           }
           return Column(
@@ -755,23 +753,27 @@ class AgentView extends GetView<AgentController> {
               ),
               const SizedBox(height: 20),
 
-
-
               // Search / verify ZIP (filter list or verify 5-digit)
               Obx(() {
-                if (controller.selectedState == null) return const SizedBox.shrink();
+                if (controller.selectedState == null)
+                  return const SizedBox.shrink();
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 20),
                   child: CustomTextField(
                     controller: controller.zipSearchController,
                     labelText: 'Search or enter 5-digit ZIP',
-                    hintText: 'Filter by prefix, or type 5 digits to validate & fetch',
+                    hintText:
+                        'Filter by prefix, or type 5 digits to validate & fetch',
                     prefixIcon: Icons.search,
                     keyboardType: TextInputType.number,
                     maxLength: 5,
                     onChanged: (v) => controller.onZipSearchChanged(v),
                     suffixIcon: IconButton(
-                      icon: Icon(Icons.my_location, color: AppTheme.primaryBlue, size: 20),
+                      icon: Icon(
+                        Icons.my_location,
+                        color: AppTheme.primaryBlue,
+                        size: 20,
+                      ),
                       onPressed: controller.useCurrentLocationForZip,
                     ),
                   ),
@@ -910,9 +912,7 @@ class AgentView extends GetView<AgentController> {
         decoration: BoxDecoration(
           color: AppTheme.primaryBlue.withOpacity(0.08),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: AppTheme.primaryBlue.withOpacity(0.25),
-          ),
+          border: Border.all(color: AppTheme.primaryBlue.withOpacity(0.25)),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -927,9 +927,9 @@ class AgentView extends GetView<AgentController> {
               child: Text(
                 message,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppTheme.darkGray,
-                      height: 1.4,
-                    ),
+                  color: AppTheme.darkGray,
+                  height: 1.4,
+                ),
               ),
             ),
           ],
@@ -1106,7 +1106,6 @@ class AgentView extends GetView<AgentController> {
             isLoading: controller.isZipProcessing(zip.zipCode),
           ),
         ),
-
       ],
     );
   }
@@ -3168,10 +3167,7 @@ class AgentView extends GetView<AgentController> {
                 shape: BoxShape.circle,
                 border: Border.all(color: Colors.white, width: 1.5.w),
               ),
-              constraints: BoxConstraints(
-                minWidth: 16.w,
-                minHeight: 16.h,
-              ),
+              constraints: BoxConstraints(minWidth: 16.w, minHeight: 16.h),
               child: Center(
                 child: Text(
                   unreadCount > 99 ? '99+' : unreadCount.toString(),
