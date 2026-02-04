@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
+import 'package:getrebate/app/controllers/location_controller.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
@@ -11,6 +12,7 @@ import 'package:getrebate/app/models/mortgage_types.dart';
 
 class LoanOfficerEditProfileController extends GetxController {
   final AuthController _authController = Get.find<AuthController>();
+  final LocationController _locationController = Get.find<LocationController>();
   final ImagePicker _imagePicker = ImagePicker();
 
   // Form controllers
@@ -49,6 +51,33 @@ class LoanOfficerEditProfileController extends GetxController {
   void onInit() {
     super.onInit();
     _loadUserData();
+  }
+
+  /// Uses cached current location zip for the service areas field (instant, no fetch on tap).
+  void useCurrentLocationForZip() {
+    final zipCode = _locationController.currentZipCode;
+    if (zipCode != null &&
+        zipCode.length == 5 &&
+        RegExp(r'^\d+$').hasMatch(zipCode)) {
+      final current = serviceAreasController.text.trim();
+      if (current.isEmpty) {
+        serviceAreasController.text = zipCode;
+      } else {
+        serviceAreasController.text = '$current, $zipCode';
+      }
+      serviceAreasController.selection = TextSelection.collapsed(
+        offset: serviceAreasController.text.length,
+      );
+    } else {
+      Get.snackbar(
+        'Location',
+        'Location not ready yet. Please wait a moment and try again, or enter ZIP manually.',
+        backgroundColor: AppTheme.primaryBlue,
+        colorText: Colors.white,
+        snackPosition: SnackPosition.BOTTOM,
+        margin: const EdgeInsets.all(15),
+      );
+    }
   }
 
   // Helper for Success Snackbars

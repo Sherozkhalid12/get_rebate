@@ -17,6 +17,7 @@ import 'package:getrebate/app/services/zip_code_pricing_service.dart';
 import 'package:getrebate/app/services/leads_service.dart';
 import 'package:getrebate/app/services/zip_codes_service.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart' as global;
+import 'package:getrebate/app/controllers/location_controller.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
 import 'package:getrebate/app/utils/network_error_handler.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
@@ -30,8 +31,7 @@ import 'dart:convert';
 import 'dart:async';
 
 class AgentController extends GetxController {
-
-
+  final LocationController _locationController = Get.find<LocationController>();
   final Dio _dio = Dio();
   final _storage = GetStorage();
   // Using ApiConstants for centralized URL management
@@ -50,6 +50,10 @@ class AgentController extends GetxController {
   final _selectedTab = 0
       .obs; // 0: Dashboard, 1: ZIP Management, 2: My Listings, 3: Stats, 4: Billing, 5: Leads
   final _recentlyActivatedListingId = Rxn<String>();
+  /// Session-only flag: user tapped Skip on ZIP selection screen (no persistence).
+  final _hasSkippedZipSelection = false.obs;
+  /// From API: true = old user (has claimed before), false = new user. Null = not yet loaded, fallback to claimedZipCodes.isEmpty.
+  final _firstZipCodeClaimed = Rxn<bool>();
 
   // Filters
   final _selectedStatusFilter = Rxn<MarketStatus>(); // null = all
@@ -103,6 +107,15 @@ class AgentController extends GetxController {
   String? get selectedState => _selectedState.value;
   int get selectedTab => _selectedTab.value;
   String? get recentlyActivatedListingId => _recentlyActivatedListingId.value;
+  /// New agents (firstZipCodeClaimed==false) see ZIP selection first until they claim or skip.
+  /// If firstZipCodeClaimed is true, treat as old user and skip. If null, fallback to claimedZipCodes.isEmpty.
+  bool get showZipSelectionFirst {
+    final firstClaimed = _firstZipCodeClaimed.value;
+    final isNewUser = firstClaimed == null
+        ? _claimedZipCodes.isEmpty
+        : !firstClaimed;
+    return isNewUser && !_hasSkippedZipSelection.value;
+  }
   MarketStatus? get selectedStatusFilter => _selectedStatusFilter.value;
   String get searchQuery => _searchQuery.value;
   bool isWaitingListProcessing(String zipCode) =>
@@ -599,6 +612,11 @@ class AgentController extends GetxController {
     };
   }
 
+  /// Allows access to dashboard without claiming a ZIP; screen will show again on next login.
+  void skipZipSelection() {
+    _hasSkippedZipSelection.value = true;
+  }
+
   void setSelectedTab(int index) {
     _selectedTab.value = index;
 
@@ -680,6 +698,12 @@ class AgentController extends GetxController {
         _contacts.value = _parseInt(userData['contacts']);
         _websiteClicks.value = _parseInt(userData['websiteclicks']);
         _totalRevenue.value = _parseDouble(userData['revenue']);
+
+        // Extract firstZipCodeClaimed from API (if present). True = old user, false = new user.
+        final firstZipCodeClaimedRaw = userData['firstZipCodeClaimed'];
+        if (firstZipCodeClaimedRaw != null) {
+          _firstZipCodeClaimed.value = firstZipCodeClaimedRaw == true;
+        }
 
         // Extract claimed ZIP codes from user profile (if present)
         final claimedZipCodesData =
@@ -1273,6 +1297,7 @@ class AgentController extends GetxController {
 
         _claimedZipCodes.add(claimedZip);
         _availableZipCodes.removeWhere((zip) => zip.zipCode == zipCode.zipCode);
+        _firstZipCodeClaimed.value = true; // Mark as old user (has claimed)
 
         // Update subscription price based on new zip code
         _updateSubscriptionPrice();
@@ -1656,6 +1681,24 @@ class AgentController extends GetxController {
         .where((z) => z.zipCode.toLowerCase().startsWith(q))
         .toList();
     _availableZipCodes.value = _filterAvailableZipCodes(filtered);
+  }
+
+  /// Uses cached current location zip for the ZIP search field (instant, no fetch on tap).
+  void useCurrentLocationForZip() {
+    final zipCode = _locationController.currentZipCode;
+    if (zipCode != null &&
+        zipCode.length == 5 &&
+        RegExp(r'^\d+$').hasMatch(zipCode)) {
+      zipSearchController.text = zipCode;
+      zipSearchController.selection = TextSelection.collapsed(offset: zipCode.length);
+      onZipSearchChanged(zipCode);
+    } else {
+      SnackbarHelper.showInfo(
+        'Location not ready yet. Please wait a moment and try again, or enter ZIP manually.',
+        title: 'Location',
+        duration: const Duration(seconds: 3),
+      );
+    }
   }
 
   /// Search bar onChanged: filter by prefix, or when 5 digits typed auto validate → fetch.

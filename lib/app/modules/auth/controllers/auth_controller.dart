@@ -3,12 +3,15 @@ import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:getrebate/app/controllers/auth_controller.dart' as global;
+import 'package:getrebate/app/controllers/location_controller.dart';
 import 'package:getrebate/app/models/user_model.dart';
+import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
 
 class AuthViewController extends GetxController {
   final global.AuthController _globalAuthController =
       Get.find<global.AuthController>();
+  final LocationController _locationController = Get.find<LocationController>();
   final ImagePicker _imagePicker = ImagePicker();
 
   // Form controllers
@@ -158,6 +161,23 @@ class AuthViewController extends GetxController {
 
   bool isSpecialtyProductSelected(String product) {
     return _selectedSpecialtyProducts.contains(product);
+  }
+
+  /// Uses cached current location zip for the given controller (instant, no fetch on tap).
+  void useCurrentLocationForZip(TextEditingController zipController) {
+    final zipCode = _locationController.currentZipCode;
+    if (zipCode != null &&
+        zipCode.length == 5 &&
+        RegExp(r'^\d+$').hasMatch(zipCode)) {
+      zipController.text = zipCode;
+      zipController.selection = TextSelection.collapsed(offset: zipCode.length);
+    } else {
+      SnackbarHelper.showInfo(
+        'Location not ready yet. Please wait a moment and try again, or enter ZIP manually.',
+        title: 'Location',
+        duration: const Duration(seconds: 3),
+      );
+    }
   }
 
   void setDualAgencyInState(bool? value) {

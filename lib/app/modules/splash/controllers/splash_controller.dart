@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:get/get.dart';
 import 'package:getrebate/app/routes/app_pages.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart';
+import 'package:getrebate/app/controllers/location_controller.dart';
 import 'package:getrebate/app/models/user_model.dart';
 import 'package:getrebate/app/modules/messages/controllers/messages_controller.dart';
 
@@ -36,15 +37,14 @@ class SplashController extends GetxController {
       final authController = Get.find<AuthController>();
 
       if (authController.isLoggedIn && authController.currentUser != null) {
-        // User is logged in - preload data in background for instant access
-        _preloadData();
-        
-        // Navigate to appropriate screen based on role
         final user = authController.currentUser!;
+        // User is logged in - preload data in background for instant access
+        _preloadData(user.role);
         print('Splash: User is logged in as ${user.role}, navigating...');
         _navigateBasedOnRole(user.role);
       } else {
-        // User is not logged in, navigate to onboarding
+        // User is not logged in - request location for sign-up (agent/loan officer zip fields)
+        _preloadLocation();
         print('Splash: User is not logged in, navigating to onboarding...');
         _navigateToOnboarding();
       }
@@ -55,8 +55,21 @@ class SplashController extends GetxController {
     }
   }
 
+  /// Requests location permission and fetches current zip. Runs for buyers
+  /// (home search) and for sign-up (agent/loan officer office zip). Calls
+  /// getCurrentLocation() so the system permission dialog is shown when needed.
+  void _preloadLocation([UserRole? role]) {
+    try {
+      final locCtrl = Get.find<LocationController>();
+      locCtrl.getCurrentLocation();
+      print('🚀 Splash: Location request started (will prompt for permission if needed)');
+    } catch (e) {
+      print('⚠️ Splash: Location preload skipped: $e');
+    }
+  }
+
   /// Preloads data in background for instant access when user opens app
-  void _preloadData() {
+  void _preloadData(UserRole role) {
     try {
       // Initialize messages controller immediately to start loading threads
       // This ensures threads are loading while splash screen is showing
@@ -75,6 +88,9 @@ class SplashController extends GetxController {
         }
       }
       
+      // Request location permission and fetch zip (buyers + sign-up flow)
+      _preloadLocation(role);
+
       // Note: BuyerV2Controller will be initialized when main screen loads via bindings
       // This ensures data loads in parallel with navigation
       print('🚀 Splash: Data preload initiated');

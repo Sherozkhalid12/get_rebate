@@ -182,6 +182,10 @@ class BuyerLeadFormView extends GetView<BuyerLeadFormController> {
               labelText: 'Where are you planning to buy or build? *',
               hintText: 'Enter ZIP code or city, state',
               prefixIcon: Icons.location_on_outlined,
+              suffixIcon: IconButton(
+                icon: Icon(Icons.my_location, color: AppTheme.primaryBlue, size: 20),
+                onPressed: controller.useCurrentLocationForZip,
+              ),
             ),
             const SizedBox(height: 16),
 

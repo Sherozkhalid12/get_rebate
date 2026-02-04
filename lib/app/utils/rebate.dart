@@ -2,9 +2,9 @@
 
 class RebateEstimate {
   final int ownAgentRebateCents;
-  final int directRebateCents; // Minimum rebate when working with listing agent
+  final int directRebateCents; // Rebate when working directly with listing agent
   final int?
-  directRebateMaxCents; // Maximum rebate when working with listing agent
+  directRebateMaxCents; // Legacy field (kept for backward compatibility)
 
   const RebateEstimate({
     required this.ownAgentRebateCents,
@@ -24,26 +24,29 @@ RebateEstimate estimateRebate({
   required int priceCents,
   required double bacPercent,
   required bool dualAgencyAllowed,
+  double? dualAgencyCommissionPercent,
   double ownAgentShareOfBAC =
       30.0, // buyer keeps 30% of BAC via their own agent
-  double directBuyerShareOfBACMin =
-      40.0, // buyer keeps 40% minimum of BAC when going direct
-  double directBuyerShareOfBACMax =
-      50.0, // buyer keeps 50% maximum of BAC when going direct
+  double directBuyerShareOfTotalCommission =
+      40.0, // buyer keeps 40% of total commission when going direct
 }) {
   final int bacCents = _percentOf(priceCents, bacPercent);
 
   final int ownAgentRebate = _percentOf(bacCents, ownAgentShareOfBAC);
-  final int directRebateMin = dualAgencyAllowed
-      ? _percentOf(bacCents, directBuyerShareOfBACMin)
+
+  int baseCommissionForDirect = bacCents;
+  if (dualAgencyAllowed && dualAgencyCommissionPercent != null) {
+    baseCommissionForDirect =
+        _percentOf(priceCents, dualAgencyCommissionPercent);
+  }
+
+  final int directRebate = dualAgencyAllowed
+      ? _percentOf(baseCommissionForDirect, directBuyerShareOfTotalCommission)
       : ownAgentRebate;
-  final int? directRebateMax = dualAgencyAllowed
-      ? _percentOf(bacCents, directBuyerShareOfBACMax)
-      : null;
 
   return RebateEstimate(
     ownAgentRebateCents: ownAgentRebate,
-    directRebateCents: directRebateMin,
-    directRebateMaxCents: directRebateMax,
+    directRebateCents: directRebate,
+    directRebateMaxCents: null,
   );
 }

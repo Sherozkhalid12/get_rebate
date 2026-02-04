@@ -224,9 +224,6 @@ class LoanOfficerProfileView extends GetView<LoanOfficerProfileController> {
 
             const SizedBox(height: 20),
 
-            // Claimed ZIP Codes (Testing)
-            _buildClaimedZipCodesSection(context, loanOfficer.claimedZipCodes),
-            const SizedBox(height: 20),
 
             // Bio
             if (loanOfficer.bio != null) ...[
@@ -377,60 +374,60 @@ class LoanOfficerProfileView extends GetView<LoanOfficerProfileController> {
     );
   }
 
-  Widget _buildClaimedZipCodesSection(BuildContext context, List<String> claimedZipCodes) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppTheme.lightGreen.withOpacity(0.06),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.lightGreen.withOpacity(0.25)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.pin_drop, size: 18, color: AppTheme.lightGreen),
-              const SizedBox(width: 8),
-              Text(
-                'Claimed ZIP Codes (Testing)',
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  color: AppTheme.lightGreen,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-          if (claimedZipCodes.isEmpty) ...[
-            const SizedBox(height: 8),
-            Text(
-              'None',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: AppTheme.mediumGray,
-                fontStyle: FontStyle.italic,
-              ),
-            ),
-          ] else ...[
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: claimedZipCodes
-                  .map((z) => Chip(
-                label: Text(z, style: const TextStyle(fontSize: 13)),
-                backgroundColor: AppTheme.white,
-                side: BorderSide(color: AppTheme.lightGreen.withOpacity(0.4)),
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ))
-                  .toList(),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
+  // Widget _buildClaimedZipCodesSection(BuildContext context, List<String> claimedZipCodes) {
+  //   return Container(
+  //     width: double.infinity,
+  //     padding: const EdgeInsets.all(12),
+  //     decoration: BoxDecoration(
+  //       color: AppTheme.lightGreen.withOpacity(0.06),
+  //       borderRadius: BorderRadius.circular(12),
+  //       border: Border.all(color: AppTheme.lightGreen.withOpacity(0.25)),
+  //     ),
+  //     child: Column(
+  //       crossAxisAlignment: CrossAxisAlignment.start,
+  //       children: [
+  //         Row(
+  //           children: [
+  //             Icon(Icons.pin_drop, size: 18, color: AppTheme.lightGreen),
+  //             const SizedBox(width: 8),
+  //             Text(
+  //               'Claimed ZIP Codes (Testing)',
+  //               style: Theme.of(context).textTheme.titleSmall?.copyWith(
+  //                 color: AppTheme.lightGreen,
+  //                 fontWeight: FontWeight.w600,
+  //               ),
+  //             ),
+  //           ],
+  //         ),
+  //         if (claimedZipCodes.isEmpty) ...[
+  //           const SizedBox(height: 8),
+  //           Text(
+  //             'None',
+  //             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+  //               color: AppTheme.mediumGray,
+  //               fontStyle: FontStyle.italic,
+  //             ),
+  //           ),
+  //         ] else ...[
+  //           const SizedBox(height: 10),
+  //           Wrap(
+  //             spacing: 8,
+  //             runSpacing: 8,
+  //             children: claimedZipCodes
+  //                 .map((z) => Chip(
+  //               label: Text(z, style: const TextStyle(fontSize: 13)),
+  //               backgroundColor: AppTheme.white,
+  //               side: BorderSide(color: AppTheme.lightGreen.withOpacity(0.4)),
+  //               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+  //               materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+  //             ))
+  //                 .toList(),
+  //           ),
+  //         ],
+  //       ],
+  //     ),
+  //   );
+  // }
 
   Widget _buildReviewsSection(BuildContext context) {
     final loanOfficer = controller.loanOfficer!;

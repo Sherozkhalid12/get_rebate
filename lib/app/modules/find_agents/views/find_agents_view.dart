@@ -7,7 +7,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/modules/find_agents/controllers/find_agents_controller.dart';
 import 'package:getrebate/app/models/agent_model.dart';
-import 'package:getrebate/app/widgets/custom_text_field.dart';
+import 'package:getrebate/app/widgets/custom_search_field.dart';
 import 'package:getrebate/app/widgets/custom_button.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
 
@@ -62,46 +62,66 @@ class FindAgentsView extends GetView<FindAgentsController> {
     return Container(
       padding: const EdgeInsets.all(20),
       color: AppTheme.white,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Obx(() {
-            final zipCode = controller.selectedZipCode.value;
-            final hasZipCode = zipCode.isNotEmpty;
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  hasZipCode
-                      ? 'Agents in ${zipCode}'
-                      : 'All Agents',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    color: AppTheme.black,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                if (hasZipCode) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    'Local agents shown first, then nearby agents',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AppTheme.mediumGray,
-                      fontSize: 12,
+      child: ListenableBuilder(
+        listenable: controller.zipSearchController,
+        builder: (context, _) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Obx(() {
+                final zipCode = controller.selectedZipCode.value;
+                final hasZipCode = zipCode.isNotEmpty;
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      hasZipCode
+                          ? 'Agents in ${zipCode} (within 10 miles)'
+                          : 'All Agents',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: AppTheme.black,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                  ),
-                ],
-              ],
-            );
-          }),
-          const SizedBox(height: 12),
-          CustomTextField(
-            controller: controller.searchController,
-            labelText: 'Search by name, ZIP code, or other details',
-            prefixIcon: Icons.search,
-            onChanged: controller.searchAgents,
-            keyboardType: TextInputType.text,
-          ),
-        ],
+                    if (hasZipCode) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        'Local agents shown first, then nearby agents',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppTheme.mediumGray,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ],
+                );
+              }),
+              const SizedBox(height: 12),
+              CustomSearchField(
+                controller: controller.zipSearchController,
+                hintText: 'Enter ZIP code (5 digits)',
+                onChanged: (value) {
+                  if (value.isEmpty || value.trim().isEmpty) {
+                    controller.clearZipCodeFilter();
+                    return;
+                  }
+                  final trimmedValue = value.trim();
+                  if (trimmedValue.length == 5 &&
+                      RegExp(r'^\d+$').hasMatch(trimmedValue)) {
+                    controller.searchByZipCode(trimmedValue);
+                  } else if (value.length < 5) {
+                    controller.clearZipCodeFilter();
+                  }
+                },
+                onLocationTap: controller.useCurrentLocationForZip,
+                onClear: () {
+                  controller.zipSearchController.clear();
+                  controller.clearZipCodeFilter();
+                },
+              ),
+            ],
+          );
+        },
       ),
     );
   }

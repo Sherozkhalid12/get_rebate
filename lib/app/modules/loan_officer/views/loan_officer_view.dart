@@ -102,6 +102,21 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
         }),
         centerTitle: true,
         actions: [
+          Obx(() =>
+            controller.showZipSelectionFirst
+                ? TextButton(
+                    onPressed: controller.skipZipSelection,
+                    child: Text(
+                      'Skip',
+                      style: TextStyle(
+                        color: AppTheme.white,
+                        fontSize: 16.sp,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  )
+                : const SizedBox.shrink(),
+          ),
           IconButton(
             icon: const Icon(Icons.message, color: AppTheme.white),
             onPressed: () => Get.toNamed('/messages'),
@@ -115,15 +130,21 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
         ],
       ),
       body: SafeArea(
-        child: Column(
-          children: [
-            // Tabs
-            _buildTabs(context),
-
-            // Content
-            Expanded(child: _buildContent(context)),
-          ],
-        ),
+        child: Obx(() {
+          if (controller.showZipSelectionFirst) {
+            return Column(
+              children: [
+                Expanded(child: _buildZipManagement(context)),
+              ],
+            );
+          }
+          return Column(
+            children: [
+              _buildTabs(context),
+              Expanded(child: _buildContent(context)),
+            ],
+          );
+        }),
       ),
     );
   }
@@ -1306,6 +1327,10 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                     keyboardType: TextInputType.number,
                     maxLength: 5,
                     onChanged: (v) => controller.onZipSearchChanged(v),
+                    suffixIcon: IconButton(
+                      icon: Icon(Icons.my_location, color: AppTheme.primaryBlue, size: 20),
+                      onPressed: controller.useCurrentLocationForZip,
+                    ),
                   ),
                 );
               }),

@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:getrebate/app/controllers/location_controller.dart';
 import 'package:dio/dio.dart';
 import 'package:getrebate/app/models/agent_model.dart';
 import 'package:getrebate/app/models/listing.dart';
@@ -8,14 +9,20 @@ import 'package:getrebate/app/modules/messages/controllers/messages_controller.d
 import 'package:getrebate/app/utils/api_constants.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
 import 'package:getrebate/app/services/agent_service.dart';
+import 'package:getrebate/app/services/zip_codes_service.dart';
 
 class FindAgentsController extends GetxController {
+  final LocationController _locationController = Get.find<LocationController>();
+  final ZipCodesService _zipCodesService = ZipCodesService();
   final RxList<AgentModel> agents = <AgentModel>[].obs;
   final RxBool isLoading = false.obs;
   final RxString searchQuery = ''.obs;
   final RxString selectedZipCode = ''.obs;
   final Rx<Listing?> listing = Rx<Listing?>(null);
   final TextEditingController searchController = TextEditingController();
+  final TextEditingController zipSearchController = TextEditingController();
+  /// Map of postalCode -> distanceMiles from within10miles API (same as home page)
+  Map<String, double>? _within10MilesMap;
   
   // Store all loaded agents for filtering
   final List<AgentModel> _allLoadedAgents = [];
@@ -51,9 +58,92 @@ class FindAgentsController extends GetxController {
     // No need for listener here to avoid duplicate calls
   }
   
+  /// Uses cached current location zip for the ZIP search field (instant, no fetch on tap).
+  void useCurrentLocationForZip() {
+    final zipCode = _locationController.currentZipCode;
+    if (zipCode != null &&
+        zipCode.length == 5 &&
+        RegExp(r'^\d+$').hasMatch(zipCode)) {
+      zipSearchController.text = zipCode;
+      zipSearchController.selection = TextSelection.collapsed(offset: zipCode.length);
+      searchByZipCode(zipCode);
+    } else {
+      SnackbarHelper.showInfo(
+        'Location not ready yet. Please wait a moment and try again, or enter ZIP manually.',
+        title: 'Location',
+        duration: const Duration(seconds: 3),
+      );
+    }
+  }
+
+  /// Search by ZIP code using same API as home page (within10miles).
+  Future<void> searchByZipCode(String zipCode) async {
+    try {
+      final trimmedZipCode = zipCode.trim();
+      if (trimmedZipCode.length != 5 ||
+          !RegExp(r'^\d+$').hasMatch(trimmedZipCode)) {
+        SnackbarHelper.showError(
+          'Please enter a valid 5-digit ZIP code',
+          title: 'Invalid ZIP Code',
+          duration: const Duration(seconds: 2),
+        );
+        return;
+      }
+
+      selectedZipCode.value = trimmedZipCode;
+
+      try {
+        _within10MilesMap = await _zipCodesService.getZipCodesWithinMiles(
+          zipcode: trimmedZipCode,
+          miles: 10,
+        );
+      } on ZipCodesServiceException catch (e) {
+        if (kDebugMode) print('❌ within10miles API: ${e.message}');
+        SnackbarHelper.showError(e.message);
+        _within10MilesMap = null;
+      } catch (e) {
+        if (kDebugMode) print('❌ within10miles API: $e');
+        SnackbarHelper.showError(
+          'Failed to fetch nearby ZIP codes: ${e.toString()}',
+        );
+        _within10MilesMap = null;
+      }
+
+      await _loadAgents();
+
+      final count = agents.length;
+      if (count > 0) {
+        SnackbarHelper.showSuccess(
+          'Found $count agents for ZIP $trimmedZipCode',
+          duration: const Duration(seconds: 2),
+        );
+      } else {
+        SnackbarHelper.showInfo(
+          'No agents found for ZIP $trimmedZipCode',
+          duration: const Duration(seconds: 2),
+        );
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Error searching by ZIP: $e');
+      }
+      SnackbarHelper.showError('Search failed: ${e.toString()}');
+    }
+  }
+
+  /// Clears the ZIP code filter.
+  void clearZipCodeFilter() {
+    selectedZipCode.value = '';
+    _within10MilesMap = null;
+    zipSearchController.clear();
+    _loadAgents();
+    if (kDebugMode) print('🧹 Find Agents: Cleared ZIP filter');
+  }
+
   @override
   void onClose() {
     searchController.dispose();
+    zipSearchController.dispose();
     super.onClose();
   }
 
@@ -80,6 +170,7 @@ class FindAgentsController extends GetxController {
       }
       
       selectedZipCode.value = zipCode;
+      zipSearchController.text = zipCode;
       listing.value = args['listing'] as Listing?;
       
       if (kDebugMode) {
@@ -105,6 +196,22 @@ class FindAgentsController extends GetxController {
 
     try {
       if (selectedZipCode.value.isNotEmpty) {
+        // Fetch within10miles map if not already loaded (same API as home page)
+        if (_within10MilesMap == null) {
+          try {
+            _within10MilesMap = await _zipCodesService.getZipCodesWithinMiles(
+              zipcode: selectedZipCode.value.trim(),
+              miles: 10,
+            );
+          } on ZipCodesServiceException catch (e) {
+            if (kDebugMode) print('⚠️ within10miles: ${e.message}');
+            _within10MilesMap = null;
+          } catch (e) {
+            if (kDebugMode) print('⚠️ within10miles: $e');
+            _within10MilesMap = null;
+          }
+        }
+
         // FILTER MODE: Fetch ALL agents to ensure client-side filtering works correctly
         if (kDebugMode) {
           print('📡 ZIP filter active (${selectedZipCode.value}) - Fetching ALL agents...');
@@ -284,80 +391,97 @@ class FindAgentsController extends GetxController {
     }
   }
   
-  /// Applies ZIP code filtering and proximity-based sorting
+  /// Applies ZIP code filtering and proximity-based sorting.
+  /// Uses within10miles API (same as home page) when available.
   void _applyZipCodeFilterAndSort() {
     if (selectedZipCode.value.isEmpty) {
-      // No ZIP code filter - show all agents
+      _within10MilesMap = null;
       _filteredAndSortedAgents.clear();
       _filteredAndSortedAgents.addAll(_allLoadedAgents);
       _totalFilteredCount.value = _filteredAndSortedAgents.length;
       return;
     }
-    
-    final zipCode = selectedZipCode.value.trim();
-    
-    // Filter agents that work in or near the ZIP code
-    final matchingAgents = _allLoadedAgents.where((agent) {
-      // Check 1: claimedZipCodes (agents who have claimed this ZIP)
-      final hasClaimedZip = agent.claimedZipCodes.any((claimedZip) => 
-        claimedZip.trim() == zipCode
-      );
-      
-      // Check 2: serviceZipCodes (agents who serve this ZIP)
-      final hasServiceZip = agent.serviceZipCodes.any((serviceZip) => 
-        serviceZip.trim() == zipCode
-      );
-      
-      // Check 3: serviceAreas (can contain ZIP codes)
-      final hasServiceArea = agent.serviceAreas?.any((area) => 
-        area.trim() == zipCode
-      ) ?? false;
 
-      // Check 4: activeListingZipCodes (agents with listings in this ZIP)
-      final hasListingZip = agent.activeListingZipCodes.any((listingZip) => 
-        listingZip.trim() == zipCode
-      );
-      
-      return hasClaimedZip || hasServiceZip || hasServiceArea || hasListingZip;
-    }).toList();
-    
-    if (kDebugMode && matchingAgents.isEmpty) {
-      // DEBUG: Why no matches? Print first few agents' zip codes
-      print('⚠️ No agents matched ZIP $zipCode out of ${_allLoadedAgents.length} agents.');
-      if (_allLoadedAgents.isNotEmpty) {
-        final sample = _allLoadedAgents.take(3).toList();
-        for (var agent in sample) {
-          print('   Agent ${agent.name}: Claimed=${agent.claimedZipCodes}, Listings=${agent.activeListingZipCodes}');
+    final zipCode = selectedZipCode.value.trim();
+    final map = _within10MilesMap;
+    final useWithin10 = map != null && map.isNotEmpty;
+
+    List<AgentModel> matchingAgents;
+
+    if (useWithin10) {
+      // Same logic as home page: include agents whose ZIPs are in the within10miles map
+      final mapNorm = map.map((k, v) => MapEntry(k.trim(), v));
+      final zipSet = mapNorm.keys.toSet();
+
+      double minDistAgent(AgentModel a) {
+        double best = double.infinity;
+        for (final z in [...a.claimedZipCodes, ...a.serviceZipCodes]) {
+          final t = z.trim();
+          if (zipSet.contains(t)) {
+            final d = mapNorm[t] ?? double.infinity;
+            if (d < best) best = d;
+          }
         }
+        for (final z in a.serviceAreas ?? []) {
+          final t = z.trim();
+          if (zipSet.contains(t)) {
+            final d = mapNorm[t] ?? double.infinity;
+            if (d < best) best = d;
+          }
+        }
+        for (final z in a.activeListingZipCodes) {
+          final t = z.trim();
+          if (zipSet.contains(t)) {
+            final d = mapNorm[t] ?? double.infinity;
+            if (d < best) best = d;
+          }
+        }
+        return best;
       }
+
+      matchingAgents = _allLoadedAgents
+          .where((a) => minDistAgent(a) < double.infinity)
+          .toList();
+      matchingAgents.sort((a, b) => minDistAgent(a).compareTo(minDistAgent(b)));
+    } else {
+      // Fallback: exact ZIP match only
+      matchingAgents = _allLoadedAgents.where((agent) {
+        final hasClaimedZip = agent.claimedZipCodes.any(
+            (claimedZip) => claimedZip.trim() == zipCode);
+        final hasServiceZip = agent.serviceZipCodes.any(
+            (serviceZip) => serviceZip.trim() == zipCode);
+        final hasServiceArea = agent.serviceAreas
+                ?.any((area) => area.trim() == zipCode) ??
+            false;
+        final hasListingZip = agent.activeListingZipCodes.any(
+            (listingZip) => listingZip.trim() == zipCode);
+        return hasClaimedZip || hasServiceZip || hasServiceArea || hasListingZip;
+      }).toList();
+
+      matchingAgents.sort((a, b) {
+        final aIsLocal = a.claimedZipCodes.any((z) => z.trim() == zipCode) ||
+            a.activeListingZipCodes.any((z) => z.trim() == zipCode);
+        final bIsLocal = b.claimedZipCodes.any((z) => z.trim() == zipCode) ||
+            b.activeListingZipCodes.any((z) => z.trim() == zipCode);
+        if (aIsLocal && !bIsLocal) return -1;
+        if (!aIsLocal && bIsLocal) return 1;
+        final aProximity = _calculateZipCodeProximity(zipCode, a);
+        final bProximity = _calculateZipCodeProximity(zipCode, b);
+        return aProximity.compareTo(bProximity);
+      });
     }
-    
-    // Sort agents: local agents first, then by proximity
-    matchingAgents.sort((a, b) {
-      // Priority 1: Agents with ZIP in claimedZipCodes or listings come first (local agents)
-      final aIsLocal = a.claimedZipCodes.any((z) => z.trim() == zipCode) || 
-                       a.activeListingZipCodes.any((z) => z.trim() == zipCode);
-      final bIsLocal = b.claimedZipCodes.any((z) => z.trim() == zipCode) || 
-                       b.activeListingZipCodes.any((z) => z.trim() == zipCode);
-      
-      if (aIsLocal && !bIsLocal) return -1;
-      if (!aIsLocal && bIsLocal) return 1;
-      
-      // Priority 2: If both are local or both are not, sort by proximity
-      final aProximity = _calculateZipCodeProximity(zipCode, a);
-      final bProximity = _calculateZipCodeProximity(zipCode, b);
-      
-      return aProximity.compareTo(bProximity);
-    });
-    
+
+    if (kDebugMode && matchingAgents.isEmpty) {
+      print('⚠️ No agents matched ZIP $zipCode (within10mi: $useWithin10)');
+    }
+
     _filteredAndSortedAgents.clear();
     _filteredAndSortedAgents.addAll(matchingAgents);
     _totalFilteredCount.value = _filteredAndSortedAgents.length;
-    
+
     if (kDebugMode) {
-      print('📍 Filtered by ZIP code: $zipCode');
+      print('📍 Filtered by ZIP: $zipCode (within10mi: $useWithin10)');
       print('   Total matching agents: ${_filteredAndSortedAgents.length}');
-      print('   Local agents (claimed/listing ZIP): ${_filteredAndSortedAgents.where((a) => a.claimedZipCodes.any((z) => z.trim() == zipCode) || a.activeListingZipCodes.any((z) => z.trim() == zipCode)).length}');
     }
   }
   

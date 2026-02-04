@@ -141,7 +141,7 @@ class PrivacyPolicyView extends StatelessWidget {
                 '10. Contact Us',
                 'If you have any questions about this Privacy Policy, please contact us:\n\n'
                 'Email: privacy@getrebate.com\n'
-                'Address: GetRebate, Inc.\n'
+                'Address: Get a Rebate Real Estate, 8400 Normandale Lake Blvd. Suite 920, Bloomington, MN 55437\n'
                 'Attn: Privacy Officer\n'
                 '[Your Business Address]',
               ),

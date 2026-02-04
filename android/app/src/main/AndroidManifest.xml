@@ -4,6 +4,13 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
     <!-- Wake lock permission for video playback -->
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
+    <!-- Location permissions for geolocation features -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <!-- Declare GPS hardware as optional so app can run on devices without it -->
+    <uses-feature
+        android:name="android.hardware.location.gps"
+        android:required="false"/>
     
     <application
         android:label="getrebate"

@@ -135,6 +135,7 @@ class EditListingView extends GetView<EditListingController> {
                 controller: controller.zipCodeController,
                 hintText: 'ZIP Code *',
                 onChanged: (value) {},
+                onLocationTap: controller.useCurrentLocationForZip,
               ),
               SizedBox(height: 24.h),
 

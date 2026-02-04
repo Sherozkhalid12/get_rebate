@@ -49,6 +49,21 @@ class AgentView extends GetView<AgentController> {
         ),
         centerTitle: true,
         actions: [
+          Obx(() =>
+            controller.showZipSelectionFirst
+                ? TextButton(
+                    onPressed: controller.skipZipSelection,
+                    child: Text(
+                      'Skip',
+                      style: TextStyle(
+                        color: AppTheme.white,
+                        fontSize: 16.sp,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  )
+                : const SizedBox.shrink(),
+          ),
           IconButton(
             icon: const Icon(Icons.message, color: AppTheme.white),
             onPressed: () => Get.toNamed('/messages'),
@@ -62,15 +77,21 @@ class AgentView extends GetView<AgentController> {
         ],
       ),
       body: SafeArea(
-        child: Column(
-          children: [
-            // Tabs
-            _buildTabs(context),
-
-            // Content
-            Expanded(child: _buildContent(context)),
-          ],
-        ),
+        child: Obx(() {
+          if (controller.showZipSelectionFirst) {
+            return Column(
+              children: [
+                Expanded(child: _buildZipManagement(context)),
+              ],
+            );
+          }
+          return Column(
+            children: [
+              _buildTabs(context),
+              Expanded(child: _buildContent(context)),
+            ],
+          );
+        }),
       ),
       floatingActionButton: Obx(() {
         if (controller.selectedTab == 2) {
@@ -747,6 +768,10 @@ class AgentView extends GetView<AgentController> {
                     keyboardType: TextInputType.number,
                     maxLength: 5,
                     onChanged: (v) => controller.onZipSearchChanged(v),
+                    suffixIcon: IconButton(
+                      icon: Icon(Icons.my_location, color: AppTheme.primaryBlue, size: 20),
+                      onPressed: controller.useCurrentLocationForZip,
+                    ),
                   ),
                 );
               }),
@@ -1079,20 +1104,7 @@ class AgentView extends GetView<AgentController> {
             isLoading: controller.isZipProcessing(zip.zipCode),
           ),
         ),
-        const SizedBox(height: 4),
-        TextButton(
-          onPressed: () => _showPromoCodeEntrySheet(context),
-          style: TextButton.styleFrom(
-            minimumSize: Size.zero,
-            padding: EdgeInsets.zero,
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            textStyle: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: AppTheme.primaryBlue,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          child: const Text('Have a promo code?'),
-        ),
+
       ],
     );
   }
@@ -3375,165 +3387,165 @@ class AgentView extends GetView<AgentController> {
 
           const SizedBox(height: 20),
 
-          // Promo Code Input Section
-          Obx(() {
-            if (controller.claimedZipCodes.isEmpty) {
-              return const SizedBox.shrink();
-            }
-            return Card(
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (!controller.hasActivePromo) ...[
-                      Text(
-                        'Have a promo code?',
-                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          color: AppTheme.black,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              onChanged: (value) =>
-                                  controller.setPromoCodeInput(value),
-                              decoration: InputDecoration(
-                                hintText: 'Enter promo code',
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 12,
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          CustomButton(
-                            text: 'Apply',
-                            onPressed: () {
-                              if (controller.promoCodeInput.isEmpty) {
-                                SnackbarHelper.showError(
-                                  'Please enter a promo code',
-                                );
-                                return;
-                              }
-                              controller.applyPromoCode(
-                                controller.promoCodeInput,
-                              );
-                            },
-                            width: 80,
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'If you have a promo code, please enter it above',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppTheme.mediumGray,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                    ],
-
-                    Text(
-                      'Share with Loan Officers',
-                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        color: AppTheme.black,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Generate a promo code to share with loan officers. They\'ll get 6 months free!',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppTheme.mediumGray,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    CustomButton(
-                      text: 'Generate Promo Code',
-                      onPressed: () =>
-                          controller.generatePromoCodeForLoanOfficer(),
-                      isOutlined: true,
-                      width: double.infinity,
-                    ),
-
-                    if (controller.generatedPromoCodes.isNotEmpty) ...[
-                      const SizedBox(height: 12),
-                      Text(
-                        'Your Generated Codes:',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: AppTheme.darkGray,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      ...controller.generatedPromoCodes.map(
-                        (promo) => Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: AppTheme.lightGray,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        promo.code,
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodyLarge
-                                            ?.copyWith(
-                                              fontWeight: FontWeight.bold,
-                                              color: AppTheme.primaryBlue,
-                                            ),
-                                      ),
-                                      Text(
-                                        promo.description ?? '6 Months Free',
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodySmall
-                                            ?.copyWith(
-                                              color: AppTheme.mediumGray,
-                                            ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                IconButton(
-                                  icon: const Icon(Icons.copy),
-                                  onPressed: () {
-                                    SnackbarHelper.showSuccess(
-                                      'Promo code copied to clipboard',
-                                      title: 'Copied',
-                                    );
-                                  },
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            );
-          }),
-
-          const SizedBox(height: 20),
+          // // Promo Code Input Section
+          // Obx(() {
+          //   if (controller.claimedZipCodes.isEmpty) {
+          //     return const SizedBox.shrink();
+          //   }
+          //   return Card(
+          //     child: Padding(
+          //       padding: const EdgeInsets.all(20),
+          //       child: Column(
+          //         crossAxisAlignment: CrossAxisAlignment.start,
+          //         children: [
+          //           if (!controller.hasActivePromo) ...[
+          //             Text(
+          //               'Have a promo code?',
+          //               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+          //                 color: AppTheme.black,
+          //                 fontWeight: FontWeight.w500,
+          //               ),
+          //             ),
+          //             const SizedBox(height: 8),
+          //             Row(
+          //               children: [
+          //                 Expanded(
+          //                   child: TextField(
+          //                     onChanged: (value) =>
+          //                         controller.setPromoCodeInput(value),
+          //                     decoration: InputDecoration(
+          //                       hintText: 'Enter promo code',
+          //                       border: OutlineInputBorder(
+          //                         borderRadius: BorderRadius.circular(8),
+          //                       ),
+          //                       contentPadding: const EdgeInsets.symmetric(
+          //                         horizontal: 12,
+          //                         vertical: 12,
+          //                       ),
+          //                     ),
+          //                   ),
+          //                 ),
+          //                 const SizedBox(width: 8),
+          //                 CustomButton(
+          //                   text: 'Apply',
+          //                   onPressed: () {
+          //                     if (controller.promoCodeInput.isEmpty) {
+          //                       SnackbarHelper.showError(
+          //                         'Please enter a promo code',
+          //                       );
+          //                       return;
+          //                     }
+          //                     controller.applyPromoCode(
+          //                       controller.promoCodeInput,
+          //                     );
+          //                   },
+          //                   width: 80,
+          //                 ),
+          //               ],
+          //             ),
+          //             const SizedBox(height: 8),
+          //             Text(
+          //               'If you have a promo code, please enter it above',
+          //               style: Theme.of(context).textTheme.bodySmall?.copyWith(
+          //                 color: AppTheme.mediumGray,
+          //               ),
+          //             ),
+          //             const SizedBox(height: 16),
+          //           ],
+          //
+          //           Text(
+          //             'Share with Loan Officers',
+          //             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+          //               color: AppTheme.black,
+          //               fontWeight: FontWeight.w500,
+          //             ),
+          //           ),
+          //           const SizedBox(height: 8),
+          //           Text(
+          //             'Generate a promo code to share with loan officers. They\'ll get 6 months free!',
+          //             style: Theme.of(context).textTheme.bodySmall?.copyWith(
+          //               color: AppTheme.mediumGray,
+          //             ),
+          //           ),
+          //           const SizedBox(height: 8),
+          //           CustomButton(
+          //             text: 'Generate Promo Code',
+          //             onPressed: () =>
+          //                 controller.generatePromoCodeForLoanOfficer(),
+          //             isOutlined: true,
+          //             width: double.infinity,
+          //           ),
+          //
+          //           if (controller.generatedPromoCodes.isNotEmpty) ...[
+          //             const SizedBox(height: 12),
+          //             Text(
+          //               'Your Generated Codes:',
+          //               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+          //                 color: AppTheme.darkGray,
+          //                 fontWeight: FontWeight.w500,
+          //               ),
+          //             ),
+          //             const SizedBox(height: 8),
+          //             ...controller.generatedPromoCodes.map(
+          //               (promo) => Padding(
+          //                 padding: const EdgeInsets.only(bottom: 8),
+          //                 child: Container(
+          //                   padding: const EdgeInsets.all(12),
+          //                   decoration: BoxDecoration(
+          //                     color: AppTheme.lightGray,
+          //                     borderRadius: BorderRadius.circular(8),
+          //                   ),
+          //                   child: Row(
+          //                     children: [
+          //                       Expanded(
+          //                         child: Column(
+          //                           crossAxisAlignment:
+          //                               CrossAxisAlignment.start,
+          //                           children: [
+          //                             Text(
+          //                               promo.code,
+          //                               style: Theme.of(context)
+          //                                   .textTheme
+          //                                   .bodyLarge
+          //                                   ?.copyWith(
+          //                                     fontWeight: FontWeight.bold,
+          //                                     color: AppTheme.primaryBlue,
+          //                                   ),
+          //                             ),
+          //                             Text(
+          //                               promo.description ?? '6 Months Free',
+          //                               style: Theme.of(context)
+          //                                   .textTheme
+          //                                   .bodySmall
+          //                                   ?.copyWith(
+          //                                     color: AppTheme.mediumGray,
+          //                                   ),
+          //                             ),
+          //                           ],
+          //                         ),
+          //                       ),
+          //                       IconButton(
+          //                         icon: const Icon(Icons.copy),
+          //                         onPressed: () {
+          //                           SnackbarHelper.showSuccess(
+          //                             'Promo code copied to clipboard',
+          //                             title: 'Copied',
+          //                           );
+          //                         },
+          //                       ),
+          //                     ],
+          //                   ),
+          //                 ),
+          //               ),
+          //             ),
+          //           ],
+          //         ],
+          //       ),
+          //     ),
+          //   );
+          // }),
+          //
+          // const SizedBox(height: 20),
 
           // Payment History
           Text(

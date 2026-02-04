@@ -3,12 +3,14 @@ import 'package:get/get.dart';
 import 'package:dio/dio.dart';
 import 'package:getrebate/app/services/lead_service.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart';
+import 'package:getrebate/app/controllers/location_controller.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
 import 'package:flutter/foundation.dart';
 
 class BuyerLeadFormV2Controller extends GetxController {
   final _leadService = LeadService();
   final _authController = Get.find<AuthController>();
+  final _locationController = Get.find<LocationController>();
   
   // Store property and agent info from arguments
   Map<String, dynamic>? _property;
@@ -141,6 +143,23 @@ class BuyerLeadFormV2Controller extends GetxController {
 
   void setBestTimeToReach(String time) {
     _bestTimeToReach.value = time;
+  }
+
+  /// Uses cached current location zip for the location field (instant, no fetch on tap).
+  void useCurrentLocationForZip() {
+    final zipCode = _locationController.currentZipCode;
+    if (zipCode != null &&
+        zipCode.length == 5 &&
+        RegExp(r'^\d+$').hasMatch(zipCode)) {
+      locationController.text = zipCode;
+      locationController.selection = TextSelection.collapsed(offset: zipCode.length);
+    } else {
+      SnackbarHelper.showInfo(
+        'Location not ready yet. Please wait a moment and try again, or enter ZIP manually.',
+        title: 'Location',
+        duration: const Duration(seconds: 3),
+      );
+    }
   }
 
   void setLookingTo(String option) {

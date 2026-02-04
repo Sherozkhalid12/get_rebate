@@ -10,6 +10,7 @@ import 'package:getrebate/app/modules/buyer_v2/controllers/buyer_v2_controller.d
 import 'package:getrebate/app/models/agent_model.dart';
 import 'package:getrebate/app/models/listing.dart';
 import 'package:getrebate/app/utils/rebate.dart';
+import 'package:getrebate/app/utils/rebate_restricted_states.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/widgets/custom_button.dart';
@@ -63,6 +64,7 @@ class ListingDetailView extends GetView<ListingDetailController> {
       priceCents: listing.priceCents,
       bacPercent: listing.bacPercent,
       dualAgencyAllowed: listing.dualAgencyAllowed,
+      dualAgencyCommissionPercent: listing.dualAgencyCommissionPercent,
     );
 
     return Scaffold(
@@ -392,6 +394,60 @@ class ListingDetailView extends GetView<ListingDetailController> {
 
                   const SizedBox(height: 16),
 
+                  // Rebate-Restricted State Notice (if applicable)
+                  if (RebateRestrictedStates.isRestricted(listing.address.state))
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: AppTheme.mediumGray.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: AppTheme.mediumGray.withOpacity(0.4),
+                          ),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(
+                              Icons.gavel,
+                              color: AppTheme.darkGray,
+                              size: 22,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Rebates Not Permitted in ${listing.address.state}',
+                                    style: Theme.of(context).textTheme.titleSmall
+                                        ?.copyWith(
+                                          color: AppTheme.darkGray,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    RebateRestrictedStates.restrictedStateNotice,
+                                    style: Theme.of(context).textTheme.bodySmall
+                                        ?.copyWith(
+                                          color: AppTheme.darkGray,
+                                          height: 1.4,
+                                        ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                  if (RebateRestrictedStates.isRestricted(listing.address.state))
+                    const SizedBox(height: 16),
+
                   // NAR Compliance Notice
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -415,19 +471,25 @@ class ListingDetailView extends GetView<ListingDetailController> {
                                 size: 20,
                               ),
                               const SizedBox(width: 8),
-                              Text(
-                                'Estimated Rebate Range',
-                                style: Theme.of(context).textTheme.titleSmall
-                                    ?.copyWith(
-                                      color: AppTheme.primaryBlue,
-                                      fontWeight: FontWeight.bold,
-                                    ),
+                              Expanded(
+                                child: Text(
+                                  RebateRestrictedStates.isRestricted(
+                                    listing.address.state,
+                                  )
+                                      ? 'Estimated Rebate Range (for reference — not applicable in this state)'
+                                      : 'Estimated Rebate Range',
+                                  style: Theme.of(context).textTheme.titleSmall
+                                      ?.copyWith(
+                                        color: AppTheme.primaryBlue,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                ),
                               ),
                             ],
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            'If Buyer Agent Compensation is between 2.5% and 3%...',
+                            'When you work with an Agent from this site, this estimate uses the ${listing.bacPercent.toStringAsFixed(1)}% BAC entered by the listing agent.',
                             style: Theme.of(context).textTheme.bodyMedium
                                 ?.copyWith(
                                   color: AppTheme.darkGray,
@@ -452,7 +514,8 @@ class ListingDetailView extends GetView<ListingDetailController> {
                             amount: _formatMoney(rebate.ownAgentRebateCents),
                             icon: Icons.person,
                             color: AppTheme.primaryBlue,
-                            subtitle: 'Estimated range',
+                          subtitle:
+                              'Estimated rebate based on the ${listing.bacPercent.toStringAsFixed(1)}% BAC entered by the listing agent',
                           ),
                         ),
                         // Only show "With The Listing Agent" card if dual agency is allowed
@@ -461,13 +524,10 @@ class ListingDetailView extends GetView<ListingDetailController> {
                           Expanded(
                             child: _RebateCard(
                               title: 'With The Listing Agent',
-                              amount: rebate.directRebateMaxCents != null
-                                  ? '${_formatMoney(rebate.directRebateCents)} - ${_formatMoney(rebate.directRebateMaxCents!)}'
-                                  : _formatMoney(rebate.directRebateCents),
+                              amount: _formatMoney(rebate.directRebateCents),
                               icon: Icons.trending_up,
                               color: AppTheme.lightGreen,
-                              subtitle:
-                                  'Based on ${listing.bacPercent.toStringAsFixed(1)}% BAC',
+                              subtitle: 'Estimated rebate',
                             ),
                           ),
                         ],

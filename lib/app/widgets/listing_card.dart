@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../models/listing.dart';
 import '../utils/rebate.dart';
+import '../utils/rebate_restricted_states.dart';
 
 class ListingCard extends StatelessWidget {
   final Listing listing;
@@ -27,13 +28,12 @@ class ListingCard extends StatelessWidget {
       priceCents: listing.priceCents,
       bacPercent: listing.bacPercent,
       dualAgencyAllowed: listing.dualAgencyAllowed,
+      dualAgencyCommissionPercent: listing.dualAgencyCommissionPercent,
     );
 
     final String priceText = _formatMoney(listing.priceCents);
     final String ownAgentRebateText = _formatMoney(rebate.ownAgentRebateCents);
-    final String directRebateText = rebate.directRebateMaxCents != null
-        ? '${_formatMoney(rebate.directRebateCents)} - ${_formatMoney(rebate.directRebateMaxCents!)}'
-        : _formatMoney(rebate.directRebateCents);
+    final String directRebateText = _formatMoney(rebate.directRebateCents);
 
     return Card(
       clipBehavior: Clip.antiAlias,
@@ -72,6 +72,13 @@ class ListingCard extends StatelessWidget {
                         label: 'Dual Agency',
                         value: listing.dualAgencyAllowed ? 'Allowed' : 'No',
                       ),
+                      if (RebateRestrictedStates.isRestricted(listing.address.state)) ...[
+                        const SizedBox(width: 8),
+                        _InfoChip(
+                          label: 'Rebates',
+                          value: 'Not permitted',
+                        ),
+                      ],
                     ],
                   ),
                   const SizedBox(height: 12),
@@ -79,14 +86,14 @@ class ListingCard extends StatelessWidget {
                     children: <Widget>[
                       Expanded(
                         child: _RebateTile(
-                          title: 'Rebate w/ Own Agent',
+                          title: 'When you work with an Agent from this site',
                           amount: ownAgentRebateText,
                         ),
                       ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: _RebateTile(
-                          title: 'With Listing Agent',
+                          title: 'With The Listing Agent',
                           amount: directRebateText,
                         ),
                       ),

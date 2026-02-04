@@ -6,12 +6,15 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:getrebate/app/models/property_model.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart' as global;
+import 'package:getrebate/app/controllers/location_controller.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
+import 'package:getrebate/app/utils/snackbar_helper.dart';
 import 'package:getrebate/app/widgets/custom_snackbar.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:get_storage/get_storage.dart';
 
 class EditListingController extends GetxController {
+  final LocationController _locationController = Get.find<LocationController>();
   final Dio _dio = Dio();
   final _isLoading = false.obs;
   final _formKey = GlobalKey<FormState>();
@@ -265,6 +268,23 @@ class EditListingController extends GetxController {
       return false;
     }
     return true;
+  }
+
+  /// Uses cached current location zip for the ZIP code field (instant, no fetch on tap).
+  void useCurrentLocationForZip() {
+    final zipCode = _locationController.currentZipCode;
+    if (zipCode != null &&
+        zipCode.length == 5 &&
+        RegExp(r'^\d+$').hasMatch(zipCode)) {
+      zipCodeController.text = zipCode;
+      zipCodeController.selection = TextSelection.collapsed(offset: zipCode.length);
+    } else {
+      SnackbarHelper.showInfo(
+        'Location not ready yet. Please wait a moment and try again, or enter ZIP manually.',
+        title: 'Location',
+        duration: const Duration(seconds: 3),
+      );
+    }
   }
 
   void setPropertyType(String type) {

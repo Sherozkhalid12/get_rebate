@@ -10,6 +10,7 @@ import 'package:getrebate/app/widgets/rebate_display_widget.dart';
 import 'package:getrebate/app/widgets/nearby_agents_widget.dart';
 import 'package:getrebate/app/models/listing.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
+import 'package:getrebate/app/utils/rebate_restricted_states.dart';
 import 'package:intl/intl.dart';
 
 class PropertyDetailView extends GetView<PropertyDetailController> {
@@ -765,6 +766,24 @@ class PropertyDetailView extends GetView<PropertyDetailController> {
       }
     }
     
+    double? dualAgencyCommissionPercentRaw;
+    if (property['dualAgencyCommissionPercent'] is num) {
+      dualAgencyCommissionPercentRaw =
+          (property['dualAgencyCommissionPercent'] as num).toDouble();
+    } else if (property['listingSideCommission'] is Map) {
+      final listingSideCommission = property['listingSideCommission'] as Map;
+      if (listingSideCommission['totalCommission'] is num) {
+        dualAgencyCommissionPercentRaw =
+            (listingSideCommission['totalCommission'] as num).toDouble();
+      }
+    }
+    double? dualAgencyCommissionPercent;
+    if (dualAgencyCommissionPercentRaw != null) {
+      dualAgencyCommissionPercent = dualAgencyCommissionPercentRaw! <= 1
+          ? dualAgencyCommissionPercentRaw! * 100
+          : dualAgencyCommissionPercentRaw!;
+    }
+
     final mockListing = Listing(
       id: property['id'] ?? 'mock',
       agentId: property['agentId'] ?? 'mock_agent',
@@ -780,14 +799,64 @@ class PropertyDetailView extends GetView<PropertyDetailController> {
       photoUrls: List<String>.from(
         property['images'] ?? [property['image'] ?? ''],
       ),
-      bacPercent: bacPercent * 100,
+      bacPercent: bacPercent,
       dualAgencyAllowed: dualAgencyAllowed,
-      dualAgencyCommissionPercent: dualAgencyAllowed ? 400.0 : null,
+      dualAgencyCommissionPercent:
+          dualAgencyAllowed ? dualAgencyCommissionPercent : null,
       createdAt: DateTime.now(),
     );
 
+    final propertyState = property['state']?.toString() ??
+        (property['address'] is Map
+            ? (property['address'] as Map)['state']?.toString()
+            : null) ??
+        'CA';
+    final isRebateRestricted = RebateRestrictedStates.isRestricted(propertyState);
+
     return Column(
       children: [
+        if (isRebateRestricted)
+          Container(
+            width: double.infinity,
+            margin: const EdgeInsets.only(bottom: 16),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppTheme.mediumGray.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: AppTheme.mediumGray.withOpacity(0.4),
+              ),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.gavel, color: AppTheme.darkGray, size: 22),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Rebates Not Permitted in $propertyState',
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          color: AppTheme.darkGray,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        RebateRestrictedStates.restrictedStateNotice,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppTheme.darkGray,
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
         // === REBATE DISPLAY WIDGET ===
         RebateDisplayWidget(
           listing: mockListing,
@@ -829,7 +898,9 @@ class PropertyDetailView extends GetView<PropertyDetailController> {
                   SizedBox(width: 12.w),
                   Expanded(
                     child: Text(
-                      'Your Potential Rebate',
+                      isRebateRestricted
+                          ? 'Your Potential Rebate (not permitted in this state)'
+                          : 'Your Potential Rebate',
                       style: TextStyle(
                         fontSize: 18.sp,
                         fontWeight: FontWeight.bold,

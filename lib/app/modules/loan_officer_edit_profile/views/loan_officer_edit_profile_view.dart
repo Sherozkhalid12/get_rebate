@@ -569,6 +569,10 @@ class LoanOfficerEditProfileView
             labelText: 'Service Areas',
             prefixIcon: Icons.location_on_outlined,
             hintText: '90210, 90211, Los Angeles',
+            suffixIcon: IconButton(
+              icon: Icon(Icons.my_location, color: AppTheme.primaryBlue, size: 20),
+              onPressed: controller.useCurrentLocationForZip,
+            ),
           ),
         ],
       ),

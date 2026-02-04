@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 
 class CustomSearchField extends StatefulWidget {
@@ -10,6 +11,7 @@ class CustomSearchField extends StatefulWidget {
   final VoidCallback? onClear;
   final bool showClearButton;
   final VoidCallback? onLocationTap;
+  final bool isLocationLoading;
 
   const CustomSearchField({
     super.key,
@@ -19,6 +21,7 @@ class CustomSearchField extends StatefulWidget {
     this.onClear,
     this.showClearButton = true,
     this.onLocationTap,
+    this.isLocationLoading = false,
   });
 
   @override
@@ -94,8 +97,22 @@ class _CustomSearchFieldState extends State<CustomSearchField> {
       );
     }
 
-    // If text is empty and location tap is provided, show location icon
+    // If text is empty and location tap is provided, show location icon or loading
     if (widget.onLocationTap != null && widget.controller.text.isEmpty) {
+      if (widget.isLocationLoading) {
+        return Padding(
+          padding: EdgeInsets.all(12.sp),
+          child: SizedBox(
+            width: 24.sp,
+            height: 24.sp,
+            child: SpinKitRing(
+              color: AppTheme.primaryBlue,
+              lineWidth: 2.0,
+              size: 24.sp,
+            ),
+          ),
+        );
+      }
       return IconButton(
         icon: Icon(Icons.my_location, color: AppTheme.primaryBlue, size: 20.sp),
         onPressed: widget.onLocationTap,

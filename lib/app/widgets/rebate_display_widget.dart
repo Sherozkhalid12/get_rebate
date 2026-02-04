@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:getrebate/app/services/rebate_calculator_service.dart';
 import 'package:getrebate/app/models/listing.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
+import 'package:getrebate/app/utils/rebate_restricted_states.dart';
 
 class RebateDisplayWidget extends StatelessWidget {
   final Listing listing;
@@ -28,6 +29,12 @@ class RebateDisplayWidget extends StatelessWidget {
           ? listing.dualAgencyCommissionPercent! / 100.0
           : null,
     );
+    final String bacPercentText = listing.bacPercent.toStringAsFixed(1);
+    final String? dualAgencyPercentText = listing.dualAgencyCommissionPercent != null
+        ? listing.dualAgencyCommissionPercent!.toStringAsFixed(1)
+        : null;
+
+    final isRestricted = RebateRestrictedStates.isRestricted(listing.address.state);
 
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 12),
@@ -50,15 +57,46 @@ class RebateDisplayWidget extends StatelessWidget {
             children: [
               Icon(Icons.monetization_on, color: AppTheme.lightGreen, size: 20),
               const SizedBox(width: 8),
-              Text(
-                'Potential Buyer Rebate',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: AppTheme.black,
-                  fontWeight: FontWeight.w600,
+              Expanded(
+                child: Text(
+                  isRestricted
+                      ? 'Potential Buyer Rebate (not permitted in this state)'
+                      : 'Potential Buyer Rebate',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: AppTheme.black,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ],
           ),
+          if (isRestricted) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppTheme.mediumGray.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppTheme.mediumGray.withOpacity(0.3)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.gavel, color: AppTheme.darkGray, size: 18),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      RebateRestrictedStates.restrictedStateNotice,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppTheme.darkGray,
+                        height: 1.35,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 12),
 
           // Find agents button - moved above rebate options
@@ -66,9 +104,9 @@ class RebateDisplayWidget extends StatelessWidget {
           // Standard rebate range
           _buildRebateRange(
             context,
-            'When you work with any other agent from this site that is not the listing agent',
+            'When you work with an Agent from this site',
             rebateRange.standardRebateRangeText,
-            'Estimated range if Buyer Agent Commission (BAC) is between 2.5% - 3.0%',
+            'Estimated rebate based on the $bacPercentText% BAC entered by the listing agent',
             Icons.handshake,
             onTap: () => _showBACDialog(context),
           ),
@@ -97,7 +135,9 @@ class RebateDisplayWidget extends StatelessWidget {
               context,
               'When you work directly with the listing agent',
               rebateRange.dualAgencyRebateRangeText,
-              'Based on the listing agent receiving Listing Agent Commission (LAC) plus Buyer Agent Commission (BAC) totaling at least 4%. Actual rebate would be determined by total commission received by the agent. Dual Agency would apply.',
+              dualAgencyPercentText != null
+                  ? 'Estimated rebate based on the ${dualAgencyPercentText}% total commission entered by the listing agent'
+                  : 'Estimated rebate based on the total commission the listing agent receives when dual agency applies',
               Icons.person,
               isHighlighted: true,
               onTap: onDualAgencyInfo,

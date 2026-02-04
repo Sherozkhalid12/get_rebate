@@ -61,6 +61,24 @@ class HelpSupportView extends StatelessWidget {
               
               _buildFAQItem(
                 context,
+                'Are Real Estate Rebates Legal?',
+                'Yes. The United States Department of Justice actually promotes real estate rebates and says "Competition among real-estate brokerages protects American homebuyers and helps reduce prices and improve services for consumers." and "All buyers and sellers benefit if the process of selling homes is less expensive. Consequently, allowing non-misleading rebates and inducements is procompetitive and represents an important component of price competition." Also, organizations like Consumer Federation of America and some homebuyer advocacy groups promote rebates as a way to make buying a home more affordable.',
+              ),
+
+              _buildFAQItem(
+                context,
+                'Are rebates legal in all 50 states?',
+                'No. Currently 40 states allow rebates to buyers, and those same 40 (except New Jersey) allow rebates to sellers. These 10 states currently ban or restrict real estate rebates: Alabama, Alaska, Kansas, Louisiana, Mississippi, Missouri, Oklahoma, Oregon, Tennessee, and Iowa.',
+              ),
+
+              _buildFAQItem(
+                context,
+                'Is Get a Rebate Real Estate a licensed real estate broker?',
+                'Yes. Get a Rebate Real Estate is a fully licensed real estate brokerage in the State of Minnesota. We created this platform so buyers and sellers nationwide can benefit from the same rebate savings we have successfully offered our Minnesota clients for more than 25 years, where permitted by law.',
+              ),
+
+              _buildFAQItem(
+                context,
                 'How do I find a real estate agent?',
                 'Use the search bar on the home screen to enter a ZIP code. Browse through the Agents tab to see available agents in your area. You can view their profiles, ratings, and contact them directly.',
               ),
@@ -116,9 +134,9 @@ class HelpSupportView extends StatelessWidget {
                 context,
                 Icons.phone,
                 'Phone Support',
-                '+1 (555) 123-4567',
+                '612-860-1537',
                 'Call us Monday-Friday, 9 AM - 6 PM EST',
-                () => _launchPhone('+15551234567'),
+                () => _launchPhone('6128601537'),
               ),
               
               SizedBox(height: 12.h),

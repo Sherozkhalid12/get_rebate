@@ -1,22 +1,9 @@
 class RebateCalculatorService {
-  // Standard rebate percentage range (30% of BAC)
+  // Buyer keeps 30% of BAC when working with an agent from this site
   static const double standardRebatePercentage = 0.30;
 
-  // Dual agency rebate percentage (30% of full BAC)
-  static const double dualAgencyRebatePercentage = 0.30;
-
-  // Minimum BAC percentage for standard rebate range
-  static const double minStandardRebatePercentage = 0.025; // 2.5%
-
-  // Maximum BAC percentage for standard rebate range
-  static const double maxStandardRebatePercentage = 0.030; // 3.0%
-
-  // Dual agency rebate percentage range
-  static const double minDualAgencyRebatePercentage = 0.40; // 40% minimum
-  static const double maxDualAgencyRebatePercentage = 0.50; // 50% maximum
-
-  // Dual agency BAC percentage
-  static const double dualAgencyBacPercentage = 0.04; // 4.0%
+  // Buyer keeps 40% of the total commission when going directly to listing agent
+  static const double dualAgencyDirectSharePercentage = 0.40;
 
   /// Calculates potential rebate range based on BAC percentage
   static RebateRange calculateRebateRange({
@@ -25,19 +12,18 @@ class RebateCalculatorService {
     required bool allowsDualAgency,
     double? dualAgencyCommissionPercentage,
   }) {
-    // Calculate standard rebate range based on BAC range 2.5% to 3.0%
-    // Minimum: list price * 2.5% * 30%
-    final minStandardRebate = listPrice * 0.025 * standardRebatePercentage;
+    // Calculate standard rebate using the actual BAC entered for the listing.
+    final minStandardRebate = listPrice * bacPercentage * standardRebatePercentage;
+    final maxStandardRebate = minStandardRebate;
 
-    // Maximum: list price * 3.0% * 30%
-    final maxStandardRebate = listPrice * 0.030 * standardRebatePercentage;
-
-    // Calculate dual agency rebate - single number
-    // list price * 4% * 40%
+    // Calculate dual agency rebate from the total commission (if provided),
+    // otherwise fall back to the BAC value.
     double? dualAgencyRebate;
     if (allowsDualAgency) {
+      final commissionPercent =
+          dualAgencyCommissionPercentage ?? bacPercentage;
       dualAgencyRebate =
-          listPrice * dualAgencyBacPercentage * minDualAgencyRebatePercentage;
+          listPrice * commissionPercent * dualAgencyDirectSharePercentage;
     }
 
     return RebateRange(
@@ -67,7 +53,7 @@ class RebateCalculatorService {
 
   /// Gets rebate percentage range text
   static String getRebatePercentageRangeText() {
-    return '${(minStandardRebatePercentage * 100).toStringAsFixed(1)}% - ${(maxStandardRebatePercentage * 100).toStringAsFixed(1)}%';
+    return '${(standardRebatePercentage * 100).toStringAsFixed(0)}%';
   }
 }
 
@@ -115,8 +101,7 @@ class RebateRange {
     if (minDualAgencyRebate == null) {
       return '';
     }
-    // Show single number for dual agency with "or more"
-    return '$formattedMinDualAgencyRebate or more';
+    return formattedMinDualAgencyRebate;
   }
 
   bool get hasDualAgencyOption =>

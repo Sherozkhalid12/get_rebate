@@ -58,7 +58,7 @@ class TermsOfServiceView extends StatelessWidget {
               _buildSection(
                 context,
                 '1. Acceptance of Terms',
-                'By accessing and using GetaRebate  ("the Service"), you accept and agree to be bound by the terms and provision of this agreement. If you do not agree to abide by the above, please do not use this service.',
+                'By accessing and using Get a Rebate Real Estate  ("the Service"), you accept and agree to be bound by the terms and provision of this agreement. If you do not agree to abide by the above, please do not use this service.',
               ),
               
               _buildSection(
@@ -91,29 +91,33 @@ class TermsOfServiceView extends StatelessWidget {
                 '• Harass, abuse, or harm other users\n'
                 '• Post false, misleading, or fraudulent information',
               ),
-              
+
               _buildSection(
                 context,
                 '5. Real Estate Professionals',
-                'Real estate agents and loan officers who use our platform:\n\n'
-                '• Must be properly licensed in their respective jurisdictions\n'
-                '• Are responsible for their own professional conduct and compliance\n'
-                '• Must provide accurate information about their services and rebates\n'
-                '• Are independent contractors, not employees of GetaRebate \n'
-                '• Are solely responsible for their transactions and client relationships',
+                'Agents and loan officers who use the Get a Rebate Real Estate platform (“Platform”) do so as independent, third-party professionals affiliated with their own brokerages, lenders, or companies.\n\n'
+                    'Nothing in these Terms of Use creates, or shall be deemed to create, any employment relationship, partnership, joint venture, agency, or independent contractor relationship between Get a Rebate Real Estate and any agent or loan officer using the Platform.\n\n'
+                    'Agents and loan officers:\n\n'
+                    '• Are not employees of Get a Rebate Real Estate\n'
+                    '• Are not independent contractors of Get a Rebate Real Estate\n'
+                    '• Operate solely under the license, supervision, and authority of their own brokerage, lender, or employer\n'
+                    '• Are individually responsible for compliance with all applicable federal, state, and local laws, licensing requirements, regulations, disclosures, and ethical obligations\n\n'
+                    'Get a Rebate Real Estate does not:\n\n'
+                    '• Supervise, manage, or control the professional activities of agents or loan officers\n'
+                    '• Provide legal, financial, or compliance oversight for transactions\n'
+                    '• Participate in, negotiate, or represent any party in real estate or loan transactions, unless separately agreed in writing where Get a Rebate Real Estate is licensed.\n\n'
+                    'All services provided to buyers or sellers are rendered solely by the agent’s or loan officer’s own brokerage, lender, or employer, and any commissions, rebates, fees, or compensation are handled in accordance with applicable law and the policies of their respective brokerages, lenders, or employers.',
               ),
-              
+
+
               _buildSection(
                 context,
                 '6. Rebates and Financial Terms',
-                'Rebates are offered by individual agents and are subject to:\n\n'
-                '• The agent\'s specific rebate terms and conditions\n'
-                '• Applicable state and federal laws\n'
-                '• Successful completion of a real estate transaction\n'
-                '• The terms of the purchase or sale agreement\n\n'
-                'GetaRebate  does not guarantee any rebate amount and is not responsible for rebate disputes between users and agents.',
+                'Rebate amounts displayed are estimates only and are not guaranteed. Agents, buyers, and sellers are solely responsible for using the provided checklists and calculators and for independently verifying rebate eligibility, structure, and amounts. Rebates may be reduced, limited, modified, or eliminated and may result in a \$0 rebate due to lender requirements, applicable laws or regulations, brokerage policies, or changes to transaction terms.\n\n'
+                    'Checklists are provided for informational and compliance-support purposes only and do not constitute legal, financial, or lending advice. Certain lenders, builders, loan programs, down payment assistance programs, and other third parties may impose additional restrictions—even in jurisdictions where rebates are otherwise permitted. Users are responsible for confirming all requirements with their lender, brokerage, and settlement provider early in the transaction to determine rebate eligibility or to modify transaction terms accordingly.',
               ),
-              
+
+
               _buildSection(
                 context,
                 '7. Intellectual Property',

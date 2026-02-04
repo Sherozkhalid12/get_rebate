@@ -11,6 +11,8 @@ class LoanOfficerModel {
   final String licenseNumber;
   final List<String> licensedStates;
   final List<String> claimedZipCodes;
+  /// True = has claimed at least one ZIP before (old user). False = new user. Null = not from API.
+  final bool? firstZipCodeClaimed;
   final List<String>
   specialtyProducts; // Areas of expertise and specialty products
   final String? bio;
@@ -43,6 +45,7 @@ class LoanOfficerModel {
     required this.licenseNumber,
     this.licensedStates = const [],
     this.claimedZipCodes = const [],
+    this.firstZipCodeClaimed,
     this.specialtyProducts = const [],
     this.bio,
     this.rating = 0.0,
@@ -121,6 +124,12 @@ class LoanOfficerModel {
       }
     }
     final claimedZipCodes = claimedZipCodesList;
+
+    // firstZipCodeClaimed: true = old user, false = new user
+    final firstZipCodeClaimedRaw = json['firstZipCodeClaimed'];
+    final bool? firstZipCodeClaimed = firstZipCodeClaimedRaw is bool
+        ? firstZipCodeClaimedRaw
+        : null;
     
     // Specialty products
     final specialtyList = json['specialtyProducts'] ?? [];
@@ -187,6 +196,7 @@ class LoanOfficerModel {
       licenseNumber: licenseNumber,
       licensedStates: licensedStates,
       claimedZipCodes: claimedZipCodes,
+      firstZipCodeClaimed: firstZipCodeClaimed,
       specialtyProducts: specialtyProducts,
       bio: json['bio']?.toString() ?? json['description']?.toString(),
       rating: rating,
@@ -220,6 +230,7 @@ class LoanOfficerModel {
       'licenseNumber': licenseNumber,
       'licensedStates': licensedStates,
       'claimedZipCodes': claimedZipCodes,
+      'firstZipCodeClaimed': firstZipCodeClaimed,
       'specialtyProducts': specialtyProducts,
       'bio': bio,
       'rating': rating,
@@ -252,6 +263,7 @@ class LoanOfficerModel {
     String? licenseNumber,
     List<String>? licensedStates,
     List<String>? claimedZipCodes,
+    bool? firstZipCodeClaimed,
     List<String>? specialtyProducts,
     String? bio,
     double? rating,
@@ -281,6 +293,7 @@ class LoanOfficerModel {
       licenseNumber: licenseNumber ?? this.licenseNumber,
       licensedStates: licensedStates ?? this.licensedStates,
       claimedZipCodes: claimedZipCodes ?? this.claimedZipCodes,
+      firstZipCodeClaimed: firstZipCodeClaimed ?? this.firstZipCodeClaimed,
       specialtyProducts: specialtyProducts ?? this.specialtyProducts,
       bio: bio ?? this.bio,
       rating: rating ?? this.rating,
