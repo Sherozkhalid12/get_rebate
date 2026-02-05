@@ -78,17 +78,14 @@ class BuyerV2View extends GetView<BuyerV2Controller> {
     return Container(
       padding: const EdgeInsets.all(20),
       color: AppTheme.white,
-      child: Obx(() {
-        final hasSearch = controller.searchController.text.trim().isNotEmpty;
-        return ListenableBuilder(
-          listenable: controller.searchController,
-          builder: (context, _) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-
-
-                CustomSearchField(
+      child: ListenableBuilder(
+        listenable: controller.searchController,
+        builder: (context, _) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Obx(
+                () => CustomSearchField(
                   controller: controller.searchController,
                   hintText: 'Enter ZIP code (5 digits)',
                   isLocationLoading: controller.isFetchingLocation,
@@ -111,7 +108,8 @@ class BuyerV2View extends GetView<BuyerV2Controller> {
                     controller.clearZipCodeFilter();
                   },
                 ),
-                // if (hasSearch) ...[
+              ),
+              // if (hasSearch) ...[
                 //   const SizedBox(height: 12),
                 //   _buildStateLimitNote(context),
                 // ],
@@ -188,12 +186,11 @@ class BuyerV2View extends GetView<BuyerV2Controller> {
                   ],
                 ),
 
-                const SizedBox(height: 16),
-              ],
-            );
-          },
-        );
-      }),
+              const SizedBox(height: 16),
+            ],
+          );
+        },
+      ),
     );
   }
 

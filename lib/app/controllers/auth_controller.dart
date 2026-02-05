@@ -446,6 +446,178 @@ class AuthController extends GetxController {
     }
   }
 
+  /// Sends verification email with OTP to the given email address.
+  /// Used before signup - call this first, then show OTP screen.
+  /// API: POST {{server}}/api/v1/auth/sendVerificationEmail
+  Future<void> sendVerificationEmail(String email) async {
+    final trimmedEmail = email.trim();
+    final url = ApiConstants.sendVerificationEmailEndpoint;
+    final body = {'email': trimmedEmail};
+
+    if (kDebugMode) {
+      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      print('📧 OTP API: sendVerificationEmail');
+      print('   URL: $url');
+      print('   Body: $body');
+      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    }
+
+    try {
+      final response = await _dio.post(url, data: body);
+
+      if (kDebugMode) {
+        print('✅ sendVerificationEmail SUCCESS');
+        print('   Status: ${response.statusCode}');
+        print('   Response: ${response.data}');
+        print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      }
+
+      if (response.statusCode != 200 && response.statusCode != 201) {
+        final msg = (response.data as Map?)?['message']?.toString() ??
+            'Failed to send verification email';
+        if (kDebugMode) print('❌ sendVerificationEmail FAILED: $msg');
+        throw Exception(msg);
+      }
+    } on DioException catch (e) {
+      final msg = (e.response?.data as Map?)?['message']?.toString();
+      final errMsg = msg ?? _dioErrorToMessage(e);
+      if (kDebugMode) {
+        print('❌ sendVerificationEmail DioException');
+        print('   Status: ${e.response?.statusCode}');
+        print('   Response: ${e.response?.data}');
+        print('   Error: $errMsg');
+        print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      }
+      throw Exception(errMsg);
+    } catch (e, stack) {
+      if (kDebugMode) {
+        print('❌ sendVerificationEmail Exception: $e');
+        print('   Stack: $stack');
+        print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      }
+      rethrow;
+    }
+  }
+
+  /// Verifies the OTP entered by the user.
+  /// API: POST {{server}}/api/v1/auth/verifyOtp
+  Future<void> verifyOtp(String email, String otp) async {
+    final trimmedEmail = email.trim();
+    final trimmedOtp = otp.trim();
+    final url = ApiConstants.verifyOtpEndpoint;
+    final body = {'email': trimmedEmail, 'otp': trimmedOtp};
+
+    if (kDebugMode) {
+      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      print('🔐 OTP API: verifyOtp');
+      print('   URL: $url');
+      print('   Body: {email: ..., otp: ***}');
+      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    }
+
+    try {
+      final response = await _dio.post(url, data: body);
+
+      if (kDebugMode) {
+        print('✅ verifyOtp SUCCESS');
+        print('   Status: ${response.statusCode}');
+        print('   Response: ${response.data}');
+        print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      }
+
+      if (response.statusCode != 200 && response.statusCode != 201) {
+        final msg = (response.data as Map?)?['message']?.toString() ??
+            'Invalid or expired OTP';
+        if (kDebugMode) print('❌ verifyOtp FAILED: $msg');
+        throw Exception(msg);
+      }
+    } on DioException catch (e) {
+      final msg = (e.response?.data as Map?)?['message']?.toString();
+      final errMsg = msg ?? _dioErrorToMessage(e);
+      if (kDebugMode) {
+        print('❌ verifyOtp DioException');
+        print('   Status: ${e.response?.statusCode}');
+        print('   Response: ${e.response?.data}');
+        print('   Error: $errMsg');
+        print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      }
+      throw Exception(errMsg);
+    } catch (e, stack) {
+      if (kDebugMode) {
+        print('❌ verifyOtp Exception: $e');
+        print('   Stack: $stack');
+        print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      }
+      rethrow;
+    }
+  }
+
+  /// Resends verification email (new OTP).
+  /// API: POST {{server}}/api/v1/auth/resendVerificationEmail
+  Future<void> resendVerificationEmail(String email) async {
+    final trimmedEmail = email.trim();
+    final url = ApiConstants.resendVerificationEmailEndpoint;
+    final body = {'email': trimmedEmail};
+
+    if (kDebugMode) {
+      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      print('📧 OTP API: resendVerificationEmail');
+      print('   URL: $url');
+      print('   Body: $body');
+      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    }
+
+    try {
+      final response = await _dio.post(url, data: body);
+
+      if (kDebugMode) {
+        print('✅ resendVerificationEmail SUCCESS');
+        print('   Status: ${response.statusCode}');
+        print('   Response: ${response.data}');
+        print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      }
+
+      if (response.statusCode != 200 && response.statusCode != 201) {
+        final msg = (response.data as Map?)?['message']?.toString() ??
+            'Failed to resend verification email';
+        if (kDebugMode) print('❌ resendVerificationEmail FAILED: $msg');
+        throw Exception(msg);
+      }
+    } on DioException catch (e) {
+      final msg = (e.response?.data as Map?)?['message']?.toString();
+      final errMsg = msg ?? _dioErrorToMessage(e);
+      if (kDebugMode) {
+        print('❌ resendVerificationEmail DioException');
+        print('   Status: ${e.response?.statusCode}');
+        print('   Response: ${e.response?.data}');
+        print('   Error: $errMsg');
+        print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      }
+      throw Exception(errMsg);
+    } catch (e, stack) {
+      if (kDebugMode) {
+        print('❌ resendVerificationEmail Exception: $e');
+        print('   Stack: $stack');
+        print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      }
+      rethrow;
+    }
+  }
+
+  String _dioErrorToMessage(DioException e) {
+    if (e.response?.statusCode == 401) return 'Invalid OTP or session expired.';
+    if (e.response?.statusCode == 400) return 'Invalid request.';
+    if (e.response?.statusCode == 429) return 'Too many requests. Please wait before resending.';
+    if (e.type == DioExceptionType.connectionTimeout ||
+        e.type == DioExceptionType.receiveTimeout) {
+      return 'Connection timeout. Please check your network.';
+    }
+    if (e.type == DioExceptionType.connectionError) {
+      return 'No internet connection.';
+    }
+    return 'Something went wrong. Please try again.';
+  }
+
   Future<void> signUp({
     required String email,
     required String password,
@@ -457,6 +629,7 @@ class AuthController extends GetxController {
     File? profilePic,
     File? companyLogo,
     File? video,
+    bool skipNavigation = false,
   }) async {
     try {
       _isLoading.value = true;
@@ -957,7 +1130,9 @@ class AuthController extends GetxController {
           duration: const Duration(seconds: 2),
         );
 
-        _navigateToRoleBasedScreen();
+        if (!skipNavigation) {
+          _navigateToRoleBasedScreen();
+        }
       }
     } on DioException catch (e) {
       // Handle Dio errors

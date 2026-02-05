@@ -4,7 +4,9 @@ import 'package:getrebate/app/modules/splash/views/splash_view.dart';
 import 'package:getrebate/app/modules/onboarding/bindings/onboarding_binding.dart';
 import 'package:getrebate/app/modules/onboarding/views/onboarding_view.dart';
 import 'package:getrebate/app/modules/auth/bindings/auth_binding.dart';
+import 'package:getrebate/app/modules/auth/bindings/verify_otp_binding.dart';
 import 'package:getrebate/app/modules/auth/views/auth_view.dart';
+import 'package:getrebate/app/modules/auth/views/verify_otp_view.dart';
 import 'package:getrebate/app/views/main_navigation_view.dart';
 import 'package:getrebate/app/controllers/main_navigation_controller.dart';
 import 'package:getrebate/app/modules/agent/bindings/agent_binding.dart';
@@ -75,6 +77,7 @@ class AppPages {
   static const INITIAL = '/splash';
   static const ONBOARDING = '/onboarding';
   static const AUTH = '/auth';
+  static const VERIFY_OTP = '/verify-otp';
   static const MAIN = '/main';
   static const AGENT = '/agent';
   static const LOAN_OFFICER = '/loan-officer';
@@ -119,6 +122,11 @@ class AppPages {
       binding: OnboardingBinding(),
     ),
     GetPage(name: AUTH, page: () => const AuthView(), binding: AuthBinding()),
+    GetPage(
+      name: VERIFY_OTP,
+      page: () => const VerifyOtpView(),
+      binding: VerifyOtpBinding(),
+    ),
     GetPage(
       name: MAIN,
       page: () => const MainNavigationView(),

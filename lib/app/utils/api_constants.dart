@@ -164,6 +164,13 @@ class ApiConstants {
   static String get setFCMEndpoint => "${authEndPoint}setFCM";
   static String removeFCMEndpoint(String userId) => "${authEndPoint}removeFCM/$userId";
 
+  // Email verification OTP endpoints
+  static String get sendVerificationEmailEndpoint =>
+      "${authEndPoint}sendVerificationEmail";
+  static String get verifyOtpEndpoint => "${authEndPoint}verifyOtp";
+  static String get resendVerificationEmailEndpoint =>
+      "${authEndPoint}resendVerificationEmail";
+
   // Lead specific endpoints - Using same endpoint for both buyer and seller leads
   static String get createLeadEndpoint => "$apiBaseUrl/buyer/createLead";
 

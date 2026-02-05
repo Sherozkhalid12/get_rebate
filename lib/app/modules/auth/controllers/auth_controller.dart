@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
@@ -5,6 +6,9 @@ import 'dart:io';
 import 'package:getrebate/app/controllers/auth_controller.dart' as global;
 import 'package:getrebate/app/controllers/location_controller.dart';
 import 'package:getrebate/app/models/user_model.dart';
+import 'package:getrebate/app/modules/auth/services/pending_signup_store.dart';
+import 'package:getrebate/app/modules/auth/views/verify_otp_view.dart';
+import 'package:getrebate/app/modules/auth/bindings/verify_otp_binding.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
 
@@ -297,12 +301,15 @@ class AuthViewController extends GetxController {
           password: passwordController.text,
         );
       } else {
-        // Prepare additional data for agents and loan officers
-        Map<String, dynamic>? additionalData;
-        List<String>? licensedStatesList = _selectedLicensedStates.isNotEmpty
+        // Signup: send verification email first, then navigate to OTP screen
+        final email = emailController.text.trim();
+        final phoneValue = phoneController.text.trim();
+        final phoneToSend = phoneValue.isNotEmpty ? phoneValue : null;
+        final licensedStatesList = _selectedLicensedStates.isNotEmpty
             ? _selectedLicensedStates.toList()
             : null;
 
+        Map<String, dynamic>? additionalData;
         if (selectedRole == UserRole.agent) {
           final officeZipCode = serviceZipCodesController.text.trim();
           final officeZipCodesList = officeZipCode.isNotEmpty
@@ -356,12 +363,17 @@ class AuthViewController extends GetxController {
           };
         }
 
-        // Phone is optional for buyer/seller and others; only send when non-empty
-        final phoneValue = phoneController.text.trim();
-        final phoneToSend = phoneValue.isNotEmpty ? phoneValue : null;
+        // Step 1: Send verification email (API: POST /api/v1/auth/sendVerificationEmail)
+        if (kDebugMode) {
+          print('📧 Signup flow: Sending verification email to $email');
+        }
+        await _globalAuthController.sendVerificationEmail(email);
+        if (kDebugMode) print('✅ Verification email sent. Navigating to OTP screen.');
+        SnackbarHelper.showSuccess('Verification code sent! Check your email.');
 
-        await _globalAuthController.signUp(
-          email: emailController.text.trim(),
+        // Step 2: Store payload and navigate to OTP screen (avoid passing File/UserRole via Get.arguments)
+        PendingSignUpStore.instance.set(
+          email: email,
           password: passwordController.text,
           name: nameController.text.trim(),
           role: selectedRole,
@@ -372,8 +384,17 @@ class AuthViewController extends GetxController {
           companyLogo: _selectedCompanyLogo.value,
           video: _selectedVideo.value,
         );
+        Get.to(
+          () => const VerifyOtpView(),
+          binding: VerifyOtpBinding(),
+          arguments: {'email': email},
+        );
       }
-    } catch (e) {
+    } catch (e, stack) {
+      if (kDebugMode) {
+        print('❌ Signup/OTP flow exception: $e');
+        print('   Stack: $stack');
+      }
       SnackbarHelper.showError(e.toString());
     } finally {
       _isLoading.value = false;
