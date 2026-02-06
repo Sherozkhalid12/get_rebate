@@ -19,6 +19,7 @@ import 'package:getrebate/app/services/zip_codes_service.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart' as global;
 import 'package:getrebate/app/controllers/location_controller.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
+import 'package:getrebate/app/utils/storage_keys.dart';
 import 'package:getrebate/app/utils/network_error_handler.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
@@ -107,14 +108,17 @@ class AgentController extends GetxController {
   String? get selectedState => _selectedState.value;
   int get selectedTab => _selectedTab.value;
   String? get recentlyActivatedListingId => _recentlyActivatedListingId.value;
-  /// New agents (firstZipCodeClaimed==false) see ZIP selection first until they claim or skip.
-  /// If firstZipCodeClaimed is true, treat as old user and skip. If null, fallback to claimedZipCodes.isEmpty.
+  /// True once we've received firstZipCodeClaimed from API. Use to avoid flicker: show loading until known.
+  bool get isZipClaimStatusKnown => _firstZipCodeClaimed.value != null;
+
+  /// Only new agents (firstZipCodeClaimed==false) see ZIP claim screen before home.
+  /// firstZipCodeClaimed: false = new user (show), true = old user (skip).
+  /// When null (API hasn't returned yet), do NOT show - avoid showing to all users.
   bool get showZipSelectionFirst {
     final firstClaimed = _firstZipCodeClaimed.value;
-    final isNewUser = firstClaimed == null
-        ? _claimedZipCodes.isEmpty
-        : !firstClaimed;
-    return isNewUser && !_hasSkippedZipSelection.value;
+    // Only show when API explicitly says firstZipCodeClaimed is false (new user)
+    if (firstClaimed != false) return false;
+    return !_hasSkippedZipSelection.value;
   }
   MarketStatus? get selectedStatusFilter => _selectedStatusFilter.value;
   String get searchQuery => _searchQuery.value;
@@ -304,6 +308,11 @@ class AgentController extends GetxController {
     super.onInit();
     _setupDio();
     _restoreClaimedZipCodesFromStorage();
+    // Read firstZipCodeClaimed pre-fetched during splash to avoid loading flicker
+    final stored = _storage.read(kFirstZipCodeClaimedStorageKey);
+    if (stored is bool) {
+      _firstZipCodeClaimed.value = stored;
+    }
     _initializeSubscription(); // Initialize subscription - instant
     checkPromoExpiration(); // Check if any promos have expired - instant
 
@@ -678,9 +687,9 @@ class AgentController extends GetxController {
       if (response.statusCode == 200 || response.statusCode == 201) {
         final responseData = response.data;
 
-        // Handle both response formats: {user: {...}} or direct user object
-        final userData = responseData is Map && responseData.containsKey('user')
-            ? responseData['user']
+        // Handle response formats: {user: {...}}, {agent: {...}}, or direct user object
+        final userData = responseData is Map
+            ? (responseData['user'] ?? responseData['agent'] ?? responseData)
             : responseData;
 
         if (kDebugMode) {
@@ -690,6 +699,7 @@ class AgentController extends GetxController {
           print('   contacts: ${userData['contacts']}');
           print('   websiteclicks: ${userData['websiteclicks']}');
           print('   revenue: ${userData['revenue']}');
+          print('   firstZipCodeClaimed: ${userData['firstZipCodeClaimed']}');
         }
 
         // Extract stats from API response
@@ -699,10 +709,11 @@ class AgentController extends GetxController {
         _websiteClicks.value = _parseInt(userData['websiteclicks']);
         _totalRevenue.value = _parseDouble(userData['revenue']);
 
-        // Extract firstZipCodeClaimed from API (if present). True = old user, false = new user.
+        // firstZipCodeClaimed: false = new user (show ZIP claim), true = old user (skip).
+        // Only set when API explicitly returns it - otherwise keep previous value or null.
         final firstZipCodeClaimedRaw = userData['firstZipCodeClaimed'];
-        if (firstZipCodeClaimedRaw != null) {
-          _firstZipCodeClaimed.value = firstZipCodeClaimedRaw == true;
+        if (firstZipCodeClaimedRaw is bool) {
+          _firstZipCodeClaimed.value = firstZipCodeClaimedRaw;
         }
 
         // Extract claimed ZIP codes from user profile (if present)

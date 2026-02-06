@@ -1,13 +1,18 @@
 import 'dart:async';
+import 'package:dio/dio.dart';
 import 'package:get/get.dart';
+import 'package:get_storage/get_storage.dart';
 import 'package:getrebate/app/routes/app_pages.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart';
 import 'package:getrebate/app/controllers/location_controller.dart';
 import 'package:getrebate/app/models/user_model.dart';
 import 'package:getrebate/app/modules/messages/controllers/messages_controller.dart';
+import 'package:getrebate/app/utils/api_constants.dart';
+import 'package:getrebate/app/utils/storage_keys.dart';
 
 class SplashController extends GetxController {
   Timer? _timer;
+  final _storage = GetStorage();
 
   @override
   void onInit() {
@@ -31,7 +36,7 @@ class SplashController extends GetxController {
     print('Splash: Timer started successfully');
   }
 
-  void _checkAuthAndNavigate() {
+  Future<void> _checkAuthAndNavigate() async {
     try {
       // Get auth controller and check if user is logged in
       final authController = Get.find<AuthController>();
@@ -40,6 +45,12 @@ class SplashController extends GetxController {
         final user = authController.currentUser!;
         // User is logged in - preload data in background for instant access
         _preloadData(user.role);
+
+        // For agent/loan officer: fetch firstZipCodeClaimed during splash so we don't show loading on home
+        if (user.role == UserRole.agent || user.role == UserRole.loanOfficer) {
+          await _fetchAndStoreFirstZipCodeClaimed(user.id);
+        }
+
         print('Splash: User is logged in as ${user.role}, navigating...');
         _navigateBasedOnRole(user.role);
       } else {
@@ -52,6 +63,40 @@ class SplashController extends GetxController {
       print('Splash: Error checking auth status: $e');
       // If error occurs, navigate to onboarding as fallback
       _navigateToOnboarding();
+    }
+  }
+
+  /// Fetches firstZipCodeClaimed from /auth/users and stores in GetStorage.
+  /// Agent/LoanOfficer controllers read this on init to avoid loading flicker.
+  Future<void> _fetchAndStoreFirstZipCodeClaimed(String userId) async {
+    try {
+      final dio = Dio(BaseOptions(baseUrl: ApiConstants.apiBaseUrl));
+      final authToken = _storage.read('auth_token');
+
+      final response = await dio.get(
+        '/auth/users/$userId',
+        options: Options(
+          headers: {
+            'ngrok-skip-browser-warning': 'true',
+            'Content-Type': 'application/json',
+            if (authToken != null) 'Authorization': 'Bearer $authToken',
+          },
+        ),
+      ).timeout(const Duration(seconds: 5));
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = response.data;
+        final userData = data is Map
+            ? (data['user'] ?? data['agent'] ?? data['officer'] ?? data['loanOfficer'] ?? data)
+            : data;
+        final raw = userData is Map ? userData['firstZipCodeClaimed'] : null;
+        if (raw is bool) {
+          _storage.write(kFirstZipCodeClaimedStorageKey, raw);
+          print('Splash: Stored firstZipCodeClaimed=$raw for agent/loan officer');
+        }
+      }
+    } catch (e) {
+      print('Splash: Could not fetch firstZipCodeClaimed: $e (will use loading fallback)');
     }
   }
 

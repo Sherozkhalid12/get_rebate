@@ -78,6 +78,7 @@ class AgentView extends GetView<AgentController> {
       ),
       body: SafeArea(
         child: Obx(() {
+          // firstZipCodeClaimed is pre-fetched during splash, so no loading needed here
           if (controller.showZipSelectionFirst) {
             return Column(
               children: [Expanded(child: _buildZipManagement(context))],
