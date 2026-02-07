@@ -6,6 +6,7 @@ import 'package:getrebate/app/controllers/auth_controller.dart' as global;
 import 'package:getrebate/app/models/user_model.dart';
 import 'package:getrebate/app/modules/auth/services/pending_signup_store.dart';
 import 'package:getrebate/app/routes/app_pages.dart';
+import 'package:getrebate/app/utils/connectivity_helper.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
 
 class VerifyOtpController extends GetxController {
@@ -82,6 +83,13 @@ class VerifyOtpController extends GetxController {
       return;
     }
 
+    try {
+      await ConnectivityHelper.ensureConnectivity();
+    } catch (e) {
+      SnackbarHelper.showError(ConnectivityHelper.noInternetMessage);
+      return;
+    }
+
     if (kDebugMode) print('🔐 verifyOtp: Calling API for email=$email');
     try {
       _isLoading.value = true;
@@ -95,6 +103,7 @@ class VerifyOtpController extends GetxController {
         print('   Stack: $stack');
       }
       SnackbarHelper.showError(e.toString());
+      // Do not navigate - stay on verify screen so user can retry
     } finally {
       _isLoading.value = false;
     }
@@ -103,6 +112,14 @@ class VerifyOtpController extends GetxController {
   Future<void> _completeSignUp() async {
     final p = payload;
     if (p == null) return;
+
+    try {
+      await ConnectivityHelper.ensureConnectivity();
+    } catch (e) {
+      SnackbarHelper.showError(ConnectivityHelper.noInternetMessage);
+      return;
+    }
+
     if (kDebugMode) print('📝 _completeSignUp: Calling signUp API');
     try {
       _isLoading.value = true;
@@ -119,7 +136,7 @@ class VerifyOtpController extends GetxController {
         video: p.video,
         skipNavigation: true,
       );
-      // Navigate based on the role the user signed up for (guaranteed correct)
+      // Only navigate after signUp succeeds - never navigate on exception (no internet, etc.)
       switch (p.role) {
         case UserRole.agent:
           Get.offAllNamed(AppPages.AGENT);
@@ -134,6 +151,7 @@ class VerifyOtpController extends GetxController {
       }
     } catch (e) {
       SnackbarHelper.showError(e.toString());
+      // Do not navigate - stay on verify screen; user can retry when network is back
     } finally {
       _isLoading.value = false;
     }

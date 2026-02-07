@@ -4,10 +4,12 @@ import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:getrebate/app/routes/app_pages.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart';
+import 'package:getrebate/app/controllers/current_loan_officer_controller.dart';
 import 'package:getrebate/app/controllers/location_controller.dart';
 import 'package:getrebate/app/models/user_model.dart';
 import 'package:getrebate/app/modules/messages/controllers/messages_controller.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
+import 'package:getrebate/app/utils/snackbar_helper.dart';
 import 'package:getrebate/app/utils/storage_keys.dart';
 
 class SplashController extends GetxController {
@@ -49,6 +51,26 @@ class SplashController extends GetxController {
         // For agent/loan officer: fetch firstZipCodeClaimed during splash so we don't show loading on home
         if (user.role == UserRole.agent || user.role == UserRole.loanOfficer) {
           await _fetchAndStoreFirstZipCodeClaimed(user.id);
+        }
+
+        // For loan officer: ensure profile is loaded before entering loan officer view.
+        // If profile fails to load, redirect to sign in so user can sign in again and we fetch profile then.
+        if (user.role == UserRole.loanOfficer) {
+          final currentLoController =
+              Get.isRegistered<CurrentLoanOfficerController>()
+                  ? Get.find<CurrentLoanOfficerController>()
+                  : Get.put(CurrentLoanOfficerController(), permanent: true);
+          await currentLoController.fetchCurrentLoanOfficer(user.id);
+          if (currentLoController.currentLoanOfficer.value == null) {
+            print('Splash: Loan officer profile not loaded, redirecting to sign in.');
+            SnackbarHelper.showError(
+              'Could not load your profile. Please sign in again.',
+              duration: const Duration(seconds: 4),
+            );
+            authController.logout();
+            return;
+          }
+          print('Splash: Loan officer profile loaded, navigating to LOAN_OFFICER.');
         }
 
         print('Splash: User is logged in as ${user.role}, navigating...');

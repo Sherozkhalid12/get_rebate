@@ -10,6 +10,7 @@ import 'dart:convert';
 import 'package:getrebate/app/models/user_model.dart';
 import 'package:getrebate/app/routes/app_pages.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
+import 'package:getrebate/app/utils/connectivity_helper.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
 import 'package:getrebate/app/controllers/current_loan_officer_controller.dart';
 import 'package:getrebate/app/modules/messages/controllers/messages_controller.dart';
@@ -258,6 +259,7 @@ class AuthController extends GetxController {
     String? provider,
   }) async {
     try {
+      await ConnectivityHelper.ensureConnectivity();
       _isLoading.value = true;
 
       // Prepare request body
@@ -379,7 +381,7 @@ class AuthController extends GetxController {
           setFCM(user.id);
 
           print('✅ Login successful!');
-          print('   User ID: ${user.id}');
+          print('   User ID (logged-in): ${user.id}');
           print('   Email: ${user.email}');
           print('   Name: ${user.name}');
           print('   Role: ${user.role}');
@@ -390,7 +392,7 @@ class AuthController extends GetxController {
             duration: const Duration(seconds: 2),
           );
 
-          _navigateToRoleBasedScreen();
+          await _navigateToRoleBasedScreen();
         } else {
           throw Exception('User data not found in response');
         }
@@ -450,6 +452,7 @@ class AuthController extends GetxController {
   /// Used before signup - call this first, then show OTP screen.
   /// API: POST {{server}}/api/v1/auth/sendVerificationEmail
   Future<void> sendVerificationEmail(String email) async {
+    await ConnectivityHelper.ensureConnectivity();
     final trimmedEmail = email.trim();
     final url = ApiConstants.sendVerificationEmailEndpoint;
     final body = {'email': trimmedEmail};
@@ -502,6 +505,7 @@ class AuthController extends GetxController {
   /// Verifies the OTP entered by the user.
   /// API: POST {{server}}/api/v1/auth/verifyOtp
   Future<void> verifyOtp(String email, String otp) async {
+    await ConnectivityHelper.ensureConnectivity();
     final trimmedEmail = email.trim();
     final trimmedOtp = otp.trim();
     final url = ApiConstants.verifyOtpEndpoint;
@@ -555,6 +559,7 @@ class AuthController extends GetxController {
   /// Resends verification email (new OTP).
   /// API: POST {{server}}/api/v1/auth/resendVerificationEmail
   Future<void> resendVerificationEmail(String email) async {
+    await ConnectivityHelper.ensureConnectivity();
     final trimmedEmail = email.trim();
     final url = ApiConstants.resendVerificationEmailEndpoint;
     final body = {'email': trimmedEmail};
@@ -632,6 +637,7 @@ class AuthController extends GetxController {
     bool skipNavigation = false,
   }) async {
     try {
+      await ConnectivityHelper.ensureConnectivity();
       _isLoading.value = true;
 
       // Prepare form data
@@ -1119,7 +1125,7 @@ class AuthController extends GetxController {
         setFCM(user.id);
 
         print('✅ User created successfully!');
-        print('   User ID: ${user.id}');
+        print('   User ID (signed-up): ${user.id}');
         print('   Email: ${user.email}');
         print('   Name: ${user.name}');
         print('   Role: ${user.role}');
@@ -1131,7 +1137,7 @@ class AuthController extends GetxController {
         );
 
         if (!skipNavigation) {
-          _navigateToRoleBasedScreen();
+          await _navigateToRoleBasedScreen();
         }
       }
     } on DioException catch (e) {
@@ -1505,8 +1511,13 @@ class AuthController extends GetxController {
         print('✅ Cleared MessagesController data');
       }
 
-      // Note: Other controllers will be automatically disposed by GetX when routes are removed
-      // We don't need to manually delete them - Get.offAllNamed() handles cleanup
+      // Clear loan officer profile so next login fetches fresh and logout is correct for loan officers
+      if (Get.isRegistered<CurrentLoanOfficerController>()) {
+        final loController = Get.find<CurrentLoanOfficerController>();
+        loController.currentLoanOfficer.value = null;
+        loController.currentLoanOfficer.refresh();
+        print('✅ Cleared CurrentLoanOfficerController data');
+      }
     } catch (e) {
       print('⚠️ Error clearing controller data: $e');
     }
@@ -1524,7 +1535,7 @@ class AuthController extends GetxController {
     setFCM(user.id);
   }
 
-  void _navigateToRoleBasedScreen() {
+  Future<void> _navigateToRoleBasedScreen() async {
     final role = _currentUser.value?.role;
     final userId = _currentUser.value?.id;
 
@@ -1532,10 +1543,24 @@ class AuthController extends GetxController {
     print('   Role: $role');
     print('   User ID: $userId');
 
-    // If loan officer, ensure we trigger loading of full loan officer profile
-    // Load in background - don't block navigation
-    // Note: _loadLoanOfficerProfile already called in _checkAuthStatus, so skip here to avoid duplicate
-    // The profile will be loaded automatically when session is restored
+    // If loan officer, fetch profile first. If it fails, redirect to sign in so user can sign in again.
+    if (role == UserRole.loanOfficer && userId != null && userId.isNotEmpty) {
+      final currentLoanOfficerController =
+          Get.isRegistered<CurrentLoanOfficerController>()
+              ? Get.find<CurrentLoanOfficerController>()
+              : Get.put(CurrentLoanOfficerController(), permanent: true);
+      await currentLoanOfficerController.fetchCurrentLoanOfficer(userId);
+      if (currentLoanOfficerController.currentLoanOfficer.value == null) {
+        print('❌ AuthController: Loan officer profile failed to load, redirecting to sign in.');
+        SnackbarHelper.showError(
+          'Could not load your profile. Please sign in again.',
+          duration: const Duration(seconds: 4),
+        );
+        logout();
+        return;
+      }
+      print('✅ AuthController: Loan officer profile loaded, navigating to LOAN_OFFICER.');
+    }
 
     switch (role) {
       case UserRole.buyerSeller:

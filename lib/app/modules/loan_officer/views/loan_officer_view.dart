@@ -1738,11 +1738,6 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
 
           const SizedBox(height: 20),
 
-          // Promo Code Input Section
-          _buildPromoCodeCard(context),
-
-          const SizedBox(height: 20),
-
           // Payment History
           _buildPaymentHistorySection(context),
         ],
@@ -1902,99 +1897,6 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
             ),
           ),
         );
-      }
-    });
-  }
-
-  Widget _buildPromoCodeCard(BuildContext context) {
-    return Obx(() {
-      try {
-        final hasActivePromo = controller.hasActivePromo;
-
-        if (hasActivePromo) {
-          return const SizedBox.shrink();
-        }
-
-        return Card(
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Have a promo code?',
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: AppTheme.black,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        onChanged: (value) =>
-                            controller.setPromoCodeInput(value),
-                        decoration: InputDecoration(
-                          hintText: 'Enter promo code',
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 12,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    CustomButton(
-                      text: 'Apply',
-                      onPressed: () {
-                        try {
-                          final promoCodeInput = controller.promoCodeInput;
-                          if (promoCodeInput.isEmpty) {
-                            Get.snackbar(
-                              'Error',
-                              'Please enter a promo code',
-                              snackPosition: SnackPosition.TOP,
-                            );
-                            return;
-                          }
-                          controller.applyPromoCode(promoCodeInput);
-                        } catch (e) {
-                          if (kDebugMode) {
-                            print('❌ Error applying promo code: $e');
-                          }
-                          Get.snackbar(
-                            'Error',
-                            'Failed to apply promo code. Please try again.',
-                            snackPosition: SnackPosition.TOP,
-                          );
-                        }
-                      },
-                      width: 80,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'If you have a promo code, please enter it above',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodySmall?.copyWith(color: AppTheme.mediumGray),
-                ),
-                const SizedBox(height: 16),
-              ],
-            ),
-          ),
-        );
-      } catch (e, stackTrace) {
-        if (kDebugMode) {
-          print('❌ Error building promo code card: $e');
-          print('   Stack trace: $stackTrace');
-        }
-        return const SizedBox.shrink();
       }
     });
   }
