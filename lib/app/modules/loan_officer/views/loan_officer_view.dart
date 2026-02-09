@@ -21,8 +21,6 @@ import 'package:getrebate/app/modules/messages/views/messages_view.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
 import 'package:getrebate/app/modules/loan_officer/views/waiting_list_page.dart';
 
-
-
 class LoanOfficerView extends GetView<LoanOfficerController> {
   const LoanOfficerView({super.key});
 
@@ -102,8 +100,8 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
         }),
         centerTitle: true,
         actions: [
-          Obx(() =>
-            controller.showZipSelectionFirst
+          Obx(
+            () => controller.showZipSelectionFirst
                 ? TextButton(
                     onPressed: controller.skipZipSelection,
                     child: Text(
@@ -134,9 +132,7 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
           // firstZipCodeClaimed is pre-fetched during splash, so no loading needed here
           if (controller.showZipSelectionFirst) {
             return Column(
-              children: [
-                Expanded(child: _buildZipManagement(context)),
-              ],
+              children: [Expanded(child: _buildZipManagement(context))],
             );
           }
           return Column(
@@ -1045,10 +1041,7 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                 shape: BoxShape.circle,
                 border: Border.all(color: Colors.white, width: 1.5.w),
               ),
-              constraints: BoxConstraints(
-                minWidth: 16.w,
-                minHeight: 16.h,
-              ),
+              constraints: BoxConstraints(minWidth: 16.w, minHeight: 16.h),
               child: Center(
                 child: Text(
                   unreadCount > 99 ? '99+' : unreadCount.toString(),
@@ -1315,23 +1308,27 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
               ),
               const SizedBox(height: 20),
 
-
-
               // Search / verify ZIP (filter list or verify 5-digit)
               Obx(() {
-                if (controller.selectedState == null) return const SizedBox.shrink();
+                if (controller.selectedState == null)
+                  return const SizedBox.shrink();
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 20),
                   child: CustomTextField(
                     controller: controller.zipSearchController,
                     labelText: 'Search or enter 5-digit ZIP',
-                    hintText: 'Filter by prefix, or type 5 digits to validate & fetch',
+                    hintText:
+                        'Filter by prefix, or type 5 digits to validate & fetch',
                     prefixIcon: Icons.search,
                     keyboardType: TextInputType.number,
                     maxLength: 5,
                     onChanged: (v) => controller.onZipSearchChanged(v),
                     suffixIcon: IconButton(
-                      icon: Icon(Icons.my_location, color: AppTheme.primaryBlue, size: 20),
+                      icon: Icon(
+                        Icons.my_location,
+                        color: AppTheme.primaryBlue,
+                        size: 20,
+                      ),
                       onPressed: controller.useCurrentLocationForZip,
                     ),
                   ),
@@ -1471,9 +1468,7 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
         decoration: BoxDecoration(
           color: AppTheme.primaryBlue.withOpacity(0.08),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: AppTheme.primaryBlue.withOpacity(0.25),
-          ),
+          border: Border.all(color: AppTheme.primaryBlue.withOpacity(0.25)),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1488,9 +1483,9 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
               child: Text(
                 message,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppTheme.darkGray,
-                      height: 1.4,
-                    ),
+                  color: AppTheme.darkGray,
+                  height: 1.4,
+                ),
               ),
             ),
           ],
@@ -1499,7 +1494,10 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
     );
   }
 
-  Widget _buildWaitingListControls(BuildContext context, LoanOfficerZipCodeModel zip) {
+  Widget _buildWaitingListControls(
+    BuildContext context,
+    LoanOfficerZipCodeModel zip,
+  ) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.end,
@@ -1507,7 +1505,9 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
         const SizedBox(height: 12),
         Obx(() {
           final showSeeWaitingList = controller.isCurrentUserInWaitingList(zip);
-          final isProcessing = controller.isWaitingListProcessing(zip.postalCode);
+          final isProcessing = controller.isWaitingListProcessing(
+            zip.postalCode,
+          );
 
           if (showSeeWaitingList) {
             return CustomButton(
@@ -1549,7 +1549,6 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
   }
 
   Widget _buildZipCodeCard(
-
     BuildContext context,
     LoanOfficerZipCodeModel zip,
     bool isClaimed,

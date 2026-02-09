@@ -12,16 +12,18 @@ class SplashView extends GetView<SplashController> {
   @override
   Widget build(BuildContext context) {
     print('Splash: View building...');
-    
+
     // Remove native splash after first frame so Flutter splash with text shows
     // Wait a tiny bit to ensure Flutter splash is fully rendered
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Future.delayed(const Duration(milliseconds: 100), () {
         FlutterNativeSplash.remove();
-        print('Splash: Native splash removed, Flutter splash with text now visible');
+        print(
+          'Splash: Native splash removed, Flutter splash with text now visible',
+        );
       });
     });
-    
+
     return Scaffold(
       backgroundColor: AppTheme.primaryBlue,
       body: Center(

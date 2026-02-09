@@ -75,7 +75,8 @@ class ListingDetailView extends GetView<ListingDetailController> {
           if (notification is ScrollUpdateNotification) {
             final delta = notification.scrollDelta ?? 0;
             // If horizontal scroll detected, don't consume the notification
-            if (delta.abs() > 0 && notification.metrics.axis == Axis.horizontal) {
+            if (delta.abs() > 0 &&
+                notification.metrics.axis == Axis.horizontal) {
               return false;
             }
           }
@@ -92,7 +93,9 @@ class ListingDetailView extends GetView<ListingDetailController> {
               flexibleSpace: FlexibleSpaceBar(
                 background: LayoutBuilder(
                   builder: (context, constraints) {
-                    final carouselHeight = constraints.maxHeight > 0 ? constraints.maxHeight : 400.h;
+                    final carouselHeight = constraints.maxHeight > 0
+                        ? constraints.maxHeight
+                        : 400.h;
                     return Stack(
                       fit: StackFit.expand,
                       children: [
@@ -106,12 +109,18 @@ class ListingDetailView extends GetView<ListingDetailController> {
                               itemCount: listing.photoUrls.length,
                               itemBuilder: (context, index, realIndex) {
                                 return GestureDetector(
-                                  onTap: () => _showFullScreenImageSlider(context, listing.photoUrls, controller.currentImageIndex),
+                                  onTap: () => _showFullScreenImageSlider(
+                                    context,
+                                    listing.photoUrls,
+                                    controller.currentImageIndex,
+                                  ),
                                   child: Builder(
                                     builder: (context) {
                                       final imageUrl = listing.photoUrls[index];
                                       if (kDebugMode) {
-                                        print('🖼️ Listing Detail - Rendering image $index with URL: $imageUrl');
+                                        print(
+                                          '🖼️ Listing Detail - Rendering image $index with URL: $imageUrl',
+                                        );
                                       }
                                       return CachedNetworkImage(
                                         imageUrl: imageUrl,
@@ -124,16 +133,21 @@ class ListingDetailView extends GetView<ListingDetailController> {
                                         maxWidthDiskCache: 1600,
                                         maxHeightDiskCache: 1200,
                                         fadeInDuration: Duration.zero,
-                                        placeholder: (context, url) => Container(
-                                          width: double.infinity,
-                                          height: double.infinity,
-                                          color: AppTheme.lightGray,
-                                        ),
+                                        placeholder: (context, url) =>
+                                            Container(
+                                              width: double.infinity,
+                                              height: double.infinity,
+                                              color: AppTheme.lightGray,
+                                            ),
                                         errorWidget: (context, url, error) {
                                           if (kDebugMode) {
-                                            print('❌ Listing Detail - Image load error for URL: $url');
+                                            print(
+                                              '❌ Listing Detail - Image load error for URL: $url',
+                                            );
                                             print('   Error: $error');
-                                            print('   Error type: ${error.runtimeType}');
+                                            print(
+                                              '   Error type: ${error.runtimeType}',
+                                            );
                                           }
                                           return Container(
                                             width: double.infinity,
@@ -157,7 +171,8 @@ class ListingDetailView extends GetView<ListingDetailController> {
                               options: CarouselOptions(
                                 height: carouselHeight,
                                 viewportFraction: 1.0,
-                                enableInfiniteScroll: listing.photoUrls.length > 1,
+                                enableInfiniteScroll:
+                                    listing.photoUrls.length > 1,
                                 autoPlay: false,
                                 enlargeCenterPage: false,
                                 onPageChanged: (index, reason) {
@@ -168,518 +183,566 @@ class ListingDetailView extends GetView<ListingDetailController> {
                                 pageSnapping: true,
                                 padEnds: false,
                                 disableCenter: false,
-                                enlargeStrategy: CenterPageEnlargeStrategy.scale,
+                                enlargeStrategy:
+                                    CenterPageEnlargeStrategy.scale,
                               ),
                             ),
                           )
-                      else
-                        Container(
-                          width: constraints.maxWidth,
-                          height: carouselHeight,
-                          color: AppTheme.lightGray,
-                          child: const Icon(
-                            Icons.home,
-                            size: 64,
-                            color: AppTheme.mediumGray,
+                        else
+                          Container(
+                            width: constraints.maxWidth,
+                            height: carouselHeight,
+                            color: AppTheme.lightGray,
+                            child: const Icon(
+                              Icons.home,
+                              size: 64,
+                              color: AppTheme.mediumGray,
+                            ),
                           ),
-                        ),
-                      // Gradient Overlay - use IgnorePointer to allow touches to pass through
-                      IgnorePointer(
-                        child: Container(
-                          width: constraints.maxWidth,
-                          height: carouselHeight,
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [
-                                Colors.black.withOpacity(0.2),
-                                Colors.transparent,
-                                Colors.black.withOpacity(0.4),
-                              ],
-                              stops: const [0.0, 0.5, 1.0],
+                        // Gradient Overlay - use IgnorePointer to allow touches to pass through
+                        IgnorePointer(
+                          child: Container(
+                            width: constraints.maxWidth,
+                            height: carouselHeight,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  Colors.black.withOpacity(0.2),
+                                  Colors.transparent,
+                                  Colors.black.withOpacity(0.4),
+                                ],
+                                stops: const [0.0, 0.5, 1.0],
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                      // Page Indicators
-                      if (listing.photoUrls.length > 1)
-                        Positioned(
-                          bottom: 20.h,
-                          left: 0,
-                          right: 0,
-                          child: IgnorePointer(
-                            child: Obx(() => Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: List.generate(
-                                listing.photoUrls.length,
-                                (index) => AnimatedContainer(
-                                  duration: const Duration(milliseconds: 300),
-                                  curve: Curves.easeInOut,
-                                  margin: EdgeInsets.symmetric(horizontal: 4.w),
-                                  width: controller.currentImageIndex == index ? 24.w : 8.w,
-                                  height: 8.h,
-                                  decoration: BoxDecoration(
-                                    color: controller.currentImageIndex == index
-                                        ? AppTheme.white
-                                        : AppTheme.white.withOpacity(0.5),
-                                    borderRadius: BorderRadius.circular(4.r),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withOpacity(0.2),
-                                        blurRadius: 4,
-                                        offset: const Offset(0, 2),
+                        // Page Indicators
+                        if (listing.photoUrls.length > 1)
+                          Positioned(
+                            bottom: 20.h,
+                            left: 0,
+                            right: 0,
+                            child: IgnorePointer(
+                              child: Obx(
+                                () => Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: List.generate(
+                                    listing.photoUrls.length,
+                                    (index) => AnimatedContainer(
+                                      duration: const Duration(
+                                        milliseconds: 300,
                                       ),
-                                    ],
+                                      curve: Curves.easeInOut,
+                                      margin: EdgeInsets.symmetric(
+                                        horizontal: 4.w,
+                                      ),
+                                      width:
+                                          controller.currentImageIndex == index
+                                          ? 24.w
+                                          : 8.w,
+                                      height: 8.h,
+                                      decoration: BoxDecoration(
+                                        color:
+                                            controller.currentImageIndex ==
+                                                index
+                                            ? AppTheme.white
+                                            : AppTheme.white.withOpacity(0.5),
+                                        borderRadius: BorderRadius.circular(
+                                          4.r,
+                                        ),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black.withOpacity(
+                                              0.2,
+                                            ),
+                                            blurRadius: 4,
+                                            offset: const Offset(0, 2),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ),
-                            )),
+                            ),
                           ),
-                        ),
-                      // Image Counter
-                      if (listing.photoUrls.length > 1)
-                        Positioned(
-                          top: 60.h,
-                          right: 16.w,
-                          child: IgnorePointer(
-                            child: Container(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: 12.w,
-                                vertical: 6.h,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.black.withOpacity(0.6),
-                                borderRadius: BorderRadius.circular(20.r),
-                              ),
-                              child: Obx(() => Text(
-                                '${controller.currentImageIndex + 1} / ${listing.photoUrls.length}',
-                                style: TextStyle(
-                                  color: AppTheme.white,
-                                  fontSize: 13.sp,
-                                  fontWeight: FontWeight.w600,
+                        // Image Counter
+                        if (listing.photoUrls.length > 1)
+                          Positioned(
+                            top: 60.h,
+                            right: 16.w,
+                            child: IgnorePointer(
+                              child: Container(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: 12.w,
+                                  vertical: 6.h,
                                 ),
-                              )),
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withOpacity(0.6),
+                                  borderRadius: BorderRadius.circular(20.r),
+                                ),
+                                child: Obx(
+                                  () => Text(
+                                    '${controller.currentImageIndex + 1} / ${listing.photoUrls.length}',
+                                    style: TextStyle(
+                                      color: AppTheme.white,
+                                      fontSize: 13.sp,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ),
                             ),
                           ),
-                        ),
-                    ],
-                  );
-                },
-              ),
-              ),
-            leading: Container(
-              margin: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.5),
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.3),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: IconButton(
-                icon: const Icon(Icons.arrow_back, color: Colors.white),
-                onPressed: () => Navigator.pop(context),
-              ),
-            ),
-            actions: [
-              // Full Screen Button
-              if (listing.photoUrls.isNotEmpty)
-                Container(
-                  margin: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.5),
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.3),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: IconButton(
-                    icon: const Icon(Icons.fullscreen, color: Colors.white),
-                    onPressed: () => _showFullScreenImageSlider(context, listing.photoUrls, controller.currentImageIndex),
-                  ),
-                ),
-            ],
-          ),
-
-          // Content
-          SliverToBoxAdapter(
-            child: Container(
-              decoration: const BoxDecoration(
-                color: AppTheme.lightGray,
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(24),
-                  topRight: Radius.circular(24),
+                      ],
+                    );
+                  },
                 ),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Price and Address Section
-                  Container(
-                    padding: const EdgeInsets.all(24),
-                    decoration: const BoxDecoration(
-                      color: AppTheme.white,
-                      borderRadius: BorderRadius.only(
-                        topLeft: Radius.circular(24),
-                        topRight: Radius.circular(24),
-                      ),
+              leading: Container(
+                margin: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.5),
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Price
-                        Text(
-                          _formatMoney(listing.priceCents),
-                          style: Theme.of(context).textTheme.headlineMedium
-                              ?.copyWith(
-                                color: AppTheme.primaryBlue,
-                                fontWeight: FontWeight.w800,
-                                fontSize: 32.sp,
-                              ),
-                        ),
-                        const SizedBox(height: 8),
-
-                        // Address
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.location_on,
-                              color: AppTheme.mediumGray,
-                              size: 20,
-                            ),
-                            const SizedBox(width: 4),
-                            Expanded(
-                              child: Text(
-                                listing.address.toString(),
-                                style: Theme.of(context).textTheme.titleMedium
-                                    ?.copyWith(
-                                      color: AppTheme.darkGray,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-
-                        // Property Tags
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            _buildPropertyTag(
-                              context,
-                              listing.dualAgencyAllowed
-                                  ? 'Dual Agency Allowed'
-                                  : 'No Dual Agency',
-                              listing.dualAgencyAllowed
-                                  ? AppTheme.lightGreen
-                                  : AppTheme.mediumGray,
-                              Icons.handshake,
-                            ),
-                          ],
+                  ],
+                ),
+                child: IconButton(
+                  icon: const Icon(Icons.arrow_back, color: Colors.white),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ),
+              actions: [
+                // Full Screen Button
+                if (listing.photoUrls.isNotEmpty)
+                  Container(
+                    margin: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.5),
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.3),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
                         ),
                       ],
                     ),
+                    child: IconButton(
+                      icon: const Icon(Icons.fullscreen, color: Colors.white),
+                      onPressed: () => _showFullScreenImageSlider(
+                        context,
+                        listing.photoUrls,
+                        controller.currentImageIndex,
+                      ),
+                    ),
                   ),
+              ],
+            ),
 
-                  const SizedBox(height: 16),
+            // Content
+            SliverToBoxAdapter(
+              child: Container(
+                decoration: const BoxDecoration(
+                  color: AppTheme.lightGray,
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(24),
+                    topRight: Radius.circular(24),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Price and Address Section
+                    Container(
+                      padding: const EdgeInsets.all(24),
+                      decoration: const BoxDecoration(
+                        color: AppTheme.white,
+                        borderRadius: BorderRadius.only(
+                          topLeft: Radius.circular(24),
+                          topRight: Radius.circular(24),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Price
+                          Text(
+                            _formatMoney(listing.priceCents),
+                            style: Theme.of(context).textTheme.headlineMedium
+                                ?.copyWith(
+                                  color: AppTheme.primaryBlue,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 32.sp,
+                                ),
+                          ),
+                          const SizedBox(height: 8),
 
-                  // Rebate-Restricted State Notice (if applicable)
-                  if (RebateRestrictedStates.isRestricted(listing.address.state))
+                          // Address
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.location_on,
+                                color: AppTheme.mediumGray,
+                                size: 20,
+                              ),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  listing.address.toString(),
+                                  style: Theme.of(context).textTheme.titleMedium
+                                      ?.copyWith(
+                                        color: AppTheme.darkGray,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Property Tags
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              _buildPropertyTag(
+                                context,
+                                listing.dualAgencyAllowed
+                                    ? 'Dual Agency Allowed'
+                                    : 'No Dual Agency',
+                                listing.dualAgencyAllowed
+                                    ? AppTheme.lightGreen
+                                    : AppTheme.mediumGray,
+                                Icons.handshake,
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    // Rebate-Restricted State Notice (if applicable)
+                    if (RebateRestrictedStates.isRestricted(
+                      listing.address.state,
+                    ))
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: AppTheme.mediumGray.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: AppTheme.mediumGray.withOpacity(0.4),
+                            ),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(
+                                Icons.gavel,
+                                color: AppTheme.darkGray,
+                                size: 22,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Rebates Not Permitted in ${listing.address.state}',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleSmall
+                                          ?.copyWith(
+                                            color: AppTheme.darkGray,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      RebateRestrictedStates
+                                          .restrictedStateNotice,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(
+                                            color: AppTheme.darkGray,
+                                            height: 1.4,
+                                          ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+
+                    if (RebateRestrictedStates.isRestricted(
+                      listing.address.state,
+                    ))
+                      const SizedBox(height: 16),
+
+                    // NAR Compliance Notice
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 24),
                       child: Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: AppTheme.mediumGray.withOpacity(0.15),
+                          color: Colors.blue.shade50,
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                            color: AppTheme.mediumGray.withOpacity(0.4),
+                            color: AppTheme.primaryBlue.withOpacity(0.3),
                           ),
                         ),
-                        child: Row(
+                        child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Icon(
-                              Icons.gavel,
-                              color: AppTheme.darkGray,
-                              size: 22,
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Rebates Not Permitted in ${listing.address.state}',
-                                    style: Theme.of(context).textTheme.titleSmall
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.info_outline,
+                                  color: AppTheme.primaryBlue,
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    RebateRestrictedStates.isRestricted(
+                                          listing.address.state,
+                                        )
+                                        ? 'Estimated Rebate Range (for reference — not applicable in this state)'
+                                        : 'Estimated Rebate Range',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleSmall
                                         ?.copyWith(
-                                          color: AppTheme.darkGray,
+                                          color: AppTheme.primaryBlue,
                                           fontWeight: FontWeight.bold,
                                         ),
                                   ),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    RebateRestrictedStates.restrictedStateNotice,
-                                    style: Theme.of(context).textTheme.bodySmall
-                                        ?.copyWith(
-                                          color: AppTheme.darkGray,
-                                          height: 1.4,
-                                        ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'When you work with an Agent from this site, this estimate uses the ${listing.bacPercent.toStringAsFixed(1)}% BAC entered by the listing agent.',
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(
+                                    color: AppTheme.darkGray,
+                                    fontWeight: FontWeight.w600,
                                   ),
-                                ],
-                              ),
                             ),
                           ],
                         ),
                       ),
                     ),
 
-                  if (RebateRestrictedStates.isRestricted(listing.address.state))
                     const SizedBox(height: 16),
 
-                  // NAR Compliance Notice
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.blue.shade50,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: AppTheme.primaryBlue.withOpacity(0.3),
-                        ),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                    // Rebate Information Cards
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: Row(
                         children: [
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.info_outline,
-                                color: AppTheme.primaryBlue,
-                                size: 20,
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  RebateRestrictedStates.isRestricted(
-                                    listing.address.state,
-                                  )
-                                      ? 'Estimated Rebate Range (for reference — not applicable in this state)'
-                                      : 'Estimated Rebate Range',
-                                  style: Theme.of(context).textTheme.titleSmall
-                                      ?.copyWith(
-                                        color: AppTheme.primaryBlue,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'When you work with an Agent from this site, this estimate uses the ${listing.bacPercent.toStringAsFixed(1)}% BAC entered by the listing agent.',
-                            style: Theme.of(context).textTheme.bodyMedium
-                                ?.copyWith(
-                                  color: AppTheme.darkGray,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  // Rebate Information Cards
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: _RebateCard(
-                            title: 'When you work with an Agent from this site',
-                            amount: _formatMoney(rebate.ownAgentRebateCents),
-                            icon: Icons.person,
-                            color: AppTheme.primaryBlue,
-                          subtitle:
-                              'Estimated rebate based on the ${listing.bacPercent.toStringAsFixed(1)}% BAC entered by the listing agent',
-                          ),
-                        ),
-                        // Only show "With The Listing Agent" card if dual agency is allowed
-                        if (listing.dualAgencyAllowed) ...[
-                          const SizedBox(width: 12),
                           Expanded(
                             child: _RebateCard(
-                              title: 'With The Listing Agent',
-                              amount: _formatMoney(rebate.directRebateCents),
-                              icon: Icons.trending_up,
-                              color: AppTheme.lightGreen,
-                              subtitle: 'Estimated rebate',
+                              title:
+                                  'When you work with an Agent from this site',
+                              amount: _formatMoney(rebate.ownAgentRebateCents),
+                              icon: Icons.person,
+                              color: AppTheme.primaryBlue,
+                              subtitle:
+                                  'Estimated rebate based on the ${listing.bacPercent.toStringAsFixed(1)}% BAC entered by the listing agent',
                             ),
                           ),
-                        ],
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  // Disclaimer
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.amber.shade50,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.amber.shade200),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Icon(
-                                Icons.warning_amber_rounded,
-                                color: Colors.amber.shade700,
-                                size: 20,
+                          // Only show "With The Listing Agent" card if dual agency is allowed
+                          if (listing.dualAgencyAllowed) ...[
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: _RebateCard(
+                                title: 'With The Listing Agent',
+                                amount: _formatMoney(rebate.directRebateCents),
+                                icon: Icons.trending_up,
+                                color: AppTheme.lightGreen,
+                                subtitle: 'Estimated rebate',
                               ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  'Important Notice',
-                                  style: Theme.of(context).textTheme.titleSmall
-                                      ?.copyWith(
-                                        color: Colors.amber.shade900,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Buyer Agent Compensation is negotiable and may vary from property to property and state to state. Once the exact commission percentage is known, you can determine your rebate amount more accurately. Work with your agent for specific details.',
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(
-                                  color: Colors.amber.shade900,
-                                  height: 1.4,
-                                ),
-                          ),
+                            ),
+                          ],
                         ],
                       ),
                     ),
-                  ),
 
-                  const SizedBox(height: 24),
+                    const SizedBox(height: 16),
 
-                  // Pros and Cons Chart
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 24),
-                    child: ProsConsChartWidget(),
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  // Selected Buyer Agent Info (if they have one)
-                  Obx(() {
-                    final buyerController = Get.find<BuyerV2Controller>();
-                    if (buyerController.hasSelectedAgent) {
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
-                        child: _buildSelectedAgentBanner(context, buyerController.selectedBuyerAgent!),
-                      );
-                    }
-                    return const SizedBox.shrink();
-                  }),
-
-                  const SizedBox(height: 24),
-
-                  // Action Buttons
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: Column(
-                      children: [
-                        // Primary Action Button
-                        CustomButton(
-                          text: 'Find Agents Near This Property',
-                          onPressed: () {
-                            final zipCode = listing.address.zip;
-                            if (kDebugMode) {
-                              print('🔍 Listing Detail - Navigating to Find Agents');
-                              print('   Listing ID: ${listing.id}');
-                              print('   Listing Address: ${listing.address.toString()}');
-                              print('   ZIP Code: $zipCode');
-                            }
-                            Get.toNamed(
-                              '/find-agents',
-                              arguments: {
-                                'zip': zipCode,
-                                'listing': listing,
-                              },
-                            );
-                          },
-                          icon: Icons.search,
-                          width: double.infinity,
-                          height: 56,
+                    // Disclaimer
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.amber.shade50,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.amber.shade200),
                         ),
-
-                        const SizedBox(height: 12),
-
-                        // Secondary Action Button - Contact Listing Agent
-                        // Only show if buyer doesn't have a selected agent, or show with warning
-                        Obx(() {
-                          final buyerController = Get.find<BuyerV2Controller>();
-                          final hasSelectedAgent = buyerController.hasSelectedAgent;
-
-                          if (hasSelectedAgent) {
-                            // Show warning button instead of direct contact
-                            return CustomButton(
-                              text: 'Contact Listing Agent (Not Recommended)',
-                              onPressed: () => _showListingAgentWarningDialog(context, buyerController.selectedBuyerAgent!),
-                              icon: Icons.warning_amber_rounded,
-                              isOutlined: true,
-                              width: double.infinity,
-                              height: 56,
-                              backgroundColor: Colors.transparent,
-                            );
-                          } else {
-                            // No selected agent, allow direct contact
-                            return CustomButton(
-                              text: 'Contact Listing Agent',
-                              onPressed: () => _showContactListingAgentDialog(context, listing),
-                              icon: Icons.call,
-                              isOutlined: true,
-                              width: double.infinity,
-                              height: 56,
-                            );
-                          }
-                        }),
-                      ],
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Icon(
+                                  Icons.warning_amber_rounded,
+                                  color: Colors.amber.shade700,
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Important Notice',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleSmall
+                                        ?.copyWith(
+                                          color: Colors.amber.shade900,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Buyer Agent Compensation is negotiable and may vary from property to property and state to state. Once the exact commission percentage is known, you can determine your rebate amount more accurately. Work with your agent for specific details.',
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                    color: Colors.amber.shade900,
+                                    height: 1.4,
+                                  ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
-                  ),
 
-                  const SizedBox(height: 32),
-                ],
+                    const SizedBox(height: 24),
+
+                    // Pros and Cons Chart
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 24),
+                      child: ProsConsChartWidget(),
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    // Selected Buyer Agent Info (if they have one)
+                    Obx(() {
+                      final buyerController = Get.find<BuyerV2Controller>();
+                      if (buyerController.hasSelectedAgent) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 24),
+                          child: _buildSelectedAgentBanner(
+                            context,
+                            buyerController.selectedBuyerAgent!,
+                          ),
+                        );
+                      }
+                      return const SizedBox.shrink();
+                    }),
+
+                    const SizedBox(height: 24),
+
+                    // Action Buttons
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: Column(
+                        children: [
+                          // Primary Action Button
+                          CustomButton(
+                            text: 'Find Agents Near This Property',
+                            onPressed: () {
+                              final zipCode = listing.address.zip;
+                              if (kDebugMode) {
+                                print(
+                                  '🔍 Listing Detail - Navigating to Find Agents',
+                                );
+                                print('   Listing ID: ${listing.id}');
+                                print(
+                                  '   Listing Address: ${listing.address.toString()}',
+                                );
+                                print('   ZIP Code: $zipCode');
+                              }
+                              Get.toNamed(
+                                '/find-agents',
+                                arguments: {'zip': zipCode, 'listing': listing},
+                              );
+                            },
+                            icon: Icons.search,
+                            width: double.infinity,
+                            height: 56,
+                          ),
+
+                          const SizedBox(height: 12),
+
+                          // Secondary Action Button - Contact Listing Agent
+                          // Only show if buyer doesn't have a selected agent, or show with warning
+                          Obx(() {
+                            final buyerController =
+                                Get.find<BuyerV2Controller>();
+                            final hasSelectedAgent =
+                                buyerController.hasSelectedAgent;
+
+                            if (hasSelectedAgent) {
+                              // Show warning button instead of direct contact
+                              return CustomButton(
+                                text: 'Contact Listing Agent (Not Recommended)',
+                                onPressed: () => _showListingAgentWarningDialog(
+                                  context,
+                                  buyerController.selectedBuyerAgent!,
+                                ),
+                                icon: Icons.warning_amber_rounded,
+                                isOutlined: true,
+                                width: double.infinity,
+                                height: 56,
+                                backgroundColor: Colors.transparent,
+                              );
+                            } else {
+                              // No selected agent, allow direct contact
+                              return CustomButton(
+                                text: 'Contact Listing Agent',
+                                onPressed: () => _showContactListingAgentDialog(
+                                  context,
+                                  listing,
+                                ),
+                                icon: Icons.call,
+                                isOutlined: true,
+                                width: double.infinity,
+                                height: 56,
+                              );
+                            }
+                          }),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 32),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
-      ),
+          ],
+        ),
       ),
     );
   }
@@ -724,11 +787,7 @@ class ListingDetailView extends GetView<ListingDetailController> {
       ),
       child: Row(
         children: [
-          Icon(
-            Icons.person,
-            color: AppTheme.lightGreen,
-            size: 24,
-          ),
+          Icon(Icons.person, color: AppTheme.lightGreen, size: 24),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -757,12 +816,13 @@ class ListingDetailView extends GetView<ListingDetailController> {
     );
   }
 
-  void _showListingAgentWarningDialog(BuildContext context, AgentModel selectedAgent) {
+  void _showListingAgentWarningDialog(
+    BuildContext context,
+    AgentModel selectedAgent,
+  ) {
     Get.dialog(
       Dialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         child: Container(
           padding: const EdgeInsets.all(24),
           constraints: const BoxConstraints(maxWidth: 400),
@@ -840,7 +900,10 @@ class ListingDetailView extends GetView<ListingDetailController> {
                       Navigator.pop(context);
                       // Still allow contact but with full understanding
                       if (controller.listing != null) {
-                        _showContactListingAgentDialog(context, controller.listing!);
+                        _showContactListingAgentDialog(
+                          context,
+                          controller.listing!,
+                        );
                       }
                     },
                     style: TextButton.styleFrom(
@@ -870,11 +933,7 @@ class ListingDetailView extends GetView<ListingDetailController> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(
-          Icons.info_outline,
-          size: 18,
-          color: AppTheme.mediumGray,
-        ),
+        Icon(Icons.info_outline, size: 18, color: AppTheme.mediumGray),
         const SizedBox(width: 8),
         Expanded(
           child: Column(
@@ -902,16 +961,17 @@ class ListingDetailView extends GetView<ListingDetailController> {
     );
   }
 
-  void _showContactListingAgentDialog(BuildContext context, Listing listing) async {
+  void _showContactListingAgentDialog(
+    BuildContext context,
+    Listing listing,
+  ) async {
     final agentId = listing.agentId;
     final agentService = AgentService();
-    
+
     // Show dialog with loading state
     Get.dialog(
       Dialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         child: Container(
           padding: const EdgeInsets.all(24),
           constraints: const BoxConstraints(maxWidth: 400),
@@ -928,10 +988,11 @@ class ListingDetailView extends GetView<ListingDetailController> {
                         Expanded(
                           child: Text(
                             'Loading Agent Details',
-                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              color: AppTheme.black,
-                              fontWeight: FontWeight.bold,
-                            ),
+                            style: Theme.of(context).textTheme.titleLarge
+                                ?.copyWith(
+                                  color: AppTheme.black,
+                                  fontWeight: FontWeight.bold,
+                                ),
                           ),
                         ),
                         IconButton(
@@ -941,10 +1002,7 @@ class ListingDetailView extends GetView<ListingDetailController> {
                       ],
                     ),
                     const SizedBox(height: 32),
-                    SpinKitFadingCircle(
-                      color: AppTheme.primaryBlue,
-                      size: 40,
-                    ),
+                    SpinKitFadingCircle(color: AppTheme.primaryBlue, size: 40),
                     const SizedBox(height: 16),
                     Text(
                       'Fetching agent information...',
@@ -966,10 +1024,11 @@ class ListingDetailView extends GetView<ListingDetailController> {
                         Expanded(
                           child: Text(
                             'Listing Agent',
-                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              color: AppTheme.black,
-                              fontWeight: FontWeight.bold,
-                            ),
+                            style: Theme.of(context).textTheme.titleLarge
+                                ?.copyWith(
+                                  color: AppTheme.black,
+                                  fontWeight: FontWeight.bold,
+                                ),
                           ),
                         ),
                         IconButton(
@@ -979,11 +1038,7 @@ class ListingDetailView extends GetView<ListingDetailController> {
                       ],
                     ),
                     const SizedBox(height: 24),
-                    Icon(
-                      Icons.error_outline,
-                      color: Colors.red,
-                      size: 48,
-                    ),
+                    Icon(Icons.error_outline, color: Colors.red, size: 48),
                     const SizedBox(height: 16),
                     Text(
                       'Could not load agent details',
@@ -1020,10 +1075,11 @@ class ListingDetailView extends GetView<ListingDetailController> {
                         Expanded(
                           child: Text(
                             'Listing Agent',
-                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              color: AppTheme.black,
-                              fontWeight: FontWeight.bold,
-                            ),
+                            style: Theme.of(context).textTheme.titleLarge
+                                ?.copyWith(
+                                  color: AppTheme.black,
+                                  fontWeight: FontWeight.bold,
+                                ),
                           ),
                         ),
                         IconButton(
@@ -1063,7 +1119,8 @@ class ListingDetailView extends GetView<ListingDetailController> {
                     // Header with agent info
                     Row(
                       children: [
-                        if (agent.profileImage != null && agent.profileImage!.isNotEmpty)
+                        if (agent.profileImage != null &&
+                            agent.profileImage!.isNotEmpty)
                           CircleAvatar(
                             radius: 28,
                             backgroundImage: NetworkImage(
@@ -1076,7 +1133,9 @@ class ListingDetailView extends GetView<ListingDetailController> {
                         else
                           CircleAvatar(
                             radius: 28,
-                            backgroundColor: AppTheme.primaryBlue.withOpacity(0.1),
+                            backgroundColor: AppTheme.primaryBlue.withOpacity(
+                              0.1,
+                            ),
                             child: Icon(
                               Icons.person,
                               color: AppTheme.primaryBlue,
@@ -1090,18 +1149,19 @@ class ListingDetailView extends GetView<ListingDetailController> {
                             children: [
                               Text(
                                 agent.name,
-                                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                  color: AppTheme.black,
-                                  fontWeight: FontWeight.bold,
-                                ),
+                                style: Theme.of(context).textTheme.titleLarge
+                                    ?.copyWith(
+                                      color: AppTheme.black,
+                                      fontWeight: FontWeight.bold,
+                                    ),
                               ),
-                              if (agent.brokerage != null && agent.brokerage!.isNotEmpty) ...[
+                              if (agent.brokerage != null &&
+                                  agent.brokerage!.isNotEmpty) ...[
                                 const SizedBox(height: 4),
                                 Text(
                                   agent.brokerage!,
-                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: AppTheme.mediumGray,
-                                  ),
+                                  style: Theme.of(context).textTheme.bodySmall
+                                      ?.copyWith(color: AppTheme.mediumGray),
                                 ),
                               ],
                             ],
@@ -1114,15 +1174,16 @@ class ListingDetailView extends GetView<ListingDetailController> {
                       ],
                     ),
                     const SizedBox(height: 24),
-                    
+
                     // Bio section
                     if (agent.bio != null && agent.bio!.isNotEmpty) ...[
                       Text(
                         'About',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          color: AppTheme.black,
-                          fontWeight: FontWeight.w600,
-                        ),
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
+                              color: AppTheme.black,
+                              fontWeight: FontWeight.w600,
+                            ),
                       ),
                       const SizedBox(height: 8),
                       Text(
@@ -1134,7 +1195,7 @@ class ListingDetailView extends GetView<ListingDetailController> {
                       ),
                       const SizedBox(height: 24),
                     ],
-                    
+
                     // Contact Information Section
                     Text(
                       'Contact Information',
@@ -1144,7 +1205,7 @@ class ListingDetailView extends GetView<ListingDetailController> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    
+
                     // Phone - Clickable
                     if (agent.phone != null && agent.phone!.isNotEmpty) ...[
                       _buildContactItem(
@@ -1159,7 +1220,9 @@ class ListingDetailView extends GetView<ListingDetailController> {
                               final agentService = AgentService();
                               await agentService.recordContact(agent.id);
                               if (kDebugMode) {
-                                print('📞 Recording contact for agent: ${agent.id}');
+                                print(
+                                  '📞 Recording contact for agent: ${agent.id}',
+                                );
                               }
                             } catch (e) {
                               if (kDebugMode) {
@@ -1167,23 +1230,30 @@ class ListingDetailView extends GetView<ListingDetailController> {
                               }
                               // Don't block call if contact recording fails
                             }
-                            
+
                             // Clean phone number (remove spaces, dashes, etc.)
-                            final cleanPhone = agent.phone!.replaceAll(RegExp(r'[^\d+]'), '');
+                            final cleanPhone = agent.phone!.replaceAll(
+                              RegExp(r'[^\d+]'),
+                              '',
+                            );
                             final uri = Uri.parse('tel:$cleanPhone');
                             if (await canLaunchUrl(uri)) {
                               await launchUrl(uri);
                             } else {
-                              SnackbarHelper.showError('Could not open phone dialer');
+                              SnackbarHelper.showError(
+                                'Could not open phone dialer',
+                              );
                             }
                           } catch (e) {
-                            SnackbarHelper.showError('Could not open phone dialer: ${e.toString()}');
+                            SnackbarHelper.showError(
+                              'Could not open phone dialer: ${e.toString()}',
+                            );
                           }
                         },
                       ),
                       const SizedBox(height: 12),
                     ],
-                    
+
                     // Email - Clickable
                     _buildContactItem(
                       context,
@@ -1192,18 +1262,24 @@ class ListingDetailView extends GetView<ListingDetailController> {
                       agent.email,
                       onTap: () async {
                         try {
-                          final uri = Uri.parse('mailto:${agent.email}?subject=Inquiry about Property Listing');
+                          final uri = Uri.parse(
+                            'mailto:${agent.email}?subject=Inquiry about Property Listing',
+                          );
                           if (await canLaunchUrl(uri)) {
                             await launchUrl(uri);
                           } else {
-                            SnackbarHelper.showError('Could not open email client');
+                            SnackbarHelper.showError(
+                              'Could not open email client',
+                            );
                           }
                         } catch (e) {
-                          SnackbarHelper.showError('Could not open email client: ${e.toString()}');
+                          SnackbarHelper.showError(
+                            'Could not open email client: ${e.toString()}',
+                          );
                         }
                       },
                     ),
-                    
+
                     // License Number
                     if (agent.licenseNumber.isNotEmpty) ...[
                       const SizedBox(height: 12),
@@ -1214,9 +1290,10 @@ class ListingDetailView extends GetView<ListingDetailController> {
                         agent.licenseNumber,
                       ),
                     ],
-                    
+
                     // Brokerage
-                    if (agent.brokerage != null && agent.brokerage!.isNotEmpty) ...[
+                    if (agent.brokerage != null &&
+                        agent.brokerage!.isNotEmpty) ...[
                       const SizedBox(height: 12),
                       _buildContactItem(
                         context,
@@ -1225,7 +1302,7 @@ class ListingDetailView extends GetView<ListingDetailController> {
                         agent.brokerage!,
                       ),
                     ],
-                    
+
                     // Licensed States
                     if (agent.licensedStates.isNotEmpty) ...[
                       const SizedBox(height: 12),
@@ -1236,9 +1313,10 @@ class ListingDetailView extends GetView<ListingDetailController> {
                         agent.licensedStates.join(', '),
                       ),
                     ],
-                    
+
                     // Website - Clickable
-                    if (agent.websiteUrl != null && agent.websiteUrl!.isNotEmpty) ...[
+                    if (agent.websiteUrl != null &&
+                        agent.websiteUrl!.isNotEmpty) ...[
                       const SizedBox(height: 12),
                       _buildContactItem(
                         context,
@@ -1249,20 +1327,29 @@ class ListingDetailView extends GetView<ListingDetailController> {
                           try {
                             final website = agent.websiteUrl!;
                             final uri = Uri.parse(
-                              website.startsWith('http') ? website : 'https://$website',
+                              website.startsWith('http')
+                                  ? website
+                                  : 'https://$website',
                             );
                             if (await canLaunchUrl(uri)) {
-                              await launchUrl(uri, mode: LaunchMode.externalApplication);
+                              await launchUrl(
+                                uri,
+                                mode: LaunchMode.externalApplication,
+                              );
                             } else {
-                              SnackbarHelper.showError('Could not open website');
+                              SnackbarHelper.showError(
+                                'Could not open website',
+                              );
                             }
                           } catch (e) {
-                            SnackbarHelper.showError('Could not open website: ${e.toString()}');
+                            SnackbarHelper.showError(
+                              'Could not open website: ${e.toString()}',
+                            );
                           }
                         },
                       ),
                     ],
-                    
+
                     // Rating & Reviews
                     if (agent.rating > 0) ...[
                       const SizedBox(height: 24),
@@ -1276,26 +1363,26 @@ class ListingDetailView extends GetView<ListingDetailController> {
                           const SizedBox(width: 8),
                           Text(
                             '${agent.rating.toStringAsFixed(1)}',
-                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              color: AppTheme.black,
-                              fontWeight: FontWeight.w600,
-                            ),
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(
+                                  color: AppTheme.black,
+                                  fontWeight: FontWeight.w600,
+                                ),
                           ),
                           if (agent.reviewCount > 0) ...[
                             const SizedBox(width: 4),
                             Text(
                               '(${agent.reviewCount} reviews)',
-                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: AppTheme.mediumGray,
-                              ),
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(color: AppTheme.mediumGray),
                             ),
                           ],
                         ],
                       ),
                     ],
-                    
+
                     const SizedBox(height: 24),
-                    
+
                     // Action Buttons
                     Row(
                       children: [
@@ -1319,13 +1406,16 @@ class ListingDetailView extends GetView<ListingDetailController> {
                             text: 'Send Message',
                             onPressed: () {
                               Navigator.pop(context);
-                              Get.toNamed('/contact', arguments: {
-                                'userId': agent.id,
-                                'userName': agent.name,
-                                'userProfilePic': agent.profileImage,
-                                'userRole': 'agent',
-                                'agent': agent,
-                              });
+                              Get.toNamed(
+                                '/contact',
+                                arguments: {
+                                  'userId': agent.id,
+                                  'userName': agent.name,
+                                  'userProfilePic': agent.profileImage,
+                                  'userRole': 'agent',
+                                  'agent': agent,
+                                },
+                              );
                             },
                             icon: Icons.message,
                           ),
@@ -1363,9 +1453,7 @@ class ListingDetailView extends GetView<ListingDetailController> {
         decoration: BoxDecoration(
           color: AppTheme.lightGray.withOpacity(0.5),
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: AppTheme.mediumGray.withOpacity(0.2),
-          ),
+          border: Border.all(color: AppTheme.mediumGray.withOpacity(0.2)),
         ),
         child: Row(
           children: [
@@ -1405,7 +1493,11 @@ class ListingDetailView extends GetView<ListingDetailController> {
     );
   }
 
-  void _showFullScreenImageSlider(BuildContext context, List<String> images, int initialIndex) {
+  void _showFullScreenImageSlider(
+    BuildContext context,
+    List<String> images,
+    int initialIndex,
+  ) {
     final currentIndex = initialIndex.obs;
     final pageController = PageController(initialPage: initialIndex);
 
@@ -1427,7 +1519,9 @@ class ListingDetailView extends GetView<ListingDetailController> {
                     builder: (context) {
                       final imageUrl = images[index];
                       if (kDebugMode) {
-                        print('🖼️ Full Screen Image Viewer - Rendering image $index with URL: $imageUrl');
+                        print(
+                          '🖼️ Full Screen Image Viewer - Rendering image $index with URL: $imageUrl',
+                        );
                       }
                       return CachedNetworkImage(
                         imageUrl: imageUrl,
@@ -1438,38 +1532,37 @@ class ListingDetailView extends GetView<ListingDetailController> {
                         maxWidthDiskCache: 3000,
                         maxHeightDiskCache: 3000,
                         fadeInDuration: Duration.zero,
-                        placeholder: (context, url) => Container(
-                          color: AppTheme.darkGray,
-                        ),
+                        placeholder: (context, url) =>
+                            Container(color: AppTheme.darkGray),
                         errorWidget: (context, url, error) {
                           if (kDebugMode) {
-                            print('❌ Full Screen Image Viewer - Image load error for URL: $url');
+                            print(
+                              '❌ Full Screen Image Viewer - Image load error for URL: $url',
+                            );
                             print('   Error: $error');
                           }
                           return Center(
                             child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.error_outline,
-                              color: AppTheme.white,
-                              size: 64,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.error_outline,
+                                  color: AppTheme.white,
+                                  size: 64,
+                                ),
+                                SizedBox(height: 16),
+                                Text(
+                                  'Failed to load image',
+                                  style: TextStyle(
+                                    color: AppTheme.white,
+                                    fontSize: 16.sp,
+                                  ),
+                                ),
+                              ],
                             ),
-                            SizedBox(height: 16),
-                            Text(
-                              'Failed to load image',
-                              style: TextStyle(
-                                color: AppTheme.white,
-                                fontSize: 16.sp,
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                        httpHeaders: const {
-                          'Accept': 'image/*',
+                          );
                         },
+                        httpHeaders: const {'Accept': 'image/*'},
                       );
                     },
                   ),
@@ -1505,25 +1598,27 @@ class ListingDetailView extends GetView<ListingDetailController> {
                 bottom: 40.h,
                 left: 0,
                 right: 0,
-                child: Obx(() => Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(
-                    images.length,
-                    (index) => AnimatedContainer(
-                      duration: const Duration(milliseconds: 300),
-                      curve: Curves.easeInOut,
-                      margin: EdgeInsets.symmetric(horizontal: 4.w),
-                      width: currentIndex.value == index ? 32.w : 8.w,
-                      height: 8.h,
-                      decoration: BoxDecoration(
-                        color: currentIndex.value == index
-                            ? AppTheme.white
-                            : AppTheme.white.withOpacity(0.5),
-                        borderRadius: BorderRadius.circular(4.r),
+                child: Obx(
+                  () => Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(
+                      images.length,
+                      (index) => AnimatedContainer(
+                        duration: const Duration(milliseconds: 300),
+                        curve: Curves.easeInOut,
+                        margin: EdgeInsets.symmetric(horizontal: 4.w),
+                        width: currentIndex.value == index ? 32.w : 8.w,
+                        height: 8.h,
+                        decoration: BoxDecoration(
+                          color: currentIndex.value == index
+                              ? AppTheme.white
+                              : AppTheme.white.withOpacity(0.5),
+                          borderRadius: BorderRadius.circular(4.r),
+                        ),
                       ),
                     ),
                   ),
-                )),
+                ),
               ),
             // Image Counter (top)
             if (images.length > 1)
@@ -1539,14 +1634,16 @@ class ListingDetailView extends GetView<ListingDetailController> {
                     color: Colors.black.withOpacity(0.6),
                     borderRadius: BorderRadius.circular(20.r),
                   ),
-                  child: Obx(() => Text(
-                    '${currentIndex.value + 1} / ${images.length}',
-                    style: TextStyle(
-                      color: AppTheme.white,
-                      fontSize: 14.sp,
-                      fontWeight: FontWeight.w600,
+                  child: Obx(
+                    () => Text(
+                      '${currentIndex.value + 1} / ${images.length}',
+                      style: TextStyle(
+                        color: AppTheme.white,
+                        fontSize: 14.sp,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                  )),
+                  ),
                 ),
               ),
           ],

@@ -110,81 +110,81 @@ class BuyerV2View extends GetView<BuyerV2Controller> {
                 ),
               ),
               // if (hasSearch) ...[
-                //   const SizedBox(height: 12),
-                //   _buildStateLimitNote(context),
-                // ],
-                const SizedBox(height: 20),
+              //   const SizedBox(height: 12),
+              //   _buildStateLimitNote(context),
+              // ],
+              const SizedBox(height: 20),
 
-                // 4 BUTTONS — 2×2 GRID — USING ONLY CustomButton
-                GridView.count(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  crossAxisCount: 2,
-                  mainAxisSpacing: 14,
-                  crossAxisSpacing: 14,
-                  childAspectRatio: 2.9,
-                  children: [
-                    // 1. Rebate Calculator
-                    CustomButton(
-                      text: 'Rebate Calculators',
-                      icon: Icons.calculate,
-                      onPressed: () => Get.toNamed('/rebate-calculator'),
-                    ),
+              // 4 BUTTONS — 2×2 GRID — USING ONLY CustomButton
+              GridView.count(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                crossAxisCount: 2,
+                mainAxisSpacing: 14,
+                crossAxisSpacing: 14,
+                childAspectRatio: 2.9,
+                children: [
+                  // 1. Rebate Calculator
+                  CustomButton(
+                    text: 'Rebate Calculators',
+                    icon: Icons.calculate,
+                    onPressed: () => Get.toNamed('/rebate-calculator'),
+                  ),
 
-                    // 2. Full Survey
-                    CustomButton(
-                      text: 'Full Survey',
-                      icon: Icons.rate_review,
-                      onPressed: () {
-                        try {
-                          Get.toNamed(
-                            '/post-closing-survey',
-                            arguments: {
-                              'agentId': 'test-agent-123',
-                              'agentName': 'John Smith',
-                              'userId': 'test-user-456',
-                              'transactionId': 'test-transaction-789',
-                              'isBuyer': true,
-                            },
-                          );
-                        } catch (e) {
-                          Get.snackbar(
-                            'Error',
-                            'Survey failed: $e',
-                            backgroundColor: Colors.red,
-                            colorText: Colors.white,
-                          );
-                        }
+                  // 2. Full Survey
+                  CustomButton(
+                    text: 'Full Survey',
+                    icon: Icons.rate_review,
+                    onPressed: () {
+                      try {
+                        Get.toNamed(
+                          '/post-closing-survey',
+                          arguments: {
+                            'agentId': 'test-agent-123',
+                            'agentName': 'John Smith',
+                            'userId': 'test-user-456',
+                            'transactionId': 'test-transaction-789',
+                            'isBuyer': true,
+                          },
+                        );
+                      } catch (e) {
+                        Get.snackbar(
+                          'Error',
+                          'Survey failed: $e',
+                          backgroundColor: Colors.red,
+                          colorText: Colors.white,
+                        );
+                      }
+                    },
+                  ),
+
+                  // 3. Buying Checklist
+                  CustomButton(
+                    text: 'Buying Checklist',
+                    icon: Icons.checklist_rtl,
+                    onPressed: () => Get.toNamed(
+                      '/checklist',
+                      arguments: {
+                        'type': 'buyer',
+                        'title': 'Homebuyer Checklist (with Rebate!)',
                       },
                     ),
+                  ),
 
-                    // 3. Buying Checklist
-                    CustomButton(
-                      text: 'Buying Checklist',
-                      icon: Icons.checklist_rtl,
-                      onPressed: () => Get.toNamed(
-                        '/checklist',
-                        arguments: {
-                          'type': 'buyer',
-                          'title': 'Homebuyer Checklist (with Rebate!)',
-                        },
-                      ),
+                  // 4. Selling Checklist
+                  CustomButton(
+                    text: 'Selling Checklist',
+                    icon: Icons.sell,
+                    onPressed: () => Get.toNamed(
+                      '/checklist',
+                      arguments: {
+                        'type': 'seller',
+                        'title': 'Home Seller Checklist (with Rebate!)',
+                      },
                     ),
-
-                    // 4. Selling Checklist
-                    CustomButton(
-                      text: 'Selling Checklist',
-                      icon: Icons.sell,
-                      onPressed: () => Get.toNamed(
-                        '/checklist',
-                        arguments: {
-                          'type': 'seller',
-                          'title': 'Home Seller Checklist (with Rebate!)',
-                        },
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
+              ),
 
               const SizedBox(height: 16),
             ],

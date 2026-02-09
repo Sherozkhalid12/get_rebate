@@ -351,14 +351,17 @@ class ContactAgentView extends StatelessWidget {
                     Get.snackbar('Error', 'Agent information not available');
                     return;
                   }
-                  
+
                   // Navigate to contact screen first
-                  Get.toNamed('/contact', arguments: {
-                    'userId': agent.id,
-                    'userName': agent.name,
-                    'userProfilePic': agent.profileImage,
-                    'userRole': 'agent',
-                  });
+                  Get.toNamed(
+                    '/contact',
+                    arguments: {
+                      'userId': agent.id,
+                      'userName': agent.name,
+                      'userProfilePic': agent.profileImage,
+                      'userRole': 'agent',
+                    },
+                  );
                 },
                 icon: const Icon(Icons.chat),
                 label: const Text('Start Chat'),
@@ -435,17 +438,23 @@ class ContactLoanOfficerView extends StatelessWidget {
               ElevatedButton.icon(
                 onPressed: () {
                   if (loanOfficer == null) {
-                    Get.snackbar('Error', 'Loan officer information not available');
+                    Get.snackbar(
+                      'Error',
+                      'Loan officer information not available',
+                    );
                     return;
                   }
-                  
+
                   // Navigate to contact screen first
-                  Get.toNamed('/contact', arguments: {
-                    'userId': loanOfficer.id,
-                    'userName': loanOfficer.name,
-                    'userProfilePic': loanOfficer.profileImage,
-                    'userRole': 'loan_officer',
-                  });
+                  Get.toNamed(
+                    '/contact',
+                    arguments: {
+                      'userId': loanOfficer.id,
+                      'userName': loanOfficer.name,
+                      'userProfilePic': loanOfficer.profileImage,
+                      'userRole': 'loan_officer',
+                    },
+                  );
                 },
                 icon: const Icon(Icons.chat),
                 label: const Text('Start Chat'),

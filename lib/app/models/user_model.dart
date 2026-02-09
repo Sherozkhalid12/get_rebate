@@ -32,26 +32,25 @@ class UserModel {
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
     // Handle both 'id' and '_id' fields (API returns _id, storage uses id)
-    final userId = json['_id']?.toString() ?? 
-                   json['id']?.toString() ?? 
-                   '';
-    
+    final userId = json['_id']?.toString() ?? json['id']?.toString() ?? '';
+
     // Normalize profile image URL using helper
-    final profileImageRaw = json['profileImage']?.toString() ?? 
-                           json['profilePic']?.toString() ??
-                           json['profile_pic']?.toString();
-    
+    final profileImageRaw =
+        json['profileImage']?.toString() ??
+        json['profilePic']?.toString() ??
+        json['profile_pic']?.toString();
+
     if (kDebugMode) {
       print('👤 UserModel.fromJson:');
       print('   Raw profileImage from JSON: "$profileImageRaw"');
     }
-    
+
     final profileImage = ApiConstants.getImageUrl(profileImageRaw);
-    
+
     if (kDebugMode) {
       print('   Normalized profileImage: "$profileImage"');
     }
-    
+
     return UserModel(
       id: userId,
       email: json['email'] ?? '',

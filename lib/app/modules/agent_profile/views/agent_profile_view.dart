@@ -49,10 +49,7 @@ class AgentProfileView extends GetView<AgentProfileController> {
           // Don't wait for properties to load
           if (controller.agent == null) {
             return Center(
-              child: SpinKitFadingCircle(
-                color: AppTheme.primaryBlue,
-                size: 40,
-              ),
+              child: SpinKitFadingCircle(color: AppTheme.primaryBlue, size: 40),
             );
           }
           return _buildProfile(context);
@@ -100,16 +97,18 @@ class AgentProfileView extends GetView<AgentProfileController> {
                 CircleAvatar(
                   radius: 40,
                   backgroundColor: AppTheme.primaryBlue.withOpacity(0.1),
-                  backgroundImage: (agent.profileImage != null && 
-                                    agent.profileImage!.isNotEmpty &&
-                                    (agent.profileImage!.startsWith('http://') || 
-                                     agent.profileImage!.startsWith('https://')))
+                  backgroundImage:
+                      (agent.profileImage != null &&
+                          agent.profileImage!.isNotEmpty &&
+                          (agent.profileImage!.startsWith('http://') ||
+                              agent.profileImage!.startsWith('https://')))
                       ? NetworkImage(agent.profileImage!)
                       : null,
-                  child: (agent.profileImage == null || 
-                         agent.profileImage!.isEmpty ||
-                         (!agent.profileImage!.startsWith('http://') && 
-                          !agent.profileImage!.startsWith('https://')))
+                  child:
+                      (agent.profileImage == null ||
+                          agent.profileImage!.isEmpty ||
+                          (!agent.profileImage!.startsWith('http://') &&
+                              !agent.profileImage!.startsWith('https://')))
                       ? const Icon(
                           Icons.person,
                           color: AppTheme.primaryBlue,
@@ -184,9 +183,8 @@ class AgentProfileView extends GetView<AgentProfileController> {
                           maxWidthDiskCache: 400,
                           maxHeightDiskCache: 400,
                           fadeInDuration: Duration.zero,
-                          placeholder: (context, url) => Container(
-                            color: AppTheme.white,
-                          ),
+                          placeholder: (context, url) =>
+                              Container(color: AppTheme.white),
                           errorWidget: (context, url, error) => const Icon(
                             Icons.business_outlined,
                             color: AppTheme.primaryBlue,
@@ -230,8 +228,6 @@ class AgentProfileView extends GetView<AgentProfileController> {
             ),
 
             const SizedBox(height: 20),
-
-
 
             // Video Introduction
             if (agent.videoUrl != null && agent.videoUrl!.isNotEmpty) ...[
@@ -388,7 +384,7 @@ class AgentProfileView extends GetView<AgentProfileController> {
 
     // Normalize video URL
     final normalizedUrl = ApiConstants.getImageUrl(videoUrl);
-    
+
     // Handle null case
     if (normalizedUrl == null || normalizedUrl.isEmpty) {
       if (kDebugMode) {
@@ -396,7 +392,7 @@ class AgentProfileView extends GetView<AgentProfileController> {
       }
       return _buildErrorPlaceholder(context, 'Invalid video URL');
     }
-    
+
     // Check if it's a YouTube URL
     String? videoId = YoutubePlayer.convertUrlToId(normalizedUrl);
 
@@ -421,17 +417,13 @@ class AgentProfileView extends GetView<AgentProfileController> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.error_outline,
-              size: 48,
-              color: AppTheme.mediumGray,
-            ),
+            Icon(Icons.error_outline, size: 48, color: AppTheme.mediumGray),
             const SizedBox(height: 8),
             Text(
               message,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: AppTheme.mediumGray,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: AppTheme.mediumGray),
             ),
           ],
         ),
@@ -441,8 +433,9 @@ class AgentProfileView extends GetView<AgentProfileController> {
 
   Widget _buildYouTubePlayer(BuildContext context, String videoId) {
     // Get YouTube thumbnail URL (high quality)
-    final thumbnailUrl = 'https://img.youtube.com/vi/$videoId/maxresdefault.jpg';
-    
+    final thumbnailUrl =
+        'https://img.youtube.com/vi/$videoId/maxresdefault.jpg';
+
     return _YouTubePlayerWithThumbnail(
       videoId: videoId,
       thumbnailUrl: thumbnailUrl,
@@ -538,7 +531,8 @@ class AgentProfileView extends GetView<AgentProfileController> {
               agent.websiteUrl!,
               AppTheme.primaryBlue,
             ),
-          if (agent.googleReviewsUrl != null && agent.googleReviewsUrl!.trim().isNotEmpty)
+          if (agent.googleReviewsUrl != null &&
+              agent.googleReviewsUrl!.trim().isNotEmpty)
             _buildLinkItem(
               context,
               Icons.reviews,
@@ -546,7 +540,8 @@ class AgentProfileView extends GetView<AgentProfileController> {
               agent.googleReviewsUrl!,
               Colors.red,
             ),
-          if (agent.thirdPartyReviewsUrl != null && agent.thirdPartyReviewsUrl!.trim().isNotEmpty)
+          if (agent.thirdPartyReviewsUrl != null &&
+              agent.thirdPartyReviewsUrl!.trim().isNotEmpty)
             _buildLinkItem(
               context,
               Icons.star_rate,
@@ -636,45 +631,53 @@ class AgentProfileView extends GetView<AgentProfileController> {
 
   bool _hasAnyLinks(dynamic agent) {
     return (agent.websiteUrl != null && agent.websiteUrl!.trim().isNotEmpty) ||
-        (agent.googleReviewsUrl != null && agent.googleReviewsUrl!.trim().isNotEmpty) ||
-        (agent.thirdPartyReviewsUrl != null && agent.thirdPartyReviewsUrl!.trim().isNotEmpty);
+        (agent.googleReviewsUrl != null &&
+            agent.googleReviewsUrl!.trim().isNotEmpty) ||
+        (agent.thirdPartyReviewsUrl != null &&
+            agent.thirdPartyReviewsUrl!.trim().isNotEmpty);
   }
 
   Future<void> _launchUrl(String urlString) async {
     try {
       // Validate and clean URL
       String cleanUrl = urlString.trim();
-      
+
       // Add https:// if no protocol is specified
       if (!cleanUrl.startsWith('http://') && !cleanUrl.startsWith('https://')) {
         cleanUrl = 'https://$cleanUrl';
       }
-      
+
       // Parse URL
       final url = Uri.parse(cleanUrl);
-      
+
       // Validate URL has a host
       if (url.host.isEmpty) {
-        _showErrorSnackbar('Invalid URL format', 'Please check the link and try again');
+        _showErrorSnackbar(
+          'Invalid URL format',
+          'Please check the link and try again',
+        );
         return;
       }
-      
+
       // Check if URL can be launched
       if (await canLaunchUrl(url)) {
-        await launchUrl(
-          url,
-          mode: LaunchMode.externalApplication,
-        );
+        await launchUrl(url, mode: LaunchMode.externalApplication);
       } else {
-        _showErrorSnackbar('Cannot open link', 'No app available to handle this URL');
+        _showErrorSnackbar(
+          'Cannot open link',
+          'No app available to handle this URL',
+        );
       }
     } on FormatException catch (e) {
-      _showErrorSnackbar('Invalid URL', 'The link format is not valid: ${e.message}');
+      _showErrorSnackbar(
+        'Invalid URL',
+        'The link format is not valid: ${e.message}',
+      );
     } catch (e) {
       _showErrorSnackbar('Error', 'Failed to open link: ${e.toString()}');
     }
   }
-  
+
   /// Safely shows error snackbar without causing overlay errors
   void _showErrorSnackbar(String title, String message) {
     try {
@@ -1093,8 +1096,10 @@ class AgentProfileView extends GetView<AgentProfileController> {
   Widget _buildReviewItem(BuildContext context, Map<String, dynamic> review) {
     // Build full profile picture URL if available
     String? profilePicUrl = review['profilePic'];
-    if (profilePicUrl != null && profilePicUrl.isNotEmpty && !profilePicUrl.startsWith('http')) {
-      final baseUrl = ApiConstants.baseUrl.endsWith('/') 
+    if (profilePicUrl != null &&
+        profilePicUrl.isNotEmpty &&
+        !profilePicUrl.startsWith('http')) {
+      final baseUrl = ApiConstants.baseUrl.endsWith('/')
           ? ApiConstants.baseUrl.substring(0, ApiConstants.baseUrl.length - 1)
           : ApiConstants.baseUrl;
       profilePicUrl = '$baseUrl/$profilePicUrl';
@@ -1110,9 +1115,10 @@ class AgentProfileView extends GetView<AgentProfileController> {
             Row(
               children: [
                 // Profile Picture or Initial
-                profilePicUrl != null && 
-                profilePicUrl.isNotEmpty &&
-                (profilePicUrl.startsWith('http://') || profilePicUrl.startsWith('https://'))
+                profilePicUrl != null &&
+                        profilePicUrl.isNotEmpty &&
+                        (profilePicUrl.startsWith('http://') ||
+                            profilePicUrl.startsWith('https://'))
                     ? CircleAvatar(
                         radius: 20,
                         backgroundImage: NetworkImage(profilePicUrl),
@@ -1120,17 +1126,19 @@ class AgentProfileView extends GetView<AgentProfileController> {
                         onBackgroundImageError: (_, __) {
                           // Fallback handled by errorBuilder in child
                         },
-                        child: const SizedBox(), // Empty child for error fallback
+                        child:
+                            const SizedBox(), // Empty child for error fallback
                       )
                     : CircleAvatar(
                         radius: 20,
                         backgroundColor: AppTheme.primaryBlue.withOpacity(0.1),
                         child: Text(
                           review['name'][0].toString().toUpperCase(),
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            color: AppTheme.primaryBlue,
-                            fontWeight: FontWeight.w600,
-                          ),
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(
+                                color: AppTheme.primaryBlue,
+                                fontWeight: FontWeight.w600,
+                              ),
                         ),
                       ),
                 const SizedBox(width: 12),
@@ -1150,11 +1158,11 @@ class AgentProfileView extends GetView<AgentProfileController> {
                         children: [
                           // Star rating with fractional support
                           ...List.generate(5, (index) {
-                            final rating = review['rating'] is num 
-                                ? (review['rating'] as num).toDouble() 
+                            final rating = review['rating'] is num
+                                ? (review['rating'] as num).toDouble()
                                 : 0.0;
                             final starIndex = index + 1;
-                            
+
                             if (starIndex <= rating) {
                               // Full star
                               return const Icon(
@@ -1162,7 +1170,8 @@ class AgentProfileView extends GetView<AgentProfileController> {
                                 color: AppTheme.lightGreen,
                                 size: 16,
                               );
-                            } else if (starIndex - rating < 1 && starIndex - rating > 0) {
+                            } else if (starIndex - rating < 1 &&
+                                starIndex - rating > 0) {
                               // Half star
                               return const Icon(
                                 Icons.star_half,
@@ -1225,7 +1234,7 @@ class AgentProfileView extends GetView<AgentProfileController> {
                 ),
               ),
               const SizedBox(height: 16),
-              
+
               // Loading state
               if (isLoading)
                 Center(
@@ -1240,9 +1249,8 @@ class AgentProfileView extends GetView<AgentProfileController> {
                         const SizedBox(height: 16),
                         Text(
                           'Loading properties...',
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: AppTheme.mediumGray,
-                          ),
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(color: AppTheme.mediumGray),
                         ),
                       ],
                     ),
@@ -1263,16 +1271,14 @@ class AgentProfileView extends GetView<AgentProfileController> {
                         const SizedBox(height: 16),
                         Text(
                           'No Properties Listed',
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            color: AppTheme.darkGray,
-                          ),
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(color: AppTheme.darkGray),
                         ),
                         const SizedBox(height: 8),
                         Text(
                           'This agent hasn\'t listed any properties yet',
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: AppTheme.mediumGray,
-                          ),
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(color: AppTheme.mediumGray),
                           textAlign: TextAlign.center,
                         ),
                       ],
@@ -1316,7 +1322,9 @@ class AgentProfileView extends GetView<AgentProfileController> {
                   borderRadius: const BorderRadius.vertical(
                     top: Radius.circular(12),
                   ),
-                  child: property['image'] != null && property['image'].toString().isNotEmpty
+                  child:
+                      property['image'] != null &&
+                          property['image'].toString().isNotEmpty
                       ? CachedNetworkImage(
                           imageUrl: property['image'],
                           height: 200,
@@ -1445,7 +1453,10 @@ class AgentProfileView extends GetView<AgentProfileController> {
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: (property['rawStatus'] == 'active' && property['isActive'] == true) || property['status'] == 'For Sale'
+                        color:
+                            (property['rawStatus'] == 'active' &&
+                                    property['isActive'] == true) ||
+                                property['status'] == 'For Sale'
                             ? AppTheme.lightGreen.withOpacity(0.1)
                             : AppTheme.mediumGray.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(12),
@@ -1453,7 +1464,10 @@ class AgentProfileView extends GetView<AgentProfileController> {
                       child: Text(
                         property['status'],
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: (property['rawStatus'] == 'active' && property['isActive'] == true) || property['status'] == 'For Sale'
+                          color:
+                              (property['rawStatus'] == 'active' &&
+                                      property['isActive'] == true) ||
+                                  property['status'] == 'For Sale'
                               ? AppTheme.lightGreen
                               : AppTheme.mediumGray,
                           fontWeight: FontWeight.w600,
@@ -1461,7 +1475,9 @@ class AgentProfileView extends GetView<AgentProfileController> {
                       ),
                     ),
                     const Spacer(),
-                    if ((property['rawStatus'] == 'active' && property['isActive'] == true) || property['status'] == 'For Sale')
+                    if ((property['rawStatus'] == 'active' &&
+                            property['isActive'] == true) ||
+                        property['status'] == 'For Sale')
                       ElevatedButton(
                         onPressed: () => _openBuyerLeadForm(property),
                         style: ElevatedButton.styleFrom(
@@ -1494,21 +1510,20 @@ class AgentProfileView extends GetView<AgentProfileController> {
   void _openBuyerLeadForm(Map<String, dynamic> property) {
     // Convert AgentModel to map for passing to lead form
     final agent = controller.agent;
-    final agentMap = agent != null ? {
-      'id': agent.id,
-      '_id': agent.id,
-      'name': agent.name,
-      'email': agent.email,
-      'phone': agent.phone,
-      'profileImage': agent.profileImage,
-    } : null;
-    
+    final agentMap = agent != null
+        ? {
+            'id': agent.id,
+            '_id': agent.id,
+            'name': agent.name,
+            'email': agent.email,
+            'phone': agent.phone,
+            'profileImage': agent.profileImage,
+          }
+        : null;
+
     Get.toNamed(
       '/buyer-lead-form',
-      arguments: {
-        'property': property, 
-        'agent': agentMap,
-      },
+      arguments: {'property': property, 'agent': agentMap},
     );
   }
 
@@ -1528,10 +1543,12 @@ class _YouTubePlayerWithThumbnail extends StatefulWidget {
   });
 
   @override
-  State<_YouTubePlayerWithThumbnail> createState() => _YouTubePlayerWithThumbnailState();
+  State<_YouTubePlayerWithThumbnail> createState() =>
+      _YouTubePlayerWithThumbnailState();
 }
 
-class _YouTubePlayerWithThumbnailState extends State<_YouTubePlayerWithThumbnail> {
+class _YouTubePlayerWithThumbnailState
+    extends State<_YouTubePlayerWithThumbnail> {
   late YoutubePlayerController _youtubeController;
   bool _isPlayerReady = false;
 
@@ -1671,7 +1688,8 @@ class _DirectVideoPlayerWidget extends StatefulWidget {
   const _DirectVideoPlayerWidget({required this.videoUrl});
 
   @override
-  State<_DirectVideoPlayerWidget> createState() => _DirectVideoPlayerWidgetState();
+  State<_DirectVideoPlayerWidget> createState() =>
+      _DirectVideoPlayerWidgetState();
 }
 
 class _DirectVideoPlayerWidgetState extends State<_DirectVideoPlayerWidget> {
@@ -1696,9 +1714,7 @@ class _DirectVideoPlayerWidgetState extends State<_DirectVideoPlayerWidget> {
       try {
         _controller = VideoPlayerController.networkUrl(
           Uri.parse(widget.videoUrl),
-          httpHeaders: const {
-            'Accept': 'video/*',
-          },
+          httpHeaders: const {'Accept': 'video/*'},
         );
 
         await _controller!.initialize();
@@ -1710,9 +1726,7 @@ class _DirectVideoPlayerWidgetState extends State<_DirectVideoPlayerWidget> {
         _controller?.dispose();
         _controller = VideoPlayerController.network(
           widget.videoUrl,
-          httpHeaders: const {
-            'Accept': 'video/*',
-          },
+          httpHeaders: const {'Accept': 'video/*'},
         );
         await _controller!.initialize();
       }
@@ -1726,7 +1740,9 @@ class _DirectVideoPlayerWidgetState extends State<_DirectVideoPlayerWidget> {
 
       // Add listener for video completion
       _controller!.addListener(() {
-        if (mounted && _controller != null && _controller!.value.isInitialized) {
+        if (mounted &&
+            _controller != null &&
+            _controller!.value.isInitialized) {
           if (_controller!.value.position >= _controller!.value.duration) {
             setState(() {
               _isPlaying = false;
@@ -1792,9 +1808,7 @@ class _DirectVideoPlayerWidgetState extends State<_DirectVideoPlayerWidget> {
       decoration: BoxDecoration(
         color: AppTheme.lightGray,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: AppTheme.mediumGray.withOpacity(0.3),
-        ),
+        border: Border.all(color: AppTheme.mediumGray.withOpacity(0.3)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.1),
@@ -1821,10 +1835,7 @@ class _DirectVideoPlayerWidgetState extends State<_DirectVideoPlayerWidget> {
                       size: 64,
                     ),
                     const SizedBox(height: 12),
-                    SpinKitFadingCircle(
-                      color: AppTheme.primaryBlue,
-                      size: 40,
-                    ),
+                    SpinKitFadingCircle(color: AppTheme.primaryBlue, size: 40),
                   ],
                 ),
               ),
@@ -1859,24 +1870,18 @@ class _DirectVideoPlayerWidgetState extends State<_DirectVideoPlayerWidget> {
       decoration: BoxDecoration(
         color: AppTheme.lightGray,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: AppTheme.mediumGray.withOpacity(0.3),
-        ),
+        border: Border.all(color: AppTheme.mediumGray.withOpacity(0.3)),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.error_outline,
-            size: 48,
-            color: AppTheme.mediumGray,
-          ),
+          Icon(Icons.error_outline, size: 48, color: AppTheme.mediumGray),
           const SizedBox(height: 8),
           Text(
             'Unable to load video',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: AppTheme.mediumGray,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: AppTheme.mediumGray),
           ),
           const SizedBox(height: 12),
           Row(
@@ -1890,7 +1895,11 @@ class _DirectVideoPlayerWidgetState extends State<_DirectVideoPlayerWidget> {
                   });
                   _initializeVideo();
                 },
-                icon: Icon(Icons.refresh, size: 18, color: AppTheme.primaryBlue),
+                icon: Icon(
+                  Icons.refresh,
+                  size: 18,
+                  color: AppTheme.primaryBlue,
+                ),
                 label: Text(
                   'Retry',
                   style: TextStyle(color: AppTheme.primaryBlue),
@@ -1902,7 +1911,10 @@ class _DirectVideoPlayerWidgetState extends State<_DirectVideoPlayerWidget> {
                   try {
                     final uri = Uri.parse(widget.videoUrl);
                     if (await canLaunchUrl(uri)) {
-                      await launchUrl(uri, mode: LaunchMode.externalApplication);
+                      await launchUrl(
+                        uri,
+                        mode: LaunchMode.externalApplication,
+                      );
                     }
                   } catch (e) {
                     if (kDebugMode) {
@@ -1910,7 +1922,11 @@ class _DirectVideoPlayerWidgetState extends State<_DirectVideoPlayerWidget> {
                     }
                   }
                 },
-                icon: Icon(Icons.open_in_new, size: 18, color: AppTheme.primaryBlue),
+                icon: Icon(
+                  Icons.open_in_new,
+                  size: 18,
+                  color: AppTheme.primaryBlue,
+                ),
                 label: Text(
                   'Open in Browser',
                   style: TextStyle(color: AppTheme.primaryBlue),
@@ -1978,10 +1994,7 @@ class _DirectVideoPlayerWidgetState extends State<_DirectVideoPlayerWidget> {
                   gradient: LinearGradient(
                     begin: Alignment.bottomCenter,
                     end: Alignment.topCenter,
-                    colors: [
-                      Colors.black.withOpacity(0.7),
-                      Colors.transparent,
-                    ],
+                    colors: [Colors.black.withOpacity(0.7), Colors.transparent],
                   ),
                 ),
                 padding: const EdgeInsets.all(8),
@@ -2042,7 +2055,8 @@ class _WebViewVideoPlayerWidget extends StatefulWidget {
   const _WebViewVideoPlayerWidget({required this.videoUrl});
 
   @override
-  State<_WebViewVideoPlayerWidget> createState() => _WebViewVideoPlayerWidgetState();
+  State<_WebViewVideoPlayerWidget> createState() =>
+      _WebViewVideoPlayerWidgetState();
 }
 
 class _WebViewVideoPlayerWidgetState extends State<_WebViewVideoPlayerWidget> {
@@ -2062,7 +2076,8 @@ class _WebViewVideoPlayerWidgetState extends State<_WebViewVideoPlayerWidget> {
     }
 
     // Create HTML with HTML5 video player
-    final htmlContent = '''
+    final htmlContent =
+        '''
 <!DOCTYPE html>
 <html>
 <head>
@@ -2195,24 +2210,18 @@ class _WebViewVideoPlayerWidgetState extends State<_WebViewVideoPlayerWidget> {
       decoration: BoxDecoration(
         color: AppTheme.lightGray,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: AppTheme.mediumGray.withOpacity(0.3),
-        ),
+        border: Border.all(color: AppTheme.mediumGray.withOpacity(0.3)),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.error_outline,
-            size: 48,
-            color: AppTheme.mediumGray,
-          ),
+          Icon(Icons.error_outline, size: 48, color: AppTheme.mediumGray),
           const SizedBox(height: 8),
           Text(
             'Unable to load video',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: AppTheme.mediumGray,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: AppTheme.mediumGray),
           ),
           const SizedBox(height: 12),
           TextButton.icon(
@@ -2224,10 +2233,7 @@ class _WebViewVideoPlayerWidgetState extends State<_WebViewVideoPlayerWidget> {
               _initializeWebView();
             },
             icon: Icon(Icons.refresh, size: 18, color: AppTheme.primaryBlue),
-            label: Text(
-              'Retry',
-              style: TextStyle(color: AppTheme.primaryBlue),
-            ),
+            label: Text('Retry', style: TextStyle(color: AppTheme.primaryBlue)),
           ),
         ],
       ),

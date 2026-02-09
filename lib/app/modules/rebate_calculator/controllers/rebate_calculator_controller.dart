@@ -25,7 +25,8 @@ class RebateCalculatorController extends GetxController {
   // FORM CONTROLLERS - Only Sales Price, BAC, and State needed
   final homePriceController = TextEditingController();
   final agentCommissionController = TextEditingController();
-  final sellerOriginalFeeController = TextEditingController(); // For Mode 2 (Seller Conversion)
+  final sellerOriginalFeeController =
+      TextEditingController(); // For Mode 2 (Seller Conversion)
 
   // DROPDOWNS
   final _selectedState = 'CA'.obs; // Default to California (rebates allowed)
@@ -120,14 +121,16 @@ class RebateCalculatorController extends GetxController {
   // Seller-specific limitations (currently only New Jersey)
   static const Set<String> _sellerRebateLimitedStates = {'NJ'};
 
-  late final List<String> _allowedStates =
-      _allStates.where((state) => !_restrictedStates.contains(state)).toList();
+  late final List<String> _allowedStates = _allStates
+      .where((state) => !_restrictedStates.contains(state))
+      .toList();
 
   List<String> get allowedStates => _allowedStates;
 
   // GETTERS
   String get selectedState => _selectedState.value;
-  bool get isStateRestricted => _restrictedStates.contains(_selectedState.value);
+  bool get isStateRestricted =>
+      _restrictedStates.contains(_selectedState.value);
   bool get shouldShowSellerRestriction =>
       _sellerRebateLimitedStates.contains(_selectedState.value);
 
@@ -226,7 +229,7 @@ class RebateCalculatorController extends GetxController {
   void _updateFormValidity() {
     final priceText = homePriceController.text.replaceAll(RegExp(r'[,\$]'), '');
     final price = double.tryParse(priceText);
-    
+
     String commissionText;
     if (currentMode.value == 2) {
       commissionText = sellerOriginalFeeController.text;
@@ -235,9 +238,10 @@ class RebateCalculatorController extends GetxController {
     }
     final commission = double.tryParse(commissionText);
 
-    _isFormValid.value = (price != null && price > 0) &&
-           (commission != null && commission > 0) &&
-           _selectedState.value.isNotEmpty;
+    _isFormValid.value =
+        (price != null && price > 0) &&
+        (commission != null && commission > 0) &&
+        _selectedState.value.isNotEmpty;
   }
 
   // MAIN CALCULATION - Only uses Sales Price and BAC
@@ -247,8 +251,9 @@ class RebateCalculatorController extends GetxController {
     if (_hasApiResultForCurrentMode() || isLoading) {
       return;
     }
-    
-    final price = double.tryParse(homePriceController.text.replaceAll(',', '')) ?? 0.0;
+
+    final price =
+        double.tryParse(homePriceController.text.replaceAll(',', '')) ?? 0.0;
     final agentRate = double.tryParse(agentCommissionController.text) ?? 0.0;
     final sellerFeeRate =
         double.tryParse(sellerOriginalFeeController.text) ?? agentRate;
@@ -428,7 +433,7 @@ class RebateCalculatorController extends GetxController {
   bool _validateInputs() {
     final priceText = homePriceController.text.replaceAll(RegExp(r'[,\$]'), '');
     final price = double.tryParse(priceText);
-    
+
     String commissionText;
     if (currentMode.value == 2) {
       commissionText = sellerOriginalFeeController.text;
@@ -675,7 +680,8 @@ class RebateCalculatorController extends GetxController {
   bool _hasApiResultForCurrentMode() {
     switch (currentMode.value) {
       case 0:
-        return apiResultEstimated.value != null && apiResultEstimated.value!.success;
+        return apiResultEstimated.value != null &&
+            apiResultEstimated.value!.success;
       case 1:
         return apiResultActual.value != null && apiResultActual.value!.success;
       case 2:

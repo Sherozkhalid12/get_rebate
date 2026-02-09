@@ -51,8 +51,10 @@ class AgentController extends GetxController {
   final _selectedTab = 0
       .obs; // 0: Dashboard, 1: ZIP Management, 2: My Listings, 3: Stats, 4: Billing, 5: Leads
   final _recentlyActivatedListingId = Rxn<String>();
+
   /// Session-only flag: user tapped Skip on ZIP selection screen (no persistence).
   final _hasSkippedZipSelection = false.obs;
+
   /// From API: true = old user (has claimed before), false = new user. Null = not yet loaded, fallback to claimedZipCodes.isEmpty.
   final _firstZipCodeClaimed = Rxn<bool>();
 
@@ -108,6 +110,7 @@ class AgentController extends GetxController {
   String? get selectedState => _selectedState.value;
   int get selectedTab => _selectedTab.value;
   String? get recentlyActivatedListingId => _recentlyActivatedListingId.value;
+
   /// True once we've received firstZipCodeClaimed from API. Use to avoid flicker: show loading until known.
   bool get isZipClaimStatusKnown => _firstZipCodeClaimed.value != null;
 
@@ -120,6 +123,7 @@ class AgentController extends GetxController {
     if (firstClaimed != false) return false;
     return !_hasSkippedZipSelection.value;
   }
+
   MarketStatus? get selectedStatusFilter => _selectedStatusFilter.value;
   String get searchQuery => _searchQuery.value;
   bool isWaitingListProcessing(String zipCode) =>
@@ -383,16 +387,16 @@ class AgentController extends GetxController {
     final claimedZipCodeStrings = _claimedZipCodes
         .map((zip) => zip.zipCode)
         .toSet();
-    
+
     return zipCodes.where((zip) {
       // Exclude zip codes with zero population
       if (zip.population <= 0) return false;
-      
+
       // Only exclude zip codes that are claimed by the CURRENT user
       // Don't filter by zip.claimedByAgent == true because that indicates ANY agent claimed it,
       // not necessarily the current user. Other users should still see zip codes claimed by other agents.
       if (claimedZipCodeStrings.contains(zip.zipCode)) return false;
-      
+
       return true;
     }).toList();
   }
@@ -516,7 +520,7 @@ class AgentController extends GetxController {
     final claimedZipCodeStrings = _claimedZipCodes
         .map((zip) => zip.zipCode)
         .toSet();
-    
+
     for (final zip in zipCodes) {
       final zipId = zip.id ?? zip.zipCode;
       // Only prefetch if this zip code is claimed by the current user
@@ -767,7 +771,7 @@ class AgentController extends GetxController {
             ..clear()
             ..addAll(claimedZips);
           _persistClaimedZipCodesToStorage();
-          
+
           // Remove only zip codes claimed by the CURRENT user from available list
           // Don't remove zip codes claimed by other users (zip.claimedByAgent == true)
           // because other users should still see those zip codes as available
@@ -777,7 +781,7 @@ class AgentController extends GetxController {
           _availableZipCodes.removeWhere(
             (zip) => claimedZipCodeStrings.contains(zip.zipCode),
           );
-          
+
           if (kDebugMode) {
             print(
               '✅ Claimed ZIP codes synced from API: '
@@ -1418,7 +1422,8 @@ class AgentController extends GetxController {
 
       // Call cancelSubscription API first; only on 200 OK proceed to release
       final activeSub = activeSubscriptionFromAPI;
-      final stripeSubscriptionId = activeSub?['stripeSubscriptionId']?.toString() ??
+      final stripeSubscriptionId =
+          activeSub?['stripeSubscriptionId']?.toString() ??
           activeSub?['_id']?.toString() ??
           '';
 
@@ -1502,13 +1507,15 @@ class AgentController extends GetxController {
         );
       });
     } on DioException catch (e) {
-      final message = e.response?.data is Map &&
+      final message =
+          e.response?.data is Map &&
               (e.response?.data as Map).containsKey('message')
           ? (e.response!.data as Map)['message'].toString()
           : null;
       NetworkErrorHandler.handleError(
         e,
-        defaultMessage: message ??
+        defaultMessage:
+            message ??
             'Unable to release ZIP code. Please check your internet connection and try again.',
       );
     } catch (e) {
@@ -1685,7 +1692,9 @@ class AgentController extends GetxController {
   void filterZipCodesBySearch(String query) {
     final q = query.trim().toLowerCase();
     if (q.isEmpty) {
-      _availableZipCodes.value = _filterAvailableZipCodes(_stateZipCodesFromApi);
+      _availableZipCodes.value = _filterAvailableZipCodes(
+        _stateZipCodesFromApi,
+      );
       return;
     }
     final filtered = _stateZipCodesFromApi
@@ -1701,7 +1710,9 @@ class AgentController extends GetxController {
         zipCode.length == 5 &&
         RegExp(r'^\d+$').hasMatch(zipCode)) {
       zipSearchController.text = zipCode;
-      zipSearchController.selection = TextSelection.collapsed(offset: zipCode.length);
+      zipSearchController.selection = TextSelection.collapsed(
+        offset: zipCode.length,
+      );
       onZipSearchChanged(zipCode);
     } else {
       SnackbarHelper.showInfo(
@@ -1721,7 +1732,10 @@ class AgentController extends GetxController {
       return;
     }
     if (q.length == 5 && RegExp(r'^\d{5}$').hasMatch(q)) {
-      _zipVerifyDebounce = Timer(const Duration(milliseconds: 400), _validateAndFetchZip);
+      _zipVerifyDebounce = Timer(
+        const Duration(milliseconds: 400),
+        _validateAndFetchZip,
+      );
       return;
     }
     filterZipCodesBySearch(query);
@@ -1749,7 +1763,9 @@ class AgentController extends GetxController {
       _availableZipCodes.clear();
     } catch (e) {
       if (kDebugMode) print('❌ Validate ZIP: $e');
-      SnackbarHelper.showError('Failed to validate or fetch ZIP: ${e.toString()}');
+      SnackbarHelper.showError(
+        'Failed to validate or fetch ZIP: ${e.toString()}',
+      );
       _availableZipCodes.clear();
     } finally {
       _isLoadingZipCodes.value = false;
@@ -2006,7 +2022,10 @@ class AgentController extends GetxController {
     String userId,
   ) async {
     final authToken = _storage.read('auth_token');
-    final path = ApiConstants.cancelSubscriptionEndpoint.replaceFirst(_baseUrl, '');
+    final path = ApiConstants.cancelSubscriptionEndpoint.replaceFirst(
+      _baseUrl,
+      '',
+    );
     // Backend expects stripeSubscriptionId (e.g. sub_xxx or pi_xxx) in subscriptionId field
     final body = {'subscriptionId': subscriptionId, 'userId': userId};
     if (kDebugMode) {
@@ -2026,13 +2045,9 @@ class AgentController extends GetxController {
     );
     if (response.statusCode == 200) {
       final data = response.data;
-      return data is Map<String, dynamic>
-          ? data
-          : <String, dynamic>{};
+      return data is Map<String, dynamic> ? data : <String, dynamic>{};
     }
-    throw Exception(
-      'Cancel subscription failed: ${response.statusCode}',
-    );
+    throw Exception('Cancel subscription failed: ${response.statusCode}');
   }
 
   /// Cancels a specific subscription (by stripeCustomerId for UI, uses subscriptionId + userId for API).
@@ -2051,8 +2066,7 @@ class AgentController extends GetxController {
       if (stripeCustomerId != null && stripeCustomerId.isNotEmpty) {
         try {
           activeSub = _subscriptions.firstWhere(
-            (sub) =>
-                sub['stripeCustomerId']?.toString() == stripeCustomerId,
+            (sub) => sub['stripeCustomerId']?.toString() == stripeCustomerId,
           );
         } catch (_) {
           activeSub = null;
@@ -2066,7 +2080,8 @@ class AgentController extends GetxController {
         return;
       }
 
-      final stripeSubscriptionId = activeSub['stripeSubscriptionId']?.toString() ??
+      final stripeSubscriptionId =
+          activeSub['stripeSubscriptionId']?.toString() ??
           activeSub['_id']?.toString() ??
           '';
       if (stripeSubscriptionId.isEmpty) {
@@ -2087,8 +2102,10 @@ class AgentController extends GetxController {
         print('   userId: $userId');
       }
 
-      final responseData =
-          await _callCancelSubscriptionApi(stripeSubscriptionId, userId);
+      final responseData = await _callCancelSubscriptionApi(
+        stripeSubscriptionId,
+        userId,
+      );
 
       if (kDebugMode) {
         print('📥 Cancel subscription response: 200 OK');
@@ -2137,8 +2154,8 @@ class AgentController extends GetxController {
         } else if (e.response?.statusCode == 400) {
           errorMessage =
               (responseData is Map && responseData.containsKey('message'))
-                  ? responseData['message'].toString()
-                  : 'Invalid request. Please contact support.';
+              ? responseData['message'].toString()
+              : 'Invalid request. Please contact support.';
         } else if (e.type == DioExceptionType.connectionTimeout ||
             e.type == DioExceptionType.receiveTimeout) {
           errorMessage = 'Request timed out. Please try again.';
