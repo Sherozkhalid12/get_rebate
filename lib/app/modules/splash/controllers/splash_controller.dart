@@ -19,7 +19,7 @@ class SplashController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    print('Splash: Controller initialized');
+    print('Splash: Controller initialized — all checks and controllers run during splash');
     _startTimer();
   }
 
@@ -30,8 +30,10 @@ class SplashController extends GetxController {
   }
 
   void _startTimer() {
-    print('Splash: Starting 0.8-second timer for faster loading...');
-    Timer(const Duration(milliseconds: 800), () {
+    print('Splash: Starting 1.5-second timer to show splash with text...');
+    // Increased timer to 1.5s so user can see the Flutter splash with text
+    // (native splash removed after ~100ms, then Flutter splash shows with text)
+    Timer(const Duration(milliseconds: 1500), () {
       print('Splash: Timer completed, checking auth status...');
       _checkAuthAndNavigate();
     });
@@ -83,7 +85,6 @@ class SplashController extends GetxController {
       }
     } catch (e) {
       print('Splash: Error checking auth status: $e');
-      // If error occurs, navigate to onboarding as fallback
       _navigateToOnboarding();
     }
   }

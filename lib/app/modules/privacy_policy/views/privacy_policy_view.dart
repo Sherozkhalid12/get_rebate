@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
+import 'package:getrebate/app/widgets/compliance_footer.dart';
 
 class PrivacyPolicyView extends StatelessWidget {
   const PrivacyPolicyView({super.key});
@@ -144,6 +145,7 @@ class PrivacyPolicyView extends StatelessWidget {
                     '[Your Business Address]',
               ),
 
+              const ComplianceFooter(),
               SizedBox(height: 32.h),
             ],
           ),

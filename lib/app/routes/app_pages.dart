@@ -65,6 +65,8 @@ import 'package:getrebate/app/modules/help_support/views/help_support_view.dart'
 import 'package:getrebate/app/modules/help_support/bindings/help_support_binding.dart';
 import 'package:getrebate/app/modules/terms_of_service/views/terms_of_service_view.dart';
 import 'package:getrebate/app/modules/terms_of_service/bindings/terms_of_service_binding.dart';
+import 'package:getrebate/app/modules/about_legal/views/about_legal_view.dart';
+import 'package:getrebate/app/modules/about_legal/bindings/about_legal_binding.dart';
 import 'package:getrebate/app/modules/notifications/views/notifications_view.dart';
 import 'package:getrebate/app/modules/notifications/bindings/notifications_binding.dart';
 import 'package:getrebate/app/modules/proposals/views/proposals_view.dart';
@@ -106,6 +108,7 @@ class AppPages {
   static const PRIVACY_POLICY = '/privacy-policy';
   static const HELP_SUPPORT = '/help-support';
   static const TERMS_OF_SERVICE = '/terms-of-service';
+  static const ABOUT_LEGAL = '/about-legal';
   static const NOTIFICATIONS = '/notifications';
   static const PROPOSALS = '/proposals';
   static const LEAD_DETAIL = '/lead-detail';
@@ -267,6 +270,11 @@ class AppPages {
       name: TERMS_OF_SERVICE,
       page: () => const TermsOfServiceView(),
       binding: TermsOfServiceBinding(),
+    ),
+    GetPage(
+      name: ABOUT_LEGAL,
+      page: () => const AboutLegalView(),
+      binding: AboutLegalBinding(),
     ),
     GetPage(
       name: NOTIFICATIONS,

@@ -1625,31 +1625,6 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                       isLoading: controller.isZipCodeLoading(zip.postalCode),
                     ),
                     const SizedBox(height: 8),
-                    GestureDetector(
-                      onTap: controller.isZipCodeLoading(zip.postalCode)
-                          ? null
-                          : () async {
-                              final promoCode = await controller
-                                  .showPromoCodeBottomSheet();
-                              if (promoCode == null || promoCode.isEmpty) {
-                                return;
-                              }
-                              if (kDebugMode) {
-                                print(
-                                  '📝 Promo code entered (frontend only): $promoCode',
-                                );
-                              }
-                              if (!controller.isZipCodeLoading(zip.postalCode)) {
-                                controller.claimZipCode(zip);
-                              }
-                            },
-                      child: Text(
-                        'Have a promo code?',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppTheme.mediumGray,
-                        ),
-                      ),
-                    ),
                   ],
                 ),
               ),

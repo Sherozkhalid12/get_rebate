@@ -20,6 +20,7 @@ import 'package:getrebate/app/modules/agent/views/waiting_list_page.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 
+
 class AgentView extends GetView<AgentController> {
   const AgentView({super.key});
 
@@ -1291,6 +1292,7 @@ class AgentView extends GetView<AgentController> {
           // Enhanced Stats Section
           _buildListingStats(context),
 
+          
           const SizedBox(height: 24),
 
           // Listings List

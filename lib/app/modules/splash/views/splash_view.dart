@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/modules/splash/controllers/splash_controller.dart';
 
@@ -11,6 +12,16 @@ class SplashView extends GetView<SplashController> {
   @override
   Widget build(BuildContext context) {
     print('Splash: View building...');
+    
+    // Remove native splash after first frame so Flutter splash with text shows
+    // Wait a tiny bit to ensure Flutter splash is fully rendered
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Future.delayed(const Duration(milliseconds: 100), () {
+        FlutterNativeSplash.remove();
+        print('Splash: Native splash removed, Flutter splash with text now visible');
+      });
+    });
+    
     return Scaffold(
       backgroundColor: AppTheme.primaryBlue,
       body: Center(
@@ -32,10 +43,14 @@ class SplashView extends GetView<SplashController> {
                       ),
                     ],
                   ),
-                  child: Icon(
-                    Icons.home_work,
-                    size: 60.sp,
-                    color: AppTheme.primaryBlue,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(24.r),
+                    child: Image.asset(
+                      'assets/images/mainlogo.png',
+                      fit: BoxFit.contain,
+                      width: 120.w,
+                      height: 120.w,
+                    ),
                   ),
                 )
                 .animate()

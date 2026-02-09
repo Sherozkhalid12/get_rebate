@@ -6,8 +6,9 @@ import 'package:getrebate/app/controllers/auth_controller.dart' as global;
 import 'package:getrebate/app/models/user_model.dart';
 import 'package:getrebate/app/modules/auth/services/pending_signup_store.dart';
 import 'package:getrebate/app/routes/app_pages.dart';
-import 'package:getrebate/app/utils/connectivity_helper.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
+
+import '../../../utils/connectivity_helper.dart';
 
 class VerifyOtpController extends GetxController {
   global.AuthController get _authController => Get.find<global.AuthController>();

@@ -13,7 +13,7 @@
         android:required="false"/>
     
     <application
-        android:label="getrebate"
+        android:label="GetaRebate"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="true"

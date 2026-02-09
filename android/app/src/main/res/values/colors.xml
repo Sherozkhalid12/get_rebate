@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Matches Flutter AppTheme.primaryBlue #2563EB - used for launch screen -->
+    <color name="launch_background_blue">#FF2563EB</color>
+	<color name="ic_launcher_background">#2563EB</color>
+</resources>

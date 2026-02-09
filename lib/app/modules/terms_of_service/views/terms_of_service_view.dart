@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
+import 'package:getrebate/app/widgets/compliance_footer.dart';
 
 class TermsOfServiceView extends StatelessWidget {
   const TermsOfServiceView({super.key});
@@ -170,6 +171,7 @@ class TermsOfServiceView extends StatelessWidget {
                 '[Your Business Address]',
               ),
               
+              const ComplianceFooter(),
               SizedBox(height: 32.h),
             ],
           ),

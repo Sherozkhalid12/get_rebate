@@ -480,6 +480,14 @@ class ProfileView extends GetView<ProfileController> {
           Divider(height: 1, indent: 60.w),
           _buildSettingTile(
             context,
+            icon: Icons.info_outline,
+            title: 'About & Legal',
+            subtitle: 'Licensing, equal housing & MLS',
+            onTap: () => Get.toNamed('/about-legal'),
+          ),
+          Divider(height: 1, indent: 60.w),
+          _buildSettingTile(
+            context,
             icon: Icons.help_outline,
             title: 'Help & Support',
             subtitle: 'Get help or contact support',

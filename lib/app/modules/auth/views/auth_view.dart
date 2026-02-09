@@ -59,10 +59,14 @@ class AuthView extends GetView<AuthViewController> {
                 color: AppTheme.primaryBlue.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(20),
               ),
-              child: const Icon(
-                Icons.home_work,
-                size: 40,
-                color: AppTheme.primaryBlue,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: Image.asset(
+                  'assets/images/mainlogo.png',
+                  fit: BoxFit.contain,
+                  width: 80,
+                  height: 80,
+                ),
               ),
             )
             .animate()
