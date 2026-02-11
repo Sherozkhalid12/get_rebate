@@ -61,10 +61,9 @@ class ZipCodeService {
 
   /// Converts full state name to two-letter abbreviation
   /// Returns the original string if conversion fails
+  /// Only includes states where rebates are allowed
   String _convertStateNameToAbbreviation(String stateName) {
     const stateMap = {
-      'Alabama': 'AL',
-      'Alaska': 'AK',
       'Arizona': 'AZ',
       'Arkansas': 'AR',
       'California': 'CA',
@@ -77,17 +76,12 @@ class ZipCodeService {
       'Idaho': 'ID',
       'Illinois': 'IL',
       'Indiana': 'IN',
-      'Iowa': 'IA',
-      'Kansas': 'KS',
       'Kentucky': 'KY',
-      'Louisiana': 'LA',
       'Maine': 'ME',
       'Maryland': 'MD',
       'Massachusetts': 'MA',
       'Michigan': 'MI',
       'Minnesota': 'MN',
-      'Mississippi': 'MS',
-      'Missouri': 'MO',
       'Montana': 'MT',
       'Nebraska': 'NE',
       'Nevada': 'NV',
@@ -98,13 +92,10 @@ class ZipCodeService {
       'North Carolina': 'NC',
       'North Dakota': 'ND',
       'Ohio': 'OH',
-      'Oklahoma': 'OK',
-      'Oregon': 'OR',
       'Pennsylvania': 'PA',
       'Rhode Island': 'RI',
       'South Carolina': 'SC',
       'South Dakota': 'SD',
-      'Tennessee': 'TN',
       'Texas': 'TX',
       'Utah': 'UT',
       'Vermont': 'VT',

@@ -152,39 +152,6 @@ class RebateCalculatorView extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Obx(() {
-              if (c.isStateRestricted) {
-                return Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.red.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.red.shade300),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.warning_amber_rounded,
-                        color: Colors.red.shade700,
-                        size: 20,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          c.getStateRestrictionMessage(c.selectedState),
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.red.shade900,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }
-              return const SizedBox.shrink();
-            }),
-            Obx(() {
               if (!c.shouldShowSellerRestriction) {
                 return const SizedBox.shrink();
               }
@@ -477,70 +444,6 @@ class RebateCalculatorView extends StatelessWidget {
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 20),
-
-            // State restriction warning in results
-            Obx(() {
-              if (c.isStateRestricted) {
-                return Column(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.red.shade50,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: Colors.red.shade300,
-                          width: 2,
-                        ),
-                      ),
-                      child: Column(
-                        children: [
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.block,
-                                color: Colors.red.shade700,
-                                size: 24,
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Text(
-                                  'Rebates Not Available in ${c.selectedState}',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: Colors.red.shade900,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            c.getStateRestrictionMessage(c.selectedState),
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.red.shade800,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          const Text(
-                            'The calculations shown are for informational purposes only and may not apply in your state. Please consult with a licensed real estate professional in your area.',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: Colors.black87,
-                              fontStyle: FontStyle.italic,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                  ],
-                );
-              }
-              return const SizedBox.shrink();
-            }),
 
             // MODE 0: Tiers
             if (c.currentMode.value == 0) ...[

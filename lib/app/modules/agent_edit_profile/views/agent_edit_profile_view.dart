@@ -559,9 +559,8 @@ class _AgentEditProfileViewState extends State<AgentEditProfileView> {
   }
 
   Widget _buildLicensedStatesSection(BuildContext context) {
+    // Only include states where rebates are allowed
     final usStates = [
-      'AL',
-      'AK',
       'AZ',
       'AR',
       'CA',
@@ -574,17 +573,12 @@ class _AgentEditProfileViewState extends State<AgentEditProfileView> {
       'ID',
       'IL',
       'IN',
-      'IA',
-      'KS',
       'KY',
-      'LA',
       'ME',
       'MD',
       'MA',
       'MI',
       'MN',
-      'MS',
-      'MO',
       'MT',
       'NE',
       'NV',
@@ -595,13 +589,10 @@ class _AgentEditProfileViewState extends State<AgentEditProfileView> {
       'NC',
       'ND',
       'OH',
-      'OK',
-      'OR',
       'PA',
       'RI',
       'SC',
       'SD',
-      'TN',
       'TX',
       'UT',
       'VT',

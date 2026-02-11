@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart' as global;
 import 'package:getrebate/app/models/zip_code_model.dart';
 import 'package:getrebate/app/modules/agent/controllers/agent_controller.dart';
+import 'package:getrebate/app/services/zip_codes_service.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
 import 'package:get_storage/get_storage.dart';
@@ -25,6 +26,10 @@ class AddListingController extends GetxController {
   final stateController = TextEditingController();
   final zipCodeController = TextEditingController();
   final _selectedClaimedZip = Rxn<ZipCodeModel>();
+  final _listingCountForSelectedZip = 0.obs; // Listing count for selected ZIP code from API
+  final _isLoadingListingCount = false.obs;
+
+  int get listingCountForSelectedZip => _listingCountForSelectedZip.value;
 
   // Observable variables
   final _isLoading = false.obs;
@@ -130,8 +135,50 @@ class AddListingController extends GetxController {
     if (zip != null) {
       zipCodeController.text = zip.zipCode;
       stateController.text = zip.state;
+      // Fetch listing count for this ZIP code from API
+      _fetchListingCountForZipCode(zip.zipCode);
+    } else {
+      _listingCountForSelectedZip.value = 0;
     }
   }
+
+  /// Fetches the listing count for a ZIP code from the API
+  Future<void> _fetchListingCountForZipCode(String zipCode) async {
+    try {
+      _isLoadingListingCount.value = true;
+      final authController = Get.find<global.AuthController>();
+      final userId = authController.currentUser?.id ?? '';
+      
+      if (userId.isEmpty) {
+        if (kDebugMode) print('⚠️ Cannot fetch listing count: User ID is empty');
+        _listingCountForSelectedZip.value = 0;
+        return;
+      }
+
+      final zipCodesService = ZipCodesService();
+      final count = await zipCodesService.getZipListingsCount(
+        userId: userId,
+        zipCode: zipCode,
+      );
+      
+      _listingCountForSelectedZip.value = count;
+      
+      if (kDebugMode) {
+        print('✅ Listing count for ZIP $zipCode: $count');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Failed to fetch listing count for ZIP $zipCode: $e');
+      }
+      // On error, fall back to local count from agent controller
+      final agentController = Get.find<AgentController>();
+      _listingCountForSelectedZip.value = agentController.getListingCountForZipCode(zipCode);
+    } finally {
+      _isLoadingListingCount.value = false;
+    }
+  }
+
+  bool get isLoadingListingCount => _isLoadingListingCount.value;
 
   void addPhoto(File photoFile) {
     if (_selectedPhotos.length < 10) {
@@ -192,6 +239,25 @@ class AddListingController extends GetxController {
 
   Future<void> submitListing() async {
     if (!_validateForm()) return;
+
+    // Check if ZIP code is selected
+    if (_selectedClaimedZip == null) {
+      SnackbarHelper.showError('Please select a ZIP code for this listing');
+      return;
+    }
+
+    // Check listing limit for the selected ZIP code (informational only - user can still proceed to buy slots)
+    final agentController = Get.find<AgentController>();
+    final selectedZipCode = _selectedClaimedZip.value?.zipCode ?? '';
+    if (selectedZipCode.isEmpty) {
+      SnackbarHelper.showError('Please select a ZIP code for this listing');
+      return;
+    }
+    final canAddFree = agentController.canAddFreeListingForZipCode(selectedZipCode);
+    final listingCount = agentController.getListingCountForZipCode(selectedZipCode);
+    
+    // Note: We don't block submission here - user can still create listings by purchasing slots
+    // The UI will show the appropriate status and pricing
 
     try {
       _isLoading.value = true;

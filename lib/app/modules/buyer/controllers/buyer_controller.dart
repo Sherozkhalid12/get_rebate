@@ -21,6 +21,7 @@ import 'package:getrebate/app/modules/favorites/controllers/favorites_controller
 import 'package:getrebate/app/controllers/main_navigation_controller.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
+import 'package:getrebate/app/utils/rebate_restricted_states.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 
 class BuyerV2Controller extends GetxController {
@@ -1313,6 +1314,7 @@ class BuyerV2Controller extends GetxController {
           lo.claimedZipCodes.any((z) => z.trim() == normalizedZipCode)).toList();
       final filteredIds = _allListings
           .where((l) => (l.address.zip ?? '').trim() == normalizedZipCode)
+          .where((l) => !RebateRestrictedStates.isRestricted(l.address.state ?? ''))
           .map((l) => l.id)
           .toSet();
       _listings.value = _allListings.where((l) => filteredIds.contains(l.id)).toList();

@@ -67,10 +67,9 @@ class ZipCodesResponse {
   }
 
   /// Converts full state name to state code
+  /// Only includes states where rebates are allowed
   String _getStateCodeFromName(String name) {
     final stateMap = {
-      'Alabama': 'AL',
-      'Alaska': 'AK',
       'Arizona': 'AZ',
       'Arkansas': 'AR',
       'California': 'CA',
@@ -83,17 +82,12 @@ class ZipCodesResponse {
       'Idaho': 'ID',
       'Illinois': 'IL',
       'Indiana': 'IN',
-      'Iowa': 'IA',
-      'Kansas': 'KS',
       'Kentucky': 'KY',
-      'Louisiana': 'LA',
       'Maine': 'ME',
       'Maryland': 'MD',
       'Massachusetts': 'MA',
       'Michigan': 'MI',
       'Minnesota': 'MN',
-      'Mississippi': 'MS',
-      'Missouri': 'MO',
       'Montana': 'MT',
       'Nebraska': 'NE',
       'Nevada': 'NV',
@@ -104,13 +98,10 @@ class ZipCodesResponse {
       'North Carolina': 'NC',
       'North Dakota': 'ND',
       'Ohio': 'OH',
-      'Oklahoma': 'OK',
-      'Oregon': 'OR',
       'Pennsylvania': 'PA',
       'Rhode Island': 'RI',
       'South Carolina': 'SC',
       'South Dakota': 'SD',
-      'Tennessee': 'TN',
       'Texas': 'TX',
       'Utah': 'UT',
       'Vermont': 'VT',
@@ -170,10 +161,9 @@ class ZipCodesService {
   late final Dio _dio;
 
   /// Converts full state name to state code (helper function)
+  /// Only includes states where rebates are allowed
   static String _getStateCodeFromName(String name) {
     final stateMap = {
-      'Alabama': 'AL',
-      'Alaska': 'AK',
       'Arizona': 'AZ',
       'Arkansas': 'AR',
       'California': 'CA',
@@ -186,17 +176,12 @@ class ZipCodesService {
       'Idaho': 'ID',
       'Illinois': 'IL',
       'Indiana': 'IN',
-      'Iowa': 'IA',
-      'Kansas': 'KS',
       'Kentucky': 'KY',
-      'Louisiana': 'LA',
       'Maine': 'ME',
       'Maryland': 'MD',
       'Massachusetts': 'MA',
       'Michigan': 'MI',
       'Minnesota': 'MN',
-      'Mississippi': 'MS',
-      'Missouri': 'MO',
       'Montana': 'MT',
       'Nebraska': 'NE',
       'Nevada': 'NV',
@@ -207,13 +192,10 @@ class ZipCodesService {
       'North Carolina': 'NC',
       'North Dakota': 'ND',
       'Ohio': 'OH',
-      'Oklahoma': 'OK',
-      'Oregon': 'OR',
       'Pennsylvania': 'PA',
       'Rhode Island': 'RI',
       'South Carolina': 'SC',
       'South Dakota': 'SD',
-      'Tennessee': 'TN',
       'Texas': 'TX',
       'Utah': 'UT',
       'Vermont': 'VT',
@@ -485,12 +467,20 @@ class ZipCodesService {
         if (e is! Map<String, dynamic>) continue;
         try {
           final z = ZipCodeModel.fromJson(e);
-          if (z.population > 0) list.add(z);
+          if (z.population > 0) {
+            list.add(z);
+            if (kDebugMode && list.length <= 3) {
+              // Log first few ZIP codes to verify city is being parsed
+              print('   ZIP: ${z.zipCode}, City: ${z.city ?? "null"}, State: ${z.state}');
+            }
+          }
         } catch (_) {}
       }
 
       if (kDebugMode) {
         print('   Parsed ${list.length} ZIP codes for state $stateCode');
+        final withCity = list.where((z) => z.city != null && z.city!.isNotEmpty).length;
+        print('   ZIP codes with city: $withCity / ${list.length}');
       }
       return list;
     } on DioException catch (e) {
@@ -763,6 +753,95 @@ class ZipCodesService {
       if (e is ZipCodesServiceException) {
         rethrow;
       }
+      throw ZipCodesServiceException(
+        message: 'Unexpected error: ${e.toString()}',
+        originalError: e,
+      );
+    }
+  }
+
+  /// Gets the number of listings a user has created for a specific ZIP code
+  /// GET /api/v1/zip-codes/getZipListings/:userId/:zipCode
+  /// Returns the count of listings for that ZIP code
+  Future<int> getZipListingsCount({
+    required String userId,
+    required String zipCode,
+  }) async {
+    if (userId.isEmpty) {
+      throw ZipCodesServiceException(
+        message: 'User ID is required',
+        statusCode: 400,
+      );
+    }
+    final trimmedZip = zipCode.trim();
+    if (!RegExp(r'^\d{5}$').hasMatch(trimmedZip)) {
+      throw ZipCodesServiceException(
+        message: 'ZIP code must be exactly 5 digits',
+        statusCode: 400,
+      );
+    }
+
+    try {
+      final endpoint = ApiConstants.getZipListingsEndpoint(userId, trimmedZip);
+      if (kDebugMode) {
+        print('📡 ZipCodesService: getZipListingsCount');
+        print('   Endpoint: $endpoint');
+      }
+
+      final response = await _dio.get(
+        endpoint,
+        options: Options(
+          headers: {
+            ...ApiConstants.ngrokHeaders,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+        ),
+      );
+
+      if (kDebugMode) {
+        print('✅ getZipListingsCount response: ${response.statusCode}');
+        print('   Data: ${response.data}');
+      }
+
+      if (response.statusCode == 200) {
+        final data = response.data;
+        // API might return count directly or in a count field
+        if (data is int) {
+          return data;
+        } else if (data is Map<String, dynamic>) {
+          // Check for listingsCount (API response format) first, then other variations
+          final count = data['listingsCount'] ?? 
+                        data['count'] ?? 
+                        data['listingCount'] ?? 
+                        data['listings']?.length ?? 
+                        0;
+          return count is int ? count : (count is String ? int.tryParse(count) ?? 0 : 0);
+        } else if (data is List) {
+          return data.length;
+        }
+        return 0;
+      }
+
+      throw ZipCodesServiceException(
+        message: 'Failed to get ZIP listings count: ${response.statusCode}',
+        statusCode: response.statusCode,
+      );
+    } on DioException catch (e) {
+      final msg = e.response?.data?['message']?.toString() ??
+          e.response?.data?['error']?.toString() ??
+          e.message ??
+          'Failed to get ZIP listings count';
+      if (kDebugMode) {
+        print('❌ getZipListingsCount error: $msg');
+      }
+      throw ZipCodesServiceException(
+        message: msg,
+        statusCode: e.response?.statusCode,
+        originalError: e,
+      );
+    } catch (e) {
+      if (e is ZipCodesServiceException) rethrow;
       throw ZipCodesServiceException(
         message: 'Unexpected error: ${e.toString()}',
         originalError: e,

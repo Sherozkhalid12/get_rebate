@@ -715,9 +715,8 @@ class AuthView extends GetView<AuthViewController> {
   }
 
   Widget _buildLicensedStatesSelection(BuildContext context) {
+    // Only include states where rebates are allowed
     final usStates = [
-      'AL',
-      'AK',
       'AZ',
       'AR',
       'CA',
@@ -730,17 +729,12 @@ class AuthView extends GetView<AuthViewController> {
       'ID',
       'IL',
       'IN',
-      'IA',
-      'KS',
       'KY',
-      'LA',
       'ME',
       'MD',
       'MA',
       'MI',
       'MN',
-      'MS',
-      'MO',
       'MT',
       'NE',
       'NV',
@@ -751,13 +745,10 @@ class AuthView extends GetView<AuthViewController> {
       'NC',
       'ND',
       'OH',
-      'OK',
-      'OR',
       'PA',
       'RI',
       'SC',
       'SD',
-      'TN',
       'TX',
       'UT',
       'VT',

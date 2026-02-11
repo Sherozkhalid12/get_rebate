@@ -59,7 +59,9 @@ class _WaitingListPageState extends State<WaitingListPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  widget.zipCode.zipCode,
+                  widget.zipCode.city != null && widget.zipCode.city!.isNotEmpty
+                      ? '${widget.zipCode.zipCode} (${widget.zipCode.city})'
+                      : widget.zipCode.zipCode,
                   style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                         color: AppTheme.white,
                         fontWeight: FontWeight.w700,

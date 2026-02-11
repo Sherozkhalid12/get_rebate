@@ -68,7 +68,7 @@ class HelpSupportView extends StatelessWidget {
               _buildFAQItem(
                 context,
                 'Are rebates legal in all 50 states?',
-                'No. Currently 40 states allow rebates to buyers, and those same 40 (except New Jersey) allow rebates to sellers. These 10 states currently ban or restrict real estate rebates: Alabama, Alaska, Kansas, Louisiana, Mississippi, Missouri, Oklahoma, Oregon, Tennessee, and Iowa.',
+                'No. Currently 40 states allow rebates to buyers, and those same 40 (except New Jersey) allow rebates to sellers. Our app only operates in states where rebates are legally permitted. The following states ban or restrict real estate rebates and are not available in our app: Alabama, Alaska, Iowa, Kansas, Louisiana, Mississippi, Missouri, Oklahoma, Oregon, and Tennessee.',
               ),
 
               _buildFAQItem(

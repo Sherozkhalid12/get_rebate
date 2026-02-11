@@ -64,6 +64,11 @@ class ApiConstants {
     return "$apiBaseUrl/zip-codes/within10miles/$zipcode/$miles";
   }
 
+  /// GET /api/v1/zip-codes/getZipListings/:userId/:zipCode — get listing count for a ZIP code
+  static String getZipListingsEndpoint(String userId, String zipCode) {
+    return "$apiBaseUrl/zip-codes/getZipListings/$userId/$zipCode";
+  }
+
   static String get zipCodeClaimEndpoint => "$apiBaseUrl/zip-codes/claim";
   static String get zipCodeReleaseEndpoint => "$apiBaseUrl/zip-codes/release";
 

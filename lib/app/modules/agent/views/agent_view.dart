@@ -94,21 +94,15 @@ class AgentView extends GetView<AgentController> {
       ),
       floatingActionButton: Obx(() {
         if (controller.selectedTab == 2) {
-          // My Listings tab
+          // My Listings tab - Always allow adding listing (ZIP code selection happens in add_listing_view)
           return FloatingActionButton.extended(
-            onPressed: controller.canAddFreeListing
-                ? () => _handleAddListing(context)
-                : () => _showBuySlotDialog(context),
+            onPressed: () => _handleAddListing(context),
             backgroundColor: AppTheme.primaryBlue,
             foregroundColor: Colors.white,
-            icon: Icon(
-              controller.canAddFreeListing
-                  ? Icons.add
-                  : Icons.shopping_cart_outlined,
-            ),
-            label: Text(
-              controller.canAddFreeListing ? 'Add Listing' : 'Buy Slot',
-              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+            icon: const Icon(Icons.add),
+            label: const Text(
+              'Add Listing',
+              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
             ),
             elevation: 8,
             shape: RoundedRectangleBorder(
@@ -963,7 +957,9 @@ class AgentView extends GetView<AgentController> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    zip.zipCode,
+                    zip.city != null && zip.city!.isNotEmpty
+                        ? '${zip.zipCode} (${zip.city})'
+                        : zip.zipCode,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       color: AppTheme.black,
                       fontWeight: FontWeight.w600,
@@ -971,7 +967,7 @@ class AgentView extends GetView<AgentController> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${zip.city != null && zip.city!.isNotEmpty ? '${zip.city}, ' : ''}${zip.state} • Population: $formattedPopulation',
+                    '${zip.state} • Population: $formattedPopulation',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: AppTheme.mediumGray,
                     ),
@@ -1185,47 +1181,49 @@ class AgentView extends GetView<AgentController> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          'My Listings',
-                          style: Theme.of(context).textTheme.headlineSmall
-                              ?.copyWith(
-                                color: AppTheme.black,
-                                fontWeight: FontWeight.w700,
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'My Listings',
+                                style: Theme.of(context).textTheme.headlineSmall
+                                    ?.copyWith(
+                                      color: AppTheme.black,
+                                      fontWeight: FontWeight.w700,
+                                    ),
                               ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          '${controller.currentListingCount}/${controller.freeListingLimit} free listings used',
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(color: AppTheme.mediumGray),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Total: ${controller.currentListingCount} listings across all ZIP codes',
+                                style: Theme.of(context).textTheme.bodyMedium
+                                    ?.copyWith(color: AppTheme.mediumGray),
+                              ),
+                            ],
+                          ),
                         ),
                       ],
                     ),
+                    const SizedBox(height: 12),
                     Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 12,
                         vertical: 6,
                       ),
                       decoration: BoxDecoration(
-                        color: controller.canAddFreeListing
-                            ? AppTheme.lightGreen.withOpacity(0.2)
-                            : Colors.orange.withOpacity(0.2),
+                        color: AppTheme.primaryBlue.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
-                        controller.canAddFreeListing
-                            ? 'Free Listings Available'
-                            : '\$${controller.additionalListingPrice.toStringAsFixed(2)} per listing',
+                        'Select ZIP code when creating listing',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: controller.canAddFreeListing
-                              ? AppTheme.lightGreen
-                              : Colors.orange,
+                          color: AppTheme.primaryBlue,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -1234,49 +1232,41 @@ class AgentView extends GetView<AgentController> {
                 ),
                 const SizedBox(height: 16),
                 CustomButton(
-                  text: controller.canAddFreeListing
-                      ? 'Add New Listing'
-                      : 'Buy Slot',
-                  onPressed: controller.canAddFreeListing
-                      ? () => _handleAddListing(context)
-                      : () => _showBuySlotDialog(context),
-                  icon: controller.canAddFreeListing
-                      ? Icons.add_circle_outline
-                      : Icons.shopping_cart_outlined,
+                  text: 'Add New Listing',
+                  onPressed: () => _handleAddListing(context),
+                  icon: Icons.add_circle_outline,
                   width: double.infinity,
                   height: 48,
                 ),
-                if (!controller.canAddFreeListing) ...[
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.orange.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.orange.withOpacity(0.3)),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.info_outline,
-                          size: 16,
-                          color: Colors.orange,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            '\$${controller.additionalListingPrice.toStringAsFixed(2)} one-time fee per listing until it sells. All agents can add listings, subscription not required.',
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(
-                                  color: Colors.orange,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                          ),
-                        ),
-                      ],
-                    ),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppTheme.primaryBlue.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppTheme.primaryBlue.withOpacity(0.3)),
                   ),
-                ],
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.info_outline,
+                        size: 16,
+                        color: AppTheme.primaryBlue,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'You can create up to 3 free listings per ZIP code. Additional listings cost \$${controller.additionalListingPrice.toStringAsFixed(2)} per listing. Select your ZIP code when creating the listing.',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: AppTheme.primaryBlue,
+                                fontWeight: FontWeight.w500,
+                              ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),

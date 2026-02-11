@@ -1572,7 +1572,9 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    zip.postalCode,
+                    zip.city != null && zip.city!.isNotEmpty
+                        ? '${zip.postalCode} (${zip.city})'
+                        : zip.postalCode,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       color: AppTheme.black,
                       fontWeight: FontWeight.w600,
@@ -1580,7 +1582,7 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${zip.city != null && zip.city!.isNotEmpty ? '${zip.city}, ' : ''}${zip.state} • Population: $formattedPopulation',
+                    '${zip.state} • Population: $formattedPopulation',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: AppTheme.mediumGray,
                     ),

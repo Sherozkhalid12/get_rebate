@@ -82,8 +82,6 @@ class LoanOfficerZipCodeService {
   /// Returns the original string if conversion fails or if already an abbreviation
   String _convertStateNameToAbbreviation(String stateName) {
     const stateMap = {
-      'Alabama': 'AL',
-      'Alaska': 'AK',
       'Arizona': 'AZ',
       'Arkansas': 'AR',
       'California': 'CA',
@@ -96,17 +94,12 @@ class LoanOfficerZipCodeService {
       'Idaho': 'ID',
       'Illinois': 'IL',
       'Indiana': 'IN',
-      'Iowa': 'IA',
-      'Kansas': 'KS',
       'Kentucky': 'KY',
-      'Louisiana': 'LA',
       'Maine': 'ME',
       'Maryland': 'MD',
       'Massachusetts': 'MA',
       'Michigan': 'MI',
       'Minnesota': 'MN',
-      'Mississippi': 'MS',
-      'Missouri': 'MO',
       'Montana': 'MT',
       'Nebraska': 'NE',
       'Nevada': 'NV',
@@ -117,13 +110,10 @@ class LoanOfficerZipCodeService {
       'North Carolina': 'NC',
       'North Dakota': 'ND',
       'Ohio': 'OH',
-      'Oklahoma': 'OK',
-      'Oregon': 'OR',
       'Pennsylvania': 'PA',
       'Rhode Island': 'RI',
       'South Carolina': 'SC',
       'South Dakota': 'SD',
-      'Tennessee': 'TN',
       'Texas': 'TX',
       'Utah': 'UT',
       'Vermont': 'VT',
@@ -265,12 +255,20 @@ class LoanOfficerZipCodeService {
         try {
           final m = _ensurePostalCode(Map<String, dynamic>.from(e));
           final z = LoanOfficerZipCodeModel.fromJson(m);
-          if (z.population >= 10) list.add(z);
+          if (z.population >= 10) {
+            list.add(z);
+            if (kDebugMode && list.length <= 3) {
+              // Log first few ZIP codes to verify city is being parsed
+              print('   ZIP: ${z.postalCode}, City: ${z.city ?? "null"}, State: ${z.state}');
+            }
+          }
         } catch (_) {}
       }
 
       if (kDebugMode) {
         print('✅ getStateZipCodes: ${list.length} zip codes for $stateAbbr');
+        final withCity = list.where((z) => z.city != null && z.city!.isNotEmpty).length;
+        print('   ZIP codes with city: $withCity / ${list.length}');
       }
       return list;
     } on DioException catch (e) {

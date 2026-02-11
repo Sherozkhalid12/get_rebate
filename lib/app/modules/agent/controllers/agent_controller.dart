@@ -238,12 +238,34 @@ class AgentController extends GetxController {
     return _subscriptions.isNotEmpty ? _subscriptions.first : null;
   }
 
-  // Listing limits
+  // Listing limits - PER ZIP CODE
   int get freeListingLimit => 3;
+  
+  /// Get listing count for a specific ZIP code
+  int getListingCountForZipCode(String zipCode) {
+    if (zipCode.isEmpty) return 0;
+    return _allListings.where((listing) => listing.zipCode.trim() == zipCode.trim()).length;
+  }
+  
+  /// Get remaining free listings for a specific ZIP code
+  int getRemainingFreeListingsForZipCode(String zipCode) {
+    final count = getListingCountForZipCode(zipCode);
+    return (freeListingLimit - count).clamp(0, freeListingLimit);
+  }
+  
+  /// Check if agent can add free listing for a specific ZIP code
+  bool canAddFreeListingForZipCode(String zipCode) {
+    return getRemainingFreeListingsForZipCode(zipCode) > 0;
+  }
+  
+  // Legacy getters for backward compatibility (deprecated - use ZIP code specific methods)
+  @Deprecated('Use canAddFreeListingForZipCode(zipCode) instead')
   int get currentListingCount =>
       _allListings.length; // Use allListings for count
+  @Deprecated('Use getRemainingFreeListingsForZipCode(zipCode) instead')
   int get remainingFreeListings =>
       (freeListingLimit - currentListingCount).clamp(0, freeListingLimit);
+  @Deprecated('Use canAddFreeListingForZipCode(zipCode) instead')
   bool get canAddFreeListing => remainingFreeListings > 0;
   double get additionalListingPrice => 9.99;
 
@@ -1533,10 +1555,9 @@ class AgentController extends GetxController {
   bool isZipProcessing(String zipCode) => _processingZipCodes.contains(zipCode);
 
   /// Converts full state name (e.g., "California") to state code (e.g., "CA")
+  /// Only includes states where rebates are allowed
   String _getStateCodeFromName(String name) {
     final stateMap = {
-      'Alabama': 'AL',
-      'Alaska': 'AK',
       'Arizona': 'AZ',
       'Arkansas': 'AR',
       'California': 'CA',
@@ -1549,17 +1570,12 @@ class AgentController extends GetxController {
       'Idaho': 'ID',
       'Illinois': 'IL',
       'Indiana': 'IN',
-      'Iowa': 'IA',
-      'Kansas': 'KS',
       'Kentucky': 'KY',
-      'Louisiana': 'LA',
       'Maine': 'ME',
       'Maryland': 'MD',
       'Massachusetts': 'MA',
       'Michigan': 'MI',
       'Minnesota': 'MN',
-      'Mississippi': 'MS',
-      'Missouri': 'MO',
       'Montana': 'MT',
       'Nebraska': 'NE',
       'Nevada': 'NV',
@@ -1570,13 +1586,10 @@ class AgentController extends GetxController {
       'North Carolina': 'NC',
       'North Dakota': 'ND',
       'Ohio': 'OH',
-      'Oklahoma': 'OK',
-      'Oregon': 'OR',
       'Pennsylvania': 'PA',
       'Rhode Island': 'RI',
       'South Carolina': 'SC',
       'South Dakota': 'SD',
-      'Tennessee': 'TN',
       'Texas': 'TX',
       'Utah': 'UT',
       'Vermont': 'VT',

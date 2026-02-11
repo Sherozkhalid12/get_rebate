@@ -328,7 +328,11 @@ class AddListingView extends GetView<AddListingController> {
                             .map(
                               (zip) => DropdownMenuItem<String>(
                                 value: zip.zipCode,
-                                child: Text('${zip.zipCode} • ${zip.state}'),
+                                child: Text(
+                                  zip.city != null && zip.city!.isNotEmpty
+                                      ? '${zip.zipCode} (${zip.city}) • ${zip.state}'
+                                      : '${zip.zipCode} • ${zip.state}',
+                                ),
                               ),
                             )
                             .toList(),
@@ -345,6 +349,95 @@ class AddListingView extends GetView<AddListingController> {
                   ),
                 ],
               ),
+
+              const SizedBox(height: 24),
+
+              // Listing Limit Status (per ZIP code) - Uses API data
+              Obx(() {
+                final selectedZip = controller.selectedClaimedZip;
+                if (selectedZip == null) {
+                  return const SizedBox.shrink();
+                }
+                
+                final agentController = Get.find<AgentController>();
+                final zipCode = selectedZip.zipCode;
+                // Use API count if available, otherwise fall back to local count
+                final listingCount = controller.isLoadingListingCount
+                    ? agentController.getListingCountForZipCode(zipCode)
+                    : controller.listingCountForSelectedZip;
+                final remaining = agentController.freeListingLimit - listingCount;
+                final canAddFree = remaining > 0;
+                
+                return Container(
+                  padding: const EdgeInsets.all(16),
+                  margin: const EdgeInsets.only(bottom: 24),
+                  decoration: BoxDecoration(
+                    color: canAddFree
+                        ? AppTheme.lightGreen.withOpacity(0.1)
+                        : Colors.orange.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: canAddFree
+                          ? AppTheme.lightGreen.withOpacity(0.3)
+                          : Colors.orange.withOpacity(0.3),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      if (controller.isLoadingListingCount)
+                        SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: canAddFree ? AppTheme.lightGreen : Colors.orange,
+                          ),
+                        )
+                      else
+                        Icon(
+                          canAddFree ? Icons.check_circle_outline : Icons.info_outline,
+                          color: canAddFree ? AppTheme.lightGreen : Colors.orange,
+                          size: 24,
+                        ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              canAddFree
+                                  ? 'Free Listing Available'
+                                  : 'Free Listing Limit Reached',
+                              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                color: canAddFree ? AppTheme.lightGreen : Colors.orange,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'ZIP Code ${selectedZip.city != null && selectedZip.city!.isNotEmpty ? "${selectedZip.zipCode} (${selectedZip.city})" : selectedZip.zipCode}: $listingCount/${agentController.freeListingLimit} free listings used',
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: AppTheme.darkGray,
+                              ),
+                            ),
+                            if (!canAddFree) ...[
+                              const SizedBox(height: 8),
+                              Text(
+                                'Additional listings cost \$${agentController.additionalListingPrice.toStringAsFixed(2)} per listing',
+                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  color: Colors.orange.shade700,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
 
               const SizedBox(height: 24),
 
@@ -900,20 +993,70 @@ class AddListingView extends GetView<AddListingController> {
 
               const SizedBox(height: 32),
 
-              // Submit Button
-              Obx(
-                () => CustomButton(
-                  text: controller.isLoading
-                      ? 'Adding Listing...'
-                      : 'Add Listing',
-                  onPressed: controller.isLoading
-                      ? null
-                      : controller.submitListing,
-                  icon: controller.isLoading ? null : Icons.add_circle_outline,
-                  width: double.infinity,
-                  height: 56,
-                ),
-              ),
+              // Submit Button (with ZIP code-based status)
+              Obx(() {
+                final selectedZip = controller.selectedClaimedZip;
+                final agentController = Get.find<AgentController>();
+                
+                if (selectedZip == null) {
+                  return CustomButton(
+                    text: controller.isLoading ? 'Adding Listing...' : 'Select ZIP Code First',
+                    onPressed: null,
+                    icon: Icons.location_off,
+                    width: double.infinity,
+                    height: 56,
+                  );
+                }
+                
+                final zipCode = selectedZip.zipCode;
+                // Use API count if available, otherwise fall back to local count
+                final listingCount = controller.isLoadingListingCount
+                    ? agentController.getListingCountForZipCode(zipCode)
+                    : controller.listingCountForSelectedZip;
+                final remaining = agentController.freeListingLimit - listingCount;
+                final canAddFree = remaining > 0;
+                final isAtLimit = listingCount >= agentController.freeListingLimit;
+                
+                return Column(
+                  children: [
+                    CustomButton(
+                      text: controller.isLoading
+                          ? 'Adding Listing...'
+                          : (canAddFree ? 'Add Listing (Free)' : 'Add Listing (\$${agentController.additionalListingPrice.toStringAsFixed(2)})'),
+                      onPressed: controller.isLoading ? null : controller.submitListing,
+                      icon: controller.isLoading ? null : (canAddFree ? Icons.add_circle_outline : Icons.shopping_cart_outlined),
+                      width: double.infinity,
+                      height: 56,
+                      backgroundColor: canAddFree ? AppTheme.lightGreen : Colors.orange,
+                    ),
+                    if (isAtLimit) ...[
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.info_outline, size: 16, color: Colors.orange.shade700),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'You\'ve reached the free limit for this ZIP code. This listing will cost \$${agentController.additionalListingPrice.toStringAsFixed(2)}.',
+                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  color: Colors.orange.shade700,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
+                );
+              }),
 
               const SizedBox(height: 20),
             ],

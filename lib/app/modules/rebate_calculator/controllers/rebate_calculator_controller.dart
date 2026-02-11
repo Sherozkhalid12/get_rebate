@@ -50,10 +50,8 @@ class RebateCalculatorController extends GetxController {
   // TIER DISPLAY (Mode 0)
   final tiers = <Map<String, dynamic>>[].obs;
 
-  // OPTIONS
+  // OPTIONS - Only include states where rebates are allowed
   static const List<String> _allStates = [
-    'AL',
-    'AK',
     'AZ',
     'AR',
     'CA',
@@ -66,17 +64,12 @@ class RebateCalculatorController extends GetxController {
     'ID',
     'IL',
     'IN',
-    'IA',
-    'KS',
     'KY',
-    'LA',
     'ME',
     'MD',
     'MA',
     'MI',
     'MN',
-    'MS',
-    'MO',
     'MT',
     'NE',
     'NV',
@@ -87,13 +80,10 @@ class RebateCalculatorController extends GetxController {
     'NC',
     'ND',
     'OH',
-    'OK',
-    'OR',
     'PA',
     'RI',
     'SC',
     'SD',
-    'TN',
     'TX',
     'UT',
     'VT',
@@ -104,57 +94,15 @@ class RebateCalculatorController extends GetxController {
     'WY',
   ];
 
-  // States where buyer rebates are prohibited or heavily restricted
-  static const Set<String> _restrictedStates = {
-    'AL', // Alabama
-    'AK', // Alaska
-    'KS', // Kansas
-    'LA', // Louisiana
-    'MS', // Mississippi
-    'MO', // Missouri
-    'OK', // Oklahoma
-    'OR', // Oregon
-    'TN', // Tennessee
-    'IA', // Iowa
-  };
-
   // Seller-specific limitations (currently only New Jersey)
   static const Set<String> _sellerRebateLimitedStates = {'NJ'};
 
-  late final List<String> _allowedStates = _allStates
-      .where((state) => !_restrictedStates.contains(state))
-      .toList();
-
-  List<String> get allowedStates => _allowedStates;
+  List<String> get allowedStates => _allStates;
 
   // GETTERS
   String get selectedState => _selectedState.value;
-  bool get isStateRestricted =>
-      _restrictedStates.contains(_selectedState.value);
   bool get shouldShowSellerRestriction =>
       _sellerRebateLimitedStates.contains(_selectedState.value);
-
-  String getStateRestrictionMessage(String state) {
-    final messages = {
-      'AL': 'Alabama prohibits buyer rebates.',
-      'AK':
-          'Alaska has restrictions on buyer rebates. Consult local regulations.',
-      'KS':
-          'Kansas has restrictions on buyer rebates. Consult local regulations.',
-      'LA': 'Louisiana prohibits buyer rebates.',
-      'MS': 'Mississippi prohibits buyer rebates.',
-      'MO':
-          'Missouri has restrictions on buyer rebates. Consult local regulations.',
-      'OK':
-          'Oklahoma has restrictions on buyer rebates. Consult local regulations.',
-      'OR':
-          'Oregon has restrictions on buyer rebates. Consult local regulations.',
-      'TN':
-          'Tennessee has restrictions on buyer rebates. Consult local regulations.',
-      'IA': 'Iowa prohibits buyer rebates.',
-    };
-    return messages[state] ?? '';
-  }
 
   String getSellerRestrictionMessage() {
     if (!shouldShowSellerRestriction) return '';
