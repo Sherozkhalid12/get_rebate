@@ -17,6 +17,14 @@ import 'package:getrebate/app/modules/messages/controllers/messages_controller.d
 
 import '../modules/messages/controllers/messages_controller.dart';
 
+/// Custom exception for email already exists
+class EmailAlreadyExistsException implements Exception {
+  final String message;
+  EmailAlreadyExistsException(this.message);
+  @override
+  String toString() => 'EmailAlreadyExistsException: $message';
+}
+
 class AuthController extends GetxController {
   final _storage = GetStorage();
   final Dio _dio = Dio();
@@ -475,6 +483,47 @@ class AuthController extends GetxController {
         print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       }
 
+      // Check response data for email already exists indication
+      // Even if status is 200/201, check the response content
+      if (response.data is Map) {
+        final responseData = response.data as Map;
+        final message = responseData['message']?.toString().toLowerCase() ?? '';
+        final userExists = responseData['userExists'] ?? responseData['emailExists'];
+        final exists = responseData['exists'];
+        final isExistingUser = responseData['isExistingUser'];
+        
+        // Check multiple possible indicators
+        if (userExists == true || 
+            exists == true ||
+            isExistingUser == true ||
+            message.contains('already exists') ||
+            message.contains('email already') ||
+            message.contains('user already') ||
+            message.contains('account already') ||
+            message.contains('already registered') ||
+            message.contains('user with this email')) {
+          final errorMsg = responseData['message']?.toString() ?? 
+              'An account with this email already exists';
+          if (kDebugMode) {
+            print('❌ Email already exists detected in response: $errorMsg');
+            print('   Response data: $responseData');
+          }
+          throw EmailAlreadyExistsException(errorMsg);
+        }
+      } else if (response.data is String) {
+        // Sometimes API returns plain string messages
+        final responseStr = response.data.toString().toLowerCase();
+        if (responseStr.contains('already exists') ||
+            responseStr.contains('email already') ||
+            responseStr.contains('user already') ||
+            responseStr.contains('account already')) {
+          if (kDebugMode) {
+            print('❌ Email already exists detected in string response');
+          }
+          throw EmailAlreadyExistsException('An account with this email already exists');
+        }
+      }
+
       if (response.statusCode != 200 && response.statusCode != 201) {
         final msg = (response.data as Map?)?['message']?.toString() ??
             'Failed to send verification email';
@@ -482,6 +531,26 @@ class AuthController extends GetxController {
         throw Exception(msg);
       }
     } on DioException catch (e) {
+      final statusCode = e.response?.statusCode;
+      final responseData = e.response?.data;
+      
+      // Check if error indicates email already exists
+      if (responseData is Map) {
+        final message = responseData['message']?.toString().toLowerCase() ?? '';
+        if (message.contains('already exists') ||
+            message.contains('email already') ||
+            message.contains('user already') ||
+            message.contains('account already') ||
+            statusCode == 409) {
+          final errorMsg = responseData['message']?.toString() ?? 
+              'An account with this email already exists';
+          if (kDebugMode) {
+            print('❌ Email already exists (DioException): $errorMsg');
+          }
+          throw EmailAlreadyExistsException(errorMsg);
+        }
+      }
+      
       final msg = (e.response?.data as Map?)?['message']?.toString();
       final errMsg = msg ?? _dioErrorToMessage(e);
       if (kDebugMode) {
@@ -1148,13 +1217,30 @@ class AuthController extends GetxController {
       print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
       String errorMessage = 'Sign up failed. Please try again.';
+      bool isEmailExists = false;
 
       if (e.response != null) {
         final responseData = e.response?.data;
+        final statusCode = e.response?.statusCode;
+        
+        // Check if email already exists
+        if (statusCode == 400 || statusCode == 409) {
+          isEmailExists = true;
+        }
+        
         if (responseData is Map && responseData.containsKey('message')) {
+          final msg = responseData['message'].toString().toLowerCase();
+          if (msg.contains('already exists') ||
+              msg.contains('email already') ||
+              msg.contains('user already') ||
+              msg.contains('account already') ||
+              msg.contains('user with this email')) {
+            isEmailExists = true;
+          }
           errorMessage = responseData['message'].toString();
-        } else if (e.response?.statusCode == 400) {
+        } else if (statusCode == 400) {
           errorMessage = 'User with this email or phone already exists';
+          isEmailExists = true;
         } else {
           errorMessage = e.response?.statusMessage ?? errorMessage;
         }
@@ -1164,6 +1250,12 @@ class AuthController extends GetxController {
             'Connection timeout. Please check your internet connection.';
       } else if (e.type == DioExceptionType.connectionError) {
         errorMessage = 'No internet connection. Please check your network.';
+      }
+
+      // If email exists, throw EmailAlreadyExistsException instead of showing snackbar
+      // This will be caught by verify_otp_controller and handled properly
+      if (isEmailExists) {
+        throw EmailAlreadyExistsException(errorMessage);
       }
 
       SnackbarHelper.showError(errorMessage);

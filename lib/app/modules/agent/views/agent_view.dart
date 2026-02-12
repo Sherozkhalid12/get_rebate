@@ -15,6 +15,8 @@ import 'package:getrebate/app/utils/image_url_helper.dart';
 import 'package:getrebate/app/widgets/custom_button.dart';
 import 'package:getrebate/app/widgets/custom_text_field.dart';
 import 'package:getrebate/app/widgets/gradient_card.dart';
+import 'package:getrebate/app/widgets/rebate_compliance_notice.dart';
+import 'package:getrebate/app/services/rebate_states_service.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
 import 'package:getrebate/app/modules/agent/views/waiting_list_page.dart';
 import 'package:image_picker/image_picker.dart';
@@ -22,6 +24,45 @@ import 'dart:io';
 
 class AgentView extends GetView<AgentController> {
   const AgentView({super.key});
+
+  /// Helper function to filter licensed states to only include rebate-allowed states
+  Future<List<String>> _filterAllowedStates(List<String> licensedStates) async {
+    try {
+      final service = RebateStatesService();
+      final allowedStates = await service.getAllowedStates();
+      final allowedStatesSet = allowedStates.map((s) => s.toUpperCase()).toSet();
+      
+      // Normalize state names to codes for comparison
+      final stateMap = {
+        'Alabama': 'AL', 'Alaska': 'AK', 'Arizona': 'AZ', 'Arkansas': 'AR',
+        'California': 'CA', 'Colorado': 'CO', 'Connecticut': 'CT', 'Delaware': 'DE',
+        'Florida': 'FL', 'Georgia': 'GA', 'Hawaii': 'HI', 'Idaho': 'ID',
+        'Illinois': 'IL', 'Indiana': 'IN', 'Iowa': 'IA', 'Kansas': 'KS',
+        'Kentucky': 'KY', 'Louisiana': 'LA', 'Maine': 'ME', 'Maryland': 'MD',
+        'Massachusetts': 'MA', 'Michigan': 'MI', 'Minnesota': 'MN', 'Mississippi': 'MS',
+        'Missouri': 'MO', 'Montana': 'MT', 'Nebraska': 'NE', 'Nevada': 'NV',
+        'New Hampshire': 'NH', 'New Jersey': 'NJ', 'New Mexico': 'NM', 'New York': 'NY',
+        'North Carolina': 'NC', 'North Dakota': 'ND', 'Ohio': 'OH', 'Oklahoma': 'OK',
+        'Oregon': 'OR', 'Pennsylvania': 'PA', 'Rhode Island': 'RI', 'South Carolina': 'SC',
+        'South Dakota': 'SD', 'Tennessee': 'TN', 'Texas': 'TX', 'Utah': 'UT',
+        'Vermont': 'VT', 'Virginia': 'VA', 'Washington': 'WA', 'West Virginia': 'WV',
+        'Wisconsin': 'WI', 'Wyoming': 'WY',
+      };
+      
+      return licensedStates.where((state) {
+        String stateCode;
+        if (state.length == 2 && state == state.toUpperCase()) {
+          stateCode = state.toUpperCase();
+        } else {
+          stateCode = (stateMap[state] ?? state).toUpperCase();
+        }
+        return allowedStatesSet.contains(stateCode);
+      }).toList();
+    } catch (e) {
+      // On error, return all licensed states (fallback)
+      return licensedStates;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -635,111 +676,127 @@ class AgentView extends GetView<AgentController> {
                 return const SizedBox.shrink();
               }),
 
-              // State Selector for ZIP Codes - Always show, but only show licensed states in dropdown
+              // State Selector for ZIP Codes - Filtered to only show rebate-allowed states
               Obx(() {
                 final licensedStates =
                     authController.currentUser?.licensedStates ?? [];
-                final uniqueStates = licensedStates.toSet().toList()
-                  ..sort((a, b) => a.compareTo(b));
+                
+                return FutureBuilder<List<String>>(
+                  future: _filterAllowedStates(licensedStates),
+                  builder: (context, snapshot) {
+                    final allowedStates = snapshot.data ?? [];
+                    final uniqueStates = allowedStates.toSet().toList()
+                      ..sort((a, b) => a.compareTo(b));
 
-                return Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Select State to View ZIP Codes',
-                          style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(
-                                color: AppTheme.black,
-                                fontWeight: FontWeight.w600,
-                              ),
-                        ),
-                        const SizedBox(height: 12),
-                        if (uniqueStates.isEmpty)
-                          Container(
-                            padding: EdgeInsets.zero,
-                            child: Text(
-                              'No licensed states found. Please update your profile to add licensed states.',
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(color: AppTheme.mediumGray),
+                    return Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Select State to View ZIP Codes',
+                              style: Theme.of(context).textTheme.titleMedium
+                                  ?.copyWith(
+                                    color: AppTheme.black,
+                                    fontWeight: FontWeight.w600,
+                                  ),
                             ),
-                          )
-                        else
-                          Obx(() {
-                            final currentValue = controller.selectedState;
-                            final safeValue =
-                                uniqueStates.contains(currentValue)
-                                ? currentValue
-                                : null;
+                            const SizedBox(height: 12),
+                            if (uniqueStates.isEmpty)
+                              Container(
+                                padding: EdgeInsets.zero,
+                                child: Text(
+                                  licensedStates.isEmpty
+                                      ? 'No licensed states found. Please update your profile to add licensed states.'
+                                      : 'None of your licensed states allow rebates. Please verify rebate eligibility in your states.',
+                                  style: Theme.of(context).textTheme.bodySmall
+                                      ?.copyWith(color: AppTheme.mediumGray),
+                                ),
+                              )
+                            else
+                              Obx(() {
+                                final currentValue = controller.selectedState;
+                                final safeValue =
+                                    uniqueStates.contains(currentValue)
+                                    ? currentValue
+                                    : null;
 
-                            return DropdownButtonFormField<String>(
-                              value: safeValue,
-                              decoration: InputDecoration(
-                                labelText: 'Select State',
-                                prefixIcon: Icon(
-                                  Icons.map,
-                                  color: AppTheme.primaryBlue,
-                                ),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                filled: true,
-                                fillColor: AppTheme.lightGray,
-                              ),
-                              items: [
-                                DropdownMenuItem<String>(
-                                  value: null,
-                                  child: Text(
-                                    'Select a state',
-                                    style: TextStyle(
-                                      color: AppTheme.mediumGray,
+                                return DropdownButtonFormField<String>(
+                                  value: safeValue,
+                                  decoration: InputDecoration(
+                                    labelText: 'Select State',
+                                    prefixIcon: Icon(
+                                      Icons.map,
+                                      color: AppTheme.primaryBlue,
+                                    ),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    filled: true,
+                                    fillColor: AppTheme.lightGray,
+                                  ),
+                                  items: [
+                                    DropdownMenuItem<String>(
+                                      value: null,
+                                      child: Text(
+                                        'Select a state',
+                                        style: TextStyle(
+                                          color: AppTheme.mediumGray,
+                                        ),
+                                      ),
+                                    ),
+                                    ...uniqueStates.map((stateName) {
+                                      return DropdownMenuItem<String>(
+                                        value: stateName,
+                                        child: Text(stateName),
+                                      );
+                                    }),
+                                  ],
+                                  onChanged: (value) {
+                                    if (value != null) {
+                                      controller.selectStateAndFetchZipCodes(value);
+                                    } else {
+                                      controller.selectStateAndFetchZipCodes('');
+                                    }
+                                  },
+                                );
+                              }),
+                            if (controller.isLoadingZipCodes) ...[
+                              const SizedBox(height: 12),
+                              Row(
+                                children: [
+                                  SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: AppTheme.primaryBlue,
                                     ),
                                   ),
-                                ),
-                                ...uniqueStates.map((stateName) {
-                                  return DropdownMenuItem<String>(
-                                    value: stateName,
-                                    child: Text(stateName),
-                                  );
-                                }),
-                              ],
-                              onChanged: (value) {
-                                if (value != null) {
-                                  controller.selectStateAndFetchZipCodes(value);
-                                } else {
-                                  controller.selectStateAndFetchZipCodes('');
-                                }
-                              },
-                            );
-                          }),
-                        if (controller.isLoadingZipCodes) ...[
-                          const SizedBox(height: 12),
-                          Row(
-                            children: [
-                              SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: AppTheme.primaryBlue,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                'Loading ZIP codes...',
-                                style: Theme.of(context).textTheme.bodySmall
-                                    ?.copyWith(color: AppTheme.mediumGray),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Loading ZIP codes...',
+                                    style: Theme.of(context).textTheme.bodySmall
+                                        ?.copyWith(color: AppTheme.mediumGray),
+                                  ),
+                                ],
                               ),
                             ],
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
                 );
               }),
+              const SizedBox(height: 20),
+
+              // Compliance notice for rebate eligibility
+              RebateComplianceNotice(
+                accentColor: AppTheme.primaryBlue,
+                showViewStatesButton: false,
+              ),
               const SizedBox(height: 20),
 
               _buildZipTabInfoNote(

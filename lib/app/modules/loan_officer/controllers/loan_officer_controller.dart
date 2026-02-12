@@ -13,6 +13,7 @@ import 'package:getrebate/app/models/subscription_model.dart';
 import 'package:getrebate/app/models/promo_code_model.dart';
 import 'package:getrebate/app/services/loan_officer_zip_code_pricing_service.dart';
 import 'package:getrebate/app/services/loan_officer_zip_code_service.dart';
+import 'package:getrebate/app/services/rebate_states_service.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart' as global;
 import 'package:getrebate/app/controllers/location_controller.dart';
 import 'package:getrebate/app/controllers/current_loan_officer_controller.dart';
@@ -30,6 +31,7 @@ class LoanOfficerController extends GetxController {
   final LocationController _locationController = Get.find<LocationController>();
   // Services - using separate loan officer zip code service
   final LoanOfficerZipCodeService _loanOfficerZipCodeService;
+  final RebateStatesService _rebateStatesService = RebateStatesService();
   final GetStorage _storage;
   final Dio _dio = Dio();
 
@@ -206,6 +208,8 @@ class LoanOfficerController extends GetxController {
     if (stored is bool) {
       _firstZipCodeClaimed.value = stored;
     }
+    // Load filtered licensed states
+    _loadFilteredLicensedStates();
     // IMPORTANT: Clear any existing data first to prevent stale/mock data
     _claimedZipCodes.clear();
     _availableZipCodes.clear();
@@ -412,6 +416,29 @@ class LoanOfficerController extends GetxController {
     final states = currentLoanOfficerController?.currentLoanOfficer.value?.licensedStates ?? [];
     final codes = states.map((s) => _normalizeStateToCode(s)).toList();
     return codes.toSet().toList()..sort((a, b) => a.compareTo(b));
+  }
+
+  /// Licensed states filtered to only include rebate-allowed states
+  /// Returns a reactive observable list that updates when states are loaded
+  final _filteredLicensedStateCodes = <String>[].obs;
+  List<String> get filteredLicensedStateCodes => _filteredLicensedStateCodes;
+
+  /// Loads and filters licensed states to only include rebate-allowed states
+  Future<void> _loadFilteredLicensedStates() async {
+    try {
+      final allowedStates = await _rebateStatesService.getAllowedStates();
+      final allowedStatesSet = allowedStates.map((s) => s.toUpperCase()).toSet();
+      final codes = licensedStateCodes.where((code) => 
+        allowedStatesSet.contains(code.toUpperCase())
+      ).toList();
+      _filteredLicensedStateCodes.value = codes..sort((a, b) => a.compareTo(b));
+    } catch (e) {
+      if (kDebugMode) {
+        print('⚠️ Error filtering licensed states: $e');
+      }
+      // On error, use all licensed states (fallback)
+      _filteredLicensedStateCodes.value = licensedStateCodes;
+    }
   }
 
   /// Loads zip codes from cache or API using the new loan officer endpoint
@@ -1568,6 +1595,17 @@ class LoanOfficerController extends GetxController {
 
       _setupDio();
       final authToken = _storage.read('auth_token');
+
+      // Validate that rebates are allowed in this state before checkout
+      final stateCode = _normalizeStateToCode(zipCode.state);
+      final isStateAllowed = await _rebateStatesService.isStateAllowed(stateCode);
+      if (!isStateAllowed) {
+        SnackbarHelper.showError(
+          'Real estate rebates are not permitted in ${zipCode.state}. Only states that allow rebates are available for subscription.',
+        );
+        _loadingZipCodeIds.remove(zipCode.postalCode);
+        return;
+      }
 
       // Step 1: Create checkout session
       final zipCodePrice = zipCode.calculatedPrice.toStringAsFixed(2);

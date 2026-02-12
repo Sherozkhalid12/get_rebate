@@ -2,9 +2,12 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:dio/dio.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart' as global;
+import 'package:getrebate/app/controllers/auth_controller.dart' show EmailAlreadyExistsException;
 import 'package:getrebate/app/models/user_model.dart';
 import 'package:getrebate/app/modules/auth/services/pending_signup_store.dart';
+import 'package:getrebate/app/modules/auth/controllers/auth_controller.dart';
 import 'package:getrebate/app/routes/app_pages.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
 
@@ -151,8 +154,83 @@ class VerifyOtpController extends GetxController {
           break;
       }
     } catch (e) {
-      SnackbarHelper.showError(e.toString());
-      // Do not navigate - stay on verify screen; user can retry when network is back
+      if (kDebugMode) {
+        print('❌ _completeSignUp exception: $e');
+        print('   Exception type: ${e.runtimeType}');
+      }
+      
+      // Check if error indicates email already exists
+      String errorMessage = e.toString();
+      bool isEmailExists = false;
+      
+      // First check: Is it the custom EmailAlreadyExistsException?
+      if (e is EmailAlreadyExistsException) {
+        isEmailExists = true;
+        errorMessage = e.message;
+        if (kDebugMode) {
+          print('✅ Caught EmailAlreadyExistsException in signup: $errorMessage');
+        }
+      } else if (errorMessage.contains('EmailAlreadyExistsException')) {
+        isEmailExists = true;
+        if (errorMessage.contains('EmailAlreadyExistsException: ')) {
+          errorMessage = errorMessage.split('EmailAlreadyExistsException: ').last.trim();
+        }
+      } else if (e is DioException) {
+        final statusCode = e.response?.statusCode;
+        final responseData = e.response?.data;
+        
+        if (statusCode == 400 || statusCode == 409) {
+          isEmailExists = true;
+        }
+        
+        if (responseData is Map) {
+          final msg = responseData['message']?.toString().toLowerCase() ?? '';
+          if (msg.contains('already exists') ||
+              msg.contains('email already') ||
+              msg.contains('user already') ||
+              msg.contains('account already') ||
+              msg.contains('user with this email')) {
+            isEmailExists = true;
+            errorMessage = responseData['message']?.toString() ?? errorMessage;
+          }
+        }
+      } else {
+        final lowerError = errorMessage.toLowerCase();
+        if (lowerError.contains('already exists') ||
+            lowerError.contains('email already') ||
+            lowerError.contains('user already') ||
+            lowerError.contains('account already') ||
+            lowerError.contains('an account with this email') ||
+            lowerError.contains('user with this email')) {
+          isEmailExists = true;
+        }
+      }
+      
+      if (isEmailExists) {
+        if (kDebugMode) {
+          print('🚫 Email already exists during signup - navigating back and showing dialog');
+        }
+        // Navigate back to signup and show dialog
+        // Use Get.back() to go back to auth screen
+        Get.back();
+        // Wait a bit for navigation to complete, then show dialog
+        Future.delayed(const Duration(milliseconds: 300), () {
+          try {
+            final authViewController = Get.find<AuthViewController>();
+            authViewController.showAccountExistsDialog(p.email);
+          } catch (e) {
+            if (kDebugMode) {
+              print('⚠️ Could not find AuthViewController, showing snackbar instead');
+            }
+            SnackbarHelper.showError(
+              'An account with this email already exists. Please sign in instead.',
+            );
+          }
+        });
+      } else {
+        SnackbarHelper.showError(errorMessage);
+      }
+      // DO NOT navigate - prevent entry into app if email exists
     } finally {
       _isLoading.value = false;
     }

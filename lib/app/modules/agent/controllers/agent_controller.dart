@@ -16,6 +16,7 @@ import 'package:getrebate/app/models/lead_model.dart';
 import 'package:getrebate/app/services/zip_code_pricing_service.dart';
 import 'package:getrebate/app/services/leads_service.dart';
 import 'package:getrebate/app/services/zip_codes_service.dart';
+import 'package:getrebate/app/services/rebate_states_service.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart' as global;
 import 'package:getrebate/app/controllers/location_controller.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
@@ -35,6 +36,7 @@ class AgentController extends GetxController {
   final LocationController _locationController = Get.find<LocationController>();
   final Dio _dio = Dio();
   final _storage = GetStorage();
+  final RebateStatesService _rebateStatesService = RebateStatesService();
   // Using ApiConstants for centralized URL management
   static String get _baseUrl => ApiConstants.apiBaseUrl;
 
@@ -1004,6 +1006,17 @@ class AgentController extends GetxController {
         return;
       }
 
+      // Validate that rebates are allowed in this state before checkout
+      final stateCode = _getStateCodeFromName(zipCode.state);
+      final isStateAllowed = await _rebateStatesService.isStateAllowed(stateCode);
+      if (!isStateAllowed) {
+        SnackbarHelper.showError(
+          'Real estate rebates are not permitted in ${zipCode.state}. Only states that allow rebates are available for subscription.',
+        );
+        _processingZipCodes.remove(zipCode.zipCode);
+        return;
+      }
+
       // Step 1: Create checkout session
       final zipCodePrice = zipCode.calculatedPrice.toStringAsFixed(2);
 
@@ -1605,6 +1618,26 @@ class AgentController extends GetxController {
     }
     // Otherwise, try to find the code from the name
     return stateMap[name] ?? name;
+  }
+
+  /// Filters licensed states to only include those that allow rebates
+  /// Returns a list of state codes that allow rebates
+  Future<List<String>> _filterAllowedStates(List<String> licensedStates) async {
+    try {
+      final allowedStates = await _rebateStatesService.getAllowedStates();
+      final allowedStatesSet = allowedStates.map((s) => s.toUpperCase()).toSet();
+      
+      return licensedStates.where((state) {
+        final stateCode = _getStateCodeFromName(state).toUpperCase();
+        return allowedStatesSet.contains(stateCode);
+      }).toList();
+    } catch (e) {
+      if (kDebugMode) {
+        print('⚠️ Error filtering allowed states: $e');
+      }
+      // On error, return all licensed states (fallback)
+      return licensedStates;
+    }
   }
 
   /// Sets the selected state and fetches ZIP codes via getstateZip API

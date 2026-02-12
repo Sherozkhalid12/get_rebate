@@ -12,6 +12,8 @@ import 'package:getrebate/app/controllers/auth_controller.dart' as global;
 import 'package:getrebate/app/models/loan_officer_zip_code_model.dart';
 import 'package:getrebate/app/widgets/custom_button.dart';
 import 'package:getrebate/app/widgets/custom_text_field.dart';
+import 'package:getrebate/app/widgets/rebate_compliance_notice.dart';
+import 'package:getrebate/app/services/rebate_states_service.dart';
 import 'package:getrebate/app/modules/checklist/controllers/checklist_controller.dart';
 import 'package:getrebate/app/modules/rebate_checklist/bindings/rebate_checklist_binding.dart';
 import 'package:getrebate/app/modules/rebate_checklist/controllers/rebate_checklist_controller.dart';
@@ -23,6 +25,45 @@ import 'package:getrebate/app/modules/loan_officer/views/waiting_list_page.dart'
 
 class LoanOfficerView extends GetView<LoanOfficerController> {
   const LoanOfficerView({super.key});
+
+  /// Helper function to filter licensed states to only include rebate-allowed states
+  Future<List<String>> _filterAllowedStates(List<String> licensedStates) async {
+    try {
+      final service = RebateStatesService();
+      final allowedStates = await service.getAllowedStates();
+      final allowedStatesSet = allowedStates.map((s) => s.toUpperCase()).toSet();
+      
+      // Normalize state names to codes for comparison
+      final stateMap = {
+        'Alabama': 'AL', 'Alaska': 'AK', 'Arizona': 'AZ', 'Arkansas': 'AR',
+        'California': 'CA', 'Colorado': 'CO', 'Connecticut': 'CT', 'Delaware': 'DE',
+        'Florida': 'FL', 'Georgia': 'GA', 'Hawaii': 'HI', 'Idaho': 'ID',
+        'Illinois': 'IL', 'Indiana': 'IN', 'Iowa': 'IA', 'Kansas': 'KS',
+        'Kentucky': 'KY', 'Louisiana': 'LA', 'Maine': 'ME', 'Maryland': 'MD',
+        'Massachusetts': 'MA', 'Michigan': 'MI', 'Minnesota': 'MN', 'Mississippi': 'MS',
+        'Missouri': 'MO', 'Montana': 'MT', 'Nebraska': 'NE', 'Nevada': 'NV',
+        'New Hampshire': 'NH', 'New Jersey': 'NJ', 'New Mexico': 'NM', 'New York': 'NY',
+        'North Carolina': 'NC', 'North Dakota': 'ND', 'Ohio': 'OH', 'Oklahoma': 'OK',
+        'Oregon': 'OR', 'Pennsylvania': 'PA', 'Rhode Island': 'RI', 'South Carolina': 'SC',
+        'South Dakota': 'SD', 'Tennessee': 'TN', 'Texas': 'TX', 'Utah': 'UT',
+        'Vermont': 'VT', 'Virginia': 'VA', 'Washington': 'WA', 'West Virginia': 'WV',
+        'Wisconsin': 'WI', 'Wyoming': 'WY',
+      };
+      
+      return licensedStates.where((state) {
+        String stateCode;
+        if (state.length == 2 && state == state.toUpperCase()) {
+          stateCode = state.toUpperCase();
+        } else {
+          stateCode = (stateMap[state] ?? state).toUpperCase();
+        }
+        return allowedStatesSet.contains(stateCode);
+      }).toList();
+    } catch (e) {
+      // On error, return all licensed states (fallback)
+      return licensedStates;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1198,9 +1239,11 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                 return const SizedBox.shrink();
               }),
 
-              // State Selector for ZIP Codes - Always show, but only show licensed states in dropdown
+              // State Selector for ZIP Codes - Filtered to only show rebate-allowed states
               Obx(() {
-                final uniqueStates = controller.licensedStateCodes;
+                final uniqueStates = controller.filteredLicensedStateCodes.isEmpty
+                    ? controller.licensedStateCodes
+                    : controller.filteredLicensedStateCodes;
 
                 return Card(
                   child: Padding(
@@ -1300,6 +1343,13 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                   ),
                 );
               }),
+              const SizedBox(height: 20),
+
+              // Compliance notice for rebate eligibility
+              RebateComplianceNotice(
+                accentColor: AppTheme.primaryBlue,
+                showViewStatesButton: false,
+              ),
               const SizedBox(height: 20),
 
               _buildZipTabInfoNote(

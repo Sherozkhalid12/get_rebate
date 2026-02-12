@@ -2,13 +2,16 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:dio/dio.dart';
 import 'dart:io';
 import 'package:getrebate/app/controllers/auth_controller.dart' as global;
+import 'package:getrebate/app/controllers/auth_controller.dart' show EmailAlreadyExistsException;
 import 'package:getrebate/app/controllers/location_controller.dart';
 import 'package:getrebate/app/models/user_model.dart';
 import 'package:getrebate/app/modules/auth/services/pending_signup_store.dart';
 import 'package:getrebate/app/modules/auth/views/verify_otp_view.dart';
 import 'package:getrebate/app/modules/auth/bindings/verify_otp_binding.dart';
+import 'package:getrebate/app/services/rebate_states_service.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
 
@@ -17,6 +20,10 @@ class AuthViewController extends GetxController {
       Get.find<global.AuthController>();
   final LocationController _locationController = Get.find<LocationController>();
   final ImagePicker _imagePicker = ImagePicker();
+  final RebateStatesService _rebateStatesService = RebateStatesService();
+  
+  // Observable for allowed states
+  final _allowedStates = <String>[].obs;
 
   // Form controllers
   final emailController = TextEditingController();
@@ -62,6 +69,8 @@ class AuthViewController extends GetxController {
   final _agentVerificationAgreed = false.obs; // Agent verification agreement
   final _loanOfficerVerificationAgreed =
       false.obs; // Loan officer verification agreement
+  final _termsOfServiceViewed = false.obs; // Track if user has viewed Terms of Service
+  final _termsOfServiceAgreed = false.obs; // Track if user has agreed to Terms of Service
 
   // Getters
   bool get isLoginMode => _isLoginMode.value;
@@ -80,6 +89,11 @@ class AuthViewController extends GetxController {
   bool get agentVerificationAgreed => _agentVerificationAgreed.value;
   bool get loanOfficerVerificationAgreed =>
       _loanOfficerVerificationAgreed.value;
+  bool get termsOfServiceViewed => _termsOfServiceViewed.value;
+  bool get termsOfServiceAgreed => _termsOfServiceAgreed.value;
+  List<String> get allowedStates => _allowedStates.isEmpty 
+      ? RebateStatesService.getFallbackAllowedStates() 
+      : _allowedStates;
 
   void setAgentVerificationAgreed(bool value) {
     _agentVerificationAgreed.value = value;
@@ -87,6 +101,22 @@ class AuthViewController extends GetxController {
 
   void setLoanOfficerVerificationAgreed(bool value) {
     _loanOfficerVerificationAgreed.value = value;
+  }
+
+  void setTermsOfServiceAgreed(bool value) {
+    _termsOfServiceAgreed.value = value;
+    // When user checks the box, mark as viewed (they acknowledge reading)
+    if (value) {
+      _termsOfServiceViewed.value = true;
+    }
+  }
+
+  /// Opens the Terms of Service page and marks it as viewed when user returns
+  Future<void> openTermsOfService() async {
+    await Get.toNamed('/terms-of-service');
+    // Mark as viewed when user returns from the terms page
+    // This ensures users must actually open the page before they can agree
+    _termsOfServiceViewed.value = true;
   }
 
   void toggleMode() {
@@ -287,22 +317,27 @@ class AuthViewController extends GetxController {
     // Clear verification agreements
     _agentVerificationAgreed.value = false;
     _loanOfficerVerificationAgreed.value = false;
+    // Clear terms of service acceptance
+    _termsOfServiceViewed.value = false;
+    _termsOfServiceAgreed.value = false;
   }
 
   Future<void> submitForm() async {
     if (!_validateForm()) return;
+
+    // Capture email outside try-catch for error handling
+    final email = emailController.text.trim();
 
     try {
       _isLoading.value = true;
 
       if (isLoginMode) {
         await _globalAuthController.login(
-          email: emailController.text.trim(),
+          email: email,
           password: passwordController.text,
         );
       } else {
         // Signup: send verification email first, then navigate to OTP screen
-        final email = emailController.text.trim();
         final phoneValue = phoneController.text.trim();
         final phoneToSend = phoneValue.isNotEmpty ? phoneValue : null;
         final licensedStatesList = _selectedLicensedStates.isNotEmpty
@@ -335,6 +370,9 @@ class AuthViewController extends GetxController {
             if (officeZipCodesList != null)
               'serviceZipCodes': officeZipCodesList,
             'verificationAgreed': _agentVerificationAgreed.value,
+            // Terms of Service acceptance (required for all users)
+            'termsOfServiceAgreed': _termsOfServiceAgreed.value,
+            'termsOfServiceViewed': _termsOfServiceViewed.value,
           };
         } else if (selectedRole == UserRole.loanOfficer) {
           final officeZipCode = loanOfficerOfficeZipController.text.trim();
@@ -360,6 +398,16 @@ class AuthViewController extends GetxController {
             if (officeZipCode.isNotEmpty) 'zipCode': officeZipCode,
             if (officeZipCodesList != null) 'serviceAreas': officeZipCodesList,
             'verificationAgreed': _loanOfficerVerificationAgreed.value,
+            // Terms of Service acceptance (required for all users)
+            'termsOfServiceAgreed': _termsOfServiceAgreed.value,
+            'termsOfServiceViewed': _termsOfServiceViewed.value,
+          };
+        } else {
+          // Buyer/Seller - still need to include terms acceptance
+          additionalData = {
+            // Terms of Service acceptance (required for all users)
+            'termsOfServiceAgreed': _termsOfServiceAgreed.value,
+            'termsOfServiceViewed': _termsOfServiceViewed.value,
           };
         }
 
@@ -393,9 +441,79 @@ class AuthViewController extends GetxController {
     } catch (e, stack) {
       if (kDebugMode) {
         print('❌ Signup/OTP flow exception: $e');
+        print('   Exception type: ${e.runtimeType}');
         print('   Stack: $stack');
       }
-      SnackbarHelper.showError(e.toString());
+      
+      // Check if error indicates email already exists
+      String errorMessage = e.toString();
+      bool isEmailExists = false;
+      
+      // First check: Is it the custom EmailAlreadyExistsException?
+      if (e is EmailAlreadyExistsException) {
+        isEmailExists = true;
+        errorMessage = e.message;
+        if (kDebugMode) {
+          print('✅ Caught EmailAlreadyExistsException: $errorMessage');
+        }
+      } else if (e.toString().contains('EmailAlreadyExistsException')) {
+        isEmailExists = true;
+        // Extract the message
+        if (errorMessage.contains('EmailAlreadyExistsException: ')) {
+          errorMessage = errorMessage.split('EmailAlreadyExistsException: ').last.trim();
+        } else if (errorMessage.contains('Exception: ')) {
+          errorMessage = errorMessage.split('Exception: ').last.trim();
+        }
+      } 
+      // Second check: DioException with specific status codes or messages
+      else if (e is DioException) {
+        final statusCode = e.response?.statusCode;
+        final responseData = e.response?.data;
+        
+        // Check status code (400 or 409 typically mean conflict/exists)
+        if (statusCode == 400 || statusCode == 409) {
+          isEmailExists = true;
+        }
+        
+        // Check response message
+        if (responseData is Map) {
+          final msg = responseData['message']?.toString().toLowerCase() ?? '';
+          if (msg.contains('already exists') ||
+              msg.contains('email already') ||
+              msg.contains('user already') ||
+              msg.contains('account already') ||
+              msg.contains('already registered') ||
+              msg.contains('user with this email')) {
+            isEmailExists = true;
+            errorMessage = responseData['message']?.toString() ?? errorMessage;
+          }
+        }
+      } 
+      // Third check: Generic exception with email exists message
+      else {
+        final lowerError = errorMessage.toLowerCase();
+        if (lowerError.contains('already exists') ||
+            lowerError.contains('email already') ||
+            lowerError.contains('user already') ||
+            lowerError.contains('account already') ||
+            lowerError.contains('already registered') ||
+            lowerError.contains('an account with this email') ||
+            lowerError.contains('user with this email')) {
+          isEmailExists = true;
+        }
+      }
+      
+      if (isEmailExists && !isLoginMode) {
+        if (kDebugMode) {
+          print('🚫 Email already exists - showing dialog and preventing navigation');
+        }
+        // Show dialog prompting user to sign in instead
+        // DO NOT navigate to OTP screen - prevent entry into app
+        showAccountExistsDialog(email);
+        return; // Exit early - don't proceed with signup
+      } else {
+        SnackbarHelper.showError(errorMessage);
+      }
     } finally {
       _isLoading.value = false;
     }
@@ -537,9 +655,147 @@ class AuthViewController extends GetxController {
           return false;
         }
       }
+
+      // Validate Terms of Service acceptance for ALL user types
+      if (!_termsOfServiceAgreed.value) {
+        SnackbarHelper.showError('You must agree to the Terms of Service to create an account');
+        return false;
+      }
     }
 
     return true;
+  }
+
+  @override
+  void onInit() {
+    super.onInit();
+    _loadAllowedStates();
+  }
+
+  Future<void> _loadAllowedStates() async {
+    try {
+      final states = await _rebateStatesService.getAllowedStates();
+      _allowedStates.value = states..sort();
+    } catch (e) {
+      if (kDebugMode) {
+        print('⚠️ Failed to load allowed states: $e');
+      }
+      // Fallback is handled in the getter
+      _allowedStates.value = RebateStatesService.getFallbackAllowedStates()..sort();
+    }
+  }
+
+  /// Shows a dialog when user tries to sign up with an existing email
+  void showAccountExistsDialog(String email) {
+    Get.dialog(
+      Dialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Icon and Title
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppTheme.primaryBlue.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      Icons.person_outline,
+                      color: AppTheme.primaryBlue,
+                      size: 28,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Text(
+                      'Account Already Exists',
+                      style: Theme.of(Get.context!).textTheme.titleLarge?.copyWith(
+                        color: AppTheme.black,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              
+              // Message
+              Text(
+                'An account with the email "$email" already exists. Would you like to sign in instead?',
+                style: Theme.of(Get.context!).textTheme.bodyMedium?.copyWith(
+                  color: AppTheme.darkGray,
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 24),
+              
+              // Buttons
+              Row(
+                children: [
+                  Expanded(
+                    child: TextButton(
+                      onPressed: () => Get.back(),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          side: BorderSide(color: AppTheme.mediumGray),
+                        ),
+                      ),
+                      child: Text(
+                        'Cancel',
+                        style: TextStyle(
+                          color: AppTheme.darkGray,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Get.back();
+                        // Switch to login mode and pre-fill email
+                        toggleMode();
+                        emailController.text = email;
+                        SnackbarHelper.showInfo(
+                          'Please enter your password to sign in.',
+                          duration: const Duration(seconds: 3),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.primaryBlue,
+                        foregroundColor: AppTheme.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      child: const Text(
+                        'Sign In',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+      barrierDismissible: true,
+    );
   }
 
   @override

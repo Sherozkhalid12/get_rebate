@@ -1,9 +1,11 @@
 // lib/app/modules/rebate_calculator/controllers/rebate_calculator_controller.dart
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/services/rebate_calculator_api_service.dart';
+import 'package:getrebate/app/services/rebate_states_service.dart';
 
 class RebateCalculatorController extends GetxController {
   // MODE: 0 = Tiers, 1 = Actual, 2 = Seller Conversion
@@ -11,6 +13,7 @@ class RebateCalculatorController extends GetxController {
 
   // API Service
   final _apiService = RebateCalculatorApiService();
+  final RebateStatesService _rebateStatesService = RebateStatesService();
 
   // Loading states for each tab
   final isLoadingEstimated = false.obs;
@@ -50,54 +53,15 @@ class RebateCalculatorController extends GetxController {
   // TIER DISPLAY (Mode 0)
   final tiers = <Map<String, dynamic>>[].obs;
 
-  // OPTIONS - Only include states where rebates are allowed
-  static const List<String> _allStates = [
-    'AZ',
-    'AR',
-    'CA',
-    'CO',
-    'CT',
-    'DE',
-    'FL',
-    'GA',
-    'HI',
-    'ID',
-    'IL',
-    'IN',
-    'KY',
-    'ME',
-    'MD',
-    'MA',
-    'MI',
-    'MN',
-    'MT',
-    'NE',
-    'NV',
-    'NH',
-    'NJ',
-    'NM',
-    'NY',
-    'NC',
-    'ND',
-    'OH',
-    'PA',
-    'RI',
-    'SC',
-    'SD',
-    'TX',
-    'UT',
-    'VT',
-    'VA',
-    'WA',
-    'WV',
-    'WI',
-    'WY',
-  ];
+  // Observable for allowed states (loaded from service)
+  final _allowedStates = <String>[].obs;
 
   // Seller-specific limitations (currently only New Jersey)
   static const Set<String> _sellerRebateLimitedStates = {'NJ'};
 
-  List<String> get allowedStates => _allStates;
+  List<String> get allowedStates => _allowedStates.isEmpty 
+      ? RebateStatesService.getFallbackAllowedStates() 
+      : _allowedStates;
 
   // GETTERS
   String get selectedState => _selectedState.value;
@@ -117,8 +81,22 @@ class RebateCalculatorController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    _loadAllowedStates();
     _setupListeners();
     _updateFormValidity(); // Initial validation check
+  }
+
+  Future<void> _loadAllowedStates() async {
+    try {
+      final states = await _rebateStatesService.getAllowedStates();
+      _allowedStates.value = states..sort();
+    } catch (e) {
+      if (kDebugMode) {
+        print('⚠️ Failed to load allowed states: $e');
+      }
+      // Fallback is handled in the getter
+      _allowedStates.value = RebateStatesService.getFallbackAllowedStates()..sort();
+    }
   }
 
   // Observable for form validity

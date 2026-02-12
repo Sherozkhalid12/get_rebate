@@ -5,9 +5,11 @@ import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/modules/auth/controllers/auth_controller.dart';
 import 'package:getrebate/app/widgets/custom_button.dart';
 import 'package:getrebate/app/widgets/custom_text_field.dart';
+import 'package:getrebate/app/widgets/rebate_compliance_notice.dart';
 import 'package:getrebate/app/models/user_model.dart';
 import 'package:getrebate/app/models/agent_expertise.dart';
 import 'package:getrebate/app/models/mortgage_types.dart';
+import 'package:getrebate/app/utils/snackbar_helper.dart';
 
 class AuthView extends GetView<AuthViewController> {
   const AuthView({super.key});
@@ -254,6 +256,12 @@ class AuthView extends GetView<AuthViewController> {
           if (!controller.isLoginMode) ...[
             const SizedBox(height: 24),
             _buildRoleSelection(context),
+          ],
+
+          // Terms of Service acceptance (required for all signups)
+          if (!controller.isLoginMode) ...[
+            const SizedBox(height: 24),
+            _buildTermsOfServiceAgreement(context),
           ],
 
           const SizedBox(height: 32),
@@ -574,6 +582,12 @@ class AuthView extends GetView<AuthViewController> {
               const SizedBox(height: 12),
               _buildLicensedStatesSelection(context),
               const SizedBox(height: 16),
+              // Compliance notice for rebate eligibility
+              RebateComplianceNotice(
+                accentColor: AppTheme.primaryBlue,
+                showViewStatesButton: false,
+              ),
+              const SizedBox(height: 16),
 
               // Service Areas (ZIP codes)
               CustomTextField(
@@ -677,6 +691,12 @@ class AuthView extends GetView<AuthViewController> {
               const SizedBox(height: 12),
               _buildLicensedStatesSelection(context),
               const SizedBox(height: 16),
+              // Compliance notice for rebate eligibility
+              RebateComplianceNotice(
+                accentColor: AppTheme.lightGreen,
+                showViewStatesButton: false,
+              ),
+              const SizedBox(height: 16),
 
               // Service Areas (ZIP codes)
               CustomTextField(
@@ -715,97 +735,56 @@ class AuthView extends GetView<AuthViewController> {
   }
 
   Widget _buildLicensedStatesSelection(BuildContext context) {
-    // Only include states where rebates are allowed
-    final usStates = [
-      'AZ',
-      'AR',
-      'CA',
-      'CO',
-      'CT',
-      'DE',
-      'FL',
-      'GA',
-      'HI',
-      'ID',
-      'IL',
-      'IN',
-      'KY',
-      'ME',
-      'MD',
-      'MA',
-      'MI',
-      'MN',
-      'MT',
-      'NE',
-      'NV',
-      'NH',
-      'NJ',
-      'NM',
-      'NY',
-      'NC',
-      'ND',
-      'OH',
-      'PA',
-      'RI',
-      'SC',
-      'SD',
-      'TX',
-      'UT',
-      'VT',
-      'VA',
-      'WA',
-      'WV',
-      'WI',
-      'WY',
-    ];
-
     return Obx(
-      () => Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: usStates.map((state) {
-          final isSelected = controller.isLicensedStateSelected(state);
-          final color = controller.selectedRole == UserRole.agent
-              ? AppTheme.primaryBlue
-              : AppTheme.lightGreen;
-          return GestureDetector(
-            onTap: () => controller.toggleLicensedState(state),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: isSelected ? color.withOpacity(0.1) : AppTheme.white,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: isSelected
-                      ? color
-                      : AppTheme.mediumGray.withOpacity(0.3),
-                  width: 1.5,
+      () {
+        final allowedStates = controller.allowedStates;
+        return Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: allowedStates.map((state) {
+            final isSelected = controller.isLicensedStateSelected(state);
+            final color = controller.selectedRole == UserRole.agent
+                ? AppTheme.primaryBlue
+                : AppTheme.lightGreen;
+            return GestureDetector(
+              onTap: () => controller.toggleLicensedState(state),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: isSelected ? color.withOpacity(0.1) : AppTheme.white,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: isSelected
+                        ? color
+                        : AppTheme.mediumGray.withOpacity(0.3),
+                    width: 1.5,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      isSelected ? Icons.check_circle : Icons.circle_outlined,
+                      size: 16,
+                      color: isSelected ? color : AppTheme.mediumGray,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      state,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: isSelected ? color : AppTheme.darkGray,
+                        fontWeight: isSelected
+                            ? FontWeight.w600
+                            : FontWeight.normal,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    isSelected ? Icons.check_circle : Icons.circle_outlined,
-                    size: 16,
-                    color: isSelected ? color : AppTheme.mediumGray,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    state,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: isSelected ? color : AppTheme.darkGray,
-                      fontWeight: isSelected
-                          ? FontWeight.w600
-                          : FontWeight.normal,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        }).toList(),
-      ),
+            );
+          }).toList(),
+        );
+      },
     );
   }
 
@@ -1291,6 +1270,88 @@ class AuthView extends GetView<AuthViewController> {
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: AppTheme.darkGray,
                           height: 1.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTermsOfServiceAgreement(BuildContext context) {
+    return Obx(
+      () => Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppTheme.primaryBlue.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: controller.termsOfServiceAgreed
+                ? AppTheme.primaryBlue
+                : AppTheme.mediumGray.withOpacity(0.3),
+            width: 1.5,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Checkbox(
+                  value: controller.termsOfServiceAgreed,
+                  onChanged: (value) {
+                    controller.setTermsOfServiceAgreed(value ?? false);
+                  },
+                  activeColor: AppTheme.primaryBlue,
+                ),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Terms of Service Agreement *',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: AppTheme.darkGray,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      RichText(
+                        text: TextSpan(
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: AppTheme.darkGray,
+                            height: 1.5,
+                          ),
+                          children: [
+                            const TextSpan(
+                              text: 'I have read and agree to the ',
+                            ),
+                            WidgetSpan(
+                              child: GestureDetector(
+                                onTap: () => controller.openTermsOfService(),
+                                child: Text(
+                                  'Terms of Service',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodySmall
+                                      ?.copyWith(
+                                    color: AppTheme.primaryBlue,
+                                    fontWeight: FontWeight.w600,
+                                    decoration: TextDecoration.underline,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const TextSpan(
+                              text: '. By checking this box, you acknowledge that you have read, understood, and agree to be bound by all terms and conditions.',
+                            ),
+                          ],
                         ),
                       ),
                     ],
