@@ -1,8 +1,7 @@
 import 'package:get/get.dart';
 
 class LoanOfficerChecklistController extends GetxController {
-  /// Get the main loan officer checklist
-  /// This explains what loan officers do and how they work with the platform
+
   List<String> getLoanOfficerChecklist() {
     return [
       'Complete Your Profile: Fill out your loan officer profile with accurate information including your company, license number, licensed states, specialty products, and professional bio. A complete profile helps buyers and agents find and trust you.',
