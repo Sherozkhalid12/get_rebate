@@ -8,6 +8,7 @@ import 'package:getrebate/app/models/listing.dart';
 import 'package:getrebate/app/modules/messages/controllers/messages_controller.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
+import 'package:getrebate/app/utils/error_handler.dart';
 import 'package:getrebate/app/services/agent_service.dart';
 import 'package:getrebate/app/services/zip_codes_service.dart';
 
@@ -104,7 +105,7 @@ class FindAgentsController extends GetxController {
       } catch (e) {
         if (kDebugMode) print('❌ within10miles API: $e');
         SnackbarHelper.showError(
-          'Failed to fetch nearby ZIP codes: ${e.toString()}',
+          'Unable to load nearby ZIP codes. Please check your connection and try again.',
         );
         _within10MilesMap = null;
       }
@@ -385,7 +386,7 @@ class FindAgentsController extends GetxController {
       if (kDebugMode) {
         print('❌ Error loading more agents: $e');
       }
-      SnackbarHelper.showError('Failed to load more agents. Please try again.');
+      ErrorHandler.handleError(e, defaultMessage: 'Unable to load more agents. Please check your connection and try again.');
     } finally {
       _isLoadingMore.value = false;
     }

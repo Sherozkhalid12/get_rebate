@@ -68,6 +68,7 @@ class ZipCodesResponse {
 
   /// Converts full state name to state code
   /// Only includes states where rebates are allowed
+  /// CRITICAL: Only these states are allowed - do not add others without approval
   String _getStateCodeFromName(String name) {
     final stateMap = {
       'Arizona': 'AZ',
@@ -76,6 +77,9 @@ class ZipCodesResponse {
       'Colorado': 'CO',
       'Connecticut': 'CT',
       'Delaware': 'DE',
+      'District of Columbia': 'DC',
+      'Washington, D.C.': 'DC',
+      'Washington D.C.': 'DC',
       'Florida': 'FL',
       'Georgia': 'GA',
       'Hawaii': 'HI',
@@ -96,7 +100,6 @@ class ZipCodesResponse {
       'New Mexico': 'NM',
       'New York': 'NY',
       'North Carolina': 'NC',
-      'North Dakota': 'ND',
       'Ohio': 'OH',
       'Pennsylvania': 'PA',
       'Rhode Island': 'RI',
@@ -162,6 +165,7 @@ class ZipCodesService {
 
   /// Converts full state name to state code (helper function)
   /// Only includes states where rebates are allowed
+  /// CRITICAL: Only these states are allowed - do not add others without approval
   static String _getStateCodeFromName(String name) {
     final stateMap = {
       'Arizona': 'AZ',
@@ -170,6 +174,9 @@ class ZipCodesService {
       'Colorado': 'CO',
       'Connecticut': 'CT',
       'Delaware': 'DE',
+      'District of Columbia': 'DC',
+      'Washington, D.C.': 'DC',
+      'Washington D.C.': 'DC',
       'Florida': 'FL',
       'Georgia': 'GA',
       'Hawaii': 'HI',
@@ -190,7 +197,6 @@ class ZipCodesService {
       'New Mexico': 'NM',
       'New York': 'NY',
       'North Carolina': 'NC',
-      'North Dakota': 'ND',
       'Ohio': 'OH',
       'Pennsylvania': 'PA',
       'Rhode Island': 'RI',

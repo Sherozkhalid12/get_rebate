@@ -58,7 +58,8 @@ class PrivacyPolicyView extends StatelessWidget {
               _buildSection(
                 context,
                 '1. Introduction',
-                'GetaRebate  ("we," "our," or "us") is committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our mobile application and services.',
+                'GetaRebate  ("we," "our," or "us") is committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our mobile application and services.\n\n'
+                'For the purposes of these Terms, "Get a Rebate Real Estate," "Get a Rebate," and "GetaRebate.com" refer to the same company and business entity and may be used interchangeably.',
               ),
 
               _buildSection(
@@ -141,8 +142,7 @@ class PrivacyPolicyView extends StatelessWidget {
                 'If you have any questions about this Privacy Policy, please contact us:\n\n'
                     'Email: privacy@getrebate.com\n'
                     'Address: Get a Rebate Real Estate, 8400 Normandale Lake Blvd. Suite 920, Bloomington, MN 55437\n'
-                    'Attn: Privacy Officer\n'
-                    '[Your Business Address]',
+                    'Attn: Privacy Officer',
               ),
 
               const ComplianceFooter(),

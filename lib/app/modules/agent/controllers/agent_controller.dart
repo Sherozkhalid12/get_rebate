@@ -23,6 +23,7 @@ import 'package:getrebate/app/utils/api_constants.dart';
 import 'package:getrebate/app/utils/storage_keys.dart';
 import 'package:getrebate/app/utils/network_error_handler.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
+import 'package:getrebate/app/utils/error_handler.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/modules/messages/controllers/messages_controller.dart';
 import 'package:getrebate/app/widgets/payment_web_view.dart';
@@ -1569,6 +1570,7 @@ class AgentController extends GetxController {
 
   /// Converts full state name (e.g., "California") to state code (e.g., "CA")
   /// Only includes states where rebates are allowed
+  /// CRITICAL: Only these states are allowed - do not add others without approval
   String _getStateCodeFromName(String name) {
     final stateMap = {
       'Arizona': 'AZ',
@@ -1577,6 +1579,9 @@ class AgentController extends GetxController {
       'Colorado': 'CO',
       'Connecticut': 'CT',
       'Delaware': 'DE',
+      'District of Columbia': 'DC',
+      'Washington, D.C.': 'DC',
+      'Washington D.C.': 'DC',
       'Florida': 'FL',
       'Georgia': 'GA',
       'Hawaii': 'HI',
@@ -1597,7 +1602,6 @@ class AgentController extends GetxController {
       'New Mexico': 'NM',
       'New York': 'NY',
       'North Carolina': 'NC',
-      'North Dakota': 'ND',
       'Ohio': 'OH',
       'Pennsylvania': 'PA',
       'Rhode Island': 'RI',
@@ -1673,7 +1677,7 @@ class AgentController extends GetxController {
       _availableZipCodes.clear();
     } catch (e) {
       if (kDebugMode) print('❌ getStateZipCodes: $e');
-      SnackbarHelper.showError('Failed to load ZIP codes: ${e.toString()}');
+      ErrorHandler.handleError(e, defaultMessage: 'Unable to load ZIP codes. Please check your connection and try again.');
       _stateZipCodesFromApi.clear();
       _availableZipCodes.clear();
     } finally {

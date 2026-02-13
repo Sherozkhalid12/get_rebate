@@ -55,6 +55,21 @@ class AuthViewController extends GetxController {
   final _selectedRole = UserRole.buyerSeller.obs;
   final _isLoading = false.obs;
   final _obscurePassword = true.obs;
+  // Store email to pre-fill when navigating back from OTP screen
+  String? _pendingEmailToFill;
+  
+  /// Sets the email to pre-fill when the widget is ready (used when navigating back from OTP)
+  void setPendingEmailToFill(String email) {
+    _pendingEmailToFill = email;
+  }
+  
+  /// Clears the pending email to fill
+  void clearPendingEmailToFill() {
+    _pendingEmailToFill = null;
+  }
+  
+  /// Gets the pending email to fill (if any)
+  String? get pendingEmailToFill => _pendingEmailToFill;
   final Rxn<bool> _isDualAgencyAllowedInState = Rxn<bool>();
   final Rxn<bool> _isDualAgencyAllowedAtBrokerage = Rxn<bool>();
   final Rxn<File> _selectedProfilePic = Rxn<File>();
@@ -470,47 +485,65 @@ class AuthViewController extends GetxController {
         final statusCode = e.response?.statusCode;
         final responseData = e.response?.data;
         
-        // Check status code (400 or 409 typically mean conflict/exists)
-        if (statusCode == 400 || statusCode == 409) {
-          isEmailExists = true;
-        }
-        
-        // Check response message
+        // Simple check: Look for success: false with email exists message
         if (responseData is Map) {
+          final success = responseData['success'];
           final msg = responseData['message']?.toString().toLowerCase() ?? '';
-          if (msg.contains('already exists') ||
-              msg.contains('email already') ||
-              msg.contains('user already') ||
-              msg.contains('account already') ||
-              msg.contains('already registered') ||
-              msg.contains('user with this email')) {
+          
+          // Check for the specific API response format
+          if (success == false && 
+              (msg.contains('user with this email or phone already exists') ||
+               msg.contains('email already exists') ||
+               msg.contains('user already exists'))) {
             isEmailExists = true;
-            errorMessage = responseData['message']?.toString() ?? errorMessage;
+            errorMessage = responseData['message']?.toString() ?? 
+                'An account with this email already exists';
           }
         }
       } 
-      // Third check: Generic exception with email exists message
+      // Third check: Generic exception with email exists message (only if explicitly about email)
       else {
         final lowerError = errorMessage.toLowerCase();
-        if (lowerError.contains('already exists') ||
-            lowerError.contains('email already') ||
-            lowerError.contains('user already') ||
-            lowerError.contains('account already') ||
-            lowerError.contains('already registered') ||
-            lowerError.contains('an account with this email') ||
-            lowerError.contains('user with this email')) {
+        // Only check for very specific email existence patterns
+        if (lowerError.contains('email already exists') ||
+            lowerError.contains('user already exists') ||
+            lowerError.contains('account already exists') ||
+            lowerError.contains('an account with this email already exists')) {
           isEmailExists = true;
         }
       }
       
       if (isEmailExists && !isLoginMode) {
         if (kDebugMode) {
-          print('🚫 Email already exists - showing dialog and preventing navigation');
+          print('🚫 Email already exists - switching to login mode');
         }
-        // Show dialog prompting user to sign in instead
-        // DO NOT navigate to OTP screen - prevent entry into app
-        showAccountExistsDialog(email);
-        return; // Exit early - don't proceed with signup
+        // Store email to pre-fill after mode switch
+        _pendingEmailToFill = email;
+        // Switch to login mode (this clears the form, so we'll fill email after)
+        if (!isLoginMode) {
+          toggleMode();
+        }
+        // Pre-fill email using post-frame callback to ensure widget is ready
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          try {
+            if (_pendingEmailToFill != null) {
+              emailController.text = _pendingEmailToFill!;
+              _pendingEmailToFill = null; // Clear after setting
+            }
+          } catch (e) {
+            if (kDebugMode) {
+              print('⚠️ Error setting email text: $e');
+            }
+            _pendingEmailToFill = null; // Clear on error too
+          }
+        });
+        // Show message after a short delay
+        Future.delayed(const Duration(milliseconds: 100), () {
+          SnackbarHelper.showError(
+            'An account with this email already exists. Please sign in instead.',
+          );
+        });
+        return; // PREVENTS NAVIGATION TO OTP SCREEN
       } else {
         SnackbarHelper.showError(errorMessage);
       }
@@ -664,6 +697,26 @@ class AuthViewController extends GetxController {
     }
 
     return true;
+  }
+
+  @override
+  @override
+  void onReady() {
+    super.onReady();
+    // Pre-fill email if there's a pending email (e.g., from OTP screen navigation)
+    if (_pendingEmailToFill != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        try {
+          emailController.text = _pendingEmailToFill!;
+          _pendingEmailToFill = null;
+        } catch (e) {
+          if (kDebugMode) {
+            print('⚠️ Error pre-filling email in onReady: $e');
+          }
+          _pendingEmailToFill = null;
+        }
+      });
+    }
   }
 
   @override

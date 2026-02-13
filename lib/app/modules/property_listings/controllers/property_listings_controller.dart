@@ -10,6 +10,7 @@ import 'package:getrebate/app/routes/app_pages.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart' as global;
 import 'package:getrebate/app/utils/api_constants.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
+import 'package:getrebate/app/utils/error_handler.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 
 class PropertyListingsController extends GetxController {
@@ -179,7 +180,7 @@ class PropertyListingsController extends GetxController {
           print('⚠️ Unexpected status code: ${response.statusCode}');
           print('   Response: ${response.data}');
         }
-        SnackbarHelper.showError('Failed to fetch listings. Status: ${response.statusCode}');
+        ErrorHandler.showLoadError(itemName: 'listings');
       }
     } on DioException catch (e) {
       _isLoading.value = false;
@@ -240,7 +241,7 @@ class PropertyListingsController extends GetxController {
       // Only show snackbar if we have a valid context
       try {
         if (Get.isSnackbarOpen == false) {
-          SnackbarHelper.showError('Failed to fetch listings: ${e.toString()}');
+          ErrorHandler.handleError(e, defaultMessage: 'Unable to load listings. Please check your connection and try again.');
         }
       } catch (snackbarError) {
         if (kDebugMode) {

@@ -7,6 +7,7 @@ import 'package:getrebate/app/models/notification_model.dart';
 import 'package:getrebate/app/services/notification_service.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
+import 'package:getrebate/app/utils/error_handler.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/modules/proposals/controllers/proposal_controller.dart';
 import 'package:getrebate/app/routes/app_pages.dart';
@@ -70,7 +71,7 @@ class NotificationsController extends GetxController {
       if (kDebugMode) {
         print('❌ Error fetching notifications: $e');
       }
-      SnackbarHelper.showError('Failed to load notifications');
+      ErrorHandler.handleError(e, defaultMessage: 'Unable to load notifications. Please try again later.');
     } finally {
       _isLoading.value = false;
     }
@@ -97,7 +98,7 @@ class NotificationsController extends GetxController {
       if (kDebugMode) {
         print('❌ Error marking notification as read: $e');
       }
-      SnackbarHelper.showError('Failed to mark notification as read');
+      ErrorHandler.handleError(e, defaultMessage: 'Unable to update notification. Please try again.');
     }
   }
 

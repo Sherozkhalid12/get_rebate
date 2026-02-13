@@ -483,46 +483,8 @@ class AuthController extends GetxController {
         print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       }
 
-      // Check response data for email already exists indication
-      // Even if status is 200/201, check the response content
-      if (response.data is Map) {
-        final responseData = response.data as Map;
-        final message = responseData['message']?.toString().toLowerCase() ?? '';
-        final userExists = responseData['userExists'] ?? responseData['emailExists'];
-        final exists = responseData['exists'];
-        final isExistingUser = responseData['isExistingUser'];
-        
-        // Check multiple possible indicators
-        if (userExists == true || 
-            exists == true ||
-            isExistingUser == true ||
-            message.contains('already exists') ||
-            message.contains('email already') ||
-            message.contains('user already') ||
-            message.contains('account already') ||
-            message.contains('already registered') ||
-            message.contains('user with this email')) {
-          final errorMsg = responseData['message']?.toString() ?? 
-              'An account with this email already exists';
-          if (kDebugMode) {
-            print('❌ Email already exists detected in response: $errorMsg');
-            print('   Response data: $responseData');
-          }
-          throw EmailAlreadyExistsException(errorMsg);
-        }
-      } else if (response.data is String) {
-        // Sometimes API returns plain string messages
-        final responseStr = response.data.toString().toLowerCase();
-        if (responseStr.contains('already exists') ||
-            responseStr.contains('email already') ||
-            responseStr.contains('user already') ||
-            responseStr.contains('account already')) {
-          if (kDebugMode) {
-            print('❌ Email already exists detected in string response');
-          }
-          throw EmailAlreadyExistsException('An account with this email already exists');
-        }
-      }
+      // DO NOT check for email existence in sendVerificationEmail
+      // Email existence is ONLY checked in /auth/createUser endpoint
 
       if (response.statusCode != 200 && response.statusCode != 201) {
         final msg = (response.data as Map?)?['message']?.toString() ??
@@ -531,25 +493,8 @@ class AuthController extends GetxController {
         throw Exception(msg);
       }
     } on DioException catch (e) {
-      final statusCode = e.response?.statusCode;
-      final responseData = e.response?.data;
-      
-      // Check if error indicates email already exists
-      if (responseData is Map) {
-        final message = responseData['message']?.toString().toLowerCase() ?? '';
-        if (message.contains('already exists') ||
-            message.contains('email already') ||
-            message.contains('user already') ||
-            message.contains('account already') ||
-            statusCode == 409) {
-          final errorMsg = responseData['message']?.toString() ?? 
-              'An account with this email already exists';
-          if (kDebugMode) {
-            print('❌ Email already exists (DioException): $errorMsg');
-          }
-          throw EmailAlreadyExistsException(errorMsg);
-        }
-      }
+      // DO NOT check for email existence in sendVerificationEmail
+      // Email existence is ONLY checked in /auth/createUser endpoint
       
       final msg = (e.response?.data as Map?)?['message']?.toString();
       final errMsg = msg ?? _dioErrorToMessage(e);
@@ -1070,14 +1015,33 @@ class AuthController extends GetxController {
         options: Options(headers: {'ngrok-skip-browser-warning': 'true'}),
       );
 
+      // Handle response
+      final responseData = response.data;
+      
+      // ONLY check for email exists in /auth/createUser response
+      // EXACT check: {"success": false, "message": "User with this email or phone already exists"}
+      if (responseData is Map) {
+        final success = responseData['success'];
+        final message = responseData['message']?.toString().trim() ?? '';
+        
+        // EXACT match only - no partial matches
+        if (success == false && 
+            message.toLowerCase() == 'user with this email or phone already exists') {
+          final errorMsg = message.isNotEmpty ? message : 'An account with this email already exists';
+          if (kDebugMode) {
+            print('❌ Email already exists detected from /auth/createUser: $errorMsg');
+            print('   Response: $responseData');
+          }
+          throw EmailAlreadyExistsException(errorMsg);
+        }
+      }
+      
       // Handle successful response
       if (response.statusCode == 200 || response.statusCode == 201) {
         print('✅ SUCCESS - Status Code: ${response.statusCode}');
         print('📥 Response Data:');
         print(response.data);
         print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-
-        final responseData = response.data;
 
         // Extract user data - check if nested in 'user' object or at root level
         final userData = responseData['user'] ?? responseData;
@@ -1211,10 +1175,12 @@ class AuthController extends GetxController {
       }
     } on DioException catch (e) {
       // Handle Dio errors
-      print('❌ ERROR - Status Code: ${e.response?.statusCode ?? "N/A"}');
-      print('📥 Error Response:');
-      print(e.response?.data ?? e.message);
-      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      if (kDebugMode) {
+        print('❌ SIGNUP ERROR - Status Code: ${e.response?.statusCode ?? "N/A"}');
+        print('📥 Error Response:');
+        print(e.response?.data ?? e.message);
+        print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      }
 
       String errorMessage = 'Sign up failed. Please try again.';
       bool isEmailExists = false;
@@ -1223,24 +1189,28 @@ class AuthController extends GetxController {
         final responseData = e.response?.data;
         final statusCode = e.response?.statusCode;
         
-        // Check if email already exists
-        if (statusCode == 400 || statusCode == 409) {
-          isEmailExists = true;
-        }
-        
-        if (responseData is Map && responseData.containsKey('message')) {
-          final msg = responseData['message'].toString().toLowerCase();
-          if (msg.contains('already exists') ||
-              msg.contains('email already') ||
-              msg.contains('user already') ||
-              msg.contains('account already') ||
-              msg.contains('user with this email')) {
+        // EXACT check: Only check for the specific API response format from /auth/createUser
+        // {"success": false, "message": "User with this email or phone already exists"}
+        if (responseData is Map) {
+          final success = responseData['success'];
+          final msg = responseData['message']?.toString().toLowerCase().trim() ?? '';
+          
+          // ONLY check for exact message match - no partial matches
+          if (success == false && 
+              msg == 'user with this email or phone already exists') {
             isEmailExists = true;
+            errorMessage = responseData['message']?.toString() ?? 
+                'An account with this email already exists';
+            if (kDebugMode) {
+              print('❌ Email already exists detected in DioException: $errorMessage');
+              print('   Status Code: $statusCode');
+              print('   Response: $responseData');
+            }
+          } else {
+            // Not an email exists error - use the actual error message
+            errorMessage = responseData['message']?.toString() ?? 
+                e.response?.statusMessage ?? errorMessage;
           }
-          errorMessage = responseData['message'].toString();
-        } else if (statusCode == 400) {
-          errorMessage = 'User with this email or phone already exists';
-          isEmailExists = true;
         } else {
           errorMessage = e.response?.statusMessage ?? errorMessage;
         }
@@ -1252,9 +1222,12 @@ class AuthController extends GetxController {
         errorMessage = 'No internet connection. Please check your network.';
       }
 
-      // If email exists, throw EmailAlreadyExistsException instead of showing snackbar
+      // Throw EmailAlreadyExistsException if detected
       // This will be caught by verify_otp_controller and handled properly
       if (isEmailExists) {
+        if (kDebugMode) {
+          print('❌ Email already exists detected in signUp: $errorMessage');
+        }
         throw EmailAlreadyExistsException(errorMessage);
       }
 

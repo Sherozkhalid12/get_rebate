@@ -14,11 +14,12 @@ class RebateStatesService {
   final GetStorage _storage = GetStorage();
 
   // Fallback list of states that allow rebates (if API fails)
+  // CRITICAL: Only these states are allowed - do not add others without approval
   static const List<String> _fallbackAllowedStates = [
-    'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA',
+    'AZ', 'AR', 'CA', 'CO', 'CT', 'DC', 'DE', 'FL', 'GA',
     'HI', 'ID', 'IL', 'IN', 'KY', 'ME', 'MD', 'MA',
     'MI', 'MN', 'MT', 'NE', 'NV', 'NH', 'NJ', 'NM',
-    'NY', 'NC', 'ND', 'OH', 'PA', 'RI', 'SC', 'SD',
+    'NY', 'NC', 'OH', 'PA', 'RI', 'SC', 'SD',
     'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY',
   ];
 

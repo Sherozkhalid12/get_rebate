@@ -8,6 +8,7 @@ import 'package:getrebate/app/services/report_service.dart';
 import 'package:getrebate/app/services/review_service.dart';
 import 'package:getrebate/app/services/leads_service.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
+import 'package:getrebate/app/utils/error_handler.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
 
 class ProposalController extends GetxController {
@@ -293,7 +294,7 @@ class ProposalController extends GetxController {
       
       // Only show error if leads loading failed (proposals might not exist)
       if (_leads.isEmpty) {
-        SnackbarHelper.showError('Failed to load leads: ${e.toString()}');
+        ErrorHandler.handleError(e, defaultMessage: 'Unable to load leads. Please check your connection and try again.');
       }
     } finally {
       _isLoading.value = false;
@@ -586,7 +587,7 @@ class ProposalController extends GetxController {
 
       return proposal;
     } catch (e) {
-      SnackbarHelper.showError('Failed to create proposal: ${e.toString()}');
+      ErrorHandler.handleError(e, defaultMessage: 'Unable to create proposal. Please try again.');
       if (kDebugMode) {
         print('❌ Error creating proposal: $e');
       }
@@ -623,7 +624,7 @@ class ProposalController extends GetxController {
 
       return true;
     } catch (e) {
-      SnackbarHelper.showError('Failed to accept proposal: ${e.toString()}');
+      ErrorHandler.handleError(e, defaultMessage: 'Unable to accept proposal. Please try again.');
       if (kDebugMode) {
         print('❌ Error accepting proposal: $e');
       }
@@ -661,7 +662,7 @@ class ProposalController extends GetxController {
 
       return true;
     } catch (e) {
-      SnackbarHelper.showError('Failed to reject proposal: ${e.toString()}');
+      ErrorHandler.handleError(e, defaultMessage: 'Unable to reject proposal. Please try again.');
       if (kDebugMode) {
         print('❌ Error rejecting proposal: $e');
       }
@@ -698,7 +699,7 @@ class ProposalController extends GetxController {
 
       return true;
     } catch (e) {
-      SnackbarHelper.showError('Failed to complete service: ${e.toString()}');
+      ErrorHandler.handleError(e, defaultMessage: 'Unable to complete service. Please try again.');
       if (kDebugMode) {
         print('❌ Error completing service: $e');
       }
@@ -752,7 +753,7 @@ class ProposalController extends GetxController {
 
       return true;
     } catch (e) {
-      SnackbarHelper.showError('Failed to submit review: ${e.toString()}');
+      ErrorHandler.handleError(e, defaultMessage: 'Unable to submit review. Please try again.');
       if (kDebugMode) {
         print('❌ Error submitting review: $e');
       }
@@ -805,7 +806,7 @@ class ProposalController extends GetxController {
 
       return true;
     } catch (e) {
-      SnackbarHelper.showError('Failed to submit report: ${e.toString()}');
+      ErrorHandler.handleError(e, defaultMessage: 'Unable to submit report. Please try again.');
       if (kDebugMode) {
         print('❌ Error submitting report: $e');
       }

@@ -58,6 +58,17 @@ class TermsOfServiceView extends StatelessWidget {
               // Content Sections
               _buildSection(
                 context,
+                '0. Definitions and Company Identity',
+                'For the purposes of these Terms of Use, the following terms refer to the same company and business entity:\n\n'
+                '• "Get a Rebate Real Estate"\n'
+                '• "Get a Rebate"\n'
+                '• "GetaRebate.com"\n\n'
+                'These names may be used interchangeably throughout the Service (including this mobile application, website, and any related platforms), legal documents, communications, marketing materials, and any other context. All references to any of these names shall be understood to refer to one single legal entity and business organization.\n\n'
+                'This clarification is intended to eliminate any potential confusion or ambiguity regarding the identity of the company providing the Service. Any use of these names, whether individually or collectively, does not create separate legal entities or alter the singular nature of the company providing the Service described in these Terms.',
+              ),
+              
+              _buildSection(
+                context,
                 '1. Acceptance of Terms',
                 'By accessing and using Get a Rebate Real Estate  ("the Service"), you accept and agree to be bound by the terms and provision of this agreement. If you do not agree to abide by the above, please do not use this service.',
               ),
@@ -152,7 +163,7 @@ class TermsOfServiceView extends StatelessWidget {
               _buildSection(
                 context,
                 '12. Governing Law',
-                'These Terms shall be governed by and construed in accordance with the laws of [Your State/Country], without regard to its conflict of law provisions. Any disputes arising under these Terms shall be subject to the exclusive jurisdiction of the courts in [Your Jurisdiction].',
+                'These Terms shall be governed by and construed in accordance with the laws of Minnesota, without regard to its conflict of law provisions. Any disputes arising under these Terms shall be subject to the exclusive jurisdiction of the courts in Minnesota.',
               ),
               
               _buildSection(
@@ -165,10 +176,9 @@ class TermsOfServiceView extends StatelessWidget {
                 context,
                 '14. Contact Information',
                 'If you have any questions about these Terms of Service, please contact us:\n\n'
-                'Email: legal@getarebate.com\n'
-                'Address: GetaRebate , Inc.\n'
-                'Attn: Legal Department\n'
-                '[Your Business Address]',
+                'Email: legal@getarebate.com\n\n'
+                'Address: Get a Rebate Real Estate, 8400 Normandale Lake Blvd. #920, Bloomington, MN 55437\n'
+                'Attn: Legal Department',
               ),
               
               const ComplianceFooter(),

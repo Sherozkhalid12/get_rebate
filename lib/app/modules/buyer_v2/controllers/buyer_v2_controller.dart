@@ -21,6 +21,7 @@ import 'package:getrebate/app/modules/favorites/controllers/favorites_controller
 import 'package:getrebate/app/controllers/main_navigation_controller.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
+import 'package:getrebate/app/utils/error_handler.dart';
 import 'package:getrebate/app/utils/rebate_restricted_states.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 
@@ -453,7 +454,7 @@ class BuyerV2Controller extends GetxController {
       if (kDebugMode) {
         print('❌ Error loading more agents: $e');
       }
-      SnackbarHelper.showError('Failed to load more agents. Please try again.');
+      ErrorHandler.handleError(e, defaultMessage: 'Unable to load more agents. Please check your connection and try again.');
     } finally {
       _isLoadingMoreAgents.value = false;
     }
@@ -1635,7 +1636,7 @@ class BuyerV2Controller extends GetxController {
       } catch (e) {
         if (kDebugMode) print('❌ within10miles API: $e');
         SnackbarHelper.showError(
-          'Failed to fetch nearby ZIP codes: ${e.toString()}',
+          'Unable to load nearby ZIP codes. Please check your connection and try again.',
         );
         _within10MilesMap = null;
       }

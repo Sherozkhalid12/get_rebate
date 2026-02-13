@@ -426,12 +426,14 @@ class LoanOfficerEditProfileView
 
   Widget _buildLicensedStatesSection(BuildContext context) {
     // Only include states where rebates are allowed
+    // CRITICAL: Only these states are allowed - do not add others without approval
     final usStates = [
       'AZ',
       'AR',
       'CA',
       'CO',
       'CT',
+      'DC',
       'DE',
       'FL',
       'GA',
@@ -453,7 +455,6 @@ class LoanOfficerEditProfileView
       'NM',
       'NY',
       'NC',
-      'ND',
       'OH',
       'PA',
       'RI',

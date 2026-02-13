@@ -80,6 +80,7 @@ class LoanOfficerZipCodeService {
 
   /// Converts full state name to two-letter abbreviation
   /// Returns the original string if conversion fails or if already an abbreviation
+  /// CRITICAL: Only these states are allowed - do not add others without approval
   String _convertStateNameToAbbreviation(String stateName) {
     const stateMap = {
       'Arizona': 'AZ',
@@ -88,6 +89,9 @@ class LoanOfficerZipCodeService {
       'Colorado': 'CO',
       'Connecticut': 'CT',
       'Delaware': 'DE',
+      'District of Columbia': 'DC',
+      'Washington, D.C.': 'DC',
+      'Washington D.C.': 'DC',
       'Florida': 'FL',
       'Georgia': 'GA',
       'Hawaii': 'HI',
@@ -108,7 +112,6 @@ class LoanOfficerZipCodeService {
       'New Mexico': 'NM',
       'New York': 'NY',
       'North Carolina': 'NC',
-      'North Dakota': 'ND',
       'Ohio': 'OH',
       'Pennsylvania': 'PA',
       'Rhode Island': 'RI',

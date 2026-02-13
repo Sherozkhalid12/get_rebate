@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:get/get.dart';
 import 'package:dio/dio.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart' as global;
@@ -157,6 +158,7 @@ class VerifyOtpController extends GetxController {
       if (kDebugMode) {
         print('❌ _completeSignUp exception: $e');
         print('   Exception type: ${e.runtimeType}');
+        print('   Full error details: ${e.toString()}');
       }
       
       // Check if error indicates email already exists
@@ -179,48 +181,67 @@ class VerifyOtpController extends GetxController {
         final statusCode = e.response?.statusCode;
         final responseData = e.response?.data;
         
-        if (statusCode == 400 || statusCode == 409) {
-          isEmailExists = true;
-        }
-        
+        // Simple check: Look for success: false with email exists message
         if (responseData is Map) {
+          final success = responseData['success'];
           final msg = responseData['message']?.toString().toLowerCase() ?? '';
-          if (msg.contains('already exists') ||
-              msg.contains('email already') ||
-              msg.contains('user already') ||
-              msg.contains('account already') ||
-              msg.contains('user with this email')) {
+          
+          // Check for the specific API response format
+          if (success == false && 
+              (msg.contains('user with this email or phone already exists') ||
+               msg.contains('email already exists') ||
+               msg.contains('user already exists'))) {
             isEmailExists = true;
-            errorMessage = responseData['message']?.toString() ?? errorMessage;
+            errorMessage = responseData['message']?.toString() ?? 
+                'An account with this email already exists';
           }
         }
       } else {
         final lowerError = errorMessage.toLowerCase();
-        if (lowerError.contains('already exists') ||
-            lowerError.contains('email already') ||
-            lowerError.contains('user already') ||
-            lowerError.contains('account already') ||
-            lowerError.contains('an account with this email') ||
-            lowerError.contains('user with this email')) {
+        // Only check for very specific email existence patterns
+        if (lowerError.contains('email already exists') ||
+            lowerError.contains('user already exists') ||
+            lowerError.contains('account already exists') ||
+            lowerError.contains('an account with this email already exists')) {
           isEmailExists = true;
         }
       }
       
       if (isEmailExists) {
         if (kDebugMode) {
-          print('🚫 Email already exists during signup - navigating back and showing dialog');
+          print('🚫 Email already exists during signup - navigating to sign-in screen');
+          print('   Email: ${p.email}');
+          print('   Error message: $errorMessage');
         }
-        // Navigate back to signup and show dialog
-        // Use Get.back() to go back to auth screen
+        // Navigate back first
         Get.back();
-        // Wait a bit for navigation to complete, then show dialog
-        Future.delayed(const Duration(milliseconds: 300), () {
+        // Wait for navigation to complete, then handle the email exists scenario
+        Future.delayed(const Duration(milliseconds: 500), () {
           try {
             final authViewController = Get.find<AuthViewController>();
-            authViewController.showAccountExistsDialog(p.email);
+            // Switch to login mode if not already
+            if (!authViewController.isLoginMode) {
+              authViewController.toggleMode();
+            }
+            // Pre-fill email using a post-frame callback to ensure widget is built
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              try {
+                if (authViewController.emailController.text != p.email) {
+                  authViewController.emailController.text = p.email;
+                }
+              } catch (e) {
+                if (kDebugMode) {
+                  print('⚠️ Error setting email text: $e');
+                }
+              }
+            });
+            // Show message
+            SnackbarHelper.showError(
+              'An account with this email already exists. Please sign in instead.',
+            );
           } catch (e) {
             if (kDebugMode) {
-              print('⚠️ Could not find AuthViewController, showing snackbar instead');
+              print('⚠️ Could not find AuthViewController: $e');
             }
             SnackbarHelper.showError(
               'An account with this email already exists. Please sign in instead.',
@@ -228,11 +249,68 @@ class VerifyOtpController extends GetxController {
           }
         });
       } else {
+        if (kDebugMode) {
+          print('✅ Not an email exists error - showing error message: $errorMessage');
+        }
         SnackbarHelper.showError(errorMessage);
       }
       // DO NOT navigate - prevent entry into app if email exists
     } finally {
       _isLoading.value = false;
+    }
+  }
+
+  void _handleEmailExistsNavigation(String email) {
+    try {
+      if (!Get.isRegistered<AuthViewController>()) {
+        if (kDebugMode) {
+          print('⚠️ AuthViewController not registered - cannot pre-fill email');
+        }
+        SnackbarHelper.showError(
+          'An account with this email already exists. Please sign in instead.',
+        );
+        return;
+      }
+      
+      final authViewController = Get.find<AuthViewController>();
+      // Store email to pre-fill (will be handled in onReady)
+      authViewController.setPendingEmailToFill(email);
+      
+      // Switch to login mode if not already
+      if (!authViewController.isLoginMode) {
+        authViewController.toggleMode();
+      }
+      
+      // Use post-frame callback to ensure widget is fully built before setting text
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        try {
+          // Safely set email text - wrap in try-catch to handle any rendering issues
+          if (authViewController.pendingEmailToFill != null) {
+            authViewController.emailController.text = authViewController.pendingEmailToFill!;
+            authViewController.clearPendingEmailToFill();
+          }
+        } catch (e) {
+          if (kDebugMode) {
+            print('⚠️ Error setting email text: $e');
+          }
+          authViewController.clearPendingEmailToFill();
+          // If setting text fails, just show the message - user can type email manually
+        }
+      });
+      
+      // Show message after a short delay to ensure UI is ready
+      Future.delayed(const Duration(milliseconds: 100), () {
+        SnackbarHelper.showError(
+          'An account with this email already exists. Please sign in instead.',
+        );
+      });
+    } catch (e) {
+      if (kDebugMode) {
+        print('⚠️ Error in _handleEmailExistsNavigation: $e');
+      }
+      SnackbarHelper.showError(
+        'An account with this email already exists. Please sign in instead.',
+      );
     }
   }
 

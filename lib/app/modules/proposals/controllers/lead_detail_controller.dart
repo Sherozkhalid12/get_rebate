@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:getrebate/app/models/lead_model.dart';
 import 'package:getrebate/app/services/leads_service.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
+import 'package:getrebate/app/utils/error_handler.dart';
 import 'package:getrebate/app/modules/proposals/controllers/proposal_controller.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart';
 
@@ -154,7 +155,7 @@ class LeadDetailController extends GetxController {
         print('❌ LeadDetailController: Error fetching lead: $e');
       }
       
-      SnackbarHelper.showError('Failed to load lead details');
+      ErrorHandler.handleError(e, defaultMessage: 'Unable to load lead details. Please check your connection and try again.');
     }
   }
 
