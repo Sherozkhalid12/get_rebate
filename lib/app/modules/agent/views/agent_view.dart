@@ -596,6 +596,40 @@ class AgentView extends GetView<AgentController> {
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
           sliver: SliverList(
             delegate: SliverChildListDelegate([
+              // Info message at top of ZIP Codes tab
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                margin: const EdgeInsets.only(bottom: 20),
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryBlue.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: AppTheme.primaryBlue.withOpacity(0.3),
+                  ),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      Icons.info_outline_rounded,
+                      color: AppTheme.primaryBlue,
+                      size: 22,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'To begin receiving leads and unlock all features, you must claim at least one ZIP code. Follow the prompts below to get started.',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: AppTheme.black,
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
               // Licensed States Section
               Obx(() {
                 final licensedStates =
@@ -845,7 +879,7 @@ class AgentView extends GetView<AgentController> {
                     'Start by claiming a ZIP code below',
                     icon: Icons.location_on_outlined,
                     infoMessage:
-                        'Claim ZIP codes in your licensed states to appear in buyer searches',
+                        'Claim ZIP codes in your licensed states to appear in buyer and seller searches.',
                   );
                 }
                 return Column(

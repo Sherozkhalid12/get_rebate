@@ -7,7 +7,7 @@ class LoanOfficerChecklistController extends GetxController {
     return [
       'Complete Your Profile: Fill out your loan officer profile with accurate information including your company, license number, licensed states, specialty products, and professional bio. A complete profile helps buyers and agents find and trust you.',
       'Add Your Mortgage Application Link: Include your mortgage application URL in your profile. This link is visible to buyers and agents who view your profile, allowing them to easily access your mortgage application process.',
-      'Claim ZIP Codes: Select and claim ZIP codes in your licensed states where you want to appear in buyer searches. You can claim up to 6 ZIP codes. The cost is based on population tiers, ranging from \$3.99 to \$26.99 per month per ZIP code.',
+      'Claim ZIP Codes: Select and claim ZIP codes in your licensed states where you want to appear in buyer and seller searches. You can claim up to 6 ZIP codes. The cost is based on population tiers, ranging from \$3.99 to \$26.99 per month per ZIP code.',
       'Respond to Inquiries: When buyers or agents contact you through the platform, respond promptly. The platform provides opportunities, but most of your work happens outside the app through your mortgage application link and direct communication.',
       'Work with Buyers: Help buyers get pre-approved for mortgages and guide them through the loan process. Use your mortgage application link to process applications outside the platform.',
       'Collaborate with Agents: Agents on the platform may refer buyers to you. Work with agents to ensure smooth transactions and help buyers secure financing for their home purchases.',

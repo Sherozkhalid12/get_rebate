@@ -1398,7 +1398,7 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                     'Start by claiming a ZIP code below',
                     icon: Icons.location_on_outlined,
                     infoMessage:
-                        'Claim ZIP codes in your licensed states to appear in buyer searches',
+                        'Claim ZIP codes in your licensed states to appear in buyer and seller searches',
                   );
                 }
                 return Column(
