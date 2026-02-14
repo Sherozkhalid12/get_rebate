@@ -116,6 +116,9 @@ class LoanOfficerZipCodeModel {
   bool get isClaimed => claimedByAgent || claimedByOfficer;
   bool get isAvailable => !claimedByOfficer;
 
+  /// For LOAN OFFICER role: true if another loan officer has claimed this zip. LOs should only check this.
+  bool get isClaimedByOtherOfficer => claimedByOfficer;
+
   /// Get the calculated price based on population tier (for loan officers)
   double get calculatedPrice {
     return LoanOfficerZipCodePricingService.calculatePriceForPopulation(population);

@@ -250,11 +250,13 @@ class VerifyOtpController extends GetxController {
         });
       } else {
         if (kDebugMode) {
-          print('✅ Not an email exists error - showing error message: $errorMessage');
+          print('❌ SignUp failed (not email exists) - showing error, NOT navigating: $errorMessage');
         }
-        SnackbarHelper.showError(errorMessage);
+        // Clean error message - strip "Exception: " prefix if present
+        final displayMsg = errorMessage.replaceFirst(RegExp(r'^Exception:\s*'), '').trim();
+        SnackbarHelper.showError(displayMsg.isNotEmpty ? displayMsg : 'Sign up failed. Please try again.');
       }
-      // DO NOT navigate - prevent entry into app if email exists
+      // DO NOT navigate - user must stay on OTP screen or go back to fix errors
     } finally {
       _isLoading.value = false;
     }
@@ -338,7 +340,12 @@ class VerifyOtpController extends GetxController {
   @override
   void onClose() {
     _resendTimer?.cancel();
-    otpController.dispose();
+    // Defer disposal to avoid "used after disposed" during navigation transition
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      try {
+        otpController.dispose();
+      } catch (_) {}
+    });
     super.onClose();
   }
 }

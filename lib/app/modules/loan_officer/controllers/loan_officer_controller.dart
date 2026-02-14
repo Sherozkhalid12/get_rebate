@@ -91,6 +91,9 @@ class LoanOfficerController extends GetxController {
       <Map<String, dynamic>>[].obs; // Payment history subscriptions
   final Set<String> _profileClaimedZipCodes =
       <String>{}; // Claimed ZIPs from user profile
+  final Map<String, LoanOfficerZipCodeModel> _claimedZipDetailsCache =
+      <String, LoanOfficerZipCodeModel>{};
+  final Set<String> _hydratingClaimedZipCodes = <String>{};
 
   // Waiting List State
   final _waitingListRequests = <String>{}.obs;
@@ -350,6 +353,8 @@ class LoanOfficerController extends GetxController {
                 '   Claimed ZIP codes from model: ${officer.claimedZipCodes}',
               );
             }
+            // Refresh licensed-state dropdown options whenever profile data changes.
+            Future.microtask(() => refreshLicensedStatesFromProfile());
             // IMPORTANT: Only sync from backend - never use mock data
             // Load claimed zip codes immediately from the model
             _syncZipCodesFromBackend(officer);
@@ -358,9 +363,23 @@ class LoanOfficerController extends GetxController {
               _updateZipCodeLists();
             }
           } else {
-            // IMPORTANT: If officer is null, clear lists to prevent showing mock data
-            _claimedZipCodes.clear();
-            _availableZipCodes.clear();
+            // During force refresh, currentLoanOfficer can be temporarily null.
+            // Do not clear local ZIP state here, or rich claimed ZIP data gets lost
+            // and rebuilt as placeholders (population=0).
+            final isRefreshing = currentLoanOfficerController.isLoading.value;
+            if (kDebugMode) {
+              print(
+                'ℹ️ currentLoanOfficer is null (isLoading=$isRefreshing) - preserving local ZIP state',
+              );
+              _debugPrintClaimedSnapshot('listener officer=null preserve');
+            }
+            if (!isRefreshing &&
+                _pendingClaimedZipCodes.isEmpty &&
+                _pendingReleasedZipCodes.isEmpty) {
+              // Non-refresh null state (e.g. actual sign-out/clear): clean up.
+              _claimedZipCodes.clear();
+              _availableZipCodes.clear();
+            }
           }
         });
       }
@@ -382,6 +401,160 @@ class LoanOfficerController extends GetxController {
   /// Gets the cache key for zip codes based on country and state
   String _getCacheKey(String country, String state) {
     return '$_zipCodesCacheKeyPrefix${country}_$state';
+  }
+
+  /// Deduplicates zip codes by postalCode (keeps first occurrence). Prevents frontend duplicates.
+  List<LoanOfficerZipCodeModel> _deduplicateZipCodesByPostalCode(
+    List<LoanOfficerZipCodeModel> list,
+  ) {
+    final byPostal = <String, LoanOfficerZipCodeModel>{};
+    for (final z in list) {
+      final existing = byPostal[z.postalCode];
+      if (existing == null) {
+        byPostal[z.postalCode] = z;
+      } else {
+        byPostal[z.postalCode] = _pickRicherZipModel(existing, z);
+      }
+    }
+    return byPostal.values.toList();
+  }
+
+  /// Prefer the model that has fuller zip details (helps avoid population reset to 0).
+  LoanOfficerZipCodeModel _pickRicherZipModel(
+    LoanOfficerZipCodeModel current,
+    LoanOfficerZipCodeModel candidate,
+  ) {
+    int score(LoanOfficerZipCodeModel z) {
+      var s = 0;
+      if (z.population > 0) s += 10;
+      if ((z.city ?? '').isNotEmpty) s += 3;
+      if (z.state.isNotEmpty) s += 2;
+      if ((z.id ?? '').isNotEmpty) s += 1;
+      return s;
+    }
+
+    final currentScore = score(current);
+    final candidateScore = score(candidate);
+    if (candidateScore > currentScore) return candidate;
+    if (candidateScore < currentScore) return current;
+    // Tie-breaker: keep the higher population as safer pricing input.
+    return candidate.population > current.population ? candidate : current;
+  }
+
+  void _debugPrintClaimedSnapshot(String source) {
+    if (!kDebugMode) return;
+    print('🧭 [$source] Claimed ZIP snapshot (${_claimedZipCodes.length})');
+    for (final z in _claimedZipCodes) {
+      print(
+        '   ZIP=${z.postalCode} state=${z.state} population=${z.population} monthly=\$${z.calculatedPrice.toStringAsFixed(2)} city=${z.city ?? "-"} claimedByOfficer=${z.claimedByOfficer}',
+      );
+    }
+  }
+
+  void _rememberClaimedZipDetails(LoanOfficerZipCodeModel zip) {
+    final hasUsefulData = zip.population > 0 || (zip.city ?? '').isNotEmpty;
+    if (!hasUsefulData) return;
+    final existing = _claimedZipDetailsCache[zip.postalCode];
+    _claimedZipDetailsCache[zip.postalCode] = existing == null
+        ? zip
+        : _pickRicherZipModel(existing, zip);
+  }
+
+  LoanOfficerZipCodeModel _bestKnownClaimedZip(
+    String postalCode, {
+    required String fallbackState,
+    bool claimedByOfficer = true,
+  }) {
+    final existingIdx = _claimedZipCodes.indexWhere(
+      (z) => z.postalCode == postalCode,
+    );
+    final existingClaimed = existingIdx != -1 ? _claimedZipCodes[existingIdx] : null;
+    final cached = _claimedZipDetailsCache[postalCode];
+
+    if (existingClaimed != null && cached != null) {
+      return _pickRicherZipModel(existingClaimed, cached).copyWith(
+        claimedByOfficer: claimedByOfficer,
+      );
+    }
+    if (cached != null) {
+      return cached.copyWith(claimedByOfficer: claimedByOfficer);
+    }
+    if (existingClaimed != null) {
+      return existingClaimed.copyWith(claimedByOfficer: claimedByOfficer);
+    }
+
+    return LoanOfficerZipCodeModel(
+      postalCode: postalCode,
+      state: fallbackState,
+      population: 0,
+      claimedByOfficer: claimedByOfficer,
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+  }
+
+  Future<void> _hydrateMissingClaimedZipDetails(
+    LoanOfficerModel? loanOfficer,
+    List<String> effectiveClaimedZipCodes,
+  ) async {
+    if (effectiveClaimedZipCodes.isEmpty) return;
+    const country = 'US';
+
+    final statesToTry = <String>{
+      ...licensedStateCodes,
+      if ((loanOfficer?.licensedStates ?? []).isNotEmpty)
+        ...(loanOfficer!.licensedStates.map(_normalizeStateToCode)),
+    }.toList();
+
+    for (final postalCode in effectiveClaimedZipCodes) {
+      final currentIdx = _claimedZipCodes.indexWhere(
+        (z) => z.postalCode == postalCode,
+      );
+      final current = currentIdx != -1 ? _claimedZipCodes[currentIdx] : null;
+      if (current == null || current.population > 0) continue;
+      if (_hydratingClaimedZipCodes.contains(postalCode)) continue;
+
+      _hydratingClaimedZipCodes.add(postalCode);
+      try {
+        for (final state in statesToTry) {
+          try {
+            final verified = await _loanOfficerZipCodeService.verifyZipCode(
+              country,
+              state,
+              postalCode,
+            );
+            if (verified.isEmpty) continue;
+
+            final candidate = verified.first;
+            if (candidate.population <= 0) continue;
+
+            final hydrated = candidate.copyWith(claimedByOfficer: true);
+            _rememberClaimedZipDetails(hydrated);
+            final idx = _claimedZipCodes.indexWhere(
+              (z) => z.postalCode == postalCode,
+            );
+            if (idx != -1) {
+              _claimedZipCodes[idx] = _pickRicherZipModel(
+                _claimedZipCodes[idx],
+                hydrated,
+              );
+              _claimedZipCodes.refresh();
+              _updateSubscriptionPrice();
+            }
+            if (kDebugMode) {
+              print(
+                '✅ Hydrated claimed ZIP details: $postalCode state=${hydrated.state} population=${hydrated.population}',
+              );
+            }
+            break;
+          } catch (_) {
+            // Try next state
+          }
+        }
+      } finally {
+        _hydratingClaimedZipCodes.remove(postalCode);
+      }
+    }
   }
 
   // Only includes states where rebates are allowed
@@ -445,6 +618,48 @@ class LoanOfficerController extends GetxController {
     }
   }
 
+  /// Refreshes licensed states after profile edits and keeps dropdown/state selection valid.
+  Future<void> refreshLicensedStatesFromProfile() async {
+    await _loadFilteredLicensedStates();
+
+    final options = _filteredLicensedStateCodes.isNotEmpty
+        ? _filteredLicensedStateCodes.toList()
+        : licensedStateCodes;
+    final normalizedOptions = options.map(_normalizeStateToCode).toSet();
+    final current = _selectedState.value;
+
+    // No licensed states at all -> clear current state and ZIP list.
+    if (options.isEmpty) {
+      if (current != null && current.isNotEmpty) {
+        _selectedState.value = null;
+        _stateZipCodesFromApi.clear();
+        _allZipCodes.clear();
+        _availableZipCodes.clear();
+        _updateZipCodeLists();
+      }
+      return;
+    }
+
+    // If current selected state is no longer valid (removed in profile),
+    // switch to first available state and refresh ZIP data.
+    if (current == null ||
+        current.isEmpty ||
+        !normalizedOptions.contains(_normalizeStateToCode(current))) {
+      final nextState = options.first;
+      _selectedState.value = _normalizeStateToCode(nextState);
+      if (_selectedTab.value == 2) {
+        await _loadZipCodesForState(nextState, forceRefresh: true);
+      }
+      return;
+    }
+
+    // Keep selected state normalized and refresh current ZIP data on ZIP tab.
+    _selectedState.value = _normalizeStateToCode(current);
+    if (_selectedTab.value == 2) {
+      await _loadZipCodesForState(_selectedState.value!, forceRefresh: true);
+    }
+  }
+
   /// Loads zip codes from cache or API using the new loan officer endpoint
   /// ALWAYS checks GetStorage first, only fetches from API if cache is empty or invalid
   /// Uses GetX reactive state management for optimal performance
@@ -494,8 +709,9 @@ class LoanOfficerController extends GetxController {
         try {
           final cachedZipCodes = _readCachedZipCodes(cacheKey);
           if (cachedZipCodes != null && cachedZipCodes.isNotEmpty) {
+            final deduped = _deduplicateZipCodesByPostalCode(cachedZipCodes);
             _stateZipCodesFromApi.clear();
-            _stateZipCodesFromApi.addAll(cachedZipCodes);
+            _stateZipCodesFromApi.addAll(deduped);
             _allZipCodes.value = List.from(_stateZipCodesFromApi);
             _currentState.value = stateKey;
             _updateZipCodeLists();
@@ -566,13 +782,14 @@ class LoanOfficerController extends GetxController {
         return;
       }
 
+      final deduped = _deduplicateZipCodesByPostalCode(zipCodes);
       _stateZipCodesFromApi.clear();
-      _stateZipCodesFromApi.addAll(zipCodes);
+      _stateZipCodesFromApi.addAll(deduped);
       _allZipCodes.value = List.from(_stateZipCodesFromApi);
       _currentState.value = stateKey;
 
       Future.microtask(() {
-        _saveZipCodesToCache(cacheKey, zipCodes, stateKey);
+        _saveZipCodesToCache(cacheKey, deduped, stateKey);
       });
 
       _updateZipCodeLists();
@@ -580,7 +797,7 @@ class LoanOfficerController extends GetxController {
       _hasLoadedZipCodes.value = true;
 
       if (kDebugMode) {
-        print('✅ Loaded ${zipCodes.length} zip codes from API');
+        print('✅ Loaded ${deduped.length} zip codes from API');
         print('   Claimed: ${_claimedZipCodes.length}');
         print('   Available: ${_availableZipCodes.length}');
       }
@@ -769,8 +986,9 @@ class LoanOfficerController extends GetxController {
         _saveZipCodesToCache(cacheKey, zipCodes, stateKey);
 
         if (_selectedTab.value == 2 && zipCodes.length != _allZipCodes.length) {
+          final deduped = _deduplicateZipCodesByPostalCode(zipCodes);
           _stateZipCodesFromApi.clear();
-          _stateZipCodesFromApi.addAll(zipCodes);
+          _stateZipCodesFromApi.addAll(deduped);
           _allZipCodes.value = List.from(_stateZipCodesFromApi);
           _updateZipCodeLists();
         }
@@ -828,14 +1046,34 @@ class LoanOfficerController extends GetxController {
       }
 
       // Create LoanOfficerZipCodeModel objects for claimed zip codes
+      // IMPORTANT: Deduplicate claimedZipCodesFromModel - backend may return duplicates
+      final uniqueClaimedFromModel =
+          claimedZipCodesFromModel.toSet().toList();
       final claimedZips = <LoanOfficerZipCodeModel>[];
+      final existingClaimedByPostal = {
+        for (final z in _claimedZipCodes) z.postalCode: z,
+      };
       final existingClaimedCodes = _claimedZipCodes
           .map((z) => z.postalCode)
           .toSet();
 
-      for (final zipCodeString in claimedZipCodesFromModel) {
+      for (final zipCodeString in uniqueClaimedFromModel) {
         // Skip if already in claimed list
         if (existingClaimedCodes.contains(zipCodeString)) {
+          continue;
+        }
+
+        final existingClaimed = existingClaimedByPostal[zipCodeString];
+        if (existingClaimed != null) {
+          final merged = _bestKnownClaimedZip(
+            zipCodeString,
+            fallbackState: officer.licensedStates.isNotEmpty
+                ? officer.licensedStates.first
+                : 'CA',
+            claimedByOfficer: true,
+          );
+          claimedZips.add(merged);
+          _rememberClaimedZipDetails(merged);
           continue;
         }
 
@@ -850,19 +1088,18 @@ class LoanOfficerController extends GetxController {
           final updatedZip = existingZip.copyWith(claimedByOfficer: true);
           _allZipCodes[existingZipIndex] = updatedZip;
           claimedZips.add(updatedZip);
+          _rememberClaimedZipDetails(updatedZip);
         } else {
           // Create new LoanOfficerZipCodeModel for claimed zip code not in current state
-          final newZip = LoanOfficerZipCodeModel(
-            postalCode: zipCodeString,
-            state: officer.licensedStates.isNotEmpty
+          final newZip = _bestKnownClaimedZip(
+            zipCodeString,
+            fallbackState: officer.licensedStates.isNotEmpty
                 ? officer.licensedStates.first
                 : 'CA',
-            population: 0,
             claimedByOfficer: true,
-            createdAt: DateTime.now(),
-            updatedAt: DateTime.now(),
           );
           claimedZips.add(newZip);
+          _rememberClaimedZipDetails(newZip);
         }
       }
 
@@ -879,6 +1116,7 @@ class LoanOfficerController extends GetxController {
         if (!_claimedZipCodes.any((z) => z.postalCode == zip.postalCode)) {
           _claimedZipCodes.add(zip);
         }
+        _rememberClaimedZipDetails(zip);
       }
 
       if (kDebugMode) {
@@ -923,14 +1161,17 @@ class LoanOfficerController extends GetxController {
         return;
       }
 
-      // Get the loan officer's claimedZipCodes array from the model
+      // Get the loan officer's claimedZipCodes array from the model (deduplicate)
       final loanOfficer =
           currentLoanOfficerController?.currentLoanOfficer.value;
       final claimedZipCodesFromModel =
-          loanOfficer?.claimedZipCodes ?? <String>[];
+          (loanOfficer?.claimedZipCodes ?? <String>[]).toSet().toList();
       final effectiveClaimedZipCodes = claimedZipCodesFromModel.isNotEmpty
           ? claimedZipCodesFromModel
           : _profileClaimedZipCodes.toList();
+      final existingClaimedByPostal = {
+        for (final z in _claimedZipCodes) z.postalCode: z,
+      };
 
       // IMPORTANT: If model has 0 claimed zip codes, clear all claimed zip codes immediately
       // BUT preserve pending claims (just claimed but not yet in backend)
@@ -961,8 +1202,20 @@ class LoanOfficerController extends GetxController {
         final isClaimedInModel = effectiveClaimedZipCodes.contains(
           zip.postalCode,
         );
+        final isPendingRelease = _pendingReleasedZipCodes.contains(
+          zip.postalCode,
+        );
 
-        if (isClaimedInModel) {
+        if (isClaimedInModel && !isPendingRelease) {
+          final existingClaimed = existingClaimedByPostal[zip.postalCode];
+          if (existingClaimed != null) {
+            final merged = _pickRicherZipModel(existingClaimed, zip).copyWith(
+              claimedByOfficer: true,
+            );
+            claimed.add(merged);
+            _rememberClaimedZipDetails(merged);
+            continue;
+          }
           // If claimed in model, ensure the zip code object has claimedByOfficer=true
           // even if the API didn't return it that way (e.g. slight sync delay)
           if (!zip.claimedByOfficer) {
@@ -974,8 +1227,10 @@ class LoanOfficerController extends GetxController {
               _allZipCodes[index] = updatedZip;
             }
             claimed.add(updatedZip);
+            _rememberClaimedZipDetails(updatedZip);
           } else {
             claimed.add(zip);
+            _rememberClaimedZipDetails(zip);
           }
         } else {
           // Available (or claimed by someone else)
@@ -986,26 +1241,40 @@ class LoanOfficerController extends GetxController {
       // Now, add any claimed zip codes from the model that are not in _allZipCodes
       // This ensures we show all claimed zip codes even if they're not in the current state's list
       for (final claimedZipCodeString in effectiveClaimedZipCodes) {
+        if (_pendingReleasedZipCodes.contains(claimedZipCodeString)) {
+          continue;
+        }
         // Only add if not already in our claimed list
         final alreadyInClaimed = claimed.any(
           (z) => z.postalCode == claimedZipCodeString,
         );
         if (!alreadyInClaimed &&
             !allZipCodesSet.contains(claimedZipCodeString)) {
+          final existingClaimed = existingClaimedByPostal[claimedZipCodeString];
+          if (existingClaimed != null) {
+            final merged = _bestKnownClaimedZip(
+              claimedZipCodeString,
+              fallbackState: loanOfficer?.licensedStates.isNotEmpty == true
+                  ? loanOfficer!.licensedStates.first
+                  : 'CA',
+              claimedByOfficer: true,
+            );
+            claimed.add(merged);
+            _rememberClaimedZipDetails(merged);
+            continue;
+          }
           // Create a basic LoanOfficerZipCodeModel for this claimed zip code
           // We'll use default values since we don't have full data from API
           try {
-            final claimedZip = LoanOfficerZipCodeModel(
-              postalCode: claimedZipCodeString,
-              state: loanOfficer?.licensedStates.isNotEmpty == true
+            final claimedZip = _bestKnownClaimedZip(
+              claimedZipCodeString,
+              fallbackState: loanOfficer?.licensedStates.isNotEmpty == true
                   ? loanOfficer!.licensedStates.first
-                  : 'CA', // Default state
-              population: 0, // Will be updated when full data is loaded
+                  : 'CA',
               claimedByOfficer: true,
-              createdAt: DateTime.now(),
-              updatedAt: DateTime.now(),
             );
             claimed.add(claimedZip);
+            _rememberClaimedZipDetails(claimedZip);
 
             if (kDebugMode) {
               print(
@@ -1029,20 +1298,22 @@ class LoanOfficerController extends GetxController {
       for (final pendingZip in _pendingClaimedZipCodes) {
         if (!effectiveClaimedZipCodes.contains(pendingZip)) {
           // Find in _allZipCodes or available list
+          final existingClaimed = existingClaimedByPostal[pendingZip];
           final pendingZipModel = _allZipCodes.firstWhere(
             (z) => z.postalCode == pendingZip,
             orElse: () => available.firstWhere(
               (z) => z.postalCode == pendingZip,
-              orElse: () => LoanOfficerZipCodeModel(
-                postalCode: pendingZip,
-                state: loanOfficer?.licensedStates.isNotEmpty == true
-                    ? loanOfficer!.licensedStates.first
-                    : 'CA',
-                population: 0,
-                claimedByOfficer: true,
-                createdAt: DateTime.now(),
-                updatedAt: DateTime.now(),
-              ),
+              orElse: () => existingClaimed ??
+                  LoanOfficerZipCodeModel(
+                    postalCode: pendingZip,
+                    state: loanOfficer?.licensedStates.isNotEmpty == true
+                        ? loanOfficer!.licensedStates.first
+                        : 'CA',
+                    population: 0,
+                    claimedByOfficer: true,
+                    createdAt: DateTime.now(),
+                    updatedAt: DateTime.now(),
+                  ),
             ),
           );
 
@@ -1090,13 +1361,30 @@ class LoanOfficerController extends GetxController {
         }
       }
 
-      // IMPORTANT: Clear lists and rebuild ONLY from backend model + pending changes
+      // IMPORTANT: Deduplicate claimed and available by postalCode before assigning
+      // Prevents duplicates from API, _allZipCodes, or multiple sync paths
+      final dedupedClaimed = <String, LoanOfficerZipCodeModel>{};
+      for (final z in claimed) {
+        final existing = dedupedClaimed[z.postalCode];
+        if (existing == null) {
+          dedupedClaimed[z.postalCode] = z;
+        } else {
+          dedupedClaimed[z.postalCode] = _pickRicherZipModel(existing, z);
+        }
+      }
+      final dedupedAvailable = <String, LoanOfficerZipCodeModel>{};
+      for (final z in available) {
+        dedupedAvailable.putIfAbsent(z.postalCode, () => z);
+      }
+
+      // Clear lists and rebuild ONLY from deduplicated data
       _claimedZipCodes.clear();
       _availableZipCodes.clear();
-
-      // Update reactive state using GetX - add items to trigger reactivity
-      _claimedZipCodes.addAll(claimed);
-      _availableZipCodes.addAll(available);
+      _claimedZipCodes.addAll(dedupedClaimed.values);
+      _availableZipCodes.addAll(dedupedAvailable.values);
+      for (final z in _claimedZipCodes) {
+        _rememberClaimedZipDetails(z);
+      }
 
       if (kDebugMode) {
         print('📊 Updated zip code lists from backend:');
@@ -1107,6 +1395,7 @@ class LoanOfficerController extends GetxController {
         print('   Backend claimed ZIP codes: $claimedZipCodesFromModel');
         print('   Pending claimed: $_pendingClaimedZipCodes');
         print('   Pending released: $_pendingReleasedZipCodes');
+        _debugPrintClaimedSnapshot('_updateZipCodeLists');
       }
 
       // Apply search filter if active
@@ -1114,6 +1403,15 @@ class LoanOfficerController extends GetxController {
 
       // Prefetch waiting lists for claimed zip codes
       _prefetchWaitingLists(_allZipCodes);
+
+      // Claim cards should be independent of selected state filter.
+      // Hydrate any placeholder claimed zips (population=0) in background.
+      Future.microtask(
+        () => _hydrateMissingClaimedZipDetails(
+          loanOfficer,
+          effectiveClaimedZipCodes,
+        ),
+      );
     } catch (e, stackTrace) {
       if (kDebugMode) {
         print('❌ Error updating zip code lists: $e');
@@ -1236,6 +1534,12 @@ class LoanOfficerController extends GetxController {
   }
 
   void setSelectedTab(int index) {
+    if (kDebugMode) {
+      print('🗂️ Tab changed: ${_selectedTab.value} -> $index');
+      print('   Selected state: ${_selectedState.value ?? "-"}');
+      _debugPrintClaimedSnapshot('before setSelectedTab');
+    }
+
     _selectedTab.value = index;
 
     // Refresh subscription data when "Billing" tab is selected
@@ -1246,6 +1550,9 @@ class LoanOfficerController extends GetxController {
       Future.microtask(() async {
         await fetchUserStats();
         await refreshZipCodes();
+        if (kDebugMode) {
+          _debugPrintClaimedSnapshot('after ZIP tab refresh');
+        }
       });
     }
   }
@@ -1338,10 +1645,10 @@ class LoanOfficerController extends GetxController {
     ];
 
     // Mock stats
-    _searchesAppearedIn.value = 67;
-    _profileViews.value = 289;
-    _contacts.value = 134;
-    _totalRevenue.value = 599.99;
+    _searchesAppearedIn.value = 0;
+    _profileViews.value = 0;
+    _contacts.value = 0;
+    _totalRevenue.value = 0;
   }
 
   /// Fetches user stats (including subscriptions) from the API
@@ -1535,9 +1842,18 @@ class LoanOfficerController extends GetxController {
 
     // Merge profile claimed ZIPs into local claimed list
     for (final zip in claimedZips) {
-      if (!_claimedZipCodes.any((z) => z.postalCode == zip.postalCode)) {
+      final existingIndex = _claimedZipCodes.indexWhere(
+        (z) => z.postalCode == zip.postalCode,
+      );
+      if (existingIndex == -1) {
         _claimedZipCodes.add(zip);
+      } else {
+        _claimedZipCodes[existingIndex] = _pickRicherZipModel(
+          _claimedZipCodes[existingIndex],
+          zip,
+        );
       }
+      _rememberClaimedZipDetails(zip);
     }
 
     // Ensure available list excludes claimed zip codes
@@ -1594,9 +1910,7 @@ class LoanOfficerController extends GetxController {
         return;
       }
 
-      // Step 1: Proceed directly to payment (promo code is optional via bottom sheet)
-      // Promo code can be entered via "Have a promo code?" link in the UI
-
+      // Step 1: Call claim API FIRST - if error, do NOT proceed to payment
       _setupDio();
       final authToken = _storage.read('auth_token');
 
@@ -1611,7 +1925,40 @@ class LoanOfficerController extends GetxController {
         return;
       }
 
-      // Step 1: Create checkout session
+      // Call claim API first - must succeed before payment
+      // Keep this response and reuse it after payment to avoid double-claiming.
+      dynamic preCheckClaimResponse;
+      try {
+        final price = zipCode.calculatedPrice.toStringAsFixed(2);
+        final population = zipCode.population.toString();
+        preCheckClaimResponse = await _loanOfficerZipCodeService.claimZipCode(
+          loanOfficerId,
+          zipCode.postalCode,
+          price,
+          zipCode.state,
+          population,
+        );
+        if (kDebugMode) {
+          print('✅ Claim API pre-check passed for ${zipCode.postalCode}');
+        }
+      } on LoanOfficerZipCodeServiceException catch (e) {
+        if (kDebugMode) {
+          print('❌ Claim API failed before payment: ${e.message}');
+        }
+        _showSnackbarSafely(
+          e.message,
+          isError: true,
+          isAlreadyClaimed: e.message.toLowerCase().contains('already claimed'),
+        );
+        if (e.message.toLowerCase().contains('already claimed')) {
+          _availableZipCodes.removeWhere(
+            (zip) => zip.postalCode == zipCode.postalCode,
+          );
+        }
+        return;
+      }
+
+      // Step 2: Create checkout session (only if claim succeeded)
       final zipCodePrice = zipCode.calculatedPrice.toStringAsFixed(2);
 
       final requestBody = {
@@ -1695,6 +2042,7 @@ class LoanOfficerController extends GetxController {
             zipCode,
             loanOfficerId,
             currentLoanOfficerController,
+            preCheckClaimResponse,
           );
         } else {
           SnackbarHelper.showError('Payment was cancelled or failed');
@@ -1800,48 +2148,104 @@ class LoanOfficerController extends GetxController {
     LoanOfficerZipCodeModel zipCode,
     String loanOfficerId,
     CurrentLoanOfficerController? currentLoanOfficerController,
+    dynamic preCheckClaimResponse,
   ) async {
     try {
-      // Prepare claim API body with all required fields
-      // Required: id, zipcode, price, state, population
-      final price = zipCode.calculatedPrice.toStringAsFixed(2);
-      final population = zipCode.population.toString();
-      final state = zipCode.state;
-
-      await _loanOfficerZipCodeService.claimZipCode(
-        loanOfficerId,
-        zipCode.postalCode,
-        price,
-        state,
-        population,
-      );
+      if (kDebugMode) {
+        print(
+          '✅ Syncing claimed ZIP from pre-check response: ${zipCode.postalCode}',
+        );
+      }
 
       // IMPORTANT: Mark as pending claim to preserve instant update
       _pendingClaimedZipCodes.add(zipCode.postalCode);
       _pendingReleasedZipCodes.remove(zipCode.postalCode);
 
-      // Update local state IMMEDIATELY for instant UI update
-      final claimedZip = zipCode.copyWith(
-        claimedByOfficer: true,
-        updatedAt: DateTime.now(),
-      );
+      // Parse claimedZipCodes from pre-check response for instant UI sync
+      final claimedZipCodesRaw = preCheckClaimResponse is Map
+          ? preCheckClaimResponse['claimedZipCodes']
+          : null;
+      final claimedZipCodesData =
+          claimedZipCodesRaw is List ? claimedZipCodesRaw : null;
+      if (claimedZipCodesData != null && claimedZipCodesData.isNotEmpty) {
+        final parsed = claimedZipCodesData
+            .whereType<Map<String, dynamic>>()
+            .map((m) {
+              final postalCode =
+                  m['postalCode']?.toString() ?? m['zipCode']?.toString() ?? '';
+              if (postalCode.isEmpty) return null;
+              return LoanOfficerZipCodeModel(
+                id: m['_id']?.toString() ?? m['id']?.toString(),
+                postalCode: postalCode,
+                state: m['state']?.toString() ?? '',
+                city: m['city']?.toString(),
+                population: m['population'] is int
+                    ? m['population'] as int
+                    : (int.tryParse(m['population']?.toString() ?? '') ?? 0),
+                claimedByAgent: false,
+                claimedByOfficer: true,
+                country: 'US',
+                createdAt: DateTime.now(),
+                updatedAt: DateTime.now(),
+              );
+            })
+            .whereType<LoanOfficerZipCodeModel>()
+            .toList();
+        final deduplicated = <String, LoanOfficerZipCodeModel>{};
+        for (final z in parsed) {
+          if (!deduplicated.containsKey(z.postalCode)) {
+            deduplicated[z.postalCode] = z;
+          }
+        }
+        // Ensure the newly claimed ZIP is present even if backend list is stale.
+        deduplicated.putIfAbsent(
+          zipCode.postalCode,
+          () => zipCode.copyWith(
+            claimedByOfficer: true,
+            updatedAt: DateTime.now(),
+          ),
+        );
+        _claimedZipCodes
+          ..clear()
+          ..addAll(deduplicated.values);
+        if (kDebugMode) {
+          print(
+            '   Synced claimed from API: ${_claimedZipCodes.length} zip codes',
+          );
+        }
+      } else {
+        // Fallback: add the single claimed zip if API didn't return list
+        final claimedZip = zipCode.copyWith(
+          claimedByOfficer: true,
+          updatedAt: DateTime.now(),
+        );
+        if (!_claimedZipCodes.any((z) => z.postalCode == zipCode.postalCode)) {
+          _claimedZipCodes.add(claimedZip);
+        }
+      }
 
       // INSTANTLY move from available to claimed (reactive update)
       _availableZipCodes.removeWhere(
         (zip) => zip.postalCode == zipCode.postalCode,
       );
-      if (!_claimedZipCodes.any((z) => z.postalCode == zipCode.postalCode)) {
-        _claimedZipCodes.add(claimedZip);
-      }
       _firstZipCodeClaimed.value = true; // Mark as old user (has claimed)
 
       // Update the zip code in all zip codes list efficiently
+      final claimedZip = zipCode.copyWith(
+        claimedByOfficer: true,
+        updatedAt: DateTime.now(),
+      );
       final index = _allZipCodes.indexWhere(
         (zip) => zip.postalCode == zipCode.postalCode,
       );
       if (index != -1) {
         _allZipCodes[index] = claimedZip;
       }
+
+      _claimedZipCodes.refresh(); // Force instant UI update on claimed tab
+
+      // Recompute claimed/available using pending sets for immediate UI consistency.
+      _updateZipCodeLists();
 
       // Reapply search filter if active
       _applySearchFilter();
@@ -2238,6 +2642,18 @@ class LoanOfficerController extends GetxController {
       _pendingClaimedZipCodes.remove(
         zipCode.postalCode,
       ); // Remove from pending claims if there
+      _profileClaimedZipCodes.remove(zipCode.postalCode);
+
+      final currentOfficer = currentLoanOfficerController?.currentLoanOfficer.value;
+      if (currentOfficer != null) {
+        final updatedClaimed = currentOfficer.claimedZipCodes
+            .where((z) => z != zipCode.postalCode)
+            .toList();
+        currentLoanOfficerController!.currentLoanOfficer.value = currentOfficer.copyWith(
+          claimedZipCodes: updatedClaimed,
+        );
+        currentLoanOfficerController.currentLoanOfficer.refresh();
+      }
 
       // Update local state - mark as available and remove claim
       final availableZip = zipCode.copyWith(
@@ -2264,10 +2680,18 @@ class LoanOfficerController extends GetxController {
       // Reapply search filter if active
       _applySearchFilter();
 
+      // Force reactive update for instant UI refresh
+      _claimedZipCodes.refresh();
+      _availableZipCodes.refresh();
+      _filteredClaimedZipCodes.refresh();
+      _filteredAvailableZipCodes.refresh();
+
       if (kDebugMode) {
         print('📊 After release update:');
         print('   Claimed: ${_claimedZipCodes.length}');
         print('   Available: ${_availableZipCodes.length}');
+        print('   Pending released: $_pendingReleasedZipCodes');
+        _debugPrintClaimedSnapshot('after releaseZipCode');
       }
 
       // Update cache with new data (only if state is valid)
@@ -2328,12 +2752,10 @@ class LoanOfficerController extends GetxController {
             });
       }
 
-      // Use SnackbarHelper + post-frame to avoid "No Overlay widget found" after async work
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        SnackbarHelper.showSuccess(
-          'ZIP code ${zipCode.postalCode} released successfully!',
-        );
-      });
+      // Show success instantly
+      SnackbarHelper.showSuccess(
+        'ZIP code ${zipCode.postalCode} released successfully!',
+      );
     } on LoanOfficerZipCodeServiceException catch (e) {
       // If backend says zip code is not claimed, sync local state with backend
       if (e.message.contains('not claimed') ||
@@ -2348,6 +2770,7 @@ class LoanOfficerController extends GetxController {
         _claimedZipCodes.removeWhere(
           (zip) => zip.postalCode == zipCode.postalCode,
         );
+        _profileClaimedZipCodes.remove(zipCode.postalCode);
 
         // IMPORTANT: Force refresh loan officer data to get accurate state from backend
         // Clear all claimed zip codes first, then refresh
@@ -2492,22 +2915,32 @@ class LoanOfficerController extends GetxController {
   /// Refreshes zip codes from the API (forces reload)
   /// IMPORTANT: Clears lists first to prevent showing mock/stale data
   Future<void> refreshZipCodes() async {
-    // IMPORTANT: Clear pending claims/releases on manual refresh
-    // This ensures we get fresh state from backend
-    _pendingClaimedZipCodes.clear();
-    _pendingReleasedZipCodes.clear();
+    // Keep pending claim/release flags during refresh to avoid stale rebuilds
+    // when backend propagation is delayed.
 
-    // Clear lists first to prevent showing stale data
-    _claimedZipCodes.clear();
+    // Keep claimed details so out-of-state claimed ZIPs don't lose population/price.
+    if (kDebugMode) {
+      _debugPrintClaimedSnapshot('before refreshZipCodes');
+    }
     _availableZipCodes.clear();
 
     // Force refresh from API
     await _loadZipCodes(forceRefresh: true);
+    if (kDebugMode) {
+      _debugPrintClaimedSnapshot('after refreshZipCodes');
+    }
   }
 
   /// Sets the selected state and fetches ZIP codes for that state
   /// [stateName] can be either full state name (e.g., "Alabama") or state code (e.g., "AL")
   Future<void> selectStateAndFetchZipCodes(String stateName) async {
+    if (kDebugMode) {
+      print(
+        '🗺️ State dropdown changed: "${_selectedState.value ?? "-"}" -> "${stateName.isEmpty ? "-" : stateName}"',
+      );
+      _debugPrintClaimedSnapshot('before selectStateAndFetchZipCodes');
+    }
+
     if (stateName.isEmpty) {
       _selectedState.value = null;
       _stateZipCodesFromApi.clear();
@@ -2522,6 +2955,9 @@ class LoanOfficerController extends GetxController {
 
     _selectedState.value = code;
     await _loadZipCodesForState(code, forceRefresh: false);
+    if (kDebugMode) {
+      _debugPrintClaimedSnapshot('after selectStateAndFetchZipCodes');
+    }
   }
 
   /// Loads zip codes for a specific state
@@ -2561,8 +2997,9 @@ class LoanOfficerController extends GetxController {
         try {
           final cachedZipCodes = _readCachedZipCodes(cacheKey);
           if (cachedZipCodes != null && cachedZipCodes.isNotEmpty) {
+            final deduped = _deduplicateZipCodesByPostalCode(cachedZipCodes);
             _stateZipCodesFromApi.clear();
-            _stateZipCodesFromApi.addAll(cachedZipCodes);
+            _stateZipCodesFromApi.addAll(deduped);
             _allZipCodes.value = List.from(_stateZipCodesFromApi);
             _currentState.value = stateKey;
             _updateZipCodeLists();
@@ -2603,13 +3040,14 @@ class LoanOfficerController extends GetxController {
         return;
       }
 
+      final deduped = _deduplicateZipCodesByPostalCode(zipCodes);
       _stateZipCodesFromApi.clear();
-      _stateZipCodesFromApi.addAll(zipCodes);
+      _stateZipCodesFromApi.addAll(deduped);
       _allZipCodes.value = List.from(_stateZipCodesFromApi);
       _currentState.value = stateKey;
 
       Future.microtask(() {
-        _saveZipCodesToCache(cacheKey, zipCodes, stateKey);
+        _saveZipCodesToCache(cacheKey, deduped, stateKey);
       });
 
       _updateZipCodeLists();
@@ -2617,7 +3055,7 @@ class LoanOfficerController extends GetxController {
       _hasLoadedZipCodes.value = true;
 
       if (kDebugMode) {
-        print('✅ Loaded ${zipCodes.length} zip codes from API');
+        print('✅ Loaded ${deduped.length} zip codes from API');
         print('   Claimed: ${_claimedZipCodes.length}');
         print('   Available: ${_availableZipCodes.length}');
       }
@@ -2928,9 +3366,47 @@ class LoanOfficerController extends GetxController {
         print('   Response: $responseData');
       }
 
-      await fetchUserStats();
-      final billingPortalUrl = responseData['url'] as String?;
+      // INSTANT update: Mark subscription as cancelled in local state immediately
+      final cancelledSubId = stripeSubscriptionId;
+      final subs = List<Map<String, dynamic>>.from(_subscriptions);
+      for (var i = 0; i < subs.length; i++) {
+        final subId = subs[i]['stripeSubscriptionId']?.toString() ??
+            subs[i]['_id']?.toString();
+        if (subId == cancelledSubId) {
+          subs[i] = Map<String, dynamic>.from(subs[i])
+            ..['subscriptionStatus'] = 'cancelled';
+          break;
+        }
+      }
+      _subscriptions.value = subs;
 
+      // Refresh data for instant claimed ZIP removal
+      await fetchUserStats();
+
+      // Show success instantly (no delay)
+      SnackbarHelper.showSuccess(
+        'Subscription cancellation processed. Your subscription status has been updated.',
+        title: 'Success',
+      );
+
+      // Professional confirmation dialog
+      Get.dialog(
+        AlertDialog(
+          title: const Text('Subscription Cancelled'),
+          content: const Text(
+            'The subscription you have cancelled. Your ZIP codes remain yours until the end of the month you subscribed.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Get.back(),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+        barrierDismissible: false,
+      );
+
+      final billingPortalUrl = responseData['url'] as String?;
       if (billingPortalUrl != null && billingPortalUrl.isNotEmpty) {
         if (kDebugMode) {
           print('🌐 Opening Stripe billing portal: $billingPortalUrl');
@@ -2940,15 +3416,6 @@ class LoanOfficerController extends GetxController {
           await launchUrl(uri, mode: LaunchMode.externalApplication);
         }
       }
-
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        Future.delayed(const Duration(milliseconds: 300), () {
-          SnackbarHelper.showSuccess(
-            'Subscription cancellation processed. Your subscription status has been updated.',
-            title: 'Success',
-          );
-        });
-      });
     } on DioException catch (e) {
       if (kDebugMode) {
         print('❌ Error cancelling subscription:');
@@ -3059,11 +3526,10 @@ class LoanOfficerController extends GetxController {
 
     _waitingListRequests.add(zipCode.postalCode);
     try {
-      final zipCodeId = zipCode.id ?? zipCode.postalCode;
       final requestBody = {
         'name': user.name.isNotEmpty ? user.name : 'Loan Officer',
         'email': user.email,
-        'zipCodeId': zipCodeId,
+        'zipCode': zipCode.postalCode,
         'userId': user.id,
       };
 
@@ -3092,7 +3558,7 @@ class LoanOfficerController extends GetxController {
       }
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        await fetchWaitingListEntries(zipCodeId);
+        await fetchWaitingListEntries(zipCode.postalCode);
         _addCurrentUserToZipWaitingUsers(zipCode, user.id);
         return true;
       }
@@ -3134,21 +3600,21 @@ class LoanOfficerController extends GetxController {
   }
 
   Future<List<WaitingListEntry>> fetchWaitingListEntries(
-    String zipCodeId,
+    String zipCode,
   ) async {
-    if (zipCodeId.isEmpty) {
+    if (zipCode.isEmpty) {
       return [];
     }
 
-    if (_waitingListLoading.contains(zipCodeId)) {
-      return _waitingListEntries[zipCodeId] ?? [];
+    if (_waitingListLoading.contains(zipCode)) {
+      return _waitingListEntries[zipCode] ?? [];
     }
 
-    _waitingListLoading.add(zipCodeId);
+    _waitingListLoading.add(zipCode);
     try {
       final authToken = _storage.read('auth_token');
       final response = await _dio.get(
-        '/waiting-list/$zipCodeId',
+        '/waiting-list/$zipCode',
         options: Options(
           headers: {
             ...ApiConstants.ngrokHeaders,
@@ -3164,11 +3630,11 @@ class LoanOfficerController extends GetxController {
             .whereType<Map<String, dynamic>>()
             .map((json) => WaitingListEntry.fromJson(json))
             .toList();
-        _waitingListEntries[zipCodeId] = entries;
+        _waitingListEntries[zipCode] = entries;
         return entries;
       }
 
-      return _waitingListEntries[zipCodeId] ?? [];
+      return _waitingListEntries[zipCode] ?? [];
     } on DioException catch (e) {
       if (kDebugMode) {
         print('❌ Waiting list fetch error: ${e.message}');
@@ -3180,17 +3646,15 @@ class LoanOfficerController extends GetxController {
       }
       throw e;
     } finally {
-      _waitingListLoading.remove(zipCodeId);
+      _waitingListLoading.remove(zipCode);
     }
   }
 
   Future<void> _prefetchWaitingLists(List<LoanOfficerZipCodeModel> zipCodes) async {
     for (final zip in zipCodes) {
-      final zipId = zip.id ?? zip.postalCode;
       if (zip.claimedByOfficer == true &&
-          !_waitingListEntries.containsKey(zipId)) {
-        // Use Future.microtask or just call it without await to not block
-        fetchWaitingListEntries(zipId);
+          !_waitingListEntries.containsKey(zip.postalCode)) {
+        fetchWaitingListEntries(zip.postalCode);
       }
     }
   }

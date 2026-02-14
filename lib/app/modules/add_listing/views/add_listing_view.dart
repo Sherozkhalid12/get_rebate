@@ -1347,6 +1347,28 @@ class AddListingView extends GetView<AddListingController> {
     ImageSource source,
   ) async {
     try {
+      if (source == ImageSource.camera) {
+        // Take Photo: use camera only (pickMultiImage does not support source and opens gallery)
+        final XFile? image = await picker.pickImage(
+          source: ImageSource.camera,
+          maxWidth: 1920,
+          maxHeight: 1920,
+          imageQuality: 85,
+        );
+        if (image != null) {
+          if (controller.selectedPhotos.length < 10) {
+            controller.addPhoto(File(image.path));
+          } else {
+            SnackbarHelper.showInfo(
+              'You can add up to 10 photos',
+              title: 'Limit Reached',
+            );
+          }
+        }
+        return;
+      }
+
+      // Upload photo: use gallery (multi-image for gallery)
       final List<XFile> images = await picker.pickMultiImage(
         maxWidth: 1920,
         maxHeight: 1920,
@@ -1366,31 +1388,7 @@ class AddListingView extends GetView<AddListingController> {
         }
       }
     } catch (e) {
-      if (source == ImageSource.camera) {
-        // If multi-image fails for camera, try single image
-        try {
-          final XFile? image = await picker.pickImage(
-            source: source,
-            maxWidth: 1920,
-            maxHeight: 1920,
-            imageQuality: 85,
-          );
-          if (image != null) {
-            if (controller.selectedPhotos.length < 10) {
-              controller.addPhoto(File(image.path));
-            } else {
-              SnackbarHelper.showInfo(
-                'You can add up to 10 photos',
-                title: 'Limit Reached',
-              );
-            }
-          }
-        } catch (e2) {
-          SnackbarHelper.showError('Failed to pick image: ${e2.toString()}');
-        }
-      } else {
-        SnackbarHelper.showError('Failed to pick images: ${e.toString()}');
-      }
+      SnackbarHelper.showError('Failed to pick image: ${e.toString()}');
     }
   }
 

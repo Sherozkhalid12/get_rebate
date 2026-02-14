@@ -18,14 +18,14 @@ class WaitingListPage extends StatefulWidget {
 
 class _WaitingListPageState extends State<WaitingListPage> {
   late final LoanOfficerController _controller;
-  late final String _zipId;
+  late final String _zipCode;
 
   @override
   void initState() {
     super.initState();
     _controller = Get.find<LoanOfficerController>();
-    _zipId = widget.zipCode.id ?? widget.zipCode.postalCode;
-    Future.microtask(() => _controller.fetchWaitingListEntries(_zipId));
+    _zipCode = widget.zipCode.postalCode;
+    Future.microtask(() => _controller.fetchWaitingListEntries(_zipCode));
   }
 
   @override
@@ -82,8 +82,8 @@ class _WaitingListPageState extends State<WaitingListPage> {
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Obx(() {
-                final isLoading = _controller.isWaitingListLoading(_zipId);
-                final raw = _controller.waitingListEntries(_zipId);
+                final isLoading = _controller.isWaitingListLoading(_zipCode);
+                final raw = _controller.waitingListEntries(_zipCode);
                 final entries = raw
                     .where((e) =>
                         e.role == null ||

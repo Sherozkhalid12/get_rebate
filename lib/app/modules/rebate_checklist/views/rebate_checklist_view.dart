@@ -12,12 +12,16 @@ class RebateChecklistView extends GetView<RebateChecklistController> {
 
   @override
   Widget build(BuildContext context) {
-    // Check if user is an agent
+    // Check if user is an agent or loan officer
     final authController = Get.find<AuthController>();
     final currentUser = authController.currentUser;
+    final canAccessChecklist =
+        currentUser != null &&
+        (currentUser.role == UserRole.agent ||
+            currentUser.role == UserRole.loanOfficer);
     
-    // If user is not an agent, show access denied message
-    if (currentUser == null || currentUser.role != UserRole.agent) {
+    // If user is not an agent/loan officer, show access denied message
+    if (!canAccessChecklist) {
       return Scaffold(
         backgroundColor: AppTheme.lightGray,
         appBar: AppBar(
@@ -47,7 +51,7 @@ class RebateChecklistView extends GetView<RebateChecklistController> {
                   ),
                   const SizedBox(height: 20),
                   Text(
-                    'Agent-Only Checklists',
+                    'Agent/Loan Officer Checklists',
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
                       color: AppTheme.black,
                       fontWeight: FontWeight.bold,
@@ -55,7 +59,7 @@ class RebateChecklistView extends GetView<RebateChecklistController> {
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    'These checklists contain real estate jargon and are designed for agents only.',
+                    'These checklists contain real estate jargon and are designed for agents and loan officers.',
                     style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                       color: AppTheme.darkGray,
                     ),

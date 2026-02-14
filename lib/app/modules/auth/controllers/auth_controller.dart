@@ -354,7 +354,8 @@ class AuthViewController extends GetxController {
       } else {
         // Signup: send verification email first, then navigate to OTP screen
         final phoneValue = phoneController.text.trim();
-        final phoneToSend = phoneValue.isNotEmpty ? phoneValue : null;
+        final normalizedPhone = _normalizePhone(phoneValue);
+        final phoneToSend = normalizedPhone.isNotEmpty ? normalizedPhone : null;
         final licensedStatesList = _selectedLicensedStates.isNotEmpty
             ? _selectedLicensedStates.toList()
             : null;
@@ -618,7 +619,18 @@ class AuthViewController extends GetxController {
         return false;
       }
 
-      // Phone is optional for all roles (including buyer/seller); do not require it when empty.
+      // Phone is required for Agent and Loan Officer, optional for Buyer/Seller
+      final phoneValue = phoneController.text.trim();
+      if (selectedRole == UserRole.agent || selectedRole == UserRole.loanOfficer) {
+        if (phoneValue.isEmpty) {
+          SnackbarHelper.showError('Please enter your phone number');
+          return false;
+        }
+      }
+      if (phoneValue.isNotEmpty && !_isValidPhone(phoneValue)) {
+        SnackbarHelper.showError('Phone number must be 10 to 15 digits');
+        return false;
+      }
 
       // Validate required fields for agents
       if (selectedRole == UserRole.agent) {
@@ -697,6 +709,15 @@ class AuthViewController extends GetxController {
     }
 
     return true;
+  }
+
+  String _normalizePhone(String value) {
+    return value.replaceAll(RegExp(r'\D'), '');
+  }
+
+  bool _isValidPhone(String value) {
+    final digits = _normalizePhone(value);
+    return digits.length >= 10 && digits.length <= 15;
   }
 
   @override
@@ -853,23 +874,68 @@ class AuthViewController extends GetxController {
 
   @override
   void onClose() {
-    emailController.dispose();
-    passwordController.dispose();
-    nameController.dispose();
-    phoneController.dispose();
-    brokerageController.dispose();
-    agentLicenseNumberController.dispose();
-    bioController.dispose();
-    websiteUrlController.dispose();
-    googleReviewsUrlController.dispose();
-    thirdPartyReviewsUrlController.dispose();
-    serviceZipCodesController.dispose();
-    companyController.dispose();
-    loanOfficerLicenseNumberController.dispose();
-    loanOfficerBioController.dispose();
-    loanOfficerWebsiteUrlController.dispose();
-    mortgageApplicationUrlController.dispose();
-    loanOfficerExternalReviewsUrlController.dispose();
+    // Defer disposal to next frame to avoid "used after disposed" when
+    // login form is still in widget tree during navigation transition
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _disposeControllers();
+    });
     super.onClose();
+  }
+
+  void _disposeControllers() {
+    try {
+      emailController.clear();
+    } catch (_) {}
+    try {
+      passwordController.clear();
+    } catch (_) {}
+    try {
+      nameController.clear();
+    } catch (_) {}
+    try {
+      phoneController.clear();
+    } catch (_) {}
+    try {
+      brokerageController.clear();
+    } catch (_) {}
+    try {
+      agentLicenseNumberController.clear();
+    } catch (_) {}
+    try {
+      bioController.clear();
+    } catch (_) {}
+    try {
+      websiteUrlController.clear();
+    } catch (_) {}
+    try {
+      googleReviewsUrlController.clear();
+    } catch (_) {}
+    try {
+      thirdPartyReviewsUrlController.clear();
+    } catch (_) {}
+    try {
+      serviceZipCodesController.clear();
+    } catch (_) {}
+    try {
+      companyController.clear();
+    } catch (_) {}
+    try {
+      loanOfficerLicenseNumberController.clear();
+    } catch (_) {}
+    try {
+      loanOfficerBioController.clear();
+    } catch (_) {}
+    try {
+      loanOfficerWebsiteUrlController.clear();
+    } catch (_) {}
+    try {
+      mortgageApplicationUrlController.clear();
+    } catch (_) {}
+    try {
+      loanOfficerExternalReviewsUrlController.clear();
+    } catch (_) {}
+    try {
+      loanOfficerOfficeZipController.clear();
+    } catch (_) {}
   }
 }

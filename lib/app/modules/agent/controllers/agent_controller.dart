@@ -88,6 +88,7 @@ class AgentController extends GetxController {
   final _waitingListRequests = <String>{}.obs;
   final _waitingListEntries = <String, List<WaitingListEntry>>{}.obs;
   final _waitingListLoading = <String>{}.obs;
+  final _removeFromWaitingListRequests = <String>{}.obs;
   final RxSet<String> _joinedWaitingListZipCodes = <String>{}.obs;
   static const String _selectedStateStorageKey = 'agent_selected_state';
   static const String _claimedZipCodesStorageKey = 'agent_claimed_zip_codes';
@@ -137,6 +138,8 @@ class AgentController extends GetxController {
       (_waitingListEntries[zipCodeId]?.isNotEmpty ?? false);
   bool hasJoinedWaitingList(String zipCodeId) =>
       _joinedWaitingListZipCodes.contains(zipCodeId);
+  bool isRemovingFromWaitingList(String zipCodeId) =>
+      _removeFromWaitingListRequests.contains(zipCodeId);
   List<WaitingListEntry> waitingListEntries(String zipCodeId) =>
       _waitingListEntries[zipCodeId] ?? [];
 
@@ -444,13 +447,14 @@ class AgentController extends GetxController {
       final requestBody = {
         'name': user.name.isNotEmpty ? user.name : 'Agent',
         'email': user.email,
-        'zipCodeId': zipCode.id ?? zipCode.zipCode,
+        'zipCode': zipCode.zipCode,
         'userId': user.id,
       };
 
       if (kDebugMode) {
-        print('📡 Joining waiting list for ZIP ${zipCode.zipCode}');
-        print('   Payload: $requestBody');
+        print('📡 [joinWaitingList] REQUEST:');
+        print('   POST /waiting-list');
+        print('   body: $requestBody');
       }
 
       final response = await _dio.post(
@@ -465,20 +469,29 @@ class AgentController extends GetxController {
       );
 
       if (kDebugMode) {
-        print(
-          '📥 Waiting list response: ${response.statusCode} ${response.data}',
-        );
+        print('📥 [joinWaitingList] FULL RESPONSE:');
+        print('   statusCode: ${response.statusCode}');
+        print('   statusMessage: ${response.statusMessage}');
+        print('   headers: ${response.headers.map}');
+        print('   data (body): ${response.data}');
+        print('   data type: ${response.data.runtimeType}');
       }
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        final zipId = zipCode.id ?? zipCode.zipCode;
-        await fetchWaitingListEntries(zipId);
-        _markJoinedWaitingList(zipId);
+        await fetchWaitingListEntries(zipCode.zipCode);
+        _markJoinedWaitingList(zipCode.zipCode);
         return true;
       }
 
       throw Exception('Unexpected response: ${response.statusCode}');
     } catch (e) {
+      if (kDebugMode && e is DioException && e.response != null) {
+        final r = e.response!;
+        print('❌ [joinWaitingList] ERROR RESPONSE:');
+        print('   statusCode: ${r.statusCode}');
+        print('   data (body): ${r.data}');
+        print('   headers: ${r.headers.map}');
+      }
       NetworkErrorHandler.handleError(
         e,
         defaultMessage:
@@ -491,20 +504,23 @@ class AgentController extends GetxController {
   }
 
   Future<List<WaitingListEntry>> fetchWaitingListEntries(
-    String zipCodeId,
+    String zipCode,
   ) async {
-    if (zipCodeId.isEmpty) {
+    if (zipCode.isEmpty) {
       return [];
     }
 
-    if (_waitingListLoading.contains(zipCodeId)) {
-      return _waitingListEntries[zipCodeId] ?? [];
+    if (_waitingListLoading.contains(zipCode)) {
+      return _waitingListEntries[zipCode] ?? [];
     }
 
-    _waitingListLoading.add(zipCodeId);
+    _waitingListLoading.add(zipCode);
     try {
+      if (kDebugMode) {
+        print('📡 [fetchWaitingListEntries] REQUEST: GET /waiting-list/$zipCode');
+      }
       final response = await _dio.get(
-        '/waiting-list/$zipCodeId',
+        '/waiting-list/$zipCode',
         options: Options(
           headers: {
             ...ApiConstants.ngrokHeaders,
@@ -513,30 +529,110 @@ class AgentController extends GetxController {
         ),
       );
 
+      if (kDebugMode) {
+        print('📥 [fetchWaitingListEntries] FULL RESPONSE (zipCode: $zipCode):');
+        print('   statusCode: ${response.statusCode}');
+        print('   statusMessage: ${response.statusMessage}');
+        print('   headers: ${response.headers.map}');
+        print('   data (body): ${response.data}');
+        print('   data type: ${response.data.runtimeType}');
+      }
+
       final data = response.data;
       if (data is List) {
         final entries = data
             .whereType<Map<String, dynamic>>()
             .map((json) => WaitingListEntry.fromJson(json))
             .toList();
-        _waitingListEntries[zipCodeId] = entries;
-        _syncJoinedWaitingList(zipCodeId, entries);
+        _waitingListEntries[zipCode] = entries;
+        _syncJoinedWaitingList(zipCode, entries);
         return entries;
       }
 
-      return _waitingListEntries[zipCodeId] ?? [];
+      return _waitingListEntries[zipCode] ?? [];
     } on DioException catch (e) {
       if (kDebugMode) {
-        print('❌ Waiting list fetch error: ${e.message}');
+        print('❌ [fetchWaitingListEntries] ERROR (zipCode: $zipCode): ${e.message}');
+        if (e.response != null) {
+          final r = e.response!;
+          print('   statusCode: ${r.statusCode}');
+          print('   data (body): ${r.data}');
+          print('   headers: ${r.headers.map}');
+        }
       }
       throw e;
     } catch (e) {
       if (kDebugMode) {
-        print('❌ Waiting list fetch unexpected: $e');
+        print('❌ [fetchWaitingListEntries] Unexpected: $e');
       }
       throw e;
     } finally {
-      _waitingListLoading.remove(zipCodeId);
+      _waitingListLoading.remove(zipCode);
+    }
+  }
+
+  /// DELETE /api/v1/waiting-list with body { zipCode, userId }. Removes current user from waiting list.
+  Future<bool> removeFromWaitingList(String zipCode) async {
+    if (zipCode.isEmpty) return false;
+    if (_removeFromWaitingListRequests.contains(zipCode)) return false;
+
+    final authController = Get.find<global.AuthController>();
+    final user = authController.currentUser;
+    if (user == null || user.id.isEmpty) {
+      SnackbarHelper.showError('Please log in to leave the waiting list.');
+      return false;
+    }
+
+    _removeFromWaitingListRequests.add(zipCode);
+    try {
+      final requestBody = {
+        'zipCode': zipCode,
+        'userId': user.id,
+      };
+      if (kDebugMode) {
+        print('📡 [removeFromWaitingList] REQUEST: DELETE /waiting-list');
+        print('   body: $requestBody');
+      }
+
+      final response = await _dio.delete(
+        '/waiting-list',
+        data: requestBody,
+        options: Options(
+          headers: {
+            ...ApiConstants.ngrokHeaders,
+            'Content-Type': 'application/json',
+          },
+        ),
+      );
+
+      if (kDebugMode) {
+        print('📥 [removeFromWaitingList] FULL RESPONSE:');
+        print('   statusCode: ${response.statusCode}');
+        print('   data (body): ${response.data}');
+      }
+
+      if (response.statusCode == 200 || response.statusCode == 204) {
+        _joinedWaitingListZipCodes.remove(zipCode);
+        await fetchWaitingListEntries(zipCode);
+        return true;
+      }
+      throw Exception('Unexpected response: ${response.statusCode}');
+    } on DioException catch (e) {
+      if (kDebugMode && e.response != null) {
+        final r = e.response!;
+        print('❌ [removeFromWaitingList] ERROR: ${r.statusCode} ${r.data}');
+      }
+      NetworkErrorHandler.handleError(
+        e,
+        defaultMessage: 'Unable to leave the waiting list. Please try again.',
+      );
+      return false;
+    } catch (e) {
+      if (kDebugMode) print('❌ [removeFromWaitingList] $e');
+      SnackbarHelper.showError('Failed to leave the waiting list.');
+      return false;
+    } finally {
+      _removeFromWaitingListRequests.remove(zipCode);
     }
   }
 
@@ -547,11 +643,10 @@ class AgentController extends GetxController {
         .toSet();
 
     for (final zip in zipCodes) {
-      final zipId = zip.id ?? zip.zipCode;
       // Only prefetch if this zip code is claimed by the current user
       if (claimedZipCodeStrings.contains(zip.zipCode) &&
-          !_waitingListEntries.containsKey(zipId)) {
-        unawaited(fetchWaitingListEntries(zipId));
+          !_waitingListEntries.containsKey(zip.zipCode)) {
+        unawaited(fetchWaitingListEntries(zip.zipCode));
       }
     }
   }
@@ -791,10 +886,16 @@ class AgentController extends GetxController {
               .whereType<ZipCodeModel>()
               .toList();
 
-          // Replace local claimed ZIP codes with those from API
+          // Replace local claimed ZIP codes with those from API - deduplicate by zipCode
+          final deduplicated = <String, ZipCodeModel>{};
+          for (final z in claimedZips) {
+            if (!deduplicated.containsKey(z.zipCode)) {
+              deduplicated[z.zipCode] = z;
+            }
+          }
           _claimedZipCodes
             ..clear()
-            ..addAll(claimedZips);
+            ..addAll(deduplicated.values);
           _persistClaimedZipCodesToStorage();
 
           // Remove only zip codes claimed by the CURRENT user from available list
@@ -1018,7 +1119,75 @@ class AgentController extends GetxController {
         return;
       }
 
-      // Step 1: Create checkout session
+      // Step 1: Call claim API ONCE (before payment) - do NOT call again after payment
+      _setupDio();
+      dynamic preCheckClaimResponse;
+      try {
+        final formattedPrice = zipCode.calculatedPrice.toStringAsFixed(2);
+        final claimBody = {
+          'id': userId,
+          'zipcode': zipCode.zipCode,
+          'zipCodeId': zipCode.id ?? zipCode.zipCode,
+          'price': formattedPrice,
+          'state': zipCode.state,
+          'population': zipCode.population.toString(),
+        };
+        if (kDebugMode) {
+          print('📡 Claim API (single call before payment) for ZIP ${zipCode.zipCode}');
+        }
+        final claimResponse = await _dio.post(
+          '/zip-codes/claim',
+          data: claimBody,
+          options: Options(
+            headers: {
+              'ngrok-skip-browser-warning': 'true',
+              'Content-Type': 'application/json',
+              if (authToken != null) 'Authorization': 'Bearer $authToken',
+            },
+          ),
+        );
+        if (claimResponse.statusCode != 200 && claimResponse.statusCode != 201) {
+          final err = claimResponse.data;
+          final msg = err is Map
+              ? (err['error']?.toString() ?? err['message']?.toString() ?? 'Failed to claim zip code')
+              : 'Failed to claim zip code';
+          _showSnackbarSafely(msg, isError: true);
+          _processingZipCodes.remove(zipCode.zipCode);
+          return;
+        }
+        preCheckClaimResponse = claimResponse.data;
+        if (kDebugMode) {
+          print('✅ Claim API passed for ${zipCode.zipCode}');
+        }
+      } on DioException catch (e) {
+        final responseData = e.response?.data;
+        String errorMessage = 'Failed to claim zip code. Please try again.';
+        if (responseData is Map) {
+          errorMessage = responseData['error']?.toString() ??
+              responseData['message']?.toString() ??
+              errorMessage;
+        }
+        final isAlreadyClaimed = errorMessage.toLowerCase().contains('already claimed');
+        _showSnackbarSafely(
+          errorMessage,
+          isError: !isAlreadyClaimed,
+          isAlreadyClaimed: isAlreadyClaimed,
+        );
+        if (isAlreadyClaimed) {
+          _availableZipCodes.removeWhere((z) => z.zipCode == zipCode.zipCode);
+        }
+        _processingZipCodes.remove(zipCode.zipCode);
+        return;
+      } catch (e) {
+        _showSnackbarSafely(
+          'Failed to claim zip code: ${e.toString()}',
+          isError: true,
+        );
+        _processingZipCodes.remove(zipCode.zipCode);
+        return;
+      }
+
+      // Step 2: Create checkout session (only if claim succeeded)
       final zipCodePrice = zipCode.calculatedPrice.toStringAsFixed(2);
 
       // Prepare request body
@@ -1100,8 +1269,8 @@ class AgentController extends GetxController {
               );
             }
           }
-          // After paymentSuccess API succeeds, claim the ZIP code
-          await _completeZipCodeClaim(zipCode, userId, authToken);
+          // Update local state from pre-check response (API already claimed in step 1)
+          await _completeZipCodeClaim(zipCode, preCheckClaimResponse);
         } else {
           SnackbarHelper.showError('Payment was cancelled or failed');
         }
@@ -1294,151 +1463,121 @@ class AgentController extends GetxController {
     }
   }
 
-  /// Completes the ZIP code claim after successful payment
+  /// Updates local state after successful payment (claim API was called in pre-check)
   Future<void> _completeZipCodeClaim(
     ZipCodeModel zipCode,
-    String userId,
-    String? authToken,
+    dynamic preCheckClaimResponse,
   ) async {
     try {
       _isLoading.value = true;
 
-      // Prepare request body according to API specification
-      final formattedPrice = zipCode.calculatedPrice.toStringAsFixed(2);
-      final requestBody = {
-        'id': userId, // agent's Mongo user _id
-        'zipcode': zipCode.zipCode,
-        'zipCodeId': zipCode.id ?? zipCode.zipCode,
-        'price': formattedPrice,
-        'state': zipCode.state,
-        'population': zipCode.population.toString(),
-      };
-
       if (kDebugMode) {
-        print('📡 Claiming ZIP code after payment: ${zipCode.zipCode}');
-        print('   Endpoint: $_baseUrl/zip-codes/claim');
-        print('   Request body: $requestBody');
+        print('✅ Syncing claimed ZIP from pre-check response: ${zipCode.zipCode}');
       }
 
-      // Make API call to claim ZIP code
-      final response = await _dio.post(
-        '/zip-codes/claim',
-        data: requestBody,
-        options: Options(
-          headers: {
-            'ngrok-skip-browser-warning': 'true',
-            'Content-Type': 'application/json',
-            if (authToken != null) 'Authorization': 'Bearer $authToken',
-          },
-        ),
-      );
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        if (kDebugMode) {
-          print('✅ ZIP code claimed successfully');
-          print('   Response: ${response.data}');
+      // Parse claimedZipCodes from pre-check response for instant UI sync
+      final claimedZipCodesData =
+          (preCheckClaimResponse is Map
+              ? preCheckClaimResponse['claimedZipCodes']
+              : null) as List<dynamic>?;
+      if (claimedZipCodesData != null && claimedZipCodesData.isNotEmpty) {
+        final parsed = claimedZipCodesData
+            .whereType<Map<String, dynamic>>()
+            .map((m) {
+              final zipCodeStr =
+                  m['postalCode']?.toString() ?? m['zipCode']?.toString() ?? '';
+              if (zipCodeStr.isEmpty) return null;
+              return ZipCodeModel(
+                id: m['_id']?.toString() ?? m['id']?.toString(),
+                zipCode: zipCodeStr,
+                state: m['state']?.toString() ?? '',
+                city: m['city']?.toString(),
+                population: m['population'] is int
+                    ? m['population'] as int
+                    : (int.tryParse(m['population']?.toString() ?? '') ?? 0),
+                price: (m['price'] as num?)?.toDouble(),
+                claimedByAgent: true,
+                claimedAt: DateTime.now(),
+                isAvailable: false,
+                createdAt: DateTime.now(),
+                searchCount: 0,
+              );
+            })
+            .whereType<ZipCodeModel>()
+            .toList();
+        final deduplicated = <String, ZipCodeModel>{};
+        for (final z in parsed) {
+          if (!deduplicated.containsKey(z.zipCode)) {
+            deduplicated[z.zipCode] = z;
+          }
         }
-
-        // Add to claimed ZIP codes
+        _claimedZipCodes.assignAll(deduplicated.values);
+        if (kDebugMode) {
+          print(
+            '   Synced claimed from pre-check: ${_claimedZipCodes.length} zip codes',
+          );
+        }
+      } else {
+        // Fallback: add the single claimed zip
         final claimedZip = zipCode.copyWith(
           claimedByAgent: true,
           claimedAt: DateTime.now(),
           isAvailable: false,
         );
-
-        _claimedZipCodes.add(claimedZip);
-        _availableZipCodes.removeWhere((zip) => zip.zipCode == zipCode.zipCode);
-        _firstZipCodeClaimed.value = true; // Mark as old user (has claimed)
-
-        // Update subscription price based on new zip code
-        _updateSubscriptionPrice();
-
-        SnackbarHelper.showSuccess(
-          'ZIP code ${zipCode.zipCode} claimed successfully!',
-          title: 'Success',
-        );
-      } else {
-        throw Exception('Failed to claim ZIP code: ${response.statusCode}');
-      }
-    } on DioException catch (e) {
-      if (kDebugMode) {
-        print('❌ Error claiming ZIP code: ${e.message}');
-        print('   Status Code: ${e.response?.statusCode}');
-        print('   Response: ${e.response?.data}');
-      }
-
-      String errorMessage =
-          'Payment successful but failed to claim ZIP code. Please contact support.';
-      if (e.response != null) {
-        final responseData = e.response?.data;
-        if (responseData is Map) {
-          // Check for 'error' field first (as seen in logs)
-          if (responseData.containsKey('error')) {
-            errorMessage = responseData['error'].toString();
-          } else if (responseData.containsKey('message')) {
-            errorMessage = responseData['message'].toString();
-          }
-        }
-
-        // Handle "already claimed" error specifically
-        final lowerErrorMessage = errorMessage.toLowerCase();
-        if (e.response?.statusCode == 409 ||
-            lowerErrorMessage.contains('already claimed') ||
-            lowerErrorMessage.contains('already claimed by another agent')) {
-          errorMessage =
-              'This ZIP code is already claimed by another agent. Your payment was successful, but the ZIP code was claimed by someone else. Please contact support for a refund.';
-        } else if (e.response?.statusCode == 400) {
-          // For 400 errors, check if it's the "already claimed" message
-          if (lowerErrorMessage.contains('already claimed') ||
-              lowerErrorMessage.contains('already claimed by another agent')) {
-            errorMessage =
-                'This ZIP code is already claimed by another agent. Your payment was successful, but the ZIP code was claimed by someone else. Please contact support for a refund.';
-          } else if (errorMessage ==
-              'Payment successful but failed to claim ZIP code. Please contact support.') {
-            errorMessage =
-                'Invalid request. The ZIP code could not be claimed. Please contact support.';
-          }
+        if (!_claimedZipCodes.any((z) => z.zipCode == zipCode.zipCode)) {
+          _claimedZipCodes.insert(0, claimedZip);
         }
       }
 
-      // Determine if it's an "already claimed" error
-      final isAlreadyClaimed = errorMessage.toLowerCase().contains(
-        'already claimed',
-      );
+      _availableZipCodes.removeWhere((zip) => zip.zipCode == zipCode.zipCode);
+      _firstZipCodeClaimed.value = true;
 
-      // Remove from available list if already claimed
-      if (isAlreadyClaimed) {
-        _availableZipCodes.removeWhere((zip) => zip.zipCode == zipCode.zipCode);
-      }
+      _persistClaimedZipCodesToStorage();
+      _claimedZipCodes.refresh();
 
-      // Show snackbar with proper context handling
-      _showSnackbarSafely(
-        errorMessage,
-        isError: !isAlreadyClaimed,
-        isAlreadyClaimed: isAlreadyClaimed,
+      _updateSubscriptionPrice();
+
+      _showSnackbarAfterPayment(
+        'ZIP code ${zipCode.zipCode} claimed successfully!',
+        isError: false,
       );
     } catch (e) {
       if (kDebugMode) {
         print('❌ Error in _completeZipCodeClaim: $e');
       }
-
-      // Wait a bit to ensure context is available after navigation
-      await Future.delayed(const Duration(milliseconds: 500));
-
-      // Use Get.snackbar for better reliability after navigation
-      Get.snackbar(
-        'Error',
-        'Payment successful but unable to claim ZIP code. Please contact support.',
-        snackPosition: SnackPosition.BOTTOM,
-        duration: const Duration(seconds: 5),
-        backgroundColor: Colors.red.shade600,
-        colorText: Colors.white,
-        margin: const EdgeInsets.all(16),
-        isDismissible: true,
-        dismissDirection: DismissDirection.horizontal,
+      _showSnackbarAfterPayment(
+        'Unable to update claimed list. Please pull to refresh.',
+        isError: true,
       );
     } finally {
       _isLoading.value = false;
+    }
+  }
+
+  /// Shows snackbar after payment webview (avoids Overlay crash)
+  void _showSnackbarAfterPayment(String message, {bool isError = true}) {
+    Future.delayed(const Duration(milliseconds: 1200), () {
+      if (isError) {
+        SnackbarHelper.showError(message, title: 'Notice');
+      } else {
+        SnackbarHelper.showSuccess(message, title: 'Success');
+      }
+    });
+  }
+
+  /// Pops the current route without triggering GetX snackbar close (avoids LateInitializationError)
+  void _safePop() {
+    try {
+      final ctx = Get.overlayContext ?? Get.context;
+      if (ctx != null) {
+        Navigator.of(ctx).pop();
+      } else {
+        Get.back();
+      }
+    } catch (_) {
+      try {
+        Get.back();
+      } catch (_) {}
     }
   }
 
@@ -1536,12 +1675,14 @@ class AgentController extends GetxController {
       _availableZipCodes.add(availableZip);
       _updateSubscriptionPrice();
 
-      // Use SnackbarHelper + post-frame to avoid "No Overlay widget found" after async work
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        SnackbarHelper.showSuccess(
-          'ZIP code ${zipCode.zipCode} released successfully!',
-        );
-      });
+      // Force reactive update for instant UI refresh
+      _claimedZipCodes.refresh();
+      _availableZipCodes.refresh();
+
+      // Show success instantly
+      SnackbarHelper.showSuccess(
+        'ZIP code ${zipCode.zipCode} released successfully!',
+      );
     } on DioException catch (e) {
       final message =
           e.response?.data is Map &&
@@ -2162,9 +2303,47 @@ class AgentController extends GetxController {
         print('   Response: $responseData');
       }
 
-      await fetchUserStats();
-      final billingPortalUrl = responseData['url'] as String?;
+      // INSTANT update: Mark subscription as cancelled in local state immediately
+      final cancelledSubId = stripeSubscriptionId;
+      final subs = List<Map<String, dynamic>>.from(_subscriptions);
+      for (var i = 0; i < subs.length; i++) {
+        final subId = subs[i]['stripeSubscriptionId']?.toString() ??
+            subs[i]['_id']?.toString();
+        if (subId == cancelledSubId) {
+          subs[i] = Map<String, dynamic>.from(subs[i])
+            ..['subscriptionStatus'] = 'cancelled';
+          break;
+        }
+      }
+      _subscriptions.value = subs;
 
+      // Clear claimed ZIPs for cancelled subscription - instant UI update
+      await fetchUserStats();
+
+      // Show success instantly (no delay)
+      SnackbarHelper.showSuccess(
+        'Subscription cancellation processed. Your subscription status has been updated.',
+        title: 'Success',
+      );
+
+      // Professional confirmation dialog
+      Get.dialog(
+        AlertDialog(
+          title: const Text('Subscription Cancelled'),
+          content: const Text(
+            'The subscription you have cancelled. Your ZIP codes remain yours until the end of the month you subscribed.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => _safePop(),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+        barrierDismissible: false,
+      );
+
+      final billingPortalUrl = responseData['url'] as String?;
       if (billingPortalUrl != null && billingPortalUrl.isNotEmpty) {
         if (kDebugMode) {
           print('🌐 Opening Stripe billing portal: $billingPortalUrl');
@@ -2174,15 +2353,6 @@ class AgentController extends GetxController {
           await launchUrl(uri, mode: LaunchMode.externalApplication);
         }
       }
-
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        Future.delayed(const Duration(milliseconds: 300), () {
-          SnackbarHelper.showSuccess(
-            'Subscription cancellation processed. Your subscription status has been updated.',
-            title: 'Success',
-          );
-        });
-      });
     } on DioException catch (e) {
       if (kDebugMode) {
         print('❌ Error cancelling subscription:');
@@ -3207,8 +3377,7 @@ class AgentController extends GetxController {
                     IconButton(
                       icon: const Icon(Icons.close),
                       onPressed: () {
-                        // Just close the dialog - controller will be disposed in .then() callback
-                        Get.back();
+                        _safePop();
                       },
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
@@ -3297,8 +3466,7 @@ class AgentController extends GetxController {
                     Expanded(
                       child: OutlinedButton(
                         onPressed: () {
-                          // Just close the dialog - controller will be disposed in .then() callback
-                          Get.back();
+                          _safePop();
                         },
                         style: OutlinedButton.styleFrom(
                           padding: EdgeInsets.symmetric(vertical: 14.h),
@@ -3329,8 +3497,7 @@ class AgentController extends GetxController {
                                   final note = noteController.text.trim();
 
                                   // Close dialog first - don't dispose controller here
-                                  // It will be disposed in the .then() callback after dialog fully closes
-                                  Get.back();
+                                  _safePop();
 
                                   // Wait for dialog to fully close before proceeding
                                   await Future.delayed(
@@ -3462,7 +3629,7 @@ class AgentController extends GetxController {
       if (errorMessage.contains('already responded')) {
         // Close dialog if still open
         if (Get.isDialogOpen ?? false) {
-          Get.back();
+          _safePop();
         }
 
         // Wait for dialog to close
@@ -3559,65 +3726,30 @@ class AgentController extends GetxController {
   }
 
   /// Helper method to show snackbar safely with proper context handling
+  /// [delayBeforeShow] - when true, uses SnackbarHelper with delay (avoids Overlay crash)
   void _showSnackbarSafely(
     String message, {
     bool isError = true,
     bool isAlreadyClaimed = false,
+    bool delayBeforeShow = false,
   }) {
+    if (delayBeforeShow) {
+      Future.delayed(const Duration(milliseconds: 1200), () {
+        if (isError) {
+          SnackbarHelper.showError(message, title: isAlreadyClaimed ? 'Notice' : 'Error');
+        } else {
+          SnackbarHelper.showSuccess(message, title: 'Success');
+        }
+      });
+      return;
+    }
     final snackbarTitle = isAlreadyClaimed
         ? 'ZIP Code Already Claimed'
         : (isError ? 'Error' : 'Success');
-    final snackbarColor = isAlreadyClaimed
-        ? Colors.orange.shade700
-        : (isError ? Colors.red.shade600 : Colors.green.shade600);
-    final snackbarDuration = isAlreadyClaimed
-        ? const Duration(seconds: 4)
-        : const Duration(seconds: 3);
-
-    // Use WidgetsBinding to ensure overlay is available
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      try {
-        Get.snackbar(
-          snackbarTitle,
-          message,
-          snackPosition: SnackPosition.BOTTOM,
-          duration: snackbarDuration,
-          backgroundColor: snackbarColor,
-          colorText: Colors.white,
-          margin: const EdgeInsets.all(16),
-          isDismissible: true,
-          dismissDirection: DismissDirection.horizontal,
-          icon: Icon(
-            isAlreadyClaimed
-                ? Icons.warning_rounded
-                : (isError ? Icons.error_rounded : Icons.check_circle_rounded),
-            color: Colors.white,
-            size: 24,
-          ),
-        );
-      } catch (overlayError) {
-        // Fallback if overlay is not available - try again after a delay
-        if (kDebugMode) {
-          print('⚠️ Could not show snackbar, retrying: $overlayError');
-        }
-        Future.delayed(const Duration(milliseconds: 800), () {
-          try {
-            Get.snackbar(
-              snackbarTitle,
-              message,
-              snackPosition: SnackPosition.BOTTOM,
-              duration: snackbarDuration,
-              backgroundColor: snackbarColor,
-              colorText: Colors.white,
-              margin: const EdgeInsets.all(16),
-            );
-          } catch (e) {
-            if (kDebugMode) {
-              print('❌ Failed to show snackbar even after delay: $e');
-            }
-          }
-        });
-      }
-    });
+    if (isError) {
+      SnackbarHelper.showError(message, title: snackbarTitle);
+    } else {
+      SnackbarHelper.showSuccess(message, title: snackbarTitle);
+    }
   }
 }

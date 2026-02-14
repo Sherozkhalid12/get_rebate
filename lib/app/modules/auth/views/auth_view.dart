@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/modules/auth/controllers/auth_controller.dart';
+import 'package:getrebate/app/modules/auth/views/forgot_password_view.dart';
+import 'package:getrebate/app/modules/auth/bindings/forgot_password_binding.dart';
 import 'package:getrebate/app/widgets/custom_button.dart';
 import 'package:getrebate/app/widgets/custom_text_field.dart';
 import 'package:getrebate/app/widgets/rebate_compliance_notice.dart';
@@ -198,13 +201,51 @@ class AuthView extends GetView<AuthViewController> {
                 delay: controller.isLoginMode ? 100.ms : 200.ms,
               ),
 
-          // Phone field (only for signup)
+          // Forgot password (only for login)
+          if (controller.isLoginMode) ...[
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: () => Get.to(
+                  () => const ForgotPasswordView(),
+                  binding: ForgotPasswordBinding(),
+                ),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 0),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: Text(
+                  'Forgot password?',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppTheme.primaryBlue,
+                        fontWeight: FontWeight.w600,
+                      ),
+                ),
+              ),
+            )
+                .animate()
+                .slideX(
+                  begin: 0.1,
+                  duration: 600.ms,
+                  curve: Curves.easeOut,
+                  delay: 150.ms,
+                )
+                .fadeIn(duration: 600.ms, delay: 150.ms),
+          ],
+
+          // Phone field (only for signup) - required for Agent/Loan Officer, optional for Buyer/Seller
           if (!controller.isLoginMode) ...[
             const SizedBox(height: 16),
             CustomTextField(
                   controller: controller.phoneController,
-                  labelText: 'Phone (Optional)',
+                  labelText: controller.selectedRole == UserRole.buyerSeller
+                      ? 'Phone (Optional)'
+                      : 'Phone',
                   keyboardType: TextInputType.phone,
+                  maxLength: 15,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   prefixIcon: Icons.phone_outlined,
                 )
                 .animate()

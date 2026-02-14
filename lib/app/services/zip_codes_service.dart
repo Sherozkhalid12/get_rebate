@@ -405,10 +405,13 @@ class ZipCodesService {
   /// Fetches ZIP codes for a state via GET /api/v1/zip-codes/getstateZip/:country/:state
   ///
   /// [country] e.g. "US", [state] e.g. "CA" or "California"
+  /// [includeClaimStatus] when true, enriches zips with claimedByAgent/claimedByOfficer
+  /// from verify API (:country/:state/:zipcode) since getstateZip may omit them
   /// Throws [ZipCodesServiceException] on failure
   Future<List<ZipCodeModel>> getStateZipCodes({
     String country = 'US',
     required String state,
+    bool includeClaimStatus = true,
   }) async {
     if (state.isEmpty) {
       throw ZipCodesServiceException(
@@ -447,13 +450,13 @@ class ZipCodesService {
       }
 
       if (response.statusCode != 200) {
-        throw ZipCodesServiceException(
-          message: 'Failed to fetch state ZIP codes: ${response.statusCode}',
-          statusCode: response.statusCode,
-        );
-      }
+      throw ZipCodesServiceException(
+        message: 'Failed to fetch state ZIP codes: ${response.statusCode}',
+        statusCode: response.statusCode,
+      );
+    }
 
-      final data = response.data;
+    final data = response.data;
       if (data is! Map<String, dynamic>) {
         throw ZipCodesServiceException(
           message: 'Invalid response format from getstateZip',
@@ -488,6 +491,26 @@ class ZipCodesService {
         final withCity = list.where((z) => z.city != null && z.city!.isNotEmpty).length;
         print('   ZIP codes with city: $withCity / ${list.length}');
       }
+
+      if (includeClaimStatus && list.isNotEmpty) {
+        try {
+          final enriched = await enrichZipCodesWithClaimStatus(
+            list,
+            state: stateCode,
+            maxConcurrent: 5,
+            limit: 80,
+          );
+          if (kDebugMode) {
+            final withClaim = enriched.where((z) => z.claimedByAgent == true || z.claimedByLoanOfficer == true).length;
+            print('   Enriched with claim status: $withClaim zips have claim flags');
+          }
+          return enriched;
+        } catch (e) {
+          if (kDebugMode) {
+            print('   ⚠️ Enrichment failed, returning zips without claim status: $e');
+          }
+        }
+      }
       return list;
     } on DioException catch (e) {
       final msg = e.response?.data?['message']?.toString() ??
@@ -506,6 +529,52 @@ class ZipCodesService {
         originalError: e,
       );
     }
+  }
+
+  /// Enriches zip codes with claim status (claimedByAgent, claimedByOfficer) by calling
+  /// the verify API (:country/:state/:zipcode) for each. Use when getstateZip omits these fields.
+  Future<List<ZipCodeModel>> enrichZipCodesWithClaimStatus(
+    List<ZipCodeModel> zips, {
+    String country = 'US',
+    required String state,
+    int maxConcurrent = 5,
+    int limit = 80,
+  }) async {
+    if (zips.isEmpty) return zips;
+    final toEnrich = zips.take(limit).toList();
+    final results = <ZipCodeModel>[];
+
+    for (var i = 0; i < toEnrich.length; i += maxConcurrent) {
+      final batch = toEnrich.skip(i).take(maxConcurrent).toList();
+      final futures = batch.map((z) async {
+        try {
+          return await getZipCodesByState(
+            country: country,
+            state: state,
+            zipcode: z.zipCode,
+          );
+        } catch (_) {
+          return <ZipCodeModel>[];
+        }
+      });
+      final batchResponses = await Future.wait(futures);
+      for (var j = 0; j < batch.length; j++) {
+        final fullList = batchResponses[j];
+        final zip = batch[j];
+        final fullZip = fullList.isNotEmpty ? fullList.first : null;
+        if (fullZip != null &&
+            (fullZip.claimedByAgent != null || fullZip.claimedByLoanOfficer != null)) {
+          results.add(zip.copyWith(
+            claimedByAgent: fullZip.claimedByAgent,
+            claimedByLoanOfficer: fullZip.claimedByLoanOfficer,
+          ));
+        } else {
+          results.add(zip);
+        }
+      }
+    }
+    results.addAll(zips.skip(toEnrich.length));
+    return results;
   }
 
   /// Fetches ZIP code data for a given country, state and ZIP code

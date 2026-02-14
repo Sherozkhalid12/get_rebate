@@ -18,6 +18,8 @@ import 'package:getrebate/app/widgets/gradient_card.dart';
 import 'package:getrebate/app/widgets/rebate_compliance_notice.dart';
 import 'package:getrebate/app/services/rebate_states_service.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
+import 'package:getrebate/app/modules/agent_checklist/bindings/agent_checklist_binding.dart';
+import 'package:getrebate/app/modules/agent_checklist/views/agent_checklist_view.dart';
 import 'package:getrebate/app/modules/agent/views/waiting_list_page.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
@@ -223,7 +225,7 @@ class AgentView extends GetView<AgentController> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    'Rebate Compliance Checklist',
+                    'Agent Compliance Checklist',
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
                       color: AppTheme.black,
                       fontWeight: FontWeight.w600,
@@ -234,7 +236,7 @@ class AgentView extends GetView<AgentController> {
             ),
             const SizedBox(height: 12),
             Text(
-              'Follow these step-by-step guidelines to ensure rebate compliance and a smooth transaction.',
+              'Follow these step-by-step checklists to stay compliant in rebate transactions and keep your buyer/seller experience smooth from offer to closing.',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: AppTheme.darkGray,
                 height: 1.4,
@@ -248,31 +250,61 @@ class AgentView extends GetView<AgentController> {
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: AppTheme.lightGreen.withOpacity(0.3)),
               ),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(
-                    Icons.info_outline,
-                    color: AppTheme.lightGreen,
-                    size: 18,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Includes checklists for both buying and selling transactions',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppTheme.darkGray,
-                        fontWeight: FontWeight.w500,
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        Icons.info_outline,
+                        color: AppTheme.lightGreen,
+                        size: 18,
                       ),
-                    ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Includes complete compliance checklists for both buying/building and selling transactions.',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: AppTheme.darkGray,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        Icons.verified_user_outlined,
+                        color: AppTheme.primaryBlue,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Use these every time to handle disclosures correctly, coordinate with lenders/title, and protect your transaction compliance.',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: AppTheme.darkGray,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
             const SizedBox(height: 20),
             CustomButton(
-              text: 'View Compliance Checklists',
+              text: 'View Complete Checklist',
               onPressed: () {
-                Get.toNamed('/rebate-checklist');
+                Get.to(
+                  () => const AgentChecklistView(),
+                  binding: AgentChecklistBinding(),
+                );
               },
               icon: Icons.assignment_outlined,
               width: double.infinity,
@@ -1091,7 +1123,8 @@ class AgentView extends GetView<AgentController> {
                   isLoading: controller.isZipProcessing(zip.zipCode),
                 ),
               )
-            else if (zip.claimedByAgent == true)
+            // AGENT: Only check claimedByAgent. Ignore claimedByOfficer - that's for loan officers.
+            else if (zip.isClaimedByOtherAgent)
               _buildWaitingListControls(context, zip)
             else
               _buildClaimControls(context, zip),
@@ -1208,9 +1241,8 @@ class AgentView extends GetView<AgentController> {
       children: [
         const SizedBox(height: 12),
         Obx(() {
-          final zipId = zip.id ?? zip.zipCode;
-          final hasEntries = controller.hasWaitingListEntries(zipId);
-          final isJoined = controller.hasJoinedWaitingList(zipId);
+          final hasEntries = controller.hasWaitingListEntries(zip.zipCode);
+          final isJoined = controller.hasJoinedWaitingList(zip.zipCode);
           final isProcessing = controller.isWaitingListProcessing(zip.zipCode);
           final showSeeWaitingList = isJoined && hasEntries;
 

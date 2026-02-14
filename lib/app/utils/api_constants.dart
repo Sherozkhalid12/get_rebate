@@ -176,6 +176,13 @@ class ApiConstants {
   static String get resendVerificationEmailEndpoint =>
       "${authEndPoint}resendVerificationEmail";
 
+  // Forgot / Reset password endpoints
+  static String get sendPasswordResetEmailEndpoint =>
+      "${authEndPoint}sendPasswordResetEmail";
+  static String get verifyPasswordResetOtpEndpoint =>
+      "${authEndPoint}verifyPasswordResetOtp";
+  static String get resetPasswordEndpoint => "${authEndPoint}resetPassword";
+
   // Lead specific endpoints - Using same endpoint for both buyer and seller leads
   static String get createLeadEndpoint => "$apiBaseUrl/buyer/createLead";
 

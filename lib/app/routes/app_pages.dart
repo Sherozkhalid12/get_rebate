@@ -5,8 +5,12 @@ import 'package:getrebate/app/modules/onboarding/bindings/onboarding_binding.dar
 import 'package:getrebate/app/modules/onboarding/views/onboarding_view.dart';
 import 'package:getrebate/app/modules/auth/bindings/auth_binding.dart';
 import 'package:getrebate/app/modules/auth/bindings/verify_otp_binding.dart';
+import 'package:getrebate/app/modules/auth/bindings/forgot_password_binding.dart';
+import 'package:getrebate/app/modules/auth/bindings/reset_password_binding.dart';
 import 'package:getrebate/app/modules/auth/views/auth_view.dart';
 import 'package:getrebate/app/modules/auth/views/verify_otp_view.dart';
+import 'package:getrebate/app/modules/auth/views/forgot_password_view.dart';
+import 'package:getrebate/app/modules/auth/views/reset_password_view.dart';
 import 'package:getrebate/app/views/main_navigation_view.dart';
 import 'package:getrebate/app/controllers/main_navigation_controller.dart';
 import 'package:getrebate/app/modules/agent/bindings/agent_binding.dart';
@@ -49,6 +53,8 @@ import 'package:getrebate/app/modules/post_closing_survey/views/simple_survey_vi
 import 'package:getrebate/app/modules/post_closing_survey/controllers/simple_survey_controller.dart';
 import 'package:getrebate/app/modules/rebate_checklist/bindings/rebate_checklist_binding.dart';
 import 'package:getrebate/app/modules/rebate_checklist/views/rebate_checklist_view.dart';
+import 'package:getrebate/app/modules/agent_checklist/bindings/agent_checklist_binding.dart';
+import 'package:getrebate/app/modules/agent_checklist/views/agent_checklist_view.dart';
 import 'package:getrebate/app/modules/checklist/bindings/checklist_binding.dart';
 import 'package:getrebate/app/modules/checklist/views/checklist_view.dart';
 import 'package:getrebate/app/modules/loan_officer_checklist/bindings/loan_officer_checklist_binding.dart';
@@ -80,6 +86,8 @@ class AppPages {
   static const ONBOARDING = '/onboarding';
   static const AUTH = '/auth';
   static const VERIFY_OTP = '/verify-otp';
+  static const FORGOT_PASSWORD = '/forgot-password';
+  static const RESET_PASSWORD = '/reset-password';
   static const MAIN = '/main';
   static const AGENT = '/agent';
   static const LOAN_OFFICER = '/loan-officer';
@@ -103,6 +111,7 @@ class AppPages {
   static const POST_CLOSING_SURVEY = '/post-closing-survey';
   static const SIMPLE_SURVEY = '/simple-survey';
   static const REBATE_CHECKLIST = '/rebate-checklist';
+  static const AGENT_CHECKLIST = '/agent-checklist';
   static const CHECKLIST = '/checklist';
   static const LOAN_OFFICER_CHECKLIST = '/loan-officer-checklist';
   static const PRIVACY_POLICY = '/privacy-policy';
@@ -129,6 +138,16 @@ class AppPages {
       name: VERIFY_OTP,
       page: () => const VerifyOtpView(),
       binding: VerifyOtpBinding(),
+    ),
+    GetPage(
+      name: FORGOT_PASSWORD,
+      page: () => const ForgotPasswordView(),
+      binding: ForgotPasswordBinding(),
+    ),
+    GetPage(
+      name: RESET_PASSWORD,
+      page: () => const ResetPasswordView(),
+      binding: ResetPasswordBinding(),
     ),
     GetPage(
       name: MAIN,
@@ -245,6 +264,11 @@ class AppPages {
       name: REBATE_CHECKLIST,
       page: () => const RebateChecklistView(),
       binding: RebateChecklistBinding(),
+    ),
+    GetPage(
+      name: AGENT_CHECKLIST,
+      page: () => const AgentChecklistView(),
+      binding: AgentChecklistBinding(),
     ),
     GetPage(
       name: CHECKLIST,

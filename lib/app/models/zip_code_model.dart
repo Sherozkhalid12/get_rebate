@@ -53,11 +53,17 @@ class ZipCodeModel {
           : (json['claimedByAgent'] is String
                 ? (json['claimedByAgent']?.toLowerCase() == 'true')
                 : null),
-      claimedByLoanOfficer: json['claimedByLoanOfficer'] is bool
-          ? json['claimedByLoanOfficer'] as bool
-          : (json['claimedByLoanOfficer'] is String
-                ? (json['claimedByLoanOfficer']?.toLowerCase() == 'true')
-                : null),
+      // API uses claimedByOfficer; also support claimedByLoanOfficer
+      claimedByLoanOfficer: () {
+        final lo = json['claimedByLoanOfficer'];
+        final off = json['claimedByOfficer'];
+        final v = lo ?? off;
+        if (v == true) return true;
+        if (v == false) return false;
+        if (v is String && v.toLowerCase() == 'true') return true;
+        if (v is String && v.toLowerCase() == 'false') return false;
+        return v != null ? false : null;
+      }(),
       claimedAt: json['claimedAt'] != null
           ? DateTime.parse(json['claimedAt'])
           : null,
@@ -124,6 +130,9 @@ class ZipCodeModel {
   }
 
   bool get isClaimed => claimedByAgent != null || claimedByLoanOfficer != null;
+
+  /// For AGENT role: true if another agent has claimed this zip. Agents must only check this (ignore claimedByLoanOfficer).
+  bool get isClaimedByOtherAgent => claimedByAgent == true;
 
   /// Get the calculated price based on population tier (ignores backend price)
   double get calculatedPrice =>

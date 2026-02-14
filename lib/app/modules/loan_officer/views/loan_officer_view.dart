@@ -304,6 +304,11 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
 
           const SizedBox(height: 24),
 
+          // Shared checklists (what agents and buyers see)
+          _buildSharedComplianceChecklistsSection(context),
+
+          const SizedBox(height: 24),
+
           // Recent Activity
           _buildRecentActivity(context),
         ],
@@ -412,7 +417,7 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
 
       final realStats = [
         {
-          'label': 'Searches Appeared In',
+          'label': 'Searches',
           'value': officer.searchesAppearedIn,
           'icon': Icons.search,
         },
@@ -524,11 +529,12 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                 const SizedBox(height: 12),
                 CustomButton(
                   text: 'Edit Profile',
-                  onPressed: () {
-                    Get.to(
+                  onPressed: () async {
+                    await Get.to(
                       () => const LoanOfficerEditProfileView(),
                       binding: LoanOfficerEditProfileBinding(),
                     );
+                    await controller.refreshLicensedStatesFromProfile();
                   },
                   icon: Icons.edit,
                   isOutlined: true,
@@ -650,6 +656,99 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
               },
               icon: Icons.assignment_outlined,
               width: double.infinity,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSharedComplianceChecklistsSection(BuildContext context) {
+    final checklistController = Get.put(ChecklistController());
+    final rebateChecklistController = Get.put(RebateChecklistController());
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppTheme.primaryBlue.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    Icons.groups_2_outlined,
+                    color: AppTheme.primaryBlue,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Agent & Buyer Checklists',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      color: AppTheme.black,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'See the exact compliance checklists agents and buyers follow, so your guidance stays aligned across the transaction.',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: AppTheme.darkGray,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 20),
+            _buildChecklistCard(
+              context,
+              'Real Estate Agent Rebate Checklist – Buying/Building',
+              rebateChecklistController.getRebateChecklistForBuying(),
+              Icons.shopping_bag,
+              AppTheme.primaryBlue,
+              isAgentVersion: true,
+              infoText:
+                  'Agent view for buyer transactions. This is what the agent follows step-by-step while coordinating with you.',
+              actionLabel: 'Open Agent Checklist Page',
+              onAction: () => Get.toNamed(AppPages.REBATE_CHECKLIST),
+            ),
+            const SizedBox(height: 20),
+            _buildChecklistCard(
+              context,
+              'Rebate Checklist for Selling (Agent view)',
+              rebateChecklistController.getRebateChecklistForSelling(),
+              Icons.sell,
+              AppTheme.lightGreen,
+              isAgentVersion: true,
+              infoText:
+                  'Agent view for seller transactions. Useful for understanding rebate disclosures and closing coordination.',
+              actionLabel: 'Open Agent Checklist Page',
+              onAction: () => Get.toNamed(AppPages.REBATE_CHECKLIST),
+            ),
+            const SizedBox(height: 20),
+            _buildChecklistCard(
+              context,
+              'Homebuyer Checklist (with Rebate!)',
+              checklistController.getBuyerChecklist(),
+              Icons.checklist_rtl,
+              AppTheme.lightGreen,
+              isConsumerVersion: true,
+              actionLabel: 'Open Buyer Checklist Page',
+              onAction: () => Get.toNamed(
+                AppPages.CHECKLIST,
+                arguments: {
+                  'type': 'buyer',
+                  'title': 'Homebuyer Checklist (with Rebate!)',
+                },
+              ),
             ),
           ],
         ),
@@ -1158,6 +1257,40 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
           sliver: SliverList(
             delegate: SliverChildListDelegate([
+              // Info banner
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                margin: const EdgeInsets.only(bottom: 20),
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryBlue.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: AppTheme.primaryBlue.withOpacity(0.3),
+                  ),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      Icons.info_outline_rounded,
+                      color: AppTheme.primaryBlue,
+                      size: 22,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'To begin receiving leads and unlock all features, you must claim at least one ZIP code. Follow the prompts below to get started.',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: AppTheme.black,
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
               // Licensed States Section
               Obx(() {
                 final loanOfficer =
@@ -1245,9 +1378,12 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
 
               // State Selector for ZIP Codes - Filtered to only show rebate-allowed states
               Obx(() {
-                final uniqueStates = controller.filteredLicensedStateCodes.isEmpty
-                    ? controller.licensedStateCodes
-                    : controller.filteredLicensedStateCodes;
+                // Read both sources so this Obx rebuilds when either list changes.
+                final filteredStates = controller.filteredLicensedStateCodes;
+                final licensedStates = controller.licensedStateCodes;
+                final uniqueStates = filteredStates.isEmpty
+                    ? licensedStates
+                    : filteredStates;
 
                 return Card(
                   child: Padding(
@@ -1664,7 +1800,8 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                   isLoading: controller.isZipCodeLoading(zip.postalCode),
                 ),
               )
-            else if (zip.claimedByOfficer)
+            // LOAN OFFICER: Only check claimedByOfficer. Ignore claimedByAgent - that's for agents.
+            else if (zip.isClaimedByOtherOfficer)
               _buildWaitingListControls(context, zip)
             else
               Obx(
@@ -3164,6 +3301,8 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
             Icons.shopping_bag,
             AppTheme.primaryBlue,
             isAgentVersion: true,
+            infoText:
+                'Follow these steps to ensure compliance when working with a buyer who will receive a real estate commission rebate.\n\n(Continue providing your standard services—such as MLS searches, showings, negotiations, and client support—as usual.)',
           ),
 
           const SizedBox(height: 24),
@@ -3198,6 +3337,7 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
     Color color, {
     bool isAgentVersion = false,
     bool isConsumerVersion = false,
+    String? infoText,
     String? actionLabel,
     VoidCallback? onAction,
   }) {
@@ -3265,7 +3405,7 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
               ),
             ],
           ),
-          if (isAgentVersion) ...[
+          if (isAgentVersion && infoText != null) ...[
             const SizedBox(height: 16),
             Container(
               padding: const EdgeInsets.all(12),
@@ -3278,7 +3418,7 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                 ),
               ),
               child: Text(
-                'Follow these steps to ensure compliance when working with a buyer who will receive a real estate commission rebate.\n\n(Continue providing your standard services—such as MLS searches, showings, negotiations, and client support—as usual.)',
+                infoText,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: AppTheme.darkGray,
                   height: 1.5,

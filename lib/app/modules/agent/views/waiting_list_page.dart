@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:getrebate/app/models/zip_code_model.dart';
 import 'package:getrebate/app/modules/agent/controllers/agent_controller.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
+import 'package:getrebate/app/utils/snackbar_helper.dart';
 
 class WaitingListPage extends StatefulWidget {
   final ZipCodeModel zipCode;
@@ -18,14 +19,14 @@ class WaitingListPage extends StatefulWidget {
 
 class _WaitingListPageState extends State<WaitingListPage> {
   late final AgentController _controller;
-  late final String _zipId;
+  late final String _zipCode;
 
   @override
   void initState() {
     super.initState();
     _controller = Get.find<AgentController>();
-    _zipId = widget.zipCode.id ?? widget.zipCode.zipCode;
-    Future.microtask(() => _controller.fetchWaitingListEntries(_zipId));
+    _zipCode = widget.zipCode.zipCode;
+    Future.microtask(() => _controller.fetchWaitingListEntries(_zipCode));
   }
 
   @override
@@ -38,6 +39,37 @@ class _WaitingListPageState extends State<WaitingListPage> {
         elevation: 0,
         backgroundColor: AppTheme.white,
         leading: const BackButton(color: AppTheme.black),
+        actions: [
+          Obx(() {
+            if (!_controller.hasJoinedWaitingList(_zipCode)) return const SizedBox.shrink();
+            final isRemoving = _controller.isRemovingFromWaitingList(_zipCode);
+            return TextButton.icon(
+              onPressed: isRemoving
+                  ? null
+                  : () async {
+                      final removed = await _controller.removeFromWaitingList(_zipCode);
+                      if (removed && context.mounted) {
+                        SnackbarHelper.showSuccess(
+                          'You have been removed from the waiting list.',
+                          title: 'Left waiting list',
+                        );
+                        Navigator.of(context).pop();
+                      }
+                    },
+              icon: isRemoving
+                  ? SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.primaryBlue),
+                    )
+                  : const Icon(Icons.exit_to_app, size: 20, color: AppTheme.primaryBlue),
+              label: Text(
+                isRemoving ? 'Leaving...' : 'Leave list',
+                style: const TextStyle(color: AppTheme.primaryBlue, fontWeight: FontWeight.w600),
+              ),
+            );
+          }),
+        ],
       ),
       body: Column(
         children: [
@@ -82,8 +114,8 @@ class _WaitingListPageState extends State<WaitingListPage> {
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Obx(() {
-                final isLoading = _controller.isWaitingListLoading(_zipId);
-                final entries = _controller.waitingListEntries(_zipId);
+                final isLoading = _controller.isWaitingListLoading(_zipCode);
+                final entries = _controller.waitingListEntries(_zipCode);
 
                 if (isLoading) {
                   return const Center(
@@ -197,10 +229,6 @@ class _WaitingListPageState extends State<WaitingListPage> {
                                   ),
                               ],
                             ),
-                          ),
-                          const Icon(
-                            Icons.chevron_right,
-                            color: AppTheme.mediumGray,
                           ),
                         ],
                       ),

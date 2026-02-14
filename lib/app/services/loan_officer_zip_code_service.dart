@@ -491,8 +491,9 @@ class LoanOfficerZipCodeService {
 
   /// Claims a zip code for the current loan officer
   ///
+  /// Returns response data (including claimedZipCodes) on success.
   /// Throws [LoanOfficerZipCodeServiceException] if the request fails
-  Future<void> claimZipCode(
+  Future<Map<String, dynamic>?> claimZipCode(
     String userId,
     String zipcode,
     String price,
@@ -533,6 +534,12 @@ class LoanOfficerZipCodeService {
         print('✅ Zip code claimed successfully');
         print('   Status Code: ${response.statusCode}');
       }
+
+      final data = response.data;
+      if (data is Map<String, dynamic>) {
+        return data;
+      }
+      return null;
     } on DioException catch (e) {
       final errorMessage = e.response?.data?['message'] ??
           e.response?.data?['error'] ??

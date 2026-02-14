@@ -293,6 +293,12 @@ class AuthController extends GetxController {
         print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
         final responseData = response.data;
+        // CRITICAL: Only proceed if API indicates success - never enter app on failure
+        if (responseData is Map && responseData['success'] == false) {
+          final msg = responseData['message']?.toString() ?? 'Login failed. Please try again.';
+          if (kDebugMode) print('❌ Login API returned success:false: $msg');
+          throw Exception(msg);
+        }
         final userData = responseData['user'];
         final token = responseData['token'];
 
@@ -447,10 +453,12 @@ class AuthController extends GetxController {
       }
 
       SnackbarHelper.showError(errorMessage);
+      throw Exception(errorMessage); // ALWAYS throw - caller must NOT navigate on failure
     } catch (e) {
       print('❌ Unexpected Error: ${e.toString()}');
       print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      SnackbarHelper.showError('Login failed: ${e.toString()}');
+      SnackbarHelper.showError('Login failed. Please try again.');
+      rethrow; // ALWAYS rethrow - caller must NOT navigate on failure
     } finally {
       _isLoading.value = false;
     }
@@ -620,6 +628,100 @@ class AuthController extends GetxController {
         print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       }
       rethrow;
+    }
+  }
+
+  /// Sends password reset email to the given email.
+  /// API: POST {{server}}/api/v1/auth/sendPasswordResetEmail
+  Future<void> sendForgotPasswordOtp(String email) async {
+    await ConnectivityHelper.ensureConnectivity();
+    final trimmedEmail = email.trim();
+    final url = ApiConstants.sendPasswordResetEmailEndpoint;
+    final body = {'email': trimmedEmail};
+
+    if (kDebugMode) {
+      print('📧 sendPasswordResetEmail API: POST $url');
+    }
+
+    try {
+      final response = await _dio.post(url, data: body);
+
+      if (response.statusCode != 200 && response.statusCode != 201) {
+        final msg = (response.data as Map?)?['message']?.toString() ??
+            (response.data as Map?)?['error']?.toString() ??
+            'Failed to send reset code';
+        throw Exception(msg);
+      }
+    } on DioException catch (e) {
+      final data = e.response?.data as Map?;
+      final msg = data?['message']?.toString() ?? data?['error']?.toString();
+      throw Exception(msg ?? _dioErrorToMessage(e));
+    }
+  }
+
+  /// Verifies the password reset OTP.
+  /// API: POST {{server}}/api/v1/auth/verifyPasswordResetOtp
+  Future<void> verifyPasswordResetOtp({
+    required String email,
+    required String otp,
+  }) async {
+    await ConnectivityHelper.ensureConnectivity();
+    final url = ApiConstants.verifyPasswordResetOtpEndpoint;
+    final body = {
+      'email': email.trim(),
+      'otp': otp.trim(),
+    };
+
+    if (kDebugMode) {
+      print('🔐 verifyPasswordResetOtp API: POST $url');
+    }
+
+    try {
+      final response = await _dio.post(url, data: body);
+
+      if (response.statusCode != 200 && response.statusCode != 201) {
+        final msg = (response.data as Map?)?['message']?.toString() ??
+            (response.data as Map?)?['error']?.toString() ??
+            'Invalid or expired OTP';
+        throw Exception(msg);
+      }
+    } on DioException catch (e) {
+      final data = e.response?.data as Map?;
+      final msg = data?['message']?.toString() ?? data?['error']?.toString();
+      throw Exception(msg ?? _dioErrorToMessage(e));
+    }
+  }
+
+  /// Resets password using email and new password (OTP must be verified first).
+  /// API: PATCH {{server}}/api/v1/auth/resetPassword
+  Future<void> resetPassword({
+    required String email,
+    required String newPassword,
+  }) async {
+    await ConnectivityHelper.ensureConnectivity();
+    final url = ApiConstants.resetPasswordEndpoint;
+    final body = {
+      'email': email.trim(),
+      'newPassword': newPassword.trim(),
+    };
+
+    if (kDebugMode) {
+      print('🔐 resetPassword API: PATCH $url');
+    }
+
+    try {
+      final response = await _dio.patch(url, data: body);
+
+      if (response.statusCode != 200 && response.statusCode != 201) {
+        final msg = (response.data as Map?)?['message']?.toString() ??
+            (response.data as Map?)?['error']?.toString() ??
+            'Failed to reset password';
+        throw Exception(msg);
+      }
+    } on DioException catch (e) {
+      final data = e.response?.data as Map?;
+      final msg = data?['message']?.toString() ?? data?['error']?.toString();
+      throw Exception(msg ?? _dioErrorToMessage(e));
     }
   }
 
@@ -1018,25 +1120,32 @@ class AuthController extends GetxController {
       // Handle response
       final responseData = response.data;
       
-      // ONLY check for email exists in /auth/createUser response
-      // EXACT check: {"success": false, "message": "User with this email or phone already exists"}
+      // CRITICAL: Only proceed if API indicates success - never enter app on failure
       if (responseData is Map) {
         final success = responseData['success'];
         final message = responseData['message']?.toString().trim() ?? '';
         
-        // EXACT match only - no partial matches
-        if (success == false && 
-            message.toLowerCase() == 'user with this email or phone already exists') {
-          final errorMsg = message.isNotEmpty ? message : 'An account with this email already exists';
+        if (success == false) {
+          // Email already exists - special handling
+          if (message.toLowerCase() == 'user with this email or phone already exists') {
+            final errorMsg = message.isNotEmpty ? message : 'An account with this email already exists';
+            if (kDebugMode) {
+              print('❌ Email already exists detected from /auth/createUser: $errorMsg');
+              print('   Response: $responseData');
+            }
+            throw EmailAlreadyExistsException(errorMsg);
+          }
+          // Any other success:false - do NOT let user enter app
+          final errorMsg = message.isNotEmpty ? message : 'Sign up failed. Please try again.';
           if (kDebugMode) {
-            print('❌ Email already exists detected from /auth/createUser: $errorMsg');
+            print('❌ SignUp API returned success:false: $errorMsg');
             print('   Response: $responseData');
           }
-          throw EmailAlreadyExistsException(errorMsg);
+          throw Exception(errorMsg);
         }
       }
       
-      // Handle successful response
+      // Handle successful response (success is true or not present - legacy API)
       if (response.statusCode == 200 || response.statusCode == 201) {
         print('✅ SUCCESS - Status Code: ${response.statusCode}');
         print('📥 Response Data:');
@@ -1222,18 +1331,18 @@ class AuthController extends GetxController {
         errorMessage = 'No internet connection. Please check your network.';
       }
 
-      // Throw EmailAlreadyExistsException if detected
-      // This will be caught by verify_otp_controller and handled properly
+      // ALWAYS throw on signUp failure - caller must NOT navigate user into app
       if (isEmailExists) {
         if (kDebugMode) {
           print('❌ Email already exists detected in signUp: $errorMessage');
         }
         throw EmailAlreadyExistsException(errorMessage);
       }
-
-      SnackbarHelper.showError(errorMessage);
+      // Throw for ALL other errors - user must NOT enter app on API failure
+      throw Exception(errorMessage);
     } catch (e) {
-      SnackbarHelper.showError('Sign up failed: ${e.toString()}');
+      // Re-throw so caller knows signUp failed - do NOT swallow
+      rethrow;
     } finally {
       _isLoading.value = false;
     }
