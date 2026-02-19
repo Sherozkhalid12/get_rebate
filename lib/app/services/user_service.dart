@@ -211,6 +211,87 @@ class UserService {
     }
   }
 
+  /// Fetches raw user JSON by ID (includes reviews/ratings and full fields).
+  ///
+  /// Returns the nested `user` object when response is `{ user: {...} }`
+  /// or returns top-level payload when response is already the user object.
+  Future<Map<String, dynamic>> getUserRawById(String userId) async {
+    if (userId.isEmpty) {
+      throw UserServiceException(
+        message: 'User ID cannot be empty',
+        statusCode: 400,
+      );
+    }
+
+    try {
+      if (kDebugMode) {
+        print('📡 Fetching raw user JSON for userId: $userId');
+        print('   URL: ${ApiConstants.getUserByIdEndpoint(userId)}');
+      }
+
+      final response = await _dio.get(
+        ApiConstants.getUserByIdEndpoint(userId),
+        options: Options(
+          headers: ApiConstants.ngrokHeaders,
+        ),
+      );
+
+      if (response.data is! Map) {
+        throw UserServiceException(
+          message: 'Invalid response format from server',
+          statusCode: response.statusCode,
+        );
+      }
+
+      final responseMap = Map<String, dynamic>.from(
+        response.data as Map<String, dynamic>,
+      );
+      final rawUser = responseMap['user'] ??
+          responseMap['data'] ??
+          responseMap['agent'] ??
+          responseMap['officer'] ??
+          responseMap['loanOfficer'] ??
+          responseMap;
+
+      if (rawUser is! Map) {
+        throw UserServiceException(
+          message: 'User object not found in response',
+          statusCode: response.statusCode,
+        );
+      }
+
+      return Map<String, dynamic>.from(rawUser as Map);
+    } on DioException catch (e) {
+      String errorMessage = 'Failed to fetch user data.';
+      int? statusCode;
+      statusCode = e.response?.statusCode;
+      if (statusCode == 404) {
+        errorMessage = 'User not found.';
+      } else if (statusCode == 401) {
+        errorMessage = 'Unauthorized. Please login again.';
+      } else if (statusCode == 500) {
+        errorMessage = 'Server error. Please try again later.';
+      } else if (e.response?.data is Map) {
+        final err = e.response?.data as Map;
+        errorMessage =
+            err['message']?.toString() ??
+            err['error']?.toString() ??
+            errorMessage;
+      }
+      throw UserServiceException(
+        message: errorMessage,
+        statusCode: statusCode,
+        originalError: e,
+      );
+    } catch (e) {
+      if (e is UserServiceException) rethrow;
+      throw UserServiceException(
+        message: 'Failed to fetch user data: ${e.toString()}',
+        originalError: e,
+      );
+    }
+  }
+
   /// Updates user profile
   /// 
   /// Throws [UserServiceException] if the request fails

@@ -7,6 +7,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:getrebate/app/models/notification_model.dart';
 import 'package:getrebate/app/services/notification_service.dart';
 import 'package:getrebate/app/services/socket_service.dart';
+import 'package:getrebate/app/services/user_service.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart';
 import 'package:getrebate/app/models/user_model.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
@@ -17,6 +18,7 @@ import 'package:getrebate/app/routes/app_pages.dart';
 
 class NotificationsController extends GetxController {
   final NotificationService _notificationService = NotificationService();
+  final UserService _userService = UserService();
   final AuthController _authController = Get.find<AuthController>();
   final GetStorage _storage = GetStorage();
 
@@ -142,6 +144,10 @@ class NotificationsController extends GetxController {
       _unreadCount.value = response.unreadCount;
       _total.value = response.total;
 
+      // Enrich lead-related professional data with latest /auth/users/:id profile data
+      // so notification cards always display fresh name/avatar details.
+      await _enrichNotificationProfessionalData();
+
       if (kDebugMode) {
         print('✅ Notifications fetched successfully');
         print('   Total: ${response.total}');
@@ -156,6 +162,57 @@ class NotificationsController extends GetxController {
     } finally {
       _isLoading.value = false;
     }
+  }
+
+  Future<void> _enrichNotificationProfessionalData() async {
+    if (_notifications.isEmpty) return;
+
+    final idToIndexes = <String, List<int>>{};
+    for (int i = 0; i < _notifications.length; i++) {
+      final n = _notifications[i];
+      final id = n.agentData?.id ?? '';
+      if (id.isEmpty) continue;
+      idToIndexes.putIfAbsent(id, () => <int>[]).add(i);
+    }
+
+    if (idToIndexes.isEmpty) return;
+
+    final updated = List<NotificationModel>.from(_notifications);
+
+    for (final entry in idToIndexes.entries) {
+      final professionalId = entry.key;
+      try {
+        final rawUser = await _userService.getUserRawById(professionalId);
+        final existingAgentData = updated[entry.value.first].agentData;
+        if (existingAgentData == null) continue;
+
+        final refreshedAgentData = AgentData(
+          id: existingAgentData.id,
+          fullname:
+              rawUser['fullname']?.toString() ??
+              rawUser['name']?.toString() ??
+              existingAgentData.fullname,
+          username:
+              rawUser['username']?.toString() ?? existingAgentData.username,
+          profilePic:
+              rawUser['profilePic']?.toString() ?? existingAgentData.profilePic,
+          email: rawUser['email']?.toString() ?? existingAgentData.email,
+          phone: rawUser['phone']?.toString() ?? existingAgentData.phone,
+        );
+
+        for (final idx in entry.value) {
+          updated[idx] = updated[idx].copyWith(agentData: refreshedAgentData);
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          print(
+            '⚠️ Could not enrich notification professional data for $professionalId: $e',
+          );
+        }
+      }
+    }
+
+    _notifications.value = updated;
   }
 
   /// Marks a notification as read

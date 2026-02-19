@@ -20,6 +20,7 @@ import 'package:getrebate/app/widgets/gradient_card.dart';
 import 'package:getrebate/app/widgets/notification_badge_icon.dart';
 import 'package:getrebate/app/widgets/rebate_compliance_notice.dart';
 import 'package:getrebate/app/services/rebate_states_service.dart';
+import 'package:getrebate/app/services/user_service.dart';
 import 'package:getrebate/app/routes/app_pages.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
 import 'package:getrebate/app/modules/agent_checklist/bindings/agent_checklist_binding.dart';
@@ -647,7 +648,7 @@ class AgentView extends GetView<AgentController> {
     );
   }
 
-  void _openAgentReviewsPage() {
+  Future<void> _openAgentReviewsPage() async {
     try {
       final authController = Get.find<global.AuthController>();
       final currentUser = authController.currentUser;
@@ -656,15 +657,19 @@ class AgentView extends GetView<AgentController> {
         return;
       }
 
-      final additional =
-          Map<String, dynamic>.from(currentUser.additionalData ?? {});
+      final userService = UserService();
+      final freshUser = await userService.getUserRawById(currentUser.id);
+
       final merged = <String, dynamic>{
-        '_id': currentUser.id,
-        'id': currentUser.id,
-        'fullname': currentUser.name,
-        'email': currentUser.email,
-        'phone': currentUser.phone,
-        ...additional,
+        '_id': freshUser['_id']?.toString() ?? currentUser.id,
+        'id': freshUser['id']?.toString() ?? currentUser.id,
+        'fullname':
+            freshUser['fullname']?.toString() ??
+            freshUser['name']?.toString() ??
+            currentUser.name,
+        'email': freshUser['email']?.toString() ?? currentUser.email,
+        'phone': freshUser['phone']?.toString() ?? currentUser.phone,
+        ...freshUser,
       };
 
       final agent = AgentModel.fromJson(merged);

@@ -18,6 +18,7 @@ import 'package:getrebate/app/widgets/custom_text_field.dart';
 import 'package:getrebate/app/widgets/notification_badge_icon.dart';
 import 'package:getrebate/app/widgets/rebate_compliance_notice.dart';
 import 'package:getrebate/app/services/rebate_states_service.dart';
+import 'package:getrebate/app/services/user_service.dart';
 import 'package:getrebate/app/modules/checklist/controllers/checklist_controller.dart';
 import 'package:getrebate/app/modules/rebate_checklist/bindings/rebate_checklist_binding.dart';
 import 'package:getrebate/app/modules/rebate_checklist/controllers/rebate_checklist_controller.dart';
@@ -3154,13 +3155,25 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
     );
   }
 
-  void _openReviewsPage() {
-    final currentLoanOfficerController =
-        Get.isRegistered<CurrentLoanOfficerController>()
-        ? Get.find<CurrentLoanOfficerController>()
-        : Get.put(CurrentLoanOfficerController(), permanent: true);
-    final officer = currentLoanOfficerController.currentLoanOfficer.value;
-    Get.to(() => LoanOfficerReviewsView(officer: officer));
+  Future<void> _openReviewsPage() async {
+    try {
+      final authController = Get.find<global.AuthController>();
+      final userId = authController.currentUser?.id;
+      if (userId == null || userId.isEmpty) {
+        SnackbarHelper.showError('Unable to load reviews. Please login again.');
+        return;
+      }
+
+      final userService = UserService();
+      final freshUser = await userService.getUserRawById(userId);
+      final officer = LoanOfficerModel.fromJson(freshUser);
+      Get.to(() => LoanOfficerReviewsView(officer: officer));
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Failed to open loan officer reviews page: $e');
+      }
+      SnackbarHelper.showError('Unable to open reviews right now.');
+    }
   }
 
   Widget _buildLoanBarChart(List<int> data, List<String> labels) {
