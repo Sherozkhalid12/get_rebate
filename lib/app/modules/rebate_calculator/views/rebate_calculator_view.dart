@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
+import 'package:getrebate/app/controllers/auth_controller.dart';
+import 'package:getrebate/app/models/user_model.dart';
 import 'package:getrebate/app/modules/rebate_calculator/controllers/rebate_calculator_controller.dart';
 import 'package:getrebate/app/widgets/custom_text_field.dart';
 import 'package:getrebate/app/services/rebate_calculator_api_service.dart';
@@ -21,6 +23,13 @@ class RebateCalculatorView extends StatelessWidget {
     if (args != null && args['mode'] is int) {
       controller.currentMode.value = args['mode'] as int;
     }
+    final authController = Get.isRegistered<AuthController>()
+        ? Get.find<AuthController>()
+        : null;
+    final isAgentUser = authController?.currentUser?.role == UserRole.agent;
+    final openedByAgentArg =
+        args is Map<String, dynamic> && args['openedByAgent'] == true;
+    final shouldShowFindAgentsButton = !(isAgentUser || openedByAgentArg);
 
     return Scaffold(
       backgroundColor: AppTheme.lightGray,
@@ -36,7 +45,13 @@ class RebateCalculatorView extends StatelessWidget {
                   children: [
                     _buildFullForm(context, controller),
                     const SizedBox(height: 20),
-                    Obx(() => _buildResults(context, controller)),
+                    Obx(
+                      () => _buildResults(
+                        context,
+                        controller,
+                        shouldShowFindAgentsButton: shouldShowFindAgentsButton,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -416,12 +431,21 @@ class RebateCalculatorView extends StatelessWidget {
   }
 
   // RESULTS
-  Widget _buildResults(BuildContext context, RebateCalculatorController c) {
+  Widget _buildResults(
+    BuildContext context,
+    RebateCalculatorController c, {
+    required bool shouldShowFindAgentsButton,
+  }) {
     // Show API results if available, otherwise show local calculations
     final apiResult = c.currentApiResult;
     
     if (apiResult != null && apiResult.success) {
-      return _buildApiResults(context, c, apiResult);
+      return _buildApiResults(
+        context,
+        c,
+        apiResult,
+        shouldShowFindAgentsButton: shouldShowFindAgentsButton,
+      );
     }
 
     // Fallback to local calculations
@@ -569,32 +593,34 @@ class RebateCalculatorView extends StatelessWidget {
               ),
             ],
 
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  Get.toNamed('/find-agents');
-                },
-                icon: const Icon(Icons.search, size: 24),
-                label: const Text(
-                  'Find Agents',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
+            if (shouldShowFindAgentsButton) ...[
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    Get.toNamed('/find-agents');
+                  },
+                  icon: const Icon(Icons.search, size: 24),
+                  label: const Text(
+                    'Find Agents',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.primaryBlue,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primaryBlue,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    elevation: 3,
                   ),
-                  elevation: 3,
                 ),
               ),
-            ),
+            ],
           ],
         ),
       ),
@@ -656,7 +682,9 @@ class RebateCalculatorView extends StatelessWidget {
     BuildContext context,
     RebateCalculatorController c,
     RebateCalculatorResponse result,
-  ) {
+    {
+    required bool shouldShowFindAgentsButton,
+  }) {
     // Check if maxRebate is "or more" from rawData
     bool isOrMore = false;
     if (result.rawData != null) {
@@ -963,33 +991,35 @@ class RebateCalculatorView extends StatelessWidget {
                 ),
               ],
 
-              const SizedBox(height: 24),
-              // Find Agents Button - Enhanced
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    Get.toNamed('/find-agents');
-                  },
-                  icon: const Icon(Icons.search, size: 24),
-                  label: const Text(
-                    'Find Agents',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
+              if (shouldShowFindAgentsButton) ...[
+                const SizedBox(height: 24),
+                // Find Agents Button - Enhanced
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Get.toNamed('/find-agents');
+                    },
+                    icon: const Icon(Icons.search, size: 24),
+                    label: const Text(
+                      'Find Agents',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.primaryBlue,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.primaryBlue,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 3,
                     ),
-                    elevation: 3,
                   ),
                 ),
-              ),
+              ],
             ],
           ),
         ),

@@ -1,11 +1,14 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:get_storage/get_storage.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:getrebate/app/models/notification_model.dart';
 import 'package:getrebate/app/services/notification_service.dart';
+import 'package:getrebate/app/services/socket_service.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart';
+import 'package:getrebate/app/models/user_model.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
 import 'package:getrebate/app/utils/error_handler.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
@@ -15,6 +18,7 @@ import 'package:getrebate/app/routes/app_pages.dart';
 class NotificationsController extends GetxController {
   final NotificationService _notificationService = NotificationService();
   final AuthController _authController = Get.find<AuthController>();
+  final GetStorage _storage = GetStorage();
 
   // Observable state
   final _notifications = <NotificationModel>[].obs;
@@ -22,6 +26,7 @@ class NotificationsController extends GetxController {
   final _unreadCount = 0.obs;
   final _total = 0.obs;
   final _error = Rxn<String>();
+  DateTime? _lastRealtimeSyncAt;
 
   // Getters
   List<NotificationModel> get notifications => _notifications.toList();
@@ -42,13 +47,89 @@ class NotificationsController extends GetxController {
   void onInit() {
     super.onInit();
     fetchNotifications();
+    _initializeNotificationSocketListeners();
+  }
+
+  void _initializeNotificationSocketListeners({int retryCount = 0}) {
+    if (Get.isRegistered<SocketService>()) {
+      final socketService = Get.find<SocketService>();
+
+      socketService.onNotificationCountUpdated((data) {
+        _handleRealtimeNotificationCount(data);
+      });
+
+      if (kDebugMode) {
+        print('✅ NotificationsController socket listeners registered');
+      }
+      return;
+    }
+
+    if (retryCount < 120) {
+      Future.delayed(
+        const Duration(milliseconds: 700),
+        () => _initializeNotificationSocketListeners(retryCount: retryCount + 1),
+      );
+    } else if (kDebugMode) {
+      print('⚠️ SocketService not available for notification listeners');
+    }
+  }
+
+  void _handleRealtimeNotificationCount(Map<String, dynamic> payload) {
+    int? count;
+    final dynamic candidates = payload['count'] ??
+        payload['notificationCount'] ??
+        payload['unreadCount'] ??
+        payload['totalUnread'] ??
+        payload['data'];
+
+    if (candidates is int) {
+      count = candidates;
+    } else if (candidates is String) {
+      count = int.tryParse(candidates);
+    } else if (candidates is Map<String, dynamic>) {
+      final nested = candidates['count'] ??
+          candidates['notificationCount'] ??
+          candidates['unreadCount'];
+      if (nested is int) {
+        count = nested;
+      } else if (nested is String) {
+        count = int.tryParse(nested);
+      }
+    }
+
+    if (count != null && count >= 0) {
+      _unreadCount.value = count;
+    }
+
+    // Keep all tabs/flows in sync by refreshing list data too,
+    // but debounce to avoid frequent network calls.
+    final now = DateTime.now();
+    final shouldRefresh = _lastRealtimeSyncAt == null ||
+        now.difference(_lastRealtimeSyncAt!).inMilliseconds > 1200;
+    if (shouldRefresh) {
+      _lastRealtimeSyncAt = now;
+      fetchNotifications();
+    }
   }
 
   /// Fetches notifications for the current user
-  Future<void> fetchNotifications() async {
-    final userId = _authController.currentUser?.id;
+  Future<void> fetchNotifications({int retryCount = 0}) async {
+    String? userId = _authController.currentUser?.id;
     if (userId == null || userId.isEmpty) {
-      _error.value = 'User not logged in';
+      final stored = _storage.read('current_user');
+      if (stored is Map && stored['id'] != null) {
+        userId = stored['id'].toString();
+      }
+    }
+
+    if (userId == null || userId.isEmpty) {
+      // Auth/user can be set a little later during app bootstrap.
+      if (retryCount < 8) {
+        Future.delayed(
+          const Duration(milliseconds: 700),
+          () => fetchNotifications(retryCount: retryCount + 1),
+        );
+      }
       return;
     }
 
@@ -79,6 +160,7 @@ class NotificationsController extends GetxController {
 
   /// Marks a notification as read
   Future<void> markAsRead(String notificationId) async {
+    if (notificationId.isEmpty) return;
     try {
       final success = await _notificationService.markNotificationAsRead(notificationId);
       if (success) {
@@ -104,7 +186,17 @@ class NotificationsController extends GetxController {
 
   /// Marks all notifications as read
   Future<void> markAllAsRead() async {
-    final userId = _authController.currentUser?.id;
+    String? userId = _authController.currentUser?.id;
+    if (userId == null || userId.isEmpty) {
+      final stored = _storage.read('current_user');
+      if (stored is Map && stored['id'] != null) {
+        userId = stored['id'].toString();
+      }
+    }
+    if ((userId == null || userId.isEmpty) && _notifications.isNotEmpty) {
+      userId = _notifications.first.userId;
+    }
+
     if (userId == null || userId.isEmpty) {
       SnackbarHelper.showError('User not logged in');
       return;
@@ -123,6 +215,7 @@ class NotificationsController extends GetxController {
           print('✅ All notifications marked as read');
         }
         SnackbarHelper.showSuccess('All notifications marked as read');
+        await fetchNotifications();
       }
     } catch (e) {
       if (kDebugMode) {
@@ -154,6 +247,21 @@ class NotificationsController extends GetxController {
 
     // Handle navigation based on notification type
     final type = notification.type.toLowerCase();
+    final isAgent = _authController.currentUser?.role == UserRole.agent;
+    final isAcceptedNotification =
+        type.contains('accept') || type.contains('accepted');
+
+    // Agent side rule:
+    // Accepted lead/proposal notifications are informational only.
+    // Do not navigate anywhere on tap.
+    if (isAgent && isAcceptedNotification) {
+      if (kDebugMode) {
+        print(
+          'ℹ️ Agent accepted notification tapped (type=$type): no navigation',
+        );
+      }
+      return;
+    }
     
     // Check if it's a lead-related notification (accepted lead/proposal)
     if (type.contains('lead') || type.contains('proposal')) {

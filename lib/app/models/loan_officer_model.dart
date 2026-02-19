@@ -131,8 +131,11 @@ class LoanOfficerModel {
         ? firstZipCodeClaimedRaw
         : null;
     
-    // Specialty products
-    final specialtyList = json['specialtyProducts'] ?? [];
+    // Specialty products - support both specialtyProducts and areasOfExpertise keys.
+    final specialtyList =
+        json['specialtyProducts'] ??
+        json['areasOfExpertise'] ??
+        [];
     final specialtyProducts = List<String>.from(specialtyList);
     
     // Rating - can be number or calculated from reviews

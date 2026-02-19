@@ -6,6 +6,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/modules/agent_profile/controllers/agent_profile_controller.dart';
+import 'package:getrebate/app/modules/agent_profile/views/agent_reviews_view.dart';
 import 'package:getrebate/app/widgets/custom_button.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -930,7 +931,7 @@ class AgentProfileView extends GetView<AgentProfileController> {
 
             const SizedBox(height: 24),
 
-            // Service Areas (show serviceAreas if available, otherwise show claimedZipCodes)
+            // Service Areas
             if (agent.serviceZipCodes.isNotEmpty) ...[
               Text(
                 'Service Areas',
@@ -963,9 +964,13 @@ class AgentProfileView extends GetView<AgentProfileController> {
                   );
                 }).toList(),
               ),
-            ] else if (agent.claimedZipCodes.isNotEmpty) ...[
+              const SizedBox(height: 24),
+            ],
+
+            // Claimed ZIP Codes (always show when available)
+            if (agent.claimedZipCodes.isNotEmpty) ...[
               Text(
-                'Service Areas',
+                'Claimed ZIP Codes',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   color: AppTheme.black,
                   fontWeight: FontWeight.w600,
@@ -1528,7 +1533,7 @@ class AgentProfileView extends GetView<AgentProfileController> {
   }
 
   void _viewAllPlatformReviews() {
-    Get.toNamed('/agent-reviews', arguments: {'agentId': controller.agent!.id});
+    Get.to(() => AgentReviewsView(agent: controller.agent));
   }
 }
 

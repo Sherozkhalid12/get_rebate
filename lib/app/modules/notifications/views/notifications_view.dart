@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/modules/notifications/controllers/notifications_controller.dart';
 import 'package:getrebate/app/models/notification_model.dart';
+import 'package:getrebate/app/utils/api_constants.dart';
 
 class NotificationsView extends GetView<NotificationsController> {
   const NotificationsView({super.key});
@@ -332,15 +333,14 @@ class NotificationsView extends GetView<NotificationsController> {
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(
-                                Icons.badge_outlined,
-                                size: 14.sp,
-                                color: Colors.orange.shade700,
+                              _buildAgentAvatar(
+                                notification.agentData!.profilePic,
+                                size: 16.sp,
                               ),
                               SizedBox(width: 6.w),
                               Flexible(
                                 child: Text(
-                                  'Agent: ${notification.agentData!.fullname ?? 'N/A'}',
+                                  'Agent: ${notification.agentData!.displayName}',
                                   style: TextStyle(
                                     fontSize: 12.sp,
                                     color: Colors.orange.shade700,
@@ -573,5 +573,30 @@ class NotificationsView extends GetView<NotificationsController> {
     } else {
       return DateFormat('MMM d').format(date);
     }
+  }
+
+  Widget _buildAgentAvatar(String? rawProfilePic, {required double size}) {
+    final resolvedUrl = ApiConstants.getImageUrl(rawProfilePic?.trim());
+    final canLoadImage = resolvedUrl != null &&
+        resolvedUrl.isNotEmpty &&
+        (resolvedUrl.startsWith('http://') || resolvedUrl.startsWith('https://'));
+
+    if (canLoadImage) {
+      return CircleAvatar(
+        radius: size / 2,
+        backgroundImage: NetworkImage(resolvedUrl),
+        backgroundColor: Colors.orange.withOpacity(0.12),
+      );
+    }
+
+    return CircleAvatar(
+      radius: size / 2,
+      backgroundColor: Colors.orange.withOpacity(0.12),
+      child: Icon(
+        Icons.badge_outlined,
+        size: size * 0.8,
+        color: Colors.orange.shade700,
+      ),
+    );
   }
 }

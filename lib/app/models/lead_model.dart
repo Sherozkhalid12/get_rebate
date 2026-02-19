@@ -248,7 +248,9 @@ class LeadUserInfo {
 
   factory LeadUserInfo.fromJson(Map<String, dynamic> json) {
     return LeadUserInfo(
-      id: json['_id']?.toString() ?? '',
+      // Some APIs return professional user ID in `id`, while others use `_id`.
+      // Prefer `id` first so review/survey APIs receive the actual user ID.
+      id: json['id']?.toString() ?? json['_id']?.toString() ?? '',
       fullname: json['fullname']?.toString(),
       email: json['email']?.toString(),
       phone: json['phone']?.toString(),

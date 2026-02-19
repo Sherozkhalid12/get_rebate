@@ -123,6 +123,9 @@ class SocketService extends GetxService {
       if (_unreadCountCallback != null) {
         onUnreadCountUpdated(_unreadCountCallback!);
       }
+      if (_notificationCountCallback != null) {
+        onNotificationCountUpdated(_notificationCountCallback!);
+      }
 
       // Now connect
       if (kDebugMode) {
@@ -206,6 +209,9 @@ class SocketService extends GetxService {
         if (_unreadCountCallback != null) {
           onUnreadCountUpdated(_unreadCountCallback!);
         }
+        if (_notificationCountCallback != null) {
+          onNotificationCountUpdated(_notificationCountCallback!);
+        }
         if (kDebugMode) {
           print('✅ Verified listeners are registered after connection');
         }
@@ -286,6 +292,12 @@ class SocketService extends GetxService {
             print('✅ Re-registered unreadCountUpdated listener after reconnect');
           }
         }
+        if (_notificationCountCallback != null) {
+          onNotificationCountUpdated(_notificationCountCallback!);
+          if (kDebugMode) {
+            print('✅ Re-registered get_notification_count listener after reconnect');
+          }
+        }
       } catch (e) {
         if (kDebugMode) {
           print('❌ Error re-registering listeners after reconnect: $e');
@@ -346,18 +358,34 @@ class SocketService extends GetxService {
     required String threadId,
     required String senderId,
     required String text,
+    List<String>? participantIds,
   }) {
     if (_socket?.connected == true) {
-      final messageData = {
-        'threadId': threadId,
+      final normalizedThreadId = threadId.trim();
+      final hasValidThreadId =
+          normalizedThreadId.isNotEmpty && !normalizedThreadId.startsWith('temp_');
+
+      final Map<String, dynamic> messageData = {
         'senderId': senderId,
         'text': text,
+        // Per backend contract: send threadId only when it exists, else empty string.
+        'threadId': hasValidThreadId ? normalizedThreadId : '',
       };
+
+      if (!hasValidThreadId &&
+          participantIds != null &&
+          participantIds.length >= 2) {
+        messageData['participantIds'] = participantIds;
+      }
+
       _socket!.emit('send_message', messageData);
       if (kDebugMode) {
         print('📤 Sent message via socket');
         print('   Event: send_message');
-        print('   ThreadId: $threadId');
+        print('   ThreadId: ${messageData['threadId']}');
+        if (messageData.containsKey('participantIds')) {
+          print('   participantIds: ${messageData['participantIds']}');
+        }
         print('   Sender: $senderId');
         print('   Text: $text');
         print('   Socket ID: ${_socket!.id}');
@@ -393,6 +421,7 @@ class SocketService extends GetxService {
   Function(Map<String, dynamic>)? _newMessageCallback;
   Function(Map<String, dynamic>)? _newThreadCallback;
   Function(Map<String, dynamic>)? _unreadCountCallback;
+  Function(Map<String, dynamic>)? _notificationCountCallback;
 
   /// Listens for new messages
   void onNewMessage(Function(Map<String, dynamic>) callback) {
@@ -460,12 +489,10 @@ class SocketService extends GetxService {
       return;
     }
     
-    // Remove existing listener first to avoid duplicates
-    _socket!.off('newThread');
-    
-    _socket!.on('newThread', (data) {
+    void handleThreadEvent(String eventName, dynamic data) {
       if (kDebugMode) {
-        print('💬 Received new thread via socket');
+        print('💬 Received thread event via socket');
+        print('   Event: $eventName');
         print('   Data: $data');
         print('   Data type: ${data.runtimeType}');
         print('   Socket ID: ${_socket?.id}');
@@ -492,12 +519,52 @@ class SocketService extends GetxService {
           print('   Stack trace: ${StackTrace.current}');
         }
       }
-    });
+    }
+
+    // Remove existing listeners first to avoid duplicates
+    _socket!.off('newThread');
+    _socket!.off('thread_created');
+    _socket!.off('thread_updated');
+
+    _socket!.on('newThread', (data) => handleThreadEvent('newThread', data));
+    _socket!.on(
+      'thread_created',
+      (data) => handleThreadEvent('thread_created', data),
+    );
+    _socket!.on(
+      'thread_updated',
+      (data) => handleThreadEvent('thread_updated', data),
+    );
     
     if (kDebugMode) {
-      print('✅ Registered newThread listener');
+      print('✅ Registered newThread/thread_created/thread_updated listeners');
       print('   Socket exists: ${_socket != null}');
       print('   Socket connected: ${_socket?.connected ?? false}');
+    }
+  }
+
+  /// Emits create_thread to create a thread via socket.
+  void createThread({
+    required List<String> participantIds,
+    required String initiatorId,
+  }) {
+    if (_socket?.connected == true) {
+      final payload = {
+        'participantIds': participantIds,
+        'initiatorId': initiatorId,
+      };
+      _socket!.emit('create_thread', payload);
+      if (kDebugMode) {
+        print('📤 Emitted create_thread');
+        print('   Payload: $payload');
+      }
+      return;
+    }
+
+    if (kDebugMode) {
+      print('⚠️ Cannot emit create_thread: socket not connected');
+      print('   participantIds: $participantIds');
+      print('   initiatorId: $initiatorId');
     }
   }
 
@@ -553,6 +620,54 @@ class SocketService extends GetxService {
     }
   }
 
+  /// Listens for notification count updates (server event: get_notification_count)
+  void onNotificationCountUpdated(Function(Map<String, dynamic>) callback) {
+    _notificationCountCallback = callback;
+
+    if (_socket == null) {
+      if (kDebugMode) {
+        print('⚠️ Cannot register get_notification_count listener: Socket is null');
+      }
+      return;
+    }
+
+    _socket!.off('get_notification_count');
+
+    _socket!.on('get_notification_count', (data) {
+      if (kDebugMode) {
+        print('🔔 Notification count updated via socket');
+        print('   Event: get_notification_count');
+        print('   Data: $data');
+      }
+
+      Map<String, dynamic> payload;
+      if (data is Map<String, dynamic>) {
+        payload = data;
+      } else if (data is Map) {
+        payload = Map<String, dynamic>.from(data);
+      } else {
+        if (kDebugMode) {
+          print('⚠️ Invalid get_notification_count payload format: ${data.runtimeType}');
+        }
+        return;
+      }
+
+      try {
+        callback(payload);
+      } catch (e) {
+        if (kDebugMode) {
+          print('❌ Error in get_notification_count callback: $e');
+        }
+      }
+    });
+
+    if (kDebugMode) {
+      print('✅ Registered get_notification_count listener');
+      print('   Socket exists: ${_socket != null}');
+      print('   Socket connected: ${_socket?.connected ?? false}');
+    }
+  }
+
   /// Removes a listener
   void off(String event) {
     _socket?.off(event);
@@ -571,6 +686,7 @@ class SocketService extends GetxService {
       _newMessageCallback = null;
       _newThreadCallback = null;
       _unreadCountCallback = null;
+      _notificationCountCallback = null;
       if (kDebugMode) {
         print('🔌 Socket disconnected and disposed');
       }

@@ -198,12 +198,44 @@ class NotificationService {
       final endpoint = ApiConstants.getMarkNotificationReadEndpoint(notificationId);
       final path = endpoint.replaceFirst(ApiConstants.apiBaseUrl, '/api/v1');
 
-      final response = await _dio.patch(
-        path,
-        options: Options(headers: headers),
-      );
+      if (kDebugMode) {
+        print('📡 markNotificationAsRead');
+        print('   Endpoint: ${_dio.options.baseUrl}$path');
+        print('   notificationId: $notificationId');
+      }
 
-      return response.statusCode == 200;
+      Response response;
+      try {
+        // Primary method per backend contract
+        response = await _dio.put(
+          path,
+          options: Options(headers: headers),
+        );
+      } on DioException catch (e) {
+        final status = e.response?.statusCode ?? 0;
+        // Fallback for environments with different verb support.
+        if (status == 404 || status == 405) {
+          try {
+            response = await _dio.patch(
+              path,
+              options: Options(headers: headers),
+            );
+          } on DioException {
+          response = await _dio.post(
+            path,
+            options: Options(headers: headers),
+          );
+          }
+        } else {
+          rethrow;
+        }
+      }
+
+      if (kDebugMode) {
+        print('   Status Code: ${response.statusCode}');
+      }
+
+      return (response.statusCode ?? 0) >= 200 && (response.statusCode ?? 0) < 300;
     } catch (e) {
       print('Error marking notification as read: $e');
       return false;
@@ -229,12 +261,65 @@ class NotificationService {
       final endpoint = ApiConstants.getMarkAllNotificationsReadEndpoint(userId);
       final path = endpoint.replaceFirst(ApiConstants.apiBaseUrl, '/api/v1');
 
-      final response = await _dio.patch(
-        path,
-        options: Options(headers: headers),
-      );
+      if (kDebugMode) {
+        print('📡 markAllNotificationsAsRead');
+        print('   Endpoint: ${_dio.options.baseUrl}$path');
+        print('   userId: $userId');
+      }
 
-      return response.statusCode == 200;
+      Response response;
+      try {
+        // Primary method per backend contract (path-style endpoint)
+        response = await _dio.put(
+          path,
+          options: Options(headers: headers),
+        );
+      } on DioException catch (e) {
+        final status = e.response?.statusCode ?? 0;
+        if (kDebugMode) {
+          print('   Primary endpoint failed with status: $status');
+          print('   Trying fallback endpoint shapes...');
+        }
+        if (status == 404 || status == 405) {
+          final fallbackPath = '/api/v1/notifications/mark-all-read';
+          // Fallback A: PUT with body { userId }
+          try {
+            response = await _dio.put(
+              fallbackPath,
+              data: {'userId': userId},
+              options: Options(headers: headers),
+            );
+          } on DioException catch (e2) {
+            final status2 = e2.response?.statusCode ?? 0;
+            if (kDebugMode) {
+              print('   Fallback PUT failed with status: $status2');
+            }
+            // Fallback B: PATCH with body { userId }
+            try {
+              response = await _dio.patch(
+                fallbackPath,
+                data: {'userId': userId},
+                options: Options(headers: headers),
+              );
+            } on DioException {
+            // Fallback B: POST with body { userId }
+            response = await _dio.post(
+              fallbackPath,
+              data: {'userId': userId},
+              options: Options(headers: headers),
+            );
+            }
+          }
+        } else {
+          rethrow;
+        }
+      }
+
+      if (kDebugMode) {
+        print('   Status Code: ${response.statusCode}');
+      }
+
+      return (response.statusCode ?? 0) >= 200 && (response.statusCode ?? 0) < 300;
     } catch (e) {
       print('Error marking all notifications as read: $e');
       return false;

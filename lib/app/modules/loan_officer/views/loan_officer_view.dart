@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/modules/loan_officer/controllers/loan_officer_controller.dart';
 import 'package:getrebate/app/controllers/current_loan_officer_controller.dart';
@@ -10,8 +11,11 @@ import 'package:getrebate/app/modules/loan_officer_edit_profile/views/loan_offic
 import 'package:getrebate/app/modules/loan_officer_edit_profile/bindings/loan_officer_edit_profile_binding.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart' as global;
 import 'package:getrebate/app/models/loan_officer_zip_code_model.dart';
+import 'package:getrebate/app/models/loan_officer_model.dart';
+import 'package:getrebate/app/models/notification_model.dart';
 import 'package:getrebate/app/widgets/custom_button.dart';
 import 'package:getrebate/app/widgets/custom_text_field.dart';
+import 'package:getrebate/app/widgets/notification_badge_icon.dart';
 import 'package:getrebate/app/widgets/rebate_compliance_notice.dart';
 import 'package:getrebate/app/services/rebate_states_service.dart';
 import 'package:getrebate/app/modules/checklist/controllers/checklist_controller.dart';
@@ -22,9 +26,44 @@ import 'package:getrebate/app/routes/app_pages.dart';
 import 'package:getrebate/app/modules/messages/views/messages_view.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
 import 'package:getrebate/app/modules/loan_officer/views/waiting_list_page.dart';
+import 'package:getrebate/app/modules/loan_officer/views/loan_officer_reviews_view.dart';
 
 class LoanOfficerView extends GetView<LoanOfficerController> {
   const LoanOfficerView({super.key});
+  static final ScrollController _zipScrollController = ScrollController();
+  final GlobalKey _availableZipSectionKey = const GlobalObjectKey(
+    'loan_officer_available_zip_section',
+  );
+
+  void _scrollToAvailableZipSection(BuildContext context) {
+    // Close keyboard first.
+    FocusManager.instance.primaryFocus?.unfocus();
+    FocusScope.of(context).unfocus();
+
+    void scrollNow() {
+      final targetContext = _availableZipSectionKey.currentContext;
+      if (targetContext != null) {
+        Scrollable.ensureVisible(
+          targetContext,
+          duration: const Duration(milliseconds: 320),
+          curve: Curves.easeOutCubic,
+          alignment: 0.02,
+        );
+      }
+      if (_zipScrollController.hasClients) {
+        _zipScrollController.animateTo(
+          _zipScrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 420),
+          curve: Curves.easeOutCubic,
+        );
+      }
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) => scrollNow());
+    // Run additional passes after async search/validation updates the list.
+    Future.delayed(const Duration(milliseconds: 450), scrollNow);
+    Future.delayed(const Duration(milliseconds: 850), scrollNow);
+  }
 
   /// Helper function to filter licensed states to only include rebate-allowed states
   Future<List<String>> _filterAllowedStates(List<String> licensedStates) async {
@@ -165,6 +204,15 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
             onPressed: () => Get.toNamed('/messages'),
             tooltip: 'Messages',
           ),
+          Padding(
+            padding: EdgeInsets.only(right: 6.w),
+            child: const NotificationBadgeIcon(),
+          ),
+          // IconButton(
+          //   icon: const Icon(Icons.checklist_rtl, color: AppTheme.white),
+          //   onPressed: () => _openSharedChecklistsPage(context),
+          //   tooltip: 'Buyer & Agent Checklists',
+          // ),
           IconButton(
             icon: const Icon(Icons.logout, color: AppTheme.white),
             onPressed: () => _showLogoutDialog(context),
@@ -205,8 +253,9 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
               child: _buildTab(context, 'ZIP Codes', 2, Icons.location_on),
             ),
             Expanded(child: _buildTab(context, 'Billing', 3, Icons.payment)),
-            // COMMENTED OUT: Checklists tab
-            // Expanded(child: _buildTab(context, 'Checklists', 4, Icons.checklist_rtl)),
+            Expanded(
+              child: _buildTab(context, 'Checklists', 4, Icons.checklist_rtl),
+            ),
             // COMMENTED OUT: Stats tab
             // Expanded(child: _buildTab(context, 'Stats', 5, Icons.analytics)),
           ],
@@ -271,9 +320,11 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
           return _buildZipManagement(context);
         case 3:
           return _buildBilling(context);
-        // COMMENTED OUT: Checklists tab content
-        // case 4:
-        //   return _buildChecklists(context);
+        case 4:
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: _buildChecklists(context),
+          );
         // COMMENTED OUT: Stats tab content
         // case 5:
         //   return _buildStats(context);
@@ -301,11 +352,6 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
 
           // Loan Officer Checklist Section
           _buildLoanOfficerChecklistSection(context),
-
-          const SizedBox(height: 24),
-
-          // Shared checklists (what agents and buyers see)
-          _buildSharedComplianceChecklistsSection(context),
 
           const SizedBox(height: 24),
 
@@ -540,6 +586,22 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                   isOutlined: true,
                   width: double.infinity,
                 ),
+                const SizedBox(height: 12),
+                CustomButton(
+                  text: 'View Reviews',
+                  onPressed: () => _openReviewsPage(),
+                  icon: Icons.rate_review_outlined,
+                  isOutlined: true,
+                  width: double.infinity,
+                ),
+                const SizedBox(height: 12),
+                CustomButton(
+                  text: 'Buyer & Agent Checklists',
+                  onPressed: () => controller.setSelectedTab(4),
+                  icon: Icons.checklist_rtl,
+                  isOutlined: true,
+                  width: double.infinity,
+                ),
               ],
             ),
             const SizedBox(height: 12),
@@ -663,122 +725,103 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
     );
   }
 
-  Widget _buildSharedComplianceChecklistsSection(BuildContext context) {
-    final checklistController = Get.put(ChecklistController());
-    final rebateChecklistController = Get.put(RebateChecklistController());
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: AppTheme.primaryBlue.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(
-                    Icons.groups_2_outlined,
-                    color: AppTheme.primaryBlue,
-                    size: 24,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'Agent & Buyer Checklists',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      color: AppTheme.black,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'See the exact compliance checklists agents and buyers follow, so your guidance stays aligned across the transaction.',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: AppTheme.darkGray,
-                height: 1.4,
-              ),
-            ),
-            const SizedBox(height: 20),
-            _buildChecklistCard(
-              context,
-              'Real Estate Agent Rebate Checklist – Buying/Building',
-              rebateChecklistController.getRebateChecklistForBuying(),
-              Icons.shopping_bag,
-              AppTheme.primaryBlue,
-              isAgentVersion: true,
-              infoText:
-                  'Agent view for buyer transactions. This is what the agent follows step-by-step while coordinating with you.',
-              actionLabel: 'Open Agent Checklist Page',
-              onAction: () => Get.toNamed(AppPages.REBATE_CHECKLIST),
-            ),
-            const SizedBox(height: 20),
-            _buildChecklistCard(
-              context,
-              'Rebate Checklist for Selling (Agent view)',
-              rebateChecklistController.getRebateChecklistForSelling(),
-              Icons.sell,
-              AppTheme.lightGreen,
-              isAgentVersion: true,
-              infoText:
-                  'Agent view for seller transactions. Useful for understanding rebate disclosures and closing coordination.',
-              actionLabel: 'Open Agent Checklist Page',
-              onAction: () => Get.toNamed(AppPages.REBATE_CHECKLIST),
-            ),
-            const SizedBox(height: 20),
-            _buildChecklistCard(
-              context,
-              'Homebuyer Checklist (with Rebate!)',
-              checklistController.getBuyerChecklist(),
-              Icons.checklist_rtl,
-              AppTheme.lightGreen,
-              isConsumerVersion: true,
-              actionLabel: 'Open Buyer Checklist Page',
-              onAction: () => Get.toNamed(
-                AppPages.CHECKLIST,
-                arguments: {
-                  'type': 'buyer',
-                  'title': 'Homebuyer Checklist (with Rebate!)',
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  // Widget _buildSharedComplianceChecklistsSection(BuildContext context) {
+  //   final checklistController = Get.put(ChecklistController());
+  //   final rebateChecklistController = Get.put(RebateChecklistController());
+  //
+  //   return Card(
+  //     child: Padding(
+  //       padding: const EdgeInsets.all(20),
+  //       child: Column(
+  //         crossAxisAlignment: CrossAxisAlignment.start,
+  //         children: [
+  //           Row(
+  //             children: [
+  //               Container(
+  //                 padding: const EdgeInsets.all(8),
+  //                 decoration: BoxDecoration(
+  //                   color: AppTheme.primaryBlue.withOpacity(0.1),
+  //                   borderRadius: BorderRadius.circular(8),
+  //                 ),
+  //                 child: Icon(
+  //                   Icons.groups_2_outlined,
+  //                   color: AppTheme.primaryBlue,
+  //                   size: 24,
+  //                 ),
+  //               ),
+  //               const SizedBox(width: 12),
+  //               Expanded(
+  //                 child: Text(
+  //                   'Agent & Buyer Checklists',
+  //                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
+  //                     color: AppTheme.black,
+  //                     fontWeight: FontWeight.w600,
+  //                   ),
+  //                 ),
+  //               ),
+  //             ],
+  //           ),
+  //           const SizedBox(height: 12),
+  //           Text(
+  //             'See the exact compliance checklists agents and buyers follow, so your guidance stays aligned across the transaction.',
+  //             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+  //               color: AppTheme.darkGray,
+  //               height: 1.4,
+  //             ),
+  //           ),
+  //           const SizedBox(height: 20),
+  //           _buildChecklistCard(
+  //             context,
+  //             'Real Estate Agent Rebate Checklist – Buying/Building',
+  //             rebateChecklistController.getRebateChecklistForBuying(),
+  //             Icons.shopping_bag,
+  //             AppTheme.primaryBlue,
+  //             isAgentVersion: true,
+  //             infoText:
+  //                 'Agent view for buyer transactions. This is what the agent follows step-by-step while coordinating with you.',
+  //             actionLabel: 'Open Agent Checklist Page',
+  //             onAction: () => Get.toNamed(AppPages.REBATE_CHECKLIST),
+  //           ),
+  //           const SizedBox(height: 20),
+  //           _buildChecklistCard(
+  //             context,
+  //             'Rebate Checklist for Selling (Agent view)',
+  //             rebateChecklistController.getRebateChecklistForSelling(),
+  //             Icons.sell,
+  //             AppTheme.lightGreen,
+  //             isAgentVersion: true,
+  //             infoText:
+  //                 'Agent view for seller transactions. Useful for understanding rebate disclosures and closing coordination.',
+  //             actionLabel: 'Open Agent Checklist Page',
+  //             onAction: () => Get.toNamed(AppPages.REBATE_CHECKLIST),
+  //           ),
+  //           const SizedBox(height: 20),
+  //           _buildChecklistCard(
+  //             context,
+  //             'Homebuyer Checklist (with Rebate!)',
+  //             checklistController.getBuyerChecklist(),
+  //             Icons.checklist_rtl,
+  //             AppTheme.lightGreen,
+  //             isConsumerVersion: true,
+  //             actionLabel: 'Open Buyer Checklist Page',
+  //             onAction: () => Get.toNamed(
+  //               AppPages.CHECKLIST,
+  //               arguments: {
+  //                 'type': 'buyer',
+  //                 'title': 'Homebuyer Checklist (with Rebate!)',
+  //               },
+  //             ),
+  //           ),
+  //         ],
+  //       ),
+  //     ),
+  //   );
+  // }
 
   Widget _buildRecentActivity(BuildContext context) {
-    final currentLoanOfficerController =
-        Get.isRegistered<CurrentLoanOfficerController>()
-        ? Get.find<CurrentLoanOfficerController>()
-        : Get.put(CurrentLoanOfficerController(), permanent: true);
-
     return Obx(() {
-      final officer = currentLoanOfficerController.currentLoanOfficer.value;
-      final loading = currentLoanOfficerController.isLoading.value;
-
-      if (officer == null && loading) {
-        debugPrint(
-          '📊 _buildRecentActivity: Waiting for current loan officer activity data...',
-        );
-      } else if (officer == null && !loading) {
-        debugPrint(
-          '⚠️ _buildRecentActivity: currentLoanOfficer is null, showing placeholder activity.',
-        );
-      } else if (officer != null) {
-        debugPrint(
-          '✅ _buildRecentActivity: Showing recent activity for loanOfficer=${officer.id}',
-        );
-      }
+      final notifications = controller.recentNotifications.take(3).toList();
+      final loading = controller.isLoadingRecentActivity;
 
       return Card(
         child: Padding(
@@ -794,38 +837,29 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                 ),
               ),
               const SizedBox(height: 16),
-              if (officer == null && loading) ...[
+              if (loading && notifications.isEmpty) ...[
                 const Center(
                   child: Padding(
                     padding: EdgeInsets.symmetric(vertical: 12),
-                    child: CircularProgressIndicator(strokeWidth: 2),
+                    child: SpinKitThreeBounce(
+                      color: AppTheme.lightGreen,
+                      size: 18,
+                    ),
                   ),
                 ),
-              ] else if (officer == null) ...[
-                _buildActivityItem(
-                  context,
-                  'Activity data not loaded',
-                  'Please check your connection or try again later.',
-                  Icons.info_outline,
+              ] else if (notifications.isEmpty) ...[
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 24),
+                  child: Text(
+                    'No recent activity yet. New updates will appear here.',
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: AppTheme.mediumGray),
+                  ),
                 ),
               ] else ...[
-                _buildActivityItem(
-                  context,
-                  'Appeared in ${officer.searchesAppearedIn} searches',
-                  'Includes all time searches on the platform.',
-                  Icons.search,
-                ),
-                _buildActivityItem(
-                  context,
-                  'Profile viewed ${officer.profileViews} times',
-                  'Buyers and agents who viewed your profile.',
-                  Icons.visibility,
-                ),
-                _buildActivityItem(
-                  context,
-                  '${officer.contacts} contact requests received',
-                  'Total contacts generated from your profile.',
-                  Icons.phone,
+                ...notifications.map(
+                  (notification) => _buildActivityItem(context, notification),
                 ),
               ],
             ],
@@ -837,10 +871,9 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
 
   Widget _buildActivityItem(
     BuildContext context,
-    String title,
-    String time,
-    IconData icon,
+    NotificationModel notification,
   ) {
+    final iconColor = _notificationColor(notification.type);
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
@@ -849,10 +882,14 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: AppTheme.lightGreen.withOpacity(0.1),
+              color: iconColor.withOpacity(0.12),
               borderRadius: BorderRadius.circular(20),
             ),
-            child: Icon(icon, color: AppTheme.lightGreen, size: 20),
+            child: Icon(
+              _notificationIcon(notification.type),
+              color: iconColor,
+              size: 20,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -860,14 +897,18 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  title,
+                  notification.title.isNotEmpty
+                      ? notification.title
+                      : notification.message,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: AppTheme.darkGray,
                     fontWeight: FontWeight.w500,
                   ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 Text(
-                  time,
+                  _formatNotificationTime(notification.createdAt),
                   style: Theme.of(
                     context,
                   ).textTheme.bodySmall?.copyWith(color: AppTheme.mediumGray),
@@ -878,6 +919,48 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
         ],
       ),
     );
+  }
+
+  IconData _notificationIcon(String type) {
+    switch (type.toLowerCase()) {
+      case 'lead':
+        return Icons.person_add_rounded;
+      case 'lead_response':
+        return Icons.check_circle_rounded;
+      case 'lead_completed':
+        return Icons.done_all_rounded;
+      case 'proposal':
+        return Icons.description_rounded;
+      default:
+        return Icons.notifications_rounded;
+    }
+  }
+
+  Color _notificationColor(String type) {
+    switch (type.toLowerCase()) {
+      case 'lead':
+        return AppTheme.primaryBlue;
+      case 'lead_response':
+        return AppTheme.lightGreen;
+      case 'lead_completed':
+        return Colors.orange;
+      default:
+        return AppTheme.lightGreen;
+    }
+  }
+
+  String _formatNotificationTime(DateTime date) {
+    final now = DateTime.now();
+    final difference = now.difference(date);
+    if (difference.inDays == 0) {
+      if (difference.inHours == 0) {
+        if (difference.inMinutes == 0) return 'Just now';
+        return '${difference.inMinutes}m ago';
+      }
+      return '${difference.inHours}h ago';
+    }
+    if (difference.inDays == 1) return 'Yesterday';
+    return '${difference.inDays}d ago';
   }
 
   // My Loans section commented out - loan officers don't need this, it's just a lead generation tool
@@ -1252,6 +1335,7 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
         : Get.put(CurrentLoanOfficerController(), permanent: true);
 
     return CustomScrollView(
+      controller: _zipScrollController,
       slivers: [
         SliverPadding(
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
@@ -1462,11 +1546,11 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                           Row(
                             children: [
                               SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
+                                width: 20,
+                                height: 20,
+                                child: SpinKitThreeBounce(
                                   color: AppTheme.primaryBlue,
+                                  size: 14,
                                 ),
                               ),
                               const SizedBox(width: 8),
@@ -1512,14 +1596,29 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                     prefixIcon: Icons.search,
                     keyboardType: TextInputType.number,
                     maxLength: 5,
-                    onChanged: (v) => controller.onZipSearchChanged(v),
+                    onChanged: (v) {
+                      controller.onZipSearchChanged(v);
+                      final q = v.trim();
+                      if (q.length == 5 && RegExp(r'^\d{5}$').hasMatch(q)) {
+                        _scrollToAvailableZipSection(context);
+                      }
+                    },
+                    onSubmitted: (v) {
+                      final q = v.trim();
+                      if (q.length == 5 && RegExp(r'^\d{5}$').hasMatch(q)) {
+                        _scrollToAvailableZipSection(context);
+                      }
+                    },
                     suffixIcon: IconButton(
                       icon: Icon(
                         Icons.my_location,
                         color: AppTheme.primaryBlue,
                         size: 20,
                       ),
-                      onPressed: controller.useCurrentLocationForZip,
+                      onPressed: () {
+                        controller.useCurrentLocationForZip();
+                        _scrollToAvailableZipSection(context);
+                      },
                     ),
                   ),
                 );
@@ -1560,11 +1659,14 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
               const SizedBox(height: 24),
 
               // Available ZIP Codes Header
-              Text(
-                'Available ZIP Codes',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  color: AppTheme.black,
-                  fontWeight: FontWeight.w600,
+              KeyedSubtree(
+                key: _availableZipSectionKey,
+                child: Text(
+                  'Available ZIP Codes',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    color: AppTheme.black,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ]),
@@ -1597,7 +1699,10 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        CircularProgressIndicator(color: AppTheme.primaryBlue),
+                        SpinKitFadingCircle(
+                          color: AppTheme.primaryBlue,
+                          size: 44,
+                        ),
                         const SizedBox(height: 16),
                         Text(
                           'Loading ZIP codes...',
@@ -2142,6 +2247,7 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
       }
     });
   }
+
 
   Widget _buildPlanDetails(BuildContext context) {
     return Obx(() {
@@ -2770,7 +2876,12 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
       final totalContacts = officer?.contacts ?? 0;
       final totalSearches = officer?.searchesAppearedIn ?? 0;
       final totalViews = officer?.profileViews ?? 0;
-      final avgRating = officer?.rating ?? 0.0;
+      final reviews = (officer?.reviews ?? const <LoanOfficerReview>[])
+          .whereType<LoanOfficerReview>()
+          .toList();
+      final avgRating = reviews.isNotEmpty
+          ? reviews.map((r) => r.rating).reduce((a, b) => a + b) / reviews.length
+          : (officer?.rating ?? 0.0);
       final reviewCount = officer?.reviewCount ?? 0;
 
       // Build some lightweight trend data from the aggregate stats
@@ -2838,6 +2949,7 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                     reviewCount > 0
                         ? '$reviewCount ${reviewCount == 1 ? "review" : "reviews"} from buyers.'
                         : 'You do not have any reviews yet.',
+                    onTap: _openReviewsPage,
                   ),
                 ),
               ],
@@ -3000,41 +3112,55 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
     String value,
     IconData icon,
     Color color,
-    String subtitle,
-  ) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, color: color, size: 24),
-            const SizedBox(height: 12),
-            Text(
-              value,
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: AppTheme.black,
+    String subtitle, {
+    VoidCallback? onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(icon, color: color, size: 24),
+              const SizedBox(height: 12),
+              Text(
+                value,
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.black,
+                ),
               ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: AppTheme.mediumGray),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              subtitle,
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: color, fontSize: 11),
-            ),
-          ],
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: AppTheme.mediumGray),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                subtitle,
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: color, fontSize: 11),
+              ),
+            ],
+          ),
         ),
       ),
     );
+  }
+
+  void _openReviewsPage() {
+    final currentLoanOfficerController =
+        Get.isRegistered<CurrentLoanOfficerController>()
+        ? Get.find<CurrentLoanOfficerController>()
+        : Get.put(CurrentLoanOfficerController(), permanent: true);
+    final officer = currentLoanOfficerController.currentLoanOfficer.value;
+    Get.to(() => LoanOfficerReviewsView(officer: officer));
   }
 
   Widget _buildLoanBarChart(List<int> data, List<String> labels) {
@@ -3272,59 +3398,80 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
     final checklistController = Get.put(ChecklistController());
     final rebateChecklistController = Get.put(RebateChecklistController());
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Checklists',
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-              color: AppTheme.black,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Buyer & Agent Checklists',
+          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+            color: AppTheme.black,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'View the checklists that buyers and agents see, so you know what they\'re working with.',
+          style: Theme.of(
+            context,
+          ).textTheme.bodyMedium?.copyWith(color: AppTheme.darkGray),
+        ),
+        const SizedBox(height: 24),
+
+        // Agent buyer-side rebate checklist (Agent view)
+        _buildChecklistCard(
+          context,
+          'Real Estate Agent Rebate Checklist – Buying/Building',
+          rebateChecklistController.getRebateChecklistForBuying(),
+          Icons.shopping_bag,
+          AppTheme.primaryBlue,
+          isAgentVersion: true,
+          infoText:
+              'Follow these steps to ensure compliance when working with a buyer who will receive a real estate commission rebate.\n\n(Continue providing your standard services—such as MLS searches, showings, negotiations, and client support—as usual.)',
+        ),
+
+        const SizedBox(height: 24),
+
+        // Buyer checklist (consumer view)
+        _buildChecklistCard(
+          context,
+          'Homebuyer Checklist (with Rebate!)',
+          checklistController.getBuyerChecklist(),
+          Icons.checklist_rtl,
+          AppTheme.lightGreen,
+          isConsumerVersion: true,
+          actionLabel: 'View Buyer Version',
+          onAction: () => Get.toNamed(
+            AppPages.CHECKLIST,
+            arguments: {
+              'type': 'buyer',
+              'title': 'Homebuyer Checklist (with Rebate!)',
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _openSharedChecklistsPage(BuildContext context) {
+    Get.to(
+      () => Scaffold(
+        backgroundColor: AppTheme.lightGray,
+        appBar: AppBar(
+          backgroundColor: AppTheme.primaryBlue,
+          elevation: 0,
+          title: const Text(
+            'Buyer & Agent Checklists',
+            style: TextStyle(
+              color: AppTheme.white,
               fontWeight: FontWeight.w600,
             ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            'View the checklists that buyers and agents see, so you know what they\'re working with.',
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(color: AppTheme.darkGray),
-          ),
-          const SizedBox(height: 24),
-
-          // Buyer/Building - Agent Version
-          _buildChecklistCard(
-            context,
-            'Real Estate Agent Rebate Checklist – Buying/Building',
-            rebateChecklistController.getRebateChecklistForBuying(),
-            Icons.shopping_bag,
-            AppTheme.primaryBlue,
-            isAgentVersion: true,
-            infoText:
-                'Follow these steps to ensure compliance when working with a buyer who will receive a real estate commission rebate.\n\n(Continue providing your standard services—such as MLS searches, showings, negotiations, and client support—as usual.)',
-          ),
-
-          const SizedBox(height: 24),
-
-          // Buyer Checklist (for consumers)
-          _buildChecklistCard(
-            context,
-            'Homebuyer Checklist (with Rebate!)',
-            checklistController.getBuyerChecklist(),
-            Icons.checklist_rtl,
-            AppTheme.lightGreen,
-            isConsumerVersion: true,
-            actionLabel: 'View Buyer Version',
-            onAction: () => Get.toNamed(
-              AppPages.CHECKLIST,
-              arguments: {
-                'type': 'buyer',
-                'title': 'Homebuyer Checklist (with Rebate!)',
-              },
-            ),
-          ),
-        ],
+          iconTheme: const IconThemeData(color: AppTheme.white),
+        ),
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: _buildChecklists(context),
+        ),
       ),
     );
   }

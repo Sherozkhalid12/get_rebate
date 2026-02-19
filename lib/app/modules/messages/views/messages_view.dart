@@ -346,6 +346,10 @@ class MessagesView extends GetView<MessagesController> {
   }
 
   Widget _buildChatHeader(BuildContext context) {
+    final senderTypeLabel = _getSenderTypeLabel(
+      controller.selectedConversation!.senderType,
+    );
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       decoration: const BoxDecoration(
@@ -385,14 +389,13 @@ class MessagesView extends GetView<MessagesController> {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                Text(
-                  _getSenderTypeLabel(
-                    controller.selectedConversation!.senderType,
+                if (senderTypeLabel.isNotEmpty)
+                  Text(
+                    senderTypeLabel,
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: AppTheme.mediumGray),
                   ),
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodySmall?.copyWith(color: AppTheme.mediumGray),
-                ),
               ],
             ),
           ),
@@ -483,11 +486,21 @@ class MessagesView extends GetView<MessagesController> {
     // For agents, messages from agent type are "from me"
     // For loan officers, messages from loan_officer type are "from me"
     // For buyers/sellers, messages from user type are "from me"
+    final senderType = message.senderType.trim().toLowerCase();
+    final isBuyerSellerType =
+        senderType == 'user' ||
+        senderType == 'buyer/seller' ||
+        senderType == 'buyerseller' ||
+        senderType == 'buyer_seller' ||
+        senderType == 'buyer seller';
+
     final isUser = controller.isAgent
-        ? message.senderType == 'agent'
+        ? senderType == 'agent'
         : (controller.isLoanOfficer
-        ? message.senderType == 'loan_officer'
-        : message.senderType == 'user');
+            ? (senderType == 'loan_officer' ||
+                senderType == 'loanofficer' ||
+                senderType == 'loan officer')
+            : isBuyerSellerType);
 
     return Row(
       mainAxisAlignment: isUser
@@ -697,35 +710,62 @@ class MessagesView extends GetView<MessagesController> {
   }
 
   Color _getSenderColor(String senderType) {
-    switch (senderType) {
+    final normalized = senderType.trim().toLowerCase();
+    switch (normalized) {
       case 'agent':
         return AppTheme.primaryBlue;
       case 'loan_officer':
+      case 'loanofficer':
+      case 'loan officer':
         return AppTheme.lightGreen;
+      case 'buyer/seller':
+      case 'buyerseller':
+      case 'buyer_seller':
+      case 'buyer seller':
+      case 'user':
+        return AppTheme.primaryBlue;
       default:
         return AppTheme.mediumGray;
     }
   }
 
   IconData _getSenderIcon(String senderType) {
-    switch (senderType) {
+    final normalized = senderType.trim().toLowerCase();
+    switch (normalized) {
       case 'agent':
         return Icons.person;
       case 'loan_officer':
+      case 'loanofficer':
+      case 'loan officer':
         return Icons.account_balance;
+      case 'buyer/seller':
+      case 'buyerseller':
+      case 'buyer_seller':
+      case 'buyer seller':
+      case 'user':
+        return Icons.person_outline;
       default:
         return Icons.person;
     }
   }
 
   String _getSenderTypeLabel(String senderType) {
-    switch (senderType) {
+    final normalized = senderType.trim().toLowerCase();
+    switch (normalized) {
       case 'agent':
         return 'Real Estate Agent';
       case 'loan_officer':
+      case 'loanofficer':
+      case 'loan officer':
         return 'Loan Officer';
+      case 'buyer/seller':
+      case 'buyerseller':
+      case 'buyer_seller':
+      case 'buyer seller':
+      case 'user':
+        return 'Buyer/Seller';
       default:
-        return 'Loan Officer';
+        return '';
     }
   }
 

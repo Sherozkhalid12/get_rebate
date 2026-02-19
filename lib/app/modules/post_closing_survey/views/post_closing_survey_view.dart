@@ -11,19 +11,31 @@ import '../controllers/post_closing_survey_controller.dart';
 class PostClosingSurveyView extends GetView<PostClosingSurveyController> {
   const PostClosingSurveyView({super.key});
 
+  Color _surveyAccentColor() =>
+      controller.isAgentSurvey ? AppTheme.primaryBlue : AppTheme.lightGreen;
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.lightGray,
-      appBar: AppBar(
-        title: Obx(() => Text(
-          controller.showSelectionScreen 
-            ? 'Select Professional to Review'
-            : (controller.isAgentSurvey ? 'Rate Your Agent' : 'Rate Loan Officer'),
-        )),
-        backgroundColor: AppTheme.primaryBlue,
-        foregroundColor: Colors.white,
-        elevation: 0,
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(kToolbarHeight),
+        child: Obx(
+          () => AppBar(
+            title: Text(
+              controller.showSelectionScreen
+                  ? 'Select Professional to Review'
+                  : (controller.isAgentSurvey
+                      ? 'Rate Your Agent'
+                      : 'Rate Loan Officer'),
+            ),
+            backgroundColor: controller.showSelectionScreen
+                ? AppTheme.primaryBlue
+                : _surveyAccentColor(),
+            foregroundColor: Colors.white,
+            elevation: 0,
+          ),
+        ),
       ),
       body: Obx(() {
         if (controller.showSelectionScreen) {
@@ -55,7 +67,7 @@ class PostClosingSurveyView extends GetView<PostClosingSurveyController> {
               ),
               const SizedBox(height: 20),
               Text(
-                'Loading completed professionals...',
+                'Loading professionals...',
                 style: TextStyle(
                   color: AppTheme.darkGray,
                   fontSize: 16,
@@ -66,7 +78,7 @@ class PostClosingSurveyView extends GetView<PostClosingSurveyController> {
         );
       }
 
-      if (controller.completedProfessionals.isEmpty) {
+      if (!controller.hasAnyProfessionals) {
         return Center(
           child: Padding(
             padding: const EdgeInsets.all(24.0),
@@ -89,7 +101,7 @@ class PostClosingSurveyView extends GetView<PostClosingSurveyController> {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  'You don\'t have any completed transactions with agents yet.\nComplete a service with an agent to leave a review.',
+                  'You don\'t have any completed transactions with agents or loan officers yet.\nComplete a service to leave a review.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 14,
@@ -112,7 +124,7 @@ class PostClosingSurveyView extends GetView<PostClosingSurveyController> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Select an Agent to Review',
+                  'Select a Professional to Review',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w600,
@@ -121,30 +133,151 @@ class PostClosingSurveyView extends GetView<PostClosingSurveyController> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Choose an agent you worked with to submit your review',
+                  'Pick an Agent or Loan Officer and submit your feedback',
                   style: TextStyle(
                     fontSize: 14,
                     color: AppTheme.mediumGray,
                   ),
                 ),
+                const SizedBox(height: 14),
+                _buildProfessionalTabBar(context),
               ],
             ),
           ),
           
           // Professionals List
           Expanded(
-            child: ListView.builder(
+            child: ListView(
               padding: const EdgeInsets.all(16),
-              itemCount: controller.completedProfessionals.length,
-              itemBuilder: (context, index) {
-                final professional = controller.completedProfessionals[index];
-                return _buildProfessionalCard(context, professional);
-              },
+              children: [
+                Obx(() {
+                  final isAgentTab = controller.selectedTabIndex == 0;
+                  final list = isAgentTab
+                      ? controller.filteredAgentProfessionals
+                      : controller.filteredLoanOfficerProfessionals;
+
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildSearchField(
+                        hint: isAgentTab
+                            ? 'Search agents'
+                            : 'Search loan officers',
+                        onChanged: isAgentTab
+                            ? controller.setAgentSearchQuery
+                            : controller.setLoanOfficerSearchQuery,
+                      ),
+                      const SizedBox(height: 12),
+                      if (list.isEmpty)
+                        _buildEmptySectionState(
+                          isAgentTab
+                              ? 'No matching agents found'
+                              : 'No matching loan officers found',
+                        )
+                      else
+                        ...list.map(
+                          (professional) =>
+                              _buildProfessionalCard(context, professional),
+                        ),
+                    ],
+                  );
+                }),
+              ],
             ),
           ),
         ],
       );
     });
+  }
+
+  Widget _buildProfessionalTabBar(BuildContext context) {
+    return Obx(() {
+      final selectedTab = controller.selectedTabIndex;
+      return Container(
+        decoration: BoxDecoration(
+          color: AppTheme.lightGray,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: _buildTabButton(
+                label: 'Agents (${controller.agentProfessionals.length})',
+                selected: selectedTab == 0,
+                selectedColor: AppTheme.primaryBlue,
+                onTap: () => controller.setSelectedTab(0),
+              ),
+            ),
+            Expanded(
+              child: _buildTabButton(
+                label:
+                    'Loan Officers (${controller.loanOfficerProfessionals.length})',
+                selected: selectedTab == 1,
+                selectedColor: AppTheme.lightGreen,
+                onTap: () => controller.setSelectedTab(1),
+              ),
+            ),
+          ],
+        ),
+      );
+    });
+  }
+
+  Widget _buildTabButton({
+    required String label,
+    required bool selected,
+    required Color selectedColor,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+        decoration: BoxDecoration(
+          color: selected ? selectedColor : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Text(
+          label,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: selected ? Colors.white : AppTheme.darkGray,
+            fontWeight: FontWeight.w600,
+            fontSize: 12,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSearchField({
+    required String hint,
+    required ValueChanged<String> onChanged,
+  }) {
+    return TextField(
+      onChanged: onChanged,
+      decoration: InputDecoration(
+        hintText: hint,
+        prefixIcon: const Icon(Icons.search),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        isDense: true,
+      ),
+    );
+  }
+
+  Widget _buildEmptySectionState(String text) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Text(
+        text,
+        style: const TextStyle(
+          color: AppTheme.mediumGray,
+          fontSize: 13,
+        ),
+      ),
+    );
   }
 
   /// Build profile image widget
@@ -254,11 +387,15 @@ class PostClosingSurveyView extends GetView<PostClosingSurveyController> {
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(
-                            'Agent',
+                            professional.type == 'agent'
+                                ? 'Agent'
+                                : 'Loan Officer',
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w500,
-                              color: AppTheme.primaryBlue,
+                              color: professional.type == 'agent'
+                                  ? AppTheme.primaryBlue
+                                  : AppTheme.lightGreen,
                             ),
                           ),
                         ),
@@ -320,7 +457,7 @@ class PostClosingSurveyView extends GetView<PostClosingSurveyController> {
                 Text(
                   '${((controller.currentStep + 1) / controller.totalSteps * 100).round()}%',
                   style: TextStyle(
-                    color: AppTheme.primaryBlue,
+                    color: _surveyAccentColor(),
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -332,7 +469,7 @@ class PostClosingSurveyView extends GetView<PostClosingSurveyController> {
               minHeight: 8,
               borderRadius: BorderRadius.circular(4),
               backgroundColor: AppTheme.lightGray,
-              valueColor: AlwaysStoppedAnimation(AppTheme.primaryBlue),
+              valueColor: AlwaysStoppedAnimation(_surveyAccentColor()),
             ),
           ],
         ),
@@ -501,7 +638,7 @@ class PostClosingSurveyView extends GetView<PostClosingSurveyController> {
                 value: opt,
                 groupValue: value.value,
                 onChanged: (v) => value.value = v,
-                activeColor: AppTheme.lightGreen,
+                activeColor: _surveyAccentColor(),
               ),
               if (isOther && value.value == 'Other' && hasOther)
                 Padding(
@@ -539,7 +676,7 @@ class PostClosingSurveyView extends GetView<PostClosingSurveyController> {
             max: 5.0,
             divisions: 90,
             label: value.value.toStringAsFixed(1),
-            activeColor: AppTheme.lightGreen,
+            activeColor: _surveyAccentColor(),
             onChanged: (v) => value.value = v,
           ),
           Row(
@@ -638,7 +775,7 @@ class PostClosingSurveyView extends GetView<PostClosingSurveyController> {
                   child: Text('Back'),
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
-                    side: const BorderSide(color: AppTheme.lightGreen),
+                    side: BorderSide(color: _surveyAccentColor()),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
@@ -655,7 +792,7 @@ class PostClosingSurveyView extends GetView<PostClosingSurveyController> {
                           : controller.nextStep)
                     : null,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.lightGreen,
+                  backgroundColor: _surveyAccentColor(),
                   padding: EdgeInsets.symmetric(vertical: 16),
                 ),
                 child: controller.isLoading

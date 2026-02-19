@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart';
 import 'package:getrebate/app/models/proposal_model.dart';
@@ -10,6 +11,7 @@ import 'package:getrebate/app/services/leads_service.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
 import 'package:getrebate/app/utils/error_handler.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
+import 'package:getrebate/app/theme/app_theme.dart';
 
 class ProposalController extends GetxController {
   final AuthController _authController = Get.find<AuthController>();
@@ -322,21 +324,30 @@ class ProposalController extends GetxController {
       
       // Determine status based on leadStatus and agentResponse
       ProposalStatus status = ProposalStatus.pending;
+      bool hasExplicitLeadStatus = false;
       
       // Check leadStatus first (highest priority)
       if (lead.leadStatus != null && lead.leadStatus!.isNotEmpty) {
         final leadStatusLower = lead.leadStatus!.toLowerCase();
         switch (leadStatusLower) {
           case 'completed':
+            hasExplicitLeadStatus = true;
             status = ProposalStatus.completed;
             break;
           case 'reported':
+            hasExplicitLeadStatus = true;
             status = ProposalStatus.reported;
             break;
           case 'accepted':
+            hasExplicitLeadStatus = true;
             status = ProposalStatus.accepted; // Keep as accepted - don't show complete service button
             break;
+          case 'rejected':
+            hasExplicitLeadStatus = true;
+            status = ProposalStatus.rejected;
+            break;
           case 'pending':
+            hasExplicitLeadStatus = true;
             status = ProposalStatus.pending;
             break;
           default:
@@ -345,8 +356,8 @@ class ProposalController extends GetxController {
         }
       }
       
-      // If status wasn't determined by leadStatus, check other conditions
-      if (status == ProposalStatus.pending) {
+      // If backend did NOT send explicit leadStatus, derive from other flags.
+      if (!hasExplicitLeadStatus) {
         if (lead.isCompleted) {
           // Lead is completed
           status = ProposalStatus.completed;
@@ -359,9 +370,6 @@ class ProposalController extends GetxController {
         } else if (lead.agentResponse != null && lead.agentResponse!.status == 'rejected') {
           // Lead was rejected
           status = ProposalStatus.rejected;
-        } else if (lead.agentId != null && lead.agentId!.id.isNotEmpty) {
-          // Agent is assigned but not explicitly accepted - treat as accepted/in progress
-          status = ProposalStatus.accepted;
         } else {
           // Default to pending
           status = ProposalStatus.pending;
@@ -745,7 +753,16 @@ class ProposalController extends GetxController {
         _proposals[index] = _proposals[index].copyWith(userHasReviewed: true);
       }
 
-      SnackbarHelper.showSuccess('Review submitted successfully');
+      // Use Get.snackbar here for reliability after dialog dismissal.
+      Get.snackbar(
+        'Review Submitted',
+        'Review submitted successfully',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: AppTheme.primaryBlue,
+        colorText: Colors.white,
+        duration: const Duration(seconds: 3),
+        margin: const EdgeInsets.all(12),
+      );
       
       if (kDebugMode) {
         print('✅ Review submitted for proposal: $proposalId');

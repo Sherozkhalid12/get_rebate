@@ -6,6 +6,8 @@ import 'package:getrebate/app/modules/checklist/controllers/checklist_controller
 import 'package:getrebate/app/routes/app_pages.dart';
 import 'package:getrebate/app/modules/buyer_v2/controllers/buyer_v2_controller.dart';
 import 'package:getrebate/app/controllers/main_navigation_controller.dart';
+import 'package:getrebate/app/controllers/auth_controller.dart';
+import 'package:getrebate/app/models/user_model.dart';
 
 class ChecklistView extends GetView<ChecklistController> {
   const ChecklistView({super.key});
@@ -16,6 +18,14 @@ class ChecklistView extends GetView<ChecklistController> {
     final args = Get.arguments as Map<String, dynamic>?;
     final type = args?['type'] as String? ?? 'buyer';
     final title = args?['title'] as String? ?? 'Checklist';
+    final allowButtonsFromArgs = args?['allowActionButtons'] as bool?;
+
+    UserRole? role;
+    if (Get.isRegistered<AuthController>()) {
+      role = Get.find<AuthController>().currentUser?.role;
+    }
+    final isBuyerSellerRole = role == UserRole.buyerSeller;
+    final showActionButtons = allowButtonsFromArgs ?? isBuyerSellerRole;
     
     final isBuyer = type == 'buyer';
     final items = isBuyer 
@@ -51,7 +61,13 @@ class ChecklistView extends GetView<ChecklistController> {
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(20),
-          child: _buildChecklist(context, title, items, isBuyer),
+          child: _buildChecklist(
+            context,
+            title,
+            items,
+            isBuyer,
+            showActionButtons,
+          ),
         ),
       ),
     );
@@ -62,6 +78,7 @@ class ChecklistView extends GetView<ChecklistController> {
     String title,
     List<String> items,
     bool isBuyer,
+    bool showActionButtons,
   ) {
     final color = isBuyer ? AppTheme.primaryBlue : AppTheme.lightGreen;
     final icon = isBuyer ? Icons.shopping_bag : Icons.sell;
@@ -109,12 +126,14 @@ class ChecklistView extends GetView<ChecklistController> {
         const SizedBox(height: 20),
         ...List.generate(items.length, (index) {
           final stepNumber = index + 1;
-          final hasLink = isBuyer 
+          final hasLink = showActionButtons && (isBuyer 
               ? controller.hasLinkForBuyerItem(index)
-              : controller.hasLinkForSellerItem(index);
-          final linkAction = isBuyer 
+              : controller.hasLinkForSellerItem(index));
+          final linkAction = showActionButtons
+              ? (isBuyer
               ? controller.getLinkActionForBuyerItem(index)
-              : controller.getLinkActionForSellerItem(index);
+              : controller.getLinkActionForSellerItem(index))
+              : null;
           
           return Padding(
             padding: const EdgeInsets.only(bottom: 16),
@@ -200,7 +219,7 @@ class ChecklistView extends GetView<ChecklistController> {
                   fontSize: 13,
                 ),
               ),
-              if (!isBuyer) ...[
+              if (!isBuyer && showActionButtons) ...[
                 const SizedBox(height: 12),
                 SizedBox(
                   width: double.infinity,

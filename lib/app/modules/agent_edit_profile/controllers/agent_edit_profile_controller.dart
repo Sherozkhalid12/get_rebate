@@ -33,6 +33,7 @@ class AgentEditProfileController extends GetxController {
   final _dualAgencyBrokerage = Rxn<bool>();
   final _licensedStates = <String>[].obs;
   final _areasOfExpertise = <String>[].obs;
+  String? _existingVideoUrl;
 
   // API Base URL for static files
   // Using ApiConstants for centralized URL management
@@ -47,6 +48,7 @@ class AgentEditProfileController extends GetxController {
   bool? get dualAgencyBrokerage => _dualAgencyBrokerage.value;
   List<String> get licensedStates => _licensedStates;
   List<String> get areasOfExpertise => _areasOfExpertise;
+  String? get existingVideoUrl => _existingVideoUrl;
 
   // Get profile picture URL - returns full URL if exists, null otherwise
   String? get profilePictureUrl {
@@ -68,6 +70,17 @@ class AgentEditProfileController extends GetxController {
     return fullUrl;
   }
 
+  String? get companyLogoUrl {
+    if (_selectedCompanyLogo.value != null) {
+      return null;
+    }
+    final user = _authController.currentUser;
+    final logoPath =
+        user?.additionalData?['companyLogo']?.toString() ??
+        user?.additionalData?['company_logo']?.toString();
+    return ApiConstants.getImageUrl(logoPath);
+  }
+
   @override
   void onInit() {
     super.onInit();
@@ -83,22 +96,36 @@ class AgentEditProfileController extends GetxController {
       bioController.text = user.additionalData?['bio'] ?? '';
       descriptionController.text = user.additionalData?['description'] ?? '';
       licenseNumberController.text =
-          user.additionalData?['liscenceNumber'] ?? '';
+          user.additionalData?['liscenceNumber'] ??
+          user.additionalData?['licenseNumber'] ??
+          '';
       companyNameController.text = user.additionalData?['CompanyName'] ?? '';
-      websiteLinkController.text = user.additionalData?['website_link'] ?? '';
+      websiteLinkController.text =
+          user.additionalData?['website_link'] ??
+          user.additionalData?['websiteUrl'] ??
+          '';
       googleReviewsLinkController.text =
           user.additionalData?['google_reviews_link'] ?? '';
       thirdPartReviewLinkController.text =
           user.additionalData?['thirdPartReviewLink'] ?? '';
+      _existingVideoUrl = ApiConstants.getImageUrl(
+        user.additionalData?['video']?.toString() ??
+            user.additionalData?['videoUrl']?.toString(),
+      );
 
       // Load service areas
       final serviceAreas = user.additionalData?['serviceAreas'];
+      final zipCode = user.additionalData?['zipCode'];
       if (serviceAreas != null) {
         if (serviceAreas is List) {
-          serviceAreasController.text = serviceAreas.join(', ');
+          serviceAreasController.text = serviceAreas.isNotEmpty
+              ? serviceAreas.first.toString()
+              : '';
         } else if (serviceAreas is String) {
           serviceAreasController.text = serviceAreas;
         }
+      } else if (zipCode != null) {
+        serviceAreasController.text = zipCode.toString();
       }
 
       // Load areas of expertise
@@ -171,6 +198,7 @@ class AgentEditProfileController extends GetxController {
 
   void removeVideo() {
     _selectedVideo.value = null;
+    _existingVideoUrl = null;
   }
 
   void setDualAgencyState(bool? value) {
@@ -222,12 +250,7 @@ class AgentEditProfileController extends GetxController {
       // Prepare service areas list
       List<String>? serviceAreasList;
       if (serviceAreasController.text.trim().isNotEmpty) {
-        serviceAreasList = serviceAreasController.text
-            .trim()
-            .split(',')
-            .map((s) => s.trim())
-            .where((s) => s.isNotEmpty)
-            .toList();
+        serviceAreasList = [serviceAreasController.text.trim()];
       }
 
       // Debug: Print user ID being used
@@ -249,6 +272,12 @@ class AgentEditProfileController extends GetxController {
             : null,
         companyName: companyNameController.text.trim().isNotEmpty
             ? companyNameController.text.trim()
+            : null,
+        licenseNumber: licenseNumberController.text.trim().isNotEmpty
+            ? licenseNumberController.text.trim()
+            : null,
+        zipCode: serviceAreasController.text.trim().isNotEmpty
+            ? serviceAreasController.text.trim()
             : null,
         websiteLink: websiteLinkController.text.trim().isNotEmpty
             ? websiteLinkController.text.trim()
@@ -311,6 +340,26 @@ class AgentEditProfileController extends GetxController {
 
     if (_dualAgencyBrokerage.value == null) {
       SnackbarHelper.showValidation('Please answer if dual agency is allowed at your brokerage');
+      return false;
+    }
+
+    if (licenseNumberController.text.trim().isEmpty) {
+      SnackbarHelper.showValidation('Please enter your license number');
+      return false;
+    }
+
+    if (companyNameController.text.trim().isEmpty) {
+      SnackbarHelper.showValidation('Please enter your company name');
+      return false;
+    }
+
+    if (_licensedStates.isEmpty) {
+      SnackbarHelper.showValidation('Please select at least one licensed state');
+      return false;
+    }
+
+    if (!RegExp(r'^\d{5}$').hasMatch(serviceAreasController.text.trim())) {
+      SnackbarHelper.showValidation('Please enter a valid 5-digit office ZIP code');
       return false;
     }
 

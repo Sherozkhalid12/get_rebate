@@ -29,20 +29,58 @@ class CustomSearchField extends StatefulWidget {
 }
 
 class _CustomSearchFieldState extends State<CustomSearchField> {
+  bool _isDisposed = false;
+
   @override
   void initState() {
     super.initState();
-    widget.controller.addListener(_onTextChanged);
+    _safeAddListener(widget.controller);
+  }
+
+  @override
+  void didUpdateWidget(covariant CustomSearchField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      _safeRemoveListener(oldWidget.controller);
+      _safeAddListener(widget.controller);
+    }
   }
 
   @override
   void dispose() {
-    widget.controller.removeListener(_onTextChanged);
+    _isDisposed = true;
+    _safeRemoveListener(widget.controller);
     super.dispose();
   }
 
   void _onTextChanged() {
+    if (!mounted || _isDisposed) return;
     setState(() {});
+  }
+
+  void _safeAddListener(TextEditingController controller) {
+    try {
+      controller.addListener(_onTextChanged);
+    } catch (_) {
+      // Controller may already be disposed by parent.
+    }
+  }
+
+  void _safeRemoveListener(TextEditingController controller) {
+    try {
+      controller.removeListener(_onTextChanged);
+    } catch (_) {
+      // Controller may already be disposed by parent.
+    }
+  }
+
+  bool _isControllerUsable(TextEditingController controller) {
+    try {
+      controller.text;
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   @override
@@ -86,11 +124,18 @@ class _CustomSearchFieldState extends State<CustomSearchField> {
   }
 
   Widget? _buildSuffixIcon() {
+    final controllerText = _isControllerUsable(widget.controller)
+        ? widget.controller.text
+        : '';
+
     // If text is not empty, show clear button
-    if (widget.showClearButton && widget.controller.text.isNotEmpty) {
+    if (widget.showClearButton && controllerText.isNotEmpty) {
       return IconButton(
         icon: Icon(Icons.clear, color: AppTheme.mediumGray, size: 20.sp),
         onPressed: () {
+          if (_isDisposed || !mounted || !_isControllerUsable(widget.controller)) {
+            return;
+          }
           widget.controller.clear();
           widget.onClear?.call();
         },
@@ -98,7 +143,7 @@ class _CustomSearchFieldState extends State<CustomSearchField> {
     }
 
     // If text is empty and location tap is provided, show location icon or loading
-    if (widget.onLocationTap != null && widget.controller.text.isEmpty) {
+    if (widget.onLocationTap != null && controllerText.isEmpty) {
       if (widget.isLocationLoading) {
         return Padding(
           padding: EdgeInsets.all(12.sp),

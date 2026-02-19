@@ -151,6 +151,14 @@ class _AgentEditProfileViewState extends State<AgentEditProfileView> {
 
               const SizedBox(height: 24),
 
+              // Company Logo
+              _buildCompanyLogoSection(context)
+                  .animate()
+                  .fadeIn(duration: 300.ms, delay: 120.ms)
+                  .slideY(begin: -0.1, duration: 300.ms, delay: 120.ms),
+
+              const SizedBox(height: 24),
+
               // Basic Information
               GradientCard(
                     gradientColors: AppTheme.cardGradient,
@@ -247,6 +255,14 @@ class _AgentEditProfileViewState extends State<AgentEditProfileView> {
                   .animate()
                   .fadeIn(duration: 300.ms, delay: 200.ms)
                   .slideY(begin: -0.1, duration: 300.ms, delay: 200.ms),
+
+              const SizedBox(height: 24),
+
+              // Video Introduction
+              _buildVideoSection(context)
+                  .animate()
+                  .fadeIn(duration: 300.ms, delay: 225.ms)
+                  .slideY(begin: -0.1, duration: 300.ms, delay: 225.ms),
 
               const SizedBox(height: 24),
 
@@ -527,6 +543,119 @@ class _AgentEditProfileViewState extends State<AgentEditProfileView> {
     );
   }
 
+  Widget _buildCompanyLogoSection(BuildContext context) {
+    return GradientCard(
+      gradientColors: AppTheme.cardGradient,
+      child: Column(
+        children: [
+          Text(
+            'Company Logo',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              color: AppTheme.black,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 20),
+          GestureDetector(
+            onTap: controller.pickCompanyLogo,
+            child: Container(
+              width: 120,
+              height: 120,
+              decoration: BoxDecoration(
+                color: AppTheme.primaryBlue.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+                image: controller.selectedCompanyLogo != null
+                    ? DecorationImage(
+                        image: Image.file(controller.selectedCompanyLogo!).image,
+                        fit: BoxFit.contain,
+                      )
+                    : null,
+              ),
+              child: controller.selectedCompanyLogo == null
+                  ? (controller.companyLogoUrl != null
+                        ? ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: CachedNetworkImage(
+                              imageUrl: controller.companyLogoUrl!,
+                              fit: BoxFit.contain,
+                              errorWidget: (_, __, ___) => const Icon(
+                                Icons.business,
+                                color: AppTheme.primaryBlue,
+                                size: 56,
+                              ),
+                            ),
+                          )
+                        : const Icon(
+                            Icons.business,
+                            color: AppTheme.primaryBlue,
+                            size: 56,
+                          ))
+                  : null,
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextButton.icon(
+            onPressed: controller.pickCompanyLogo,
+            icon: const Icon(Icons.image, color: AppTheme.primaryBlue),
+            label: Text(
+              controller.selectedCompanyLogo != null ? 'Change Logo' : 'Add Logo',
+              style: const TextStyle(color: AppTheme.primaryBlue),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildVideoSection(BuildContext context) {
+    return GradientCard(
+      gradientColors: AppTheme.cardGradient,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Video Introduction',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              color: AppTheme.black,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Upload your intro video from signup to keep profile complete.',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: AppTheme.mediumGray,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Obx(() {
+            final hasVideo =
+                controller.selectedVideo != null ||
+                (controller.existingVideoUrl?.isNotEmpty ?? false);
+            return Row(
+              children: [
+                Expanded(
+                  child: CustomButton(
+                    text: hasVideo ? 'Change Video' : 'Upload Video',
+                    isOutlined: true,
+                    onPressed: controller.pickVideo,
+                  ),
+                ),
+                if (hasVideo) ...[
+                  const SizedBox(width: 8),
+                  IconButton(
+                    onPressed: controller.removeVideo,
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ],
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
   Widget _buildYesNoButton(
     BuildContext context,
     String text,
@@ -673,7 +802,7 @@ class _AgentEditProfileViewState extends State<AgentEditProfileView> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Service Areas',
+            'Office ZIP Code',
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
               color: AppTheme.black,
               fontWeight: FontWeight.w600,
@@ -681,7 +810,7 @@ class _AgentEditProfileViewState extends State<AgentEditProfileView> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Enter service areas separated by commas (e.g., Los Angeles, San Diego, Miami)',
+            'Enter the office ZIP code used during signup.',
             style: Theme.of(
               context,
             ).textTheme.bodySmall?.copyWith(color: AppTheme.mediumGray),
@@ -689,9 +818,11 @@ class _AgentEditProfileViewState extends State<AgentEditProfileView> {
           const SizedBox(height: 16),
           CustomTextField(
             controller: controller.serviceAreasController,
-            labelText: 'Service Areas',
+            labelText: 'Office ZIP Code',
             prefixIcon: Icons.location_on_outlined,
-            hintText: 'Los Angeles, San Diego, Miami',
+            keyboardType: TextInputType.number,
+            maxLength: 5,
+            hintText: 'e.g., 90210',
           ),
         ],
       ),

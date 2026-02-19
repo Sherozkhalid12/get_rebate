@@ -60,27 +60,61 @@ class SurveyService {
     required String agentRecommended,
     String? comment,
     required double rating,
+    String? surveyType,
+    String? type,
+    String? professionalId,
+    String? professionalType,
+    double? loSatisfaction,
+    String? loExplainedOptions,
+    String? loCommunication,
+    String? loRebateHelp,
+    String? loEase,
+    String? loProfessional,
+    String? loClosedOnTime,
+    String? loRecommend,
   }) async {
     try {
       final authToken = _storage.read('auth_token');
-      
-      final requestBody = {
-        'userId': userId,
-        'rebateFromAgent': rebateFromAgent,
-        'receivedExpectedRebate': receivedExpectedRebate,
-        'rebateAppliedAsCreditClosing': rebateAppliedAsCreditClosing,
-        'signedRebateDisclosure': signedRebateDisclosure,
-        'receivingRebateEasy': receivingRebateEasy,
-        'agentRecommended': agentRecommended,
-        if (comment != null && comment.isNotEmpty) 'comment': comment,
-        'rating': rating,
-      };
+      final normalizedSurveyType = (surveyType ?? type ?? '')
+          .toLowerCase()
+          .replaceAll('_', '')
+          .replaceAll(' ', '');
+      final isLoanOfficerSurvey = normalizedSurveyType == 'loanofficer';
 
-      if (kDebugMode) {
-        print('📡 Submitting survey');
-        print('   Endpoint: ${ApiConstants.submitSurveyEndpoint}');
-        print('   Request body: $requestBody');
-      }
+      final requestBody = isLoanOfficerSurvey
+          ? {
+              'userId': userId,
+              'loSatisfaction': loSatisfaction ?? rating,
+              'loExplainedOptions': loExplainedOptions ?? '',
+              'loCommunication': loCommunication ?? '',
+              'loRebateHelp': loRebateHelp ?? '',
+              'loEase': loEase ?? '',
+              'loProfessional': loProfessional ?? '',
+              'loClosedOnTime': loClosedOnTime ?? '',
+              'loRecommend': loRecommend ?? '',
+              'rating': rating,
+            }
+          : {
+              'userId': userId,
+              'rebateFromAgent': rebateFromAgent,
+              'receivedExpectedRebate': receivedExpectedRebate,
+              'rebateAppliedAsCreditClosing': rebateAppliedAsCreditClosing,
+              'signedRebateDisclosure': signedRebateDisclosure,
+              'receivingRebateEasy': receivingRebateEasy,
+              'agentRecommended': agentRecommended,
+              if (comment != null && comment.isNotEmpty) 'comment': comment,
+              'rating': rating,
+            };
+
+      final endpoint = isLoanOfficerSurvey
+          ? '/survey/submitLoanSurvey'
+          : '/survey/submit';
+
+      print('📡 Submitting survey (${isLoanOfficerSurvey ? "loan officer" : "agent"})');
+      print(
+        '   Endpoint: ${isLoanOfficerSurvey ? ApiConstants.submitLoanSurveyEndpoint : ApiConstants.submitSurveyEndpoint}',
+      );
+      print('   Request body: $requestBody');
 
       final headers = <String, String>{
         'Content-Type': 'application/json',
@@ -88,18 +122,15 @@ class SurveyService {
         if (authToken != null) 'Authorization': 'Bearer $authToken',
       };
 
-      // apiBaseUrl already includes /api/v1, so use /survey/submit
       final response = await _dio.post(
-        '/survey/submit',
+        endpoint,
         data: requestBody,
         options: Options(headers: headers),
       );
 
-      if (kDebugMode) {
-        print('✅ Survey submitted successfully');
-        print('   Status Code: ${response.statusCode}');
-        print('   Response: ${response.data}');
-      }
+      print('✅ Survey submitted successfully');
+      print('   Status Code: ${response.statusCode}');
+      print('   Response: ${response.data}');
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         return true;
@@ -129,6 +160,49 @@ class SurveyService {
         print('❌ Unexpected error submitting survey: $e');
       }
       rethrow;
+    }
+  }
+
+  /// Silently creates a buyer review entry.
+  /// This call should never block the primary survey submission flow.
+  Future<bool> submitBuyerReviewSilently({
+    required String currentUserId,
+    required String professionalId,
+    required double rating,
+    required String review,
+  }) async {
+    try {
+      final authToken = _storage.read('auth_token');
+      final headers = <String, String>{
+        'Content-Type': 'application/json',
+        ...ApiConstants.ngrokHeaders,
+        if (authToken != null) 'Authorization': 'Bearer $authToken',
+      };
+
+      final body = {
+        'currentUserId': currentUserId,
+        // Backend contract uses "agentId"; pass selected professional ID for both agent/LO.
+        'agentId': professionalId,
+        'rating': rating.round(),
+        'review': review,
+      };
+
+      final response = await _dio.post(
+        '/buyer/addReview',
+        data: body,
+        options: Options(headers: headers),
+      );
+
+      print('✅ submitBuyerReviewSilently response received');
+      print('   Endpoint: ${ApiConstants.submitReviewEndpoint}');
+      print('   Request body: $body');
+      print('   Status Code: ${response.statusCode}');
+      print('   Response: ${response.data}');
+      return response.statusCode == 200 || response.statusCode == 201;
+    } catch (e) {
+      // Silent by requirement: ignore errors and avoid blocking UX.
+      print('⚠️ submitBuyerReviewSilently failed: $e');
+      return false;
     }
   }
 }

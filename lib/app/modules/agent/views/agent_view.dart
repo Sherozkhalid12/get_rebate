@@ -9,23 +9,60 @@ import 'package:getrebate/app/modules/agent/controllers/agent_controller.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart' as global;
 import 'package:getrebate/app/models/zip_code_model.dart';
 import 'package:getrebate/app/models/agent_listing_model.dart';
-import 'package:getrebate/app/models/activity_item_model.dart';
+import 'package:getrebate/app/models/agent_model.dart';
+import 'package:getrebate/app/models/notification_model.dart';
 import 'package:getrebate/app/models/lead_model.dart';
+import 'package:getrebate/app/modules/agent_profile/views/agent_reviews_view.dart';
 import 'package:getrebate/app/utils/image_url_helper.dart';
 import 'package:getrebate/app/widgets/custom_button.dart';
 import 'package:getrebate/app/widgets/custom_text_field.dart';
 import 'package:getrebate/app/widgets/gradient_card.dart';
+import 'package:getrebate/app/widgets/notification_badge_icon.dart';
 import 'package:getrebate/app/widgets/rebate_compliance_notice.dart';
 import 'package:getrebate/app/services/rebate_states_service.dart';
+import 'package:getrebate/app/routes/app_pages.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
 import 'package:getrebate/app/modules/agent_checklist/bindings/agent_checklist_binding.dart';
 import 'package:getrebate/app/modules/agent_checklist/views/agent_checklist_view.dart';
 import 'package:getrebate/app/modules/agent/views/waiting_list_page.dart';
+import 'package:getrebate/app/modules/rebate_calculator/views/rebate_calculator_option_bottomsheet.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 
 class AgentView extends GetView<AgentController> {
   const AgentView({super.key});
+  static final ScrollController _zipScrollController = ScrollController();
+  final GlobalKey _availableZipSectionKey = const GlobalObjectKey(
+    'agent_available_zip_section',
+  );
+
+  void _scrollToAvailableZipSection(BuildContext context) {
+    FocusManager.instance.primaryFocus?.unfocus();
+    FocusScope.of(context).unfocus();
+
+    void scrollNow() {
+      final targetContext = _availableZipSectionKey.currentContext;
+      if (targetContext != null) {
+        Scrollable.ensureVisible(
+          targetContext,
+          duration: const Duration(milliseconds: 320),
+          curve: Curves.easeOutCubic,
+          alignment: 0.02,
+        );
+      }
+      if (_zipScrollController.hasClients) {
+        _zipScrollController.animateTo(
+          _zipScrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 420),
+          curve: Curves.easeOutCubic,
+        );
+      }
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) => scrollNow());
+    Future.delayed(const Duration(milliseconds: 450), scrollNow);
+    Future.delayed(const Duration(milliseconds: 850), scrollNow);
+  }
 
   /// Helper function to filter licensed states to only include rebate-allowed states
   Future<List<String>> _filterAllowedStates(List<String> licensedStates) async {
@@ -115,6 +152,10 @@ class AgentView extends GetView<AgentController> {
             icon: const Icon(Icons.message, color: AppTheme.white),
             onPressed: () => Get.toNamed('/messages'),
             tooltip: 'Messages',
+          ),
+          Padding(
+            padding: EdgeInsets.only(right: 6.w),
+            child: const NotificationBadgeIcon(),
           ),
           IconButton(
             icon: const Icon(Icons.logout, color: AppTheme.white),
@@ -496,6 +537,13 @@ class AgentView extends GetView<AgentController> {
                   text: 'Manage ZIP Codes',
                   onPressed: () => controller.setSelectedTab(1),
                   icon: Icons.location_on,
+                  height: 60.h,
+                  fontSize: 11.sp,
+                  maxLines: 2,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: 10.w,
+                    vertical: 10.h,
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
@@ -505,6 +553,13 @@ class AgentView extends GetView<AgentController> {
                   onPressed: () => controller.setSelectedTab(4),
                   icon: Icons.payment,
                   isOutlined: true,
+                  height: 60.h,
+                  fontSize: 11.sp,
+                  maxLines: 2,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: 10.w,
+                    vertical: 10.h,
+                  ),
                 ),
               ),
             ],
@@ -519,21 +574,70 @@ class AgentView extends GetView<AgentController> {
                   icon: Icons.assignment_outlined,
                   isOutlined: true,
                   height: 60.h,
+                  fontSize: 11.sp,
+                  maxLines: 2,
                   padding: EdgeInsets.symmetric(
-                    horizontal: 12.w,
-                    vertical: 12.h,
+                    horizontal: 10.w,
+                    vertical: 10.h,
                   ),
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: CustomButton(
-                  text: 'Edit Profile',
+                  text: 'Rebate Calculator',
                   onPressed: () {
-                    Get.toNamed('/agent-edit-profile');
+                    Get.bottomSheet(
+                      const RebateCalculatorOptionsBottomSheet(),
+                      isScrollControlled: true,
+                      backgroundColor: Colors.transparent,
+                    );
                   },
-                  icon: Icons.edit,
+                  icon: Icons.calculate_outlined,
                   isOutlined: true,
+                  height: 60.h,
+                  fontSize: 11.sp,
+                  maxLines: 2,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: 10.w,
+                    vertical: 10.h,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: CustomButton(
+                  text: 'Edit Profile',
+                  onPressed: () => Get.toNamed(AppPages.AGENT_EDIT_PROFILE),
+                  icon: Icons.person_outline_rounded,
+                  isOutlined: true,
+                  height: 56.h,
+                  fontSize: 12.sp,
+                  maxLines: 1,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: 12.w,
+                    vertical: 10.h,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: CustomButton(
+                  text: 'View Reviews',
+                  onPressed: _openAgentReviewsPage,
+                  icon: Icons.rate_review_outlined,
+                  isOutlined: true,
+                  height: 56.h,
+                  fontSize: 12.sp,
+                  maxLines: 1,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: 12.w,
+                    vertical: 10.h,
+                  ),
                 ),
               ),
             ],
@@ -543,11 +647,41 @@ class AgentView extends GetView<AgentController> {
     );
   }
 
+  void _openAgentReviewsPage() {
+    try {
+      final authController = Get.find<global.AuthController>();
+      final currentUser = authController.currentUser;
+      if (currentUser == null) {
+        SnackbarHelper.showError('Unable to load reviews. Please login again.');
+        return;
+      }
+
+      final additional =
+          Map<String, dynamic>.from(currentUser.additionalData ?? {});
+      final merged = <String, dynamic>{
+        '_id': currentUser.id,
+        'id': currentUser.id,
+        'fullname': currentUser.name,
+        'email': currentUser.email,
+        'phone': currentUser.phone,
+        ...additional,
+      };
+
+      final agent = AgentModel.fromJson(merged);
+      Get.to(() => AgentReviewsView(agent: agent));
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Failed to open agent reviews page: $e');
+      }
+      SnackbarHelper.showError('Unable to open reviews right now.');
+    }
+  }
+
   Widget _buildRecentActivity(BuildContext context) {
     return GradientCard(
       gradientColors: AppTheme.cardGradient,
       child: Obx(() {
-        final activities = controller.recentActivityItems;
+        final notifications = controller.recentNotifications.take(3).toList();
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -559,7 +693,17 @@ class AgentView extends GetView<AgentController> {
               ),
             ),
             const SizedBox(height: 16),
-            if (activities.isEmpty)
+            if (controller.isLoadingRecentActivity && notifications.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child: Center(
+                  child: SpinKitThreeBounce(
+                    color: AppTheme.primaryBlue,
+                    size: 18,
+                  ),
+                ),
+              )
+            else if (notifications.isEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 24),
                 child: Text(
@@ -570,8 +714,8 @@ class AgentView extends GetView<AgentController> {
                 ),
               )
             else
-              ...activities.map(
-                (activity) => _buildActivityItem(context, activity),
+              ...notifications.map(
+                (notification) => _buildActivityItem(context, notification),
               ),
           ],
         );
@@ -579,7 +723,8 @@ class AgentView extends GetView<AgentController> {
     );
   }
 
-  Widget _buildActivityItem(BuildContext context, ActivityItem activity) {
+  Widget _buildActivityItem(BuildContext context, NotificationModel notification) {
+    final iconColor = _notificationColor(notification.type);
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
@@ -588,10 +733,14 @@ class AgentView extends GetView<AgentController> {
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: AppTheme.primaryBlue.withOpacity(0.1),
+              color: iconColor.withOpacity(0.12),
               borderRadius: BorderRadius.circular(20),
             ),
-            child: Icon(activity.icon, color: AppTheme.primaryBlue, size: 20),
+            child: Icon(
+              _notificationIcon(notification.type),
+              color: iconColor,
+              size: 20,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -599,14 +748,18 @@ class AgentView extends GetView<AgentController> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  activity.title,
+                  notification.title.isNotEmpty
+                      ? notification.title
+                      : notification.message,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: AppTheme.darkGray,
                     fontWeight: FontWeight.w500,
                   ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 Text(
-                  activity.timeLabel,
+                  _formatNotificationTime(notification.createdAt),
                   style: Theme.of(
                     context,
                   ).textTheme.bodySmall?.copyWith(color: AppTheme.mediumGray),
@@ -619,10 +772,53 @@ class AgentView extends GetView<AgentController> {
     );
   }
 
+  IconData _notificationIcon(String type) {
+    switch (type.toLowerCase()) {
+      case 'lead':
+        return Icons.person_add_rounded;
+      case 'lead_response':
+        return Icons.check_circle_rounded;
+      case 'lead_completed':
+        return Icons.done_all_rounded;
+      case 'proposal':
+        return Icons.description_rounded;
+      default:
+        return Icons.notifications_rounded;
+    }
+  }
+
+  Color _notificationColor(String type) {
+    switch (type.toLowerCase()) {
+      case 'lead':
+        return AppTheme.primaryBlue;
+      case 'lead_response':
+        return AppTheme.lightGreen;
+      case 'lead_completed':
+        return Colors.orange;
+      default:
+        return AppTheme.primaryBlue;
+    }
+  }
+
+  String _formatNotificationTime(DateTime date) {
+    final now = DateTime.now();
+    final difference = now.difference(date);
+    if (difference.inDays == 0) {
+      if (difference.inHours == 0) {
+        if (difference.inMinutes == 0) return 'Just now';
+        return '${difference.inMinutes}m ago';
+      }
+      return '${difference.inHours}h ago';
+    }
+    if (difference.inDays == 1) return 'Yesterday';
+    return '${difference.inDays}d ago';
+  }
+
   Widget _buildZipManagement(BuildContext context) {
     final authController = Get.find<global.AuthController>();
 
     return CustomScrollView(
+      controller: _zipScrollController,
       slivers: [
         SliverPadding(
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
@@ -837,11 +1033,11 @@ class AgentView extends GetView<AgentController> {
                               Row(
                                 children: [
                                   SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
+                                    width: 20,
+                                    height: 20,
+                                    child: SpinKitThreeBounce(
                                       color: AppTheme.primaryBlue,
+                                      size: 14,
                                     ),
                                   ),
                                   const SizedBox(width: 8),
@@ -889,14 +1085,29 @@ class AgentView extends GetView<AgentController> {
                     prefixIcon: Icons.search,
                     keyboardType: TextInputType.number,
                     maxLength: 5,
-                    onChanged: (v) => controller.onZipSearchChanged(v),
+                    onChanged: (v) {
+                      controller.onZipSearchChanged(v);
+                      final q = v.trim();
+                      if (q.length == 5 && RegExp(r'^\d{5}$').hasMatch(q)) {
+                        _scrollToAvailableZipSection(context);
+                      }
+                    },
+                    onSubmitted: (v) {
+                      final q = v.trim();
+                      if (q.length == 5 && RegExp(r'^\d{5}$').hasMatch(q)) {
+                        _scrollToAvailableZipSection(context);
+                      }
+                    },
                     suffixIcon: IconButton(
                       icon: Icon(
                         Icons.my_location,
                         color: AppTheme.primaryBlue,
                         size: 20,
                       ),
-                      onPressed: controller.useCurrentLocationForZip,
+                      onPressed: () {
+                        controller.useCurrentLocationForZip();
+                        _scrollToAvailableZipSection(context);
+                      },
                     ),
                   ),
                 );
@@ -937,11 +1148,14 @@ class AgentView extends GetView<AgentController> {
               const SizedBox(height: 24),
 
               // Available ZIP Codes Header
-              Text(
-                'Available ZIP Codes',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  color: AppTheme.black,
-                  fontWeight: FontWeight.w600,
+              KeyedSubtree(
+                key: _availableZipSectionKey,
+                child: Text(
+                  'Available ZIP Codes',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    color: AppTheme.black,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ]),
@@ -974,7 +1188,10 @@ class AgentView extends GetView<AgentController> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        CircularProgressIndicator(color: AppTheme.primaryBlue),
+                        SpinKitFadingCircle(
+                          color: AppTheme.primaryBlue,
+                          size: 44,
+                        ),
                         const SizedBox(height: 16),
                         Text(
                           'Loading ZIP codes...',
@@ -4724,756 +4941,243 @@ class AgentView extends GetView<AgentController> {
   Widget _buildLeadCard(BuildContext context, LeadModel lead) {
     final buyerInfo = lead.buyerInfo;
     final isBuying = lead.isBuyingLead;
-    final gradientColors = isBuying
-        ? [AppTheme.primaryBlue, AppTheme.lightBlue, AppTheme.skyBlue]
-        : [AppTheme.lightGreen, Color(0xFF34D399), Color(0xFF6EE7B7)];
+    final isPending = !lead.isAccepted && !lead.isCompleted && !lead.isReported;
+    final accent = isBuying ? AppTheme.primaryBlue : AppTheme.lightGreen;
+    final statusLabel = lead.leadStatus?.isNotEmpty == true
+        ? lead.leadStatus!.toUpperCase()
+        : (isPending ? 'PENDING' : 'UPDATED');
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 24),
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
+        color: AppTheme.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: accent.withOpacity(0.15)),
         boxShadow: [
           BoxShadow(
-            color: (isBuying ? AppTheme.primaryBlue : AppTheme.lightGreen)
-                .withOpacity(0.12),
-            blurRadius: 24,
-            offset: const Offset(0, 8),
-            spreadRadius: 0,
-          ),
-          BoxShadow(
-            color: Colors.black.withOpacity(0.08),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
-            spreadRadius: 0,
-          ),
-          BoxShadow(
             color: Colors.black.withOpacity(0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-            spreadRadius: 0,
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Enhanced Header with gradient
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: gradientColors,
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: accent.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  isBuying ? 'Buying Lead' : 'Selling Lead',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: accent,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
               ),
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(24),
-                topRight: Radius.circular(24),
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: (isBuying ? AppTheme.primaryBlue : AppTheme.lightGreen)
-                      .withOpacity(0.2),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: isPending
+                      ? Colors.orange.withOpacity(0.12)
+                      : lead.isCompleted
+                          ? AppTheme.primaryBlue.withOpacity(0.12)
+                          : AppTheme.lightGreen.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(20),
                 ),
-              ],
-            ),
-            child: Row(
-              children: [
-                // Buying/Selling Lead Badge
-                Flexible(
-                  flex: 2,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.25),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: Colors.white.withOpacity(0.4),
-                        width: 1.5,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
-                          blurRadius: 4,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          isBuying
-                              ? Icons.shopping_bag_rounded
-                              : Icons.sell_rounded,
-                          color: Colors.white,
-                          size: 16,
-                        ),
-                        const SizedBox(width: 6),
-                        Flexible(
-                          child: Text(
-                            isBuying ? 'Buying Lead' : 'Selling Lead',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 12,
-                              letterSpacing: 0.3,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                            maxLines: 1,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                // Lead Status Badge
-                if (lead.leadStatus != null && lead.leadStatus!.isNotEmpty) ...[
-                  Flexible(
-                    flex: 2,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: lead.isCompleted
-                            ? AppTheme.primaryBlue.withOpacity(0.95)
-                            : lead.isAccepted
-                            ? AppTheme.lightGreen.withOpacity(0.95)
-                            : Colors.white.withOpacity(0.25),
-                        borderRadius: BorderRadius.circular(16),
-                        border: (lead.isCompleted || lead.isAccepted)
-                            ? Border.all(color: Colors.white, width: 1.5)
-                            : null,
-                        boxShadow: [
-                          BoxShadow(
-                            color: (lead.isCompleted || lead.isAccepted)
-                                ? Colors.black.withOpacity(0.15)
-                                : Colors.transparent,
-                            blurRadius: 4,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            lead.isCompleted
-                                ? Icons.check_circle_outline
-                                : lead.isAccepted
-                                ? Icons.check_circle
-                                : Icons.pending,
-                            color: Colors.white,
-                            size: 13,
-                          ),
-                          const SizedBox(width: 4),
-                          Flexible(
-                            child: Text(
-                              lead.isCompleted
-                                  ? 'COMPLETED'
-                                  : lead.leadStatus!.toUpperCase(),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: 0.3,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                              maxLines: 1,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                ],
-                // Date Badge
-                Flexible(
-                  flex: 1,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.25),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: Colors.white.withOpacity(0.3),
-                        width: 1,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.access_time_rounded,
-                          color: Colors.white,
-                          size: 12,
-                        ),
-                        const SizedBox(width: 4),
-                        Flexible(
-                          child: Text(
-                            lead.formattedDate,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                            maxLines: 1,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Content
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Lead Status Container (if accepted or completed)
-                if (lead.isAccepted || lead.isCompleted) ...[
-                  Container(
-                    width: double.infinity,
-                    padding: EdgeInsets.all(16.w),
-                    decoration: BoxDecoration(
-                      color: lead.isCompleted
-                          ? AppTheme.primaryBlue.withOpacity(0.1)
-                          : AppTheme.lightGreen.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12.r),
-                      border: Border.all(
-                        color: lead.isCompleted
+                child: Text(
+                  statusLabel,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: isPending
+                        ? Colors.orange.shade700
+                        : lead.isCompleted
                             ? AppTheme.primaryBlue
                             : AppTheme.lightGreen,
-                        width: 2,
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          lead.isCompleted
-                              ? Icons.check_circle_outline
-                              : Icons.check_circle,
-                          color: lead.isCompleted
-                              ? AppTheme.primaryBlue
-                              : AppTheme.lightGreen,
-                          size: 24.sp,
-                        ),
-                        SizedBox(width: 12.w),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                lead.isCompleted
-                                    ? 'Lead Completed'
-                                    : 'Lead Accepted',
-                                style: TextStyle(
-                                  fontSize: 16.sp,
-                                  fontWeight: FontWeight.w700,
-                                  color: lead.isCompleted
-                                      ? AppTheme.primaryBlue
-                                      : AppTheme.lightGreen,
-                                ),
-                              ),
-                              if (lead.agentResponseNote != null &&
-                                  !lead.isCompleted) ...[
-                                SizedBox(height: 4.h),
-                                Text(
-                                  lead.agentResponseNote!,
-                                  style: TextStyle(
-                                    fontSize: 14.sp,
-                                    color: AppTheme.mediumGray,
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
+                    fontWeight: FontWeight.w700,
                   ),
-                  SizedBox(height: 16.h),
-                ],
-                // Enhanced Buyer Info Section
-                if (buyerInfo != null) ...[
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [AppTheme.lightGray, Colors.white],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: AppTheme.primaryBlue.withOpacity(0.1),
-                        width: 1,
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            gradient: LinearGradient(
-                              colors: gradientColors,
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color:
-                                    (isBuying
-                                            ? AppTheme.primaryBlue
-                                            : AppTheme.lightGreen)
-                                        .withOpacity(0.3),
-                                blurRadius: 8,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
-                          ),
-                          child: CircleAvatar(
-                            radius: 32,
-                            backgroundColor: Colors.transparent,
-                            backgroundImage:
-                                ImageUrlHelper.buildImageUrl(
-                                      buyerInfo.profilePic,
-                                    ) !=
-                                    null
-                                ? NetworkImage(
-                                    ImageUrlHelper.buildImageUrl(
-                                      buyerInfo.profilePic,
-                                    )!,
-                                  )
-                                : null,
-                            child:
-                                buyerInfo.profilePic == null ||
-                                    buyerInfo.profilePic!.isEmpty
-                                ? Text(
-                                    (buyerInfo.fullname ?? 'B')
-                                        .substring(0, 1)
-                                        .toUpperCase(),
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 24,
-                                    ),
-                                  )
-                                : null,
-                          ),
+                ),
+              ),
+              const Spacer(),
+              Text(
+                lead.formattedDate,
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: AppTheme.mediumGray),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 22,
+                backgroundColor: accent.withOpacity(0.12),
+                backgroundImage:
+                    ImageUrlHelper.buildImageUrl(buyerInfo?.profilePic) != null
+                    ? NetworkImage(ImageUrlHelper.buildImageUrl(buyerInfo?.profilePic)!)
+                    : null,
+                child: (buyerInfo?.profilePic == null || buyerInfo!.profilePic!.isEmpty)
+                    ? Text(
+                        (buyerInfo?.fullname ?? 'B').substring(0, 1).toUpperCase(),
+                        style: TextStyle(
+                          color: accent,
+                          fontWeight: FontWeight.w700,
                         ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                buyerInfo.fullname ?? 'Unknown Buyer',
-                                style: Theme.of(context).textTheme.titleLarge
-                                    ?.copyWith(
-                                      fontWeight: FontWeight.w700,
-                                      color: AppTheme.black,
-                                      letterSpacing: -0.5,
-                                    ),
-                              ),
-                              const SizedBox(height: 6),
-                              if (buyerInfo.email != null &&
-                                  buyerInfo.email!.isNotEmpty)
-                                Row(
-                                  children: [
-                                    Icon(
-                                      Icons.email_outlined,
-                                      size: 14,
-                                      color: AppTheme.mediumGray,
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Expanded(
-                                      child: Text(
-                                        buyerInfo.email!,
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodySmall
-                                            ?.copyWith(
-                                              color: AppTheme.mediumGray,
-                                            ),
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              if (buyerInfo.phone != null &&
-                                  buyerInfo.phone!.isNotEmpty) ...[
-                                const SizedBox(height: 4),
-                                Row(
-                                  children: [
-                                    Icon(
-                                      Icons.phone_outlined,
-                                      size: 14,
-                                      color: AppTheme.mediumGray,
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Flexible(
-                                      child: Text(
-                                        buyerInfo.phone!,
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodySmall
-                                            ?.copyWith(
-                                              color: AppTheme.mediumGray,
-                                            ),
-                                        overflow: TextOverflow.ellipsis,
-                                        maxLines: 1,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                ],
-
-                // Property Information Section
-                if (lead.propertyInformation != null &&
-                    lead.propertyInformation!.fullAddress !=
-                        'Address not provided') ...[
-                  _buildEnhancedInfoCard(
-                    context,
-                    Icons.location_on_rounded,
-                    'Property Location',
-                    lead.propertyInformation!.fullAddress,
-                    isBuying ? AppTheme.primaryBlue : AppTheme.lightGreen,
-                  ),
-                  const SizedBox(height: 16),
-                ],
-
-                // Key Details Grid
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
+                      )
+                    : null,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    if (lead.propertyType != null &&
-                        lead.propertyType!.isNotEmpty)
-                      _buildDetailChip(
-                        context,
-                        Icons.home_rounded,
-                        'Type',
-                        lead.propertyType!,
+                    Text(
+                      buyerInfo?.fullname ?? 'Unknown Buyer',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: AppTheme.black,
+                        fontWeight: FontWeight.w700,
                       ),
-                    if (lead.priceRange != null && lead.priceRange!.isNotEmpty)
-                      _buildDetailChip(
-                        context,
-                        Icons.attach_money_rounded,
-                        'Price',
-                        lead.priceRange!,
-                      ),
-                    if (lead.bedrooms != null)
-                      _buildDetailChip(
-                        context,
-                        Icons.bed_rounded,
-                        'Beds',
-                        '${lead.bedrooms}',
-                      ),
-                    if (lead.bathrooms != null)
-                      _buildDetailChip(
-                        context,
-                        Icons.bathtub_rounded,
-                        'Baths',
-                        '${lead.bathrooms}',
+                    ),
+                    if (buyerInfo?.email != null && buyerInfo!.email!.isNotEmpty)
+                      Text(
+                        buyerInfo.email!,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppTheme.mediumGray,
+                        ),
                       ),
                   ],
                 ),
-                const SizedBox(height: 16),
-
-                // Additional Info Section
-                if ((lead.bestTime != null && lead.bestTime!.isNotEmpty) ||
-                    (lead.preferredContact != null &&
-                        lead.preferredContact!.isNotEmpty)) ...[
-                  Container(
-                    padding: const EdgeInsets.all(18),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          AppTheme.primaryBlue.withOpacity(0.04),
-                          AppTheme.lightGray.withOpacity(0.2),
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: AppTheme.primaryBlue.withOpacity(0.12),
-                        width: 1.5,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppTheme.primaryBlue.withOpacity(0.05),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      children: [
-                        if (lead.bestTime != null &&
-                            lead.bestTime!.isNotEmpty) ...[
-                          _buildInfoRow(
-                            context,
-                            Icons.access_time_rounded,
-                            'Best Time',
-                            lead.bestTime!,
-                          ),
-                          if (lead.preferredContact != null &&
-                              lead.preferredContact!.isNotEmpty)
-                            const SizedBox(height: 12),
-                        ],
-                        if (lead.preferredContact != null &&
-                            lead.preferredContact!.isNotEmpty)
-                          _buildInfoRow(
-                            context,
-                            Icons.phone_rounded,
-                            'Preferred Contact',
-                            lead.preferredContact!,
-                          ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                ],
-
-                // Enhanced Comments Section
-                if (lead.comments != null && lead.comments!.isNotEmpty) ...[
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          (isBuying
-                                  ? AppTheme.primaryBlue
-                                  : AppTheme.lightGreen)
-                              .withOpacity(0.05),
-                          Colors.white,
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color:
-                            (isBuying
-                                    ? AppTheme.primaryBlue
-                                    : AppTheme.lightGreen)
-                                .withOpacity(0.2),
-                        width: 1,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              if (lead.priceRange != null && lead.priceRange!.isNotEmpty)
+                _leadMetaChip(context, Icons.attach_money, lead.priceRange!),
+              if (lead.propertyType != null && lead.propertyType!.isNotEmpty)
+                _leadMetaChip(context, Icons.home_work_outlined, lead.propertyType!),
+              if (lead.bestTime != null && lead.bestTime!.isNotEmpty)
+                _leadMetaChip(context, Icons.schedule, lead.bestTime!),
+            ],
+          ),
+          if (lead.comments != null && lead.comments!.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppTheme.lightGray,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                lead.comments!,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppTheme.darkGray,
+                  height: 1.4,
+                ),
+              ),
+            ),
+          ],
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              if (isPending) ...[
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: controller.isLoading
+                        ? null
+                        : () => controller.acceptLead(lead),
+                    icon: Icon(Icons.check_circle_outline, color: accent, size: 18),
+                    label: Text(
+                      'Accept Lead',
+                      style: TextStyle(
+                        color: accent,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color:
-                                (isBuying
-                                        ? AppTheme.primaryBlue
-                                        : AppTheme.lightGreen)
-                                    .withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Icon(
-                            Icons.format_quote_rounded,
-                            size: 20,
-                            color: isBuying
-                                ? AppTheme.primaryBlue
-                                : AppTheme.lightGreen,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            lead.comments!,
-                            style: Theme.of(context).textTheme.bodyMedium
-                                ?.copyWith(
-                                  color: AppTheme.darkGray,
-                                  height: 1.5,
-                                ),
-                          ),
-                        ),
-                      ],
+                    style: OutlinedButton.styleFrom(
+                      side: BorderSide(color: accent.withOpacity(0.6)),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 20),
-                ],
-
-                // Action Buttons Row
-                Row(
-                  children: [
-                    // Contact/Open Chat Button
-                    Expanded(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: gradientColors,
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: [
-                            BoxShadow(
-                              color:
-                                  (isBuying
-                                          ? AppTheme.primaryBlue
-                                          : AppTheme.lightGreen)
-                                      .withOpacity(0.4),
-                              blurRadius: 12,
-                              offset: const Offset(0, 6),
-                            ),
-                          ],
-                        ),
-                        child: Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            onTap: () => controller.contactBuyerFromLead(lead),
-                            borderRadius: BorderRadius.circular(16),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(8),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withOpacity(0.2),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: const Icon(
-                                      Icons.chat_bubble_outline_rounded,
-                                      color: Colors.white,
-                                      size: 22,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Flexible(
-                                    child: Text(
-                                      lead.isAccepted
-                                          ? 'Open Chat'
-                                          : 'Contact Buyer',
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 17,
-                                        letterSpacing: 0.5,
-                                      ),
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  const Icon(
-                                    Icons.arrow_forward_rounded,
-                                    color: Colors.white,
-                                    size: 20,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
+                ),
+                const SizedBox(width: 10),
+              ],
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () => controller.contactBuyerFromLead(lead),
+                  icon: Icon(
+                    lead.isAccepted ? Icons.chat_bubble_outline : Icons.call_outlined,
+                    size: 18,
+                  ),
+                  label: Text(lead.isAccepted ? 'Open Chat' : 'Contact Buyer'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: accent,
+                    foregroundColor: AppTheme.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                ),
+              ),
+              if (lead.isAccepted && !lead.isCompleted) ...[
+                const SizedBox(width: 10),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () => controller.markLeadComplete(lead),
+                    icon: const Icon(Icons.task_alt, size: 18),
+                    label: const Text('Complete'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.lightGreen,
+                      foregroundColor: AppTheme.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
                       ),
                     ),
-                    // Complete Button (only show if lead is accepted but not completed)
-                    if (lead.isAccepted && !lead.isCompleted) ...[
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Container(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                AppTheme.lightGreen,
-                                AppTheme.lightGreen.withOpacity(0.8),
-                              ],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            borderRadius: BorderRadius.circular(16),
-                            boxShadow: [
-                              BoxShadow(
-                                color: AppTheme.lightGreen.withOpacity(0.4),
-                                blurRadius: 12,
-                                offset: const Offset(0, 6),
-                              ),
-                            ],
-                          ),
-                          child: Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              onTap: () => controller.markLeadComplete(lead),
-                              borderRadius: BorderRadius.circular(16),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 16,
-                                ),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.all(8),
-                                      decoration: BoxDecoration(
-                                        color: Colors.white.withOpacity(0.2),
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: const Icon(
-                                        Icons.check_circle_outline_rounded,
-                                        color: Colors.white,
-                                        size: 22,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    const Flexible(
-                                      child: Text(
-                                        'Complete',
-                                        style: TextStyle(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.w700,
-                                          fontSize: 17,
-                                          letterSpacing: 0.5,
-                                        ),
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
+                  ),
                 ),
               ],
-            ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _leadMetaChip(BuildContext context, IconData icon, String value) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: AppTheme.lightGray,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: AppTheme.mediumGray),
+          const SizedBox(width: 6),
+          Text(
+            value,
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: AppTheme.darkGray),
           ),
         ],
       ),

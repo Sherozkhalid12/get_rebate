@@ -905,9 +905,13 @@ class MessagesController extends GetxController {
       }
 
       // Extract thread ID if available for immediate room joining
-      final threadId = data['threadId']?.toString() ?? 
-                       data['id']?.toString() ?? 
-                       data['_id']?.toString() ?? '';
+      final threadId = _extractThreadIdFromSocketPayload(data);
+
+      // First append/update from socket payload for instant UI.
+      final appended = _appendThreadFromSocketPayload(data);
+      if (kDebugMode) {
+        print('   Instant append from socket: $appended');
+      }
 
       // Always refresh threads immediately when new thread arrives
       // This ensures we get the complete thread data from the API
@@ -964,6 +968,158 @@ class MessagesController extends GetxController {
         }
       }
     }
+  }
+
+  String _extractThreadIdFromSocketPayload(Map<String, dynamic> data) {
+    final thread = data['thread'];
+    if (thread is Map) {
+      return thread['_id']?.toString() ??
+          thread['id']?.toString() ??
+          thread['threadId']?.toString() ??
+          '';
+    }
+    return data['threadId']?.toString() ??
+        data['id']?.toString() ??
+        data['_id']?.toString() ??
+        '';
+  }
+
+  bool _appendThreadFromSocketPayload(Map<String, dynamic> data) {
+    final user = _authController.currentUser;
+    if (user == null || user.id.isEmpty) return false;
+
+    final threadId = _extractThreadIdFromSocketPayload(data);
+    if (threadId.isEmpty) return false;
+
+    final thread = data['thread'];
+    final payload = thread is Map<String, dynamic>
+        ? thread
+        : Map<String, dynamic>.from(data);
+
+    final participantsRaw = payload['participants'];
+    List<dynamic> participants = [];
+    if (participantsRaw is List) {
+      participants = participantsRaw;
+    }
+
+    Map<String, dynamic>? otherParticipant;
+    for (final p in participants) {
+      if (p is Map) {
+        final m = Map<String, dynamic>.from(p);
+        final pid = m['_id']?.toString() ?? m['id']?.toString() ?? '';
+        if (pid.isNotEmpty && pid != user.id) {
+          otherParticipant = m;
+          break;
+        }
+      }
+    }
+
+    if (otherParticipant == null) {
+      // Fallbacks for different payload shapes.
+      if (payload['receiver'] is Map) {
+        otherParticipant = Map<String, dynamic>.from(payload['receiver'] as Map);
+      } else if (payload['otherUser'] is Map) {
+        otherParticipant = Map<String, dynamic>.from(payload['otherUser'] as Map);
+      } else if (payload['user2'] is Map) {
+        otherParticipant = Map<String, dynamic>.from(payload['user2'] as Map);
+      } else if (payload['user1'] is Map) {
+        final candidate = Map<String, dynamic>.from(payload['user1'] as Map);
+        final cid = candidate['_id']?.toString() ?? candidate['id']?.toString() ?? '';
+        if (cid != user.id) {
+          otherParticipant = candidate;
+        }
+      }
+    }
+
+    if (otherParticipant == null) return false;
+
+    final otherId = otherParticipant['_id']?.toString() ??
+        otherParticipant['id']?.toString() ??
+        '';
+    if (otherId.isEmpty) return false;
+
+    final otherName = otherParticipant['fullname']?.toString() ??
+        otherParticipant['name']?.toString() ??
+        otherParticipant['username']?.toString() ??
+        'User';
+
+    final roleRaw = otherParticipant['role']?.toString().toLowerCase() ?? '';
+    final senderType = roleRaw == 'agent'
+        ? 'agent'
+        : (roleRaw == 'loanofficer' || roleRaw == 'loan_officer')
+            ? 'loan_officer'
+            : 'user';
+
+    final image = ApiConstants.getImageUrl(
+      otherParticipant['profilePic']?.toString() ??
+          otherParticipant['profileImage']?.toString(),
+    );
+
+    final lastMessageRaw = payload['lastMessage'];
+    String lastMessage = '';
+    DateTime lastMessageTime = DateTime.now();
+
+    if (lastMessageRaw is Map) {
+      final lm = Map<String, dynamic>.from(lastMessageRaw);
+      lastMessage = lm['text']?.toString() ?? lm['message']?.toString() ?? '';
+      final t = lm['createdAt']?.toString() ?? lm['updatedAt']?.toString();
+      if (t != null && t.isNotEmpty) {
+        lastMessageTime = DateTime.tryParse(t)?.toLocal() ?? DateTime.now();
+      }
+    } else if (lastMessageRaw is String) {
+      lastMessage = lastMessageRaw;
+      final t = payload['updatedAt']?.toString() ?? payload['createdAt']?.toString();
+      if (t != null && t.isNotEmpty) {
+        lastMessageTime = DateTime.tryParse(t)?.toLocal() ?? DateTime.now();
+      }
+    } else {
+      final t = payload['updatedAt']?.toString() ?? payload['createdAt']?.toString();
+      if (t != null && t.isNotEmpty) {
+        lastMessageTime = DateTime.tryParse(t)?.toLocal() ?? DateTime.now();
+      }
+    }
+
+    final unreadCount =
+        int.tryParse(payload['unreadCount']?.toString() ?? '0') ?? 0;
+
+    final newConversation = ConversationModel(
+      id: threadId,
+      senderId: otherId,
+      senderName: otherName,
+      senderType: senderType,
+      senderImage: image,
+      lastMessage: lastMessage,
+      lastMessageTime: lastMessageTime,
+      unreadCount: unreadCount,
+    );
+
+    final all = List<ConversationModel>.from(_allConversations);
+    final indexByThread = all.indexWhere((c) => c.id == threadId);
+    final indexBySender = all.indexWhere((c) => c.senderId == otherId);
+
+    if (indexByThread != -1) {
+      all[indexByThread] = newConversation;
+    } else if (indexBySender != -1) {
+      all[indexBySender] = newConversation;
+    } else {
+      all.insert(0, newConversation);
+    }
+    all.sort((a, b) => b.lastMessageTime.compareTo(a.lastMessageTime));
+    _allConversations.value = all;
+
+    if (_searchQuery.value.trim().isNotEmpty) {
+      searchConversations(_searchQuery.value);
+    } else {
+      _conversations.value = List<ConversationModel>.from(all);
+    }
+
+    if (_selectedConversation.value != null &&
+        _selectedConversation.value!.senderId == otherId &&
+        _selectedConversation.value!.id.startsWith('temp_')) {
+      _selectedConversation.value = newConversation;
+    }
+
+    return true;
   }
 
   /// Handles unread count update from socket
@@ -1667,6 +1823,7 @@ class MessagesController extends GetxController {
           threadId: conversation.id,
           senderId: user.id,
           text: text,
+          participantIds: [conversation.senderId, user.id],
         );
         if (kDebugMode) {
           print('📤 Message sent via socket');
@@ -2281,6 +2438,38 @@ class MessagesController extends GetxController {
   }) async {
     try {
       print('📡 Creating thread in background...');
+
+      final canUseSocketCreate =
+          _socketService != null && _socketService!.isConnected;
+      if (canUseSocketCreate) {
+        _socketService!.createThread(
+          participantIds: [userId1, userId2],
+          initiatorId: userId1,
+        );
+
+        if (kDebugMode) {
+          print('✅ create_thread emitted via socket');
+          print('   participantIds: [$userId1, $userId2]');
+          print('   initiatorId: $userId1');
+        }
+
+        // Wait for thread_updated/thread_created/newThread socket event.
+        // If temp conversation is still not replaced, fallback to API create.
+        await Future.delayed(const Duration(seconds: 2));
+        final stillTemp = _allConversations.any(
+          (c) => c.id == tempConversation.id,
+        );
+        if (!stillTemp) {
+          if (kDebugMode) {
+            print('✅ Socket thread event received; temp conversation replaced');
+          }
+          return;
+        }
+
+        if (kDebugMode) {
+          print('⚠️ No socket thread update received yet, falling back to API createThread');
+        }
+      }
 
       final threadData = await _chatService.createThread(
         userId1: userId1,

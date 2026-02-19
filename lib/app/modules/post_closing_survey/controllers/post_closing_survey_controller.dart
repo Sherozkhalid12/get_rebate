@@ -3,9 +3,10 @@ import 'package:get/get.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
 import 'package:getrebate/app/services/survey_service.dart';
 import 'package:getrebate/app/services/leads_service.dart';
+import 'package:getrebate/app/services/loan_officer_service.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart';
-import 'package:getrebate/app/models/lead_model.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
+import 'package:getrebate/app/routes/app_pages.dart';
 import 'package:flutter/foundation.dart';
 
 /// Model for completed professional (agent or loan officer)
@@ -33,12 +34,17 @@ class PostClosingSurveyController extends GetxController {
   final AuthController _authController = Get.find<AuthController>();
   final SurveyService _surveyService = SurveyService();
   final LeadsService _leadsService = LeadsService();
+  final LoanOfficerService _loanOfficerService = LoanOfficerService();
 
   // Selection screen state
   final _showSelectionScreen = true.obs;
   final _completedProfessionals = <CompletedProfessional>[].obs;
+  final _loanOfficerProfessionals = <CompletedProfessional>[].obs;
   final _isLoadingProfessionals = false.obs;
   final _selectedProfessional = Rxn<CompletedProfessional>();
+  final _agentSearchQuery = ''.obs;
+  final _loanOfficerSearchQuery = ''.obs;
+  final _selectedTabIndex = 0.obs; // 0 = Agents, 1 = Loan Officers
 
   // Survey state (set after selection)
   late String agentId;
@@ -83,8 +89,40 @@ class PostClosingSurveyController extends GetxController {
   // Getters
   bool get showSelectionScreen => _showSelectionScreen.value;
   List<CompletedProfessional> get completedProfessionals => _completedProfessionals;
+  List<CompletedProfessional> get allLoanOfficerProfessionals => _loanOfficerProfessionals;
   bool get isLoadingProfessionals => _isLoadingProfessionals.value;
   CompletedProfessional? get selectedProfessional => _selectedProfessional.value;
+  String get agentSearchQuery => _agentSearchQuery.value;
+  String get loanOfficerSearchQuery => _loanOfficerSearchQuery.value;
+  int get selectedTabIndex => _selectedTabIndex.value;
+  bool get hasAnyProfessionals =>
+      _completedProfessionals.isNotEmpty || _loanOfficerProfessionals.isNotEmpty;
+  List<CompletedProfessional> get agentProfessionals =>
+      _completedProfessionals.where((p) => p.type == 'agent').toList();
+  List<CompletedProfessional> get loanOfficerProfessionals =>
+      _loanOfficerProfessionals;
+  List<CompletedProfessional> get filteredAgentProfessionals {
+    final q = _agentSearchQuery.value.trim().toLowerCase();
+    if (q.isEmpty) return agentProfessionals;
+    return agentProfessionals
+        .where(
+          (p) =>
+              p.name.toLowerCase().contains(q) ||
+              (p.company?.toLowerCase().contains(q) ?? false),
+        )
+        .toList();
+  }
+  List<CompletedProfessional> get filteredLoanOfficerProfessionals {
+    final q = _loanOfficerSearchQuery.value.trim().toLowerCase();
+    if (q.isEmpty) return loanOfficerProfessionals;
+    return loanOfficerProfessionals
+        .where(
+          (p) =>
+              p.name.toLowerCase().contains(q) ||
+              (p.company?.toLowerCase().contains(q) ?? false),
+        )
+        .toList();
+  }
   int get currentStep => _currentStep.value;
   bool get isLoading => _isLoading.value;
   bool get isAgentSurvey => surveyType == 'agent';
@@ -123,6 +161,10 @@ class PostClosingSurveyController extends GetxController {
   Future<void> loadCompletedProfessionals() async {
     _isLoadingProfessionals.value = true;
     _completedProfessionals.clear(); // Clear previous data
+    _loanOfficerProfessionals.clear();
+    _agentSearchQuery.value = '';
+    _loanOfficerSearchQuery.value = '';
+    _selectedTabIndex.value = 0;
 
     try {
       final currentUser = _authController.currentUser;
@@ -149,7 +191,7 @@ class PostClosingSurveyController extends GetxController {
         print('📡 Response count: ${leadsResponse.count}');
       }
 
-      // Filter to only completed leads with agents (not loan officers)
+      // Filter to only completed leads assigned to a professional.
       final completedLeads = leadsResponse.leads.where((lead) {
         // Check if lead is completed
         final leadStatusLower = lead.leadStatus?.toLowerCase() ?? '';
@@ -157,20 +199,25 @@ class PostClosingSurveyController extends GetxController {
         final isCompletedByFlag = lead.isCompleted == true;
         final isCompleted = isCompletedByStatus || isCompletedByFlag;
         
-        // Check if lead has an agent (not loan officer)
+        // Check if lead has an assigned professional.
         final hasAgent = lead.agentId != null;
-        final agentRole = lead.agentId?.role?.toLowerCase() ?? 'agent';
-        final isAgent = agentRole != 'loan_officer' && agentRole != 'loan_officer';
+        final professionalRole = lead.agentId?.role?.toLowerCase() ?? '';
+        final isKnownProfessionalRole =
+            professionalRole == 'agent' ||
+            professionalRole == 'loan_officer' ||
+            professionalRole == 'loanofficer';
         
         if (kDebugMode && hasAgent) {
-          print('   Lead ${lead.id}: status=$leadStatusLower, isCompleted=$isCompletedByFlag, agentRole=$agentRole, isCompleted=$isCompleted, isAgent=$isAgent');
+          print(
+            '   Lead ${lead.id}: status=$leadStatusLower, isCompleted=$isCompletedByFlag, role=$professionalRole, isCompleted=$isCompleted, isKnownRole=$isKnownProfessionalRole',
+          );
         }
         
-        return isCompleted && hasAgent && isAgent;
+        return isCompleted && hasAgent && isKnownProfessionalRole;
       }).toList();
 
       if (kDebugMode) {
-        print('✅ Found ${completedLeads.length} completed leads with agents');
+        print('✅ Found ${completedLeads.length} completed leads with professionals');
         if (completedLeads.isEmpty) {
           print('⚠️ No completed leads found. Checking all leads...');
           for (final lead in leadsResponse.leads.take(5)) {
@@ -179,36 +226,46 @@ class PostClosingSurveyController extends GetxController {
         }
       }
 
-      // Extract unique agents from completed leads (only agents, not loan officers)
+      // Extract unique AGENTS from completed leads.
       final agentsMap = <String, CompletedProfessional>{};
       
       for (final lead in completedLeads) {
         if (lead.agentId != null) {
-          final agentId = lead.agentId!.id;
-          final agentName = lead.agentId!.fullname ?? 'Agent';
+          final professionalId = lead.agentId!.id;
+          final professionalName = lead.agentId!.fullname ?? 'Professional';
           final profileImage = lead.agentId!.profilePic;
-          final role = lead.agentId!.role?.toLowerCase() ?? 'agent';
-          
-          // Only add agents (skip loan officers)
-          if (role != 'loan_officer' && !agentsMap.containsKey(agentId)) {
-            agentsMap[agentId] = CompletedProfessional(
-              id: agentId,
-              name: agentName,
-              type: 'agent', // Always agent for this flow
+          final role = lead.agentId!.role?.toLowerCase() ?? '';
+          final isLoanOfficer = role == 'loan_officer' || role == 'loanofficer';
+
+          // Only include explicit "agent" roles in agent selection list.
+          if (isLoanOfficer || role != 'agent') {
+            continue;
+          }
+
+          if (!agentsMap.containsKey(professionalId)) {
+            agentsMap[professionalId] = CompletedProfessional(
+              id: professionalId,
+              name: professionalName,
+              type: 'agent',
               profileImage: profileImage,
-              company: null, // Company info would need to be fetched separately if needed
+              company: null,
               leadId: lead.id,
               completedAt: lead.updatedAt,
             );
             
             if (kDebugMode) {
-              print('   ✅ Added agent: $agentName (ID: $agentId)');
+              print('   ✅ Added agent: $professionalName (ID: $professionalId)');
             }
           }
         }
       }
 
-      _completedProfessionals.value = agentsMap.values.toList();
+      _completedProfessionals.value = [
+        ...agentsMap.values,
+      ];
+
+      // Loan officer tab should contain all loan officers so user can choose freely.
+      await _loadAllLoanOfficers();
       
       // Sort by completion date (most recent first)
       _completedProfessionals.sort((a, b) {
@@ -220,19 +277,21 @@ class PostClosingSurveyController extends GetxController {
 
       if (kDebugMode) {
         print('✅ ==========================================');
-        print('✅ Loaded ${_completedProfessionals.length} completed agents');
-        for (final agent in _completedProfessionals) {
-          print('   - ${agent.name} (ID: ${agent.id})');
+        print(
+          '✅ Loaded ${agentProfessionals.length} completed agents and ${loanOfficerProfessionals.length} loan officers',
+        );
+        for (final p in [..._completedProfessionals, ..._loanOfficerProfessionals]) {
+          print('   - ${p.name} (${p.type}) (ID: ${p.id})');
         }
         print('✅ ==========================================');
       }
 
-      if (_completedProfessionals.isEmpty) {
+      if (!hasAnyProfessionals) {
         if (kDebugMode) {
-          print('⚠️ No completed agents found. Showing info message.');
+          print('⚠️ No completed professionals found. Showing info message.');
         }
         SnackbarHelper.showInfo(
-          'You don\'t have any completed transactions with agents yet. Complete a service with an agent to leave a review.',
+          'You don\'t have any completed transactions with agents or loan officers yet.',
           duration: const Duration(seconds: 4),
         );
       }
@@ -247,22 +306,70 @@ class PostClosingSurveyController extends GetxController {
         }
         print('❌ ==========================================');
       }
-      SnackbarHelper.showError('Failed to load agents: ${e.toString()}');
+      SnackbarHelper.showError('Failed to load professionals: ${e.toString()}');
     } finally {
       _isLoadingProfessionals.value = false;
     }
   }
 
-  /// Select an agent and start survey
+  Future<void> _loadAllLoanOfficers() async {
+    try {
+      final officers = await _loanOfficerService.getAllLoanOfficers();
+      final map = <String, CompletedProfessional>{};
+
+      for (final officer in officers) {
+        if (officer.id.isEmpty) continue;
+        map[officer.id] = CompletedProfessional(
+          id: officer.id,
+          name: officer.name.isNotEmpty ? officer.name : 'Loan Officer',
+          type: 'loanOfficer',
+          profileImage: officer.profileImage,
+          company: officer.company.isNotEmpty ? officer.company : null,
+          leadId: null,
+          completedAt: officer.lastActiveAt ?? officer.createdAt,
+        );
+      }
+
+      _loanOfficerProfessionals.value = map.values.toList()
+        ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    } catch (e) {
+      if (kDebugMode) {
+        print('⚠️ Failed to load loan officers for survey selection: $e');
+      }
+    }
+  }
+
+  void setSelectedTab(int index) {
+    _selectedTabIndex.value = index;
+  }
+
+  void setAgentSearchQuery(String value) {
+    _agentSearchQuery.value = value;
+  }
+
+  void setLoanOfficerSearchQuery(String value) {
+    _loanOfficerSearchQuery.value = value;
+  }
+
+  /// Select a professional and start corresponding survey
   void selectProfessional(CompletedProfessional professional) {
     _selectedProfessional.value = professional;
     
-    // Set survey parameters (always agent for this flow)
-    agentId = professional.id;
-    agentName = professional.name;
-    surveyType = 'agent';
-    loanOfficerId = null;
-    loanOfficerName = null;
+    // Set survey parameters by selected professional type.
+    if (professional.type == 'loanOfficer') {
+      surveyType = 'loanOfficer';
+      loanOfficerId = professional.id;
+      loanOfficerName = professional.name;
+      // Keep legacy fields for backward compatibility in shared submit API.
+      agentId = professional.id;
+      agentName = professional.name;
+    } else {
+      surveyType = 'agent';
+      agentId = professional.id;
+      agentName = professional.name;
+      loanOfficerId = null;
+      loanOfficerName = null;
+    }
     transactionId = professional.leadId ?? '';
     
     // Hide selection screen and start survey
@@ -270,8 +377,8 @@ class PostClosingSurveyController extends GetxController {
     _currentStep.value = 0;
     
     if (kDebugMode) {
-      print('✅ Selected agent: ${professional.name}');
-      print('   Starting survey for agent: ${professional.id}');
+      print('✅ Selected professional: ${professional.name} (${professional.type})');
+      print('   Starting survey for ID: ${professional.id}');
     }
   }
 
@@ -304,17 +411,46 @@ class PostClosingSurveyController extends GetxController {
   /// Submit survey to API
   Future<void> submitSurvey() async {
     _isLoading.value = true;
+    String receivedExpectedRebate = agentRebateExpected.value ?? 'Not sure';
+    String rebateAppliedAsCreditClosing = agentRebateMethod.value ?? 'Other';
+    String signedRebateDisclosure = agentSignedDisclosure.value ?? 'Not sure';
+    String receivingRebateEasy = agentRebateEase.value ?? 'Neutral';
+    String agentRecommended = agentRecommend.value ?? 'Not sure';
+    String comment = commentsController.text.trim();
+    double rating = isAgentSurvey ? agentRating.value : loSatisfaction.value;
+    final selectedId =
+        selectedProfessional?.id.isNotEmpty == true
+            ? selectedProfessional?.id
+            : (agentId.isNotEmpty
+                  ? agentId
+                  : ((loanOfficerId ?? '').isNotEmpty ? loanOfficerId : null));
+
+    Future<bool> triggerMandatoryAddReview(String reason) async {
+      if (selectedId == null || selectedId.isEmpty) {
+        print(
+          '⚠️ addReview skipped: missing professionalId '
+          '($reason). agentId=$agentId, loanOfficerId=$loanOfficerId, selectedProfessional=${selectedProfessional?.id}',
+        );
+        return false;
+      }
+      final reviewText = comment.isNotEmpty
+          ? comment
+          : (isAgentSurvey
+              ? 'Great support and communication throughout the process.'
+              : 'Excellent loan guidance and professional support.');
+      print(
+        '📡 Triggering mandatory addReview ($reason) '
+        '(type=${isAgentSurvey ? "agent" : "loanOfficer"}, professionalId=$selectedId)',
+      );
+      return _surveyService.submitBuyerReviewSilently(
+        currentUserId: userId,
+        professionalId: selectedId,
+        rating: rating,
+        review: reviewText,
+      );
+    }
 
     try {
-      // Map survey responses to API format
-      String receivedExpectedRebate = agentRebateExpected.value ?? 'Not sure';
-      String rebateAppliedAsCreditClosing = agentRebateMethod.value ?? 'Other';
-      String signedRebateDisclosure = agentSignedDisclosure.value ?? 'Not sure';
-      String receivingRebateEasy = agentRebateEase.value ?? 'Neutral';
-      String agentRecommended = agentRecommend.value ?? 'Not sure';
-      String comment = commentsController.text.trim();
-      double rating = agentRating.value;
-
       // Handle "Other" option for rebate method
       if (agentRebateMethod.value == 'Other' && otherTextController.text.isNotEmpty) {
         rebateAppliedAsCreditClosing = otherTextController.text.trim();
@@ -335,7 +471,7 @@ class PostClosingSurveyController extends GetxController {
       // Submit to API
       await _surveyService.submitSurvey(
         userId: userId,
-        rebateFromAgent: agentRebateAmount.value,
+        rebateFromAgent: isAgentSurvey ? agentRebateAmount.value : 0,
         receivedExpectedRebate: receivedExpectedRebate,
         rebateAppliedAsCreditClosing: rebateAppliedAsCreditClosing,
         signedRebateDisclosure: signedRebateDisclosure,
@@ -343,21 +479,58 @@ class PostClosingSurveyController extends GetxController {
         agentRecommended: agentRecommended,
         comment: comment.isNotEmpty ? comment : null,
         rating: rating,
+        surveyType: surveyType,
+        type:
+            selectedProfessional?.type ??
+            (isAgentSurvey ? 'agent' : 'loanOfficer'),
+        professionalId: selectedId,
+        professionalType:
+            selectedProfessional?.type ??
+            (isAgentSurvey ? 'agent' : 'loanOfficer'),
+        loSatisfaction: isAgentSurvey ? null : loSatisfaction.value,
+        loExplainedOptions: isAgentSurvey ? null : loExplainedOptions.value,
+        loCommunication: isAgentSurvey ? null : loCommunication.value,
+        loRebateHelp: isAgentSurvey ? null : loRebateHelp.value,
+        loEase: isAgentSurvey ? null : loEase.value,
+        loProfessional: isAgentSurvey ? null : loProfessional.value,
+        loClosedOnTime: isAgentSurvey ? null : loClosedOnTime.value,
+        loRecommend: isAgentSurvey ? null : loRecommend.value,
       );
-
-      SnackbarHelper.showSuccess(
-        'Thank you for your feedback! Your review has been submitted.',
-        title: 'Survey Submitted',
-        duration: const Duration(seconds: 3),
+      final reviewAdded = await triggerMandatoryAddReview(
+        'after survey success',
       );
-
-      // Navigate back
-      Navigator.pop(Get.context!);
-    } catch (e) {
-      if (kDebugMode) {
-        print('❌ Error submitting survey: $e');
+      if (reviewAdded) {
+        // Avoid overlay teardown race: navigate first, then show snackbar.
+        SnackbarHelper.dismissCurrent();
+        Get.offAllNamed(AppPages.MAIN);
+        Future.delayed(const Duration(milliseconds: 250), () {
+          SnackbarHelper.showSuccess(
+            'Thank you! Your review has been submitted successfully.',
+            title: 'Review Submitted',
+            duration: const Duration(seconds: 3),
+          );
+        });
       }
-      SnackbarHelper.showError('Failed to submit survey: ${e.toString()}');
+    } catch (e) {
+      try {
+        final reviewAdded = await triggerMandatoryAddReview(
+          'after survey failure',
+        );
+        if (reviewAdded) {
+          // Avoid overlay teardown race: navigate first, then show snackbar.
+          SnackbarHelper.dismissCurrent();
+          Get.offAllNamed(AppPages.MAIN);
+          Future.delayed(const Duration(milliseconds: 250), () {
+            SnackbarHelper.showSuccess(
+              'Thank you! Your review has been submitted successfully.',
+              title: 'Review Submitted',
+              duration: const Duration(seconds: 3),
+            );
+          });
+          return;
+        }
+      } catch (_) {}
+      print('❌ Error submitting survey: $e');
     } finally {
       _isLoading.value = false;
     }

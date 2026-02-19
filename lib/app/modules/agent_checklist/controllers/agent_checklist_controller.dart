@@ -5,7 +5,7 @@ class AgentChecklistController extends GetxController {
     return [
       'Complete Your Profile: Fill out your agent profile with accurate information including your brokerage, license number, licensed states, specialties, and professional bio. A complete profile helps buyers and sellers find and trust you.',
       'Add Your Contact & Listing Information: Ensure your contact details are correct and include any relevant links (such as your website or listings). This information is visible to buyers and sellers viewing your profile.',
-      'Claim ZIP Codes: Select and claim ZIP codes in your licensed states where you want to appear in buyer and seller searches. You can claim up to 6 ZIP codes. Pricing is based on population tiers, ranging from \$3.99 to \$26.99 per month per ZIP code.',
+      'Claim ZIP Codes: Select and claim ZIP codes in your licensed states where you want to appear in buyer and seller searches. You can claim up to 6 ZIP codes. Pricing is based on population tiers, ranging from \$7.99 to \$49.99 per month per ZIP code.',
       'Respond to Inquiries Promptly: When buyers or sellers contact you through the platform, respond quickly. Timely responses increase trust and improve conversion into real clients.',
       'Work with Buyers: Represent buyers in home purchases and clearly explain how rebates may apply. Rebates typically come from the commission offered by the seller, listing broker, or builder and often appear as a credit at closing.',
       'Work with Sellers: Assist sellers with listing and selling their homes. Savings for sellers are usually provided through a reduced listing fee, depending on the agreement.',
@@ -30,6 +30,9 @@ Key Points:
 • You work directly with buyers, sellers, lenders, and title companies outside the app
 • The platform helps you get discovered and generate leads, while transactions occur in real life''';
   }
+
+
+
 
   List<String> getSuccessTips() {
     return [

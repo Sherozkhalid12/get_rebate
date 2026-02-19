@@ -489,6 +489,64 @@ class LoanOfficerZipCodeService {
     }
   }
 
+  /// POST /api/v1/zip-codes/zipclaimstatus with body { zipcode }
+  /// Returns: { message: String, claimedBy: "agent" | "loanOfficer" | null }
+  Future<Map<String, dynamic>> getZipClaimStatus(String zipcode) async {
+    final trimmed = zipcode.trim();
+    if (!RegExp(r'^\d{5}$').hasMatch(trimmed)) {
+      throw LoanOfficerZipCodeServiceException(
+        message: 'ZIP code must be exactly 5 digits',
+        statusCode: 400,
+      );
+    }
+
+    try {
+      final authToken = _storage.read('auth_token');
+      final response = await _dio.post(
+        ApiConstants.zipCodeClaimStatusEndpoint,
+        data: {'zipcode': trimmed},
+        options: Options(
+          headers: {
+            ...ApiConstants.ngrokHeaders,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            if (authToken != null) 'Authorization': 'Bearer $authToken',
+          },
+        ),
+      );
+
+      final data = response.data;
+      if (response.statusCode == 200 && data is Map<String, dynamic>) {
+        return {
+          'message': data['message']?.toString() ?? '',
+          'claimedBy': data['claimedBy']?.toString(),
+        };
+      }
+
+      throw LoanOfficerZipCodeServiceException(
+        message: 'Failed to check ZIP claim status',
+        statusCode: response.statusCode,
+      );
+    } on DioException catch (e) {
+      final errorMessage =
+          e.response?.data?['message']?.toString() ??
+          e.response?.data?['error']?.toString() ??
+          e.message ??
+          'Failed to check ZIP claim status';
+      throw LoanOfficerZipCodeServiceException(
+        message: errorMessage,
+        statusCode: e.response?.statusCode,
+        originalError: e,
+      );
+    } catch (e) {
+      if (e is LoanOfficerZipCodeServiceException) rethrow;
+      throw LoanOfficerZipCodeServiceException(
+        message: 'Unexpected error: ${e.toString()}',
+        originalError: e,
+      );
+    }
+  }
+
   /// Claims a zip code for the current loan officer
   ///
   /// Returns response data (including claimedZipCodes) on success.

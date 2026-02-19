@@ -9,11 +9,13 @@ import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/models/loan_officer_zip_code_model.dart';
 import 'package:getrebate/app/models/loan_model.dart';
 import 'package:getrebate/app/models/loan_officer_model.dart';
+import 'package:getrebate/app/models/notification_model.dart';
 import 'package:getrebate/app/models/subscription_model.dart';
 import 'package:getrebate/app/models/promo_code_model.dart';
 import 'package:getrebate/app/services/loan_officer_zip_code_pricing_service.dart';
 import 'package:getrebate/app/services/loan_officer_zip_code_service.dart';
 import 'package:getrebate/app/services/rebate_states_service.dart';
+import 'package:getrebate/app/services/notification_service.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart' as global;
 import 'package:getrebate/app/controllers/location_controller.dart';
 import 'package:getrebate/app/controllers/current_loan_officer_controller.dart';
@@ -32,6 +34,7 @@ class LoanOfficerController extends GetxController {
   // Services - using separate loan officer zip code service
   final LoanOfficerZipCodeService _loanOfficerZipCodeService;
   final RebateStatesService _rebateStatesService = RebateStatesService();
+  final NotificationService _notificationService = NotificationService();
   final GetStorage _storage;
   final Dio _dio = Dio();
 
@@ -73,6 +76,8 @@ class LoanOfficerController extends GetxController {
   final _selectedState = Rxn<String>(); // Selected state for ZIP code filtering
   final _selectedTab =
       0.obs; // 0: Dashboard, 1: Messages, 2: ZIP Management, 3: Billing
+  final _recentNotifications = <NotificationModel>[].obs;
+  final _isLoadingRecentActivity = false.obs;
   /// Session-only flag: user tapped Skip on ZIP selection screen (no persistence).
   final _hasSkippedZipSelection = false.obs;
   /// From API: true = old user (has claimed before), false = new user. Null = not yet loaded, fallback to claimedZipCodes.isEmpty.
@@ -151,6 +156,8 @@ class LoanOfficerController extends GetxController {
 
   String? get selectedState => _selectedState.value;
   int get selectedTab => _selectedTab.value;
+  List<NotificationModel> get recentNotifications => _recentNotifications;
+  bool get isLoadingRecentActivity => _isLoadingRecentActivity.value;
   /// True once we've received firstZipCodeClaimed from API. Use to avoid flicker: show loading until known.
   bool get isZipClaimStatusKnown => _firstZipCodeClaimed.value != null;
 
@@ -227,6 +234,7 @@ class LoanOfficerController extends GetxController {
 
     // Preload chat threads for instant access when loan officer opens messages
     _preloadThreads();
+    Future.microtask(() => fetchRecentActivityNotifications());
 
     // Listen to loan officer changes to sync ZIP codes
     _setupLoanOfficerListener();
@@ -242,8 +250,36 @@ class LoanOfficerController extends GetxController {
     // Load zip codes AFTER page renders (deferred for instant page load)
     // Use Future.delayed to ensure page renders first, then loads data
     Future.delayed(const Duration(milliseconds: 100), () {
-      _loadZipCodes();
+      _ensureSelectedStateAndZipResults();
     });
+  }
+
+  Future<void> fetchRecentActivityNotifications({int retryCount = 0}) async {
+    final userId = _userId;
+    if (userId == null || userId.isEmpty) {
+      if (retryCount < 8) {
+        Future.delayed(
+          const Duration(milliseconds: 700),
+          () => fetchRecentActivityNotifications(retryCount: retryCount + 1),
+        );
+      }
+      return;
+    }
+
+    _isLoadingRecentActivity.value = true;
+    try {
+      final response = await _notificationService.getNotifications(userId);
+      _recentNotifications.value = response.notifications;
+    } catch (e) {
+      if (kDebugMode) {
+        print(
+          '⚠️ Failed to load recent activity notifications for loan officer: $e',
+        );
+      }
+      _recentNotifications.clear();
+    } finally {
+      _isLoadingRecentActivity.value = false;
+    }
   }
 
   /// Loads initial claimed zip codes from current loan officer if available
@@ -1542,6 +1578,10 @@ class LoanOfficerController extends GetxController {
 
     _selectedTab.value = index;
 
+    if (index == 0) {
+      Future.microtask(() => fetchRecentActivityNotifications());
+    }
+
     // Refresh subscription data when "Billing" tab is selected
     if (index == 3) {
       Future.microtask(() => fetchUserStats());
@@ -1549,11 +1589,45 @@ class LoanOfficerController extends GetxController {
       // Refresh user stats (claimed ZIPs from /auth/users) then zip codes when ZIP tab is selected
       Future.microtask(() async {
         await fetchUserStats();
-        await refreshZipCodes();
+        await _ensureSelectedStateAndZipResults(forceRefresh: true);
         if (kDebugMode) {
           _debugPrintClaimedSnapshot('after ZIP tab refresh');
         }
       });
+    }
+  }
+
+  Future<void> _ensureSelectedStateAndZipResults({
+    bool forceRefresh = false,
+  }) async {
+    await _loadFilteredLicensedStates();
+
+    final options = _filteredLicensedStateCodes.isNotEmpty
+        ? _filteredLicensedStateCodes.toList()
+        : licensedStateCodes;
+    if (options.isEmpty) return;
+
+    final normalizedOptions = options.map(_normalizeStateToCode).toSet();
+    var selected = _selectedState.value;
+
+    if (selected == null ||
+        selected.isEmpty ||
+        !normalizedOptions.contains(_normalizeStateToCode(selected))) {
+      selected = _normalizeStateToCode(options.first);
+      _selectedState.value = selected;
+    } else {
+      selected = _normalizeStateToCode(selected);
+      _selectedState.value = selected;
+    }
+
+    final stateKey = 'US_$selected';
+    final needsLoad =
+        forceRefresh ||
+        _currentState.value != stateKey ||
+        _allZipCodes.isEmpty ||
+        _availableZipCodes.isEmpty;
+    if (needsLoad) {
+      await _loadZipCodesForState(selected, forceRefresh: forceRefresh);
     }
   }
 
@@ -1925,40 +1999,52 @@ class LoanOfficerController extends GetxController {
         return;
       }
 
-      // Call claim API first - must succeed before payment
-      // Keep this response and reuse it after payment to avoid double-claiming.
-      dynamic preCheckClaimResponse;
+      // Step 1: Check live ZIP claim status BEFORE payment.
       try {
-        final price = zipCode.calculatedPrice.toStringAsFixed(2);
-        final population = zipCode.population.toString();
-        preCheckClaimResponse = await _loanOfficerZipCodeService.claimZipCode(
-          loanOfficerId,
+        final status = await _loanOfficerZipCodeService.getZipClaimStatus(
           zipCode.postalCode,
-          price,
-          zipCode.state,
-          population,
         );
+        final claimedBy = status['claimedBy']?.toString();
+        final message = status['message']?.toString() ?? '';
+
         if (kDebugMode) {
-          print('✅ Claim API pre-check passed for ${zipCode.postalCode}');
+          print('📡 ZIP claim status pre-check for ${zipCode.postalCode}');
+          print('   claimedBy: ${claimedBy ?? "null"}');
+          print('   message: $message');
+        }
+
+        // Loan officer flow blocks only when claimedBy == "loanOfficer".
+        if (claimedBy == 'loanOfficer') {
+          _markZipAsClaimedByOtherOfficer(zipCode.postalCode);
+          await fetchWaitingListEntries(zipCode.postalCode);
+          _showSnackbarSafely(
+            message.isNotEmpty
+                ? message
+                : 'This ZIP code is already claimed by a Loan Officer.',
+            isError: false,
+            isAlreadyClaimed: true,
+          );
+          return;
         }
       } on LoanOfficerZipCodeServiceException catch (e) {
         if (kDebugMode) {
-          print('❌ Claim API failed before payment: ${e.message}');
+          print('❌ ZIP status check failed before payment: ${e.message}');
+        }
+        final isAlreadyClaimed =
+            e.message.toLowerCase().contains('already claimed');
+        if (isAlreadyClaimed) {
+          _markZipAsClaimedByOtherOfficer(zipCode.postalCode);
+          await fetchWaitingListEntries(zipCode.postalCode);
         }
         _showSnackbarSafely(
           e.message,
-          isError: true,
-          isAlreadyClaimed: e.message.toLowerCase().contains('already claimed'),
+          isError: !isAlreadyClaimed,
+          isAlreadyClaimed: isAlreadyClaimed,
         );
-        if (e.message.toLowerCase().contains('already claimed')) {
-          _availableZipCodes.removeWhere(
-            (zip) => zip.postalCode == zipCode.postalCode,
-          );
-        }
         return;
       }
 
-      // Step 2: Create checkout session (only if claim succeeded)
+      // Step 2: Create checkout session
       final zipCodePrice = zipCode.calculatedPrice.toStringAsFixed(2);
 
       final requestBody = {
@@ -2016,8 +2102,7 @@ class LoanOfficerController extends GetxController {
           fullscreenDialog: true,
         );
 
-        // Step 4: If payment successful, call paymentSuccess API first,
-        // then claim the ZIP code
+        // Step 3: If payment successful, verify payment then claim the ZIP code.
         if (paymentSuccess == true) {
           if (sessionId != null && sessionId.isNotEmpty) {
             final paymentSuccessResult = await _callPaymentSuccessAPI(
@@ -2038,11 +2123,39 @@ class LoanOfficerController extends GetxController {
             }
           }
 
+          // Step 4: Claim ZIP after successful payment verification.
+          dynamic claimResponseAfterPayment;
+          try {
+            final price = zipCode.calculatedPrice.toStringAsFixed(2);
+            final population = zipCode.population.toString();
+            claimResponseAfterPayment = await _loanOfficerZipCodeService
+                .claimZipCode(
+                  loanOfficerId,
+                  zipCode.postalCode,
+                  price,
+                  zipCode.state,
+                  population,
+                );
+          } on LoanOfficerZipCodeServiceException catch (e) {
+            final isAlreadyClaimed =
+                e.message.toLowerCase().contains('already claimed');
+            if (isAlreadyClaimed) {
+              _markZipAsClaimedByOtherOfficer(zipCode.postalCode);
+              await fetchWaitingListEntries(zipCode.postalCode);
+            }
+            _showSnackbarSafely(
+              e.message,
+              isError: !isAlreadyClaimed,
+              isAlreadyClaimed: isAlreadyClaimed,
+            );
+            return;
+          }
+
           await _completeZipCodeClaim(
             zipCode,
             loanOfficerId,
             currentLoanOfficerController,
-            preCheckClaimResponse,
+            claimResponseAfterPayment,
           );
         } else {
           SnackbarHelper.showError('Payment was cancelled or failed');
@@ -2308,6 +2421,23 @@ class LoanOfficerController extends GetxController {
       SnackbarHelper.showError(e.message);
     } catch (e) {
       SnackbarHelper.showError('Failed to claim ZIP code: ${e.toString()}');
+    }
+  }
+
+  void _markZipAsClaimedByOtherOfficer(String postalCode) {
+    final allIdx = _allZipCodes.indexWhere((z) => z.postalCode == postalCode);
+    if (allIdx != -1) {
+      _allZipCodes[allIdx] = _allZipCodes[allIdx].copyWith(claimedByOfficer: true);
+      _allZipCodes.refresh();
+    }
+    final availableIdx = _availableZipCodes.indexWhere(
+      (z) => z.postalCode == postalCode,
+    );
+    if (availableIdx != -1) {
+      _availableZipCodes[availableIdx] = _availableZipCodes[availableIdx]
+          .copyWith(claimedByOfficer: true);
+      _availableZipCodes.refresh();
+      _applySearchFilter();
     }
   }
 

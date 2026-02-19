@@ -135,20 +135,34 @@ class LeadInfo {
 class AgentData {
   final String id;
   final String? fullname;
+  final String? username;
+  final String? profilePic;
   final String? email;
   final String? phone;
 
   AgentData({
     required this.id,
     this.fullname,
+    this.username,
+    this.profilePic,
     this.email,
     this.phone,
   });
 
+  String get displayName {
+    final full = fullname?.trim();
+    if (full != null && full.isNotEmpty) return full;
+    final user = username?.trim();
+    if (user != null && user.isNotEmpty) return user;
+    return 'N/A';
+  }
+
   factory AgentData.fromJson(Map<String, dynamic> json) {
     return AgentData(
       id: json['id']?.toString() ?? json['_id']?.toString() ?? '',
-      fullname: json['fullname']?.toString(),
+      fullname: json['fullname']?.toString() ?? json['username']?.toString(),
+      username: json['username']?.toString(),
+      profilePic: json['profilePic']?.toString(),
       email: json['email']?.toString(),
       phone: json['phone']?.toString(),
     );
@@ -158,6 +172,8 @@ class AgentData {
     return {
       'id': id,
       if (fullname != null) 'fullname': fullname,
+      if (username != null) 'username': username,
+      if (profilePic != null) 'profilePic': profilePic,
       if (email != null) 'email': email,
       if (phone != null) 'phone': phone,
     };

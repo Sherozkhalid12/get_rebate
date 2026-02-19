@@ -9,6 +9,7 @@ import 'package:getrebate/app/controllers/auth_controller.dart';
 import 'package:getrebate/app/controllers/current_loan_officer_controller.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
 import 'package:getrebate/app/models/mortgage_types.dart';
+import 'package:getrebate/app/models/loan_officer_model.dart';
 
 class LoanOfficerEditProfileController extends GetxController {
   final AuthController _authController = Get.find<AuthController>();
@@ -22,9 +23,10 @@ class LoanOfficerEditProfileController extends GetxController {
   final bioController = TextEditingController();
   final licenseNumberController = TextEditingController();
   final companyNameController = TextEditingController();
+  final websiteUrlController = TextEditingController();
   final mortgageApplicationUrlController = TextEditingController();
   final externalReviewsUrlController = TextEditingController();
-  final serviceAreasController = TextEditingController();
+  final officeZipController = TextEditingController();
   final yearsOfExperienceController = TextEditingController();
   final languagesSpokenController = TextEditingController();
   final discountsOfferedController = TextEditingController();
@@ -33,8 +35,11 @@ class LoanOfficerEditProfileController extends GetxController {
   final _isLoading = false.obs;
   final _selectedProfilePic = Rxn<File>();
   final _selectedCompanyLogo = Rxn<File>();
+  final _selectedVideo = Rxn<File>();
   final _licensedStates = <String>[].obs;
   final _specialtyProducts = <String>[].obs;
+  final _existingVideoUrl = RxnString();
+  Worker? _loanOfficerWorker;
 
   bool _isDisposed = false;
 
@@ -44,13 +49,28 @@ class LoanOfficerEditProfileController extends GetxController {
   bool get isLoading => _isLoading.value;
   File? get selectedProfilePic => _selectedProfilePic.value;
   File? get selectedCompanyLogo => _selectedCompanyLogo.value;
+  File? get selectedVideo => _selectedVideo.value;
   List<String> get licensedStates => _licensedStates;
   List<String> get specialtyProducts => _specialtyProducts;
+  String? get existingVideoUrl => _existingVideoUrl.value;
 
   @override
   void onInit() {
     super.onInit();
     _loadUserData();
+
+    // Keep form fields in sync when current loan officer arrives/refreshes asynchronously.
+    if (Get.isRegistered<CurrentLoanOfficerController>()) {
+      final currentLoanOfficerController = Get.find<CurrentLoanOfficerController>();
+      _loanOfficerWorker = ever<LoanOfficerModel?>(
+        currentLoanOfficerController.currentLoanOfficer,
+        (officer) {
+          if (officer != null && !_isDisposed) {
+            _loadUserData();
+          }
+        },
+      );
+    }
   }
 
   /// Uses cached current location zip for the service areas field (instant, no fetch on tap).
@@ -59,14 +79,9 @@ class LoanOfficerEditProfileController extends GetxController {
     if (zipCode != null &&
         zipCode.length == 5 &&
         RegExp(r'^\d+$').hasMatch(zipCode)) {
-      final current = serviceAreasController.text.trim();
-      if (current.isEmpty) {
-        serviceAreasController.text = zipCode;
-      } else {
-        serviceAreasController.text = '$current, $zipCode';
-      }
-      serviceAreasController.selection = TextSelection.collapsed(
-        offset: serviceAreasController.text.length,
+      officeZipController.text = zipCode;
+      officeZipController.selection = TextSelection.collapsed(
+        offset: officeZipController.text.length,
       );
     } else {
       Get.snackbar(
@@ -161,11 +176,36 @@ class LoanOfficerEditProfileController extends GetxController {
       bioController.text = loanOfficer.bio ?? '';
       licenseNumberController.text = loanOfficer.licenseNumber;
       companyNameController.text = loanOfficer.company;
+      final additional = _authController.currentUser?.additionalData;
+      websiteUrlController.text =
+          additional?['website_link']?.toString() ??
+          additional?['websiteUrl']?.toString() ??
+          '';
       mortgageApplicationUrlController.text = loanOfficer.mortgageApplicationUrl ?? '';
       externalReviewsUrlController.text = loanOfficer.externalReviewsUrl ?? '';
-      serviceAreasController.text = loanOfficer.claimedZipCodes.join(', ');
+      final serviceAreas = additional?['serviceAreas'];
+      final zipCode = additional?['zipCode']?.toString();
+      if (serviceAreas is List && serviceAreas.isNotEmpty) {
+        officeZipController.text = serviceAreas.first.toString();
+      } else if (serviceAreas is String && serviceAreas.isNotEmpty) {
+        officeZipController.text = serviceAreas;
+      } else if (zipCode != null && zipCode.isNotEmpty) {
+        officeZipController.text = zipCode;
+      } else if (loanOfficer.claimedZipCodes.isNotEmpty) {
+        officeZipController.text = loanOfficer.claimedZipCodes.first;
+      } else {
+        officeZipController.text = '';
+      }
       _licensedStates.value = List<String>.from(loanOfficer.licensedStates);
-      _specialtyProducts.value = List<String>.from(loanOfficer.specialtyProducts);
+      final specialtyFromAdditional = additional?['specialtyProducts'] ?? additional?['areasOfExpertise'];
+      if (loanOfficer.specialtyProducts.isNotEmpty) {
+        _specialtyProducts.value = List<String>.from(loanOfficer.specialtyProducts);
+      } else if (specialtyFromAdditional is List) {
+        _specialtyProducts.value = List<String>.from(specialtyFromAdditional);
+      }
+      _existingVideoUrl.value = ApiConstants.getImageUrl(
+        additional?['video']?.toString() ?? additional?['videoUrl']?.toString(),
+      );
     }
   }
 
@@ -187,6 +227,20 @@ class LoanOfficerEditProfileController extends GetxController {
     }
   }
 
+  Future<void> pickVideo() async {
+    try {
+      final pickedFile = await _imagePicker.pickVideo(source: ImageSource.gallery);
+      if (pickedFile != null) _selectedVideo.value = File(pickedFile.path);
+    } catch (e) {
+      _showError('Failed to pick video');
+    }
+  }
+
+  void removeVideo() {
+    _selectedVideo.value = null;
+    _existingVideoUrl.value = null;
+  }
+
   Future<void> saveProfile() async {
     if (_isDisposed) return;
     if (!_validateForm()) return;
@@ -205,8 +259,8 @@ class LoanOfficerEditProfileController extends GetxController {
         return;
       }
 
-      final serviceAreasList = serviceAreasController.text.trim().isNotEmpty
-          ? serviceAreasController.text.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList()
+      final serviceAreasList = officeZipController.text.trim().isNotEmpty
+          ? [officeZipController.text.trim()]
           : null;
 
       await _authController.updateUserProfile(
@@ -215,14 +269,18 @@ class LoanOfficerEditProfileController extends GetxController {
         email: emailController.text.trim(),
         phone: phoneController.text.trim(),
         bio: bioController.text.trim(),
+        licenseNumber: licenseNumberController.text.trim(),
+        zipCode: officeZipController.text.trim(),
         companyName: companyNameController.text.trim(),
-        websiteLink: mortgageApplicationUrlController.text.trim(),
-        thirdPartReviewLink: externalReviewsUrlController.text.trim(),
+        websiteLink: websiteUrlController.text.trim(),
+        mortgageApplicationUrl: mortgageApplicationUrlController.text.trim(),
+        externalReviewsUrl: externalReviewsUrlController.text.trim(),
         serviceAreas: serviceAreasList,
-        areasOfExpertise: _specialtyProducts.toList(),
+        specialtyProducts: _specialtyProducts.toList(),
         licensedStates: _licensedStates.toList(),
         profilePic: _selectedProfilePic.value,
         companyLogo: _selectedCompanyLogo.value,
+        video: _selectedVideo.value,
       );
 
       final currentLOController = Get.isRegistered<CurrentLoanOfficerController>()
@@ -264,25 +322,32 @@ class LoanOfficerEditProfileController extends GetxController {
       _showError('Please enter your company name');
       return false;
     }
-    // if (licenseNumberController.text.trim().isEmpty) {
-    //   _showError('Please enter your license number');
-    //   return false;
-    // }
+    if (licenseNumberController.text.trim().isEmpty) {
+      _showError('Please enter your license number');
+      return false;
+    }
+    if (officeZipController.text.trim().isEmpty ||
+        !RegExp(r'^\d{5}$').hasMatch(officeZipController.text.trim())) {
+      _showError('Please enter a valid 5-digit office ZIP code');
+      return false;
+    }
     return true;
   }
 
   @override
   void onClose() {
     _isDisposed = true;
+    _loanOfficerWorker?.dispose();
     fullNameController.clear();
     emailController.clear();
     phoneController.clear();
     bioController.clear();
     licenseNumberController.clear();
     companyNameController.clear();
+    websiteUrlController.clear();
     mortgageApplicationUrlController.clear();
     externalReviewsUrlController.clear();
-    serviceAreasController.clear();
+    officeZipController.clear();
     yearsOfExperienceController.clear();
     languagesSpokenController.clear();
     discountsOfferedController.clear();

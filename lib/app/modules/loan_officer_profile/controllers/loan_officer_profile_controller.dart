@@ -40,7 +40,10 @@ class LoanOfficerProfileController extends GetxController {
     _setupDio();
     _loadLoanOfficerData();
     // Record profile view after data is loaded
-    Future.microtask(() => _recordProfileView());
+    Future.microtask(() async {
+      await _recordProfileView();
+      await _recordSearchView();
+    });
   }
   
   void _setupDio() {
@@ -248,6 +251,35 @@ class LoanOfficerProfileController extends GetxController {
         print('⚠️ Error recording profile view: $e');
       }
       // Don't show error to user - tracking is silent
+    }
+  }
+
+  /// Records a profile search hit for the current loan officer (on profile open).
+  /// API: GET /api/v1/agent/addSearch/:id
+  Future<void> _recordSearchView() async {
+    if (_loanOfficer.value == null || _loanOfficer.value!.id.isEmpty) {
+      return;
+    }
+
+    final loanOfficerId = _loanOfficer.value!.id;
+    final endpoint =
+        '${ApiConstants.apiBaseUrl}/agent/addSearch/$loanOfficerId';
+
+    try {
+      print('📡 addSearch (Loan Officer Profile)');
+      print('   Endpoint: $endpoint');
+      final response = await _dio.get(
+        endpoint,
+        options: Options(
+          headers: ApiConstants.ngrokHeaders,
+          validateStatus: (status) => true,
+        ),
+      );
+
+      print('   Status Code: ${response.statusCode}');
+      print('   Response: ${response.data}');
+    } catch (e) {
+      print('⚠️ addSearch error (Loan Officer Profile): $e');
     }
   }
 

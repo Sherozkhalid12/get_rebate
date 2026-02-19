@@ -835,6 +835,62 @@ class ZipCodesService {
     }
   }
 
+  /// POST /api/v1/zip-codes/zipclaimstatus with body { zipcode }
+  /// Returns: { message: String, claimedBy: "agent" | "loanOfficer" | null }
+  Future<Map<String, dynamic>> getZipClaimStatus(String zipcode) async {
+    final trimmed = zipcode.trim();
+    if (!RegExp(r'^\d{5}$').hasMatch(trimmed)) {
+      throw ZipCodesServiceException(
+        message: 'ZIP code must be exactly 5 digits',
+        statusCode: 400,
+      );
+    }
+
+    try {
+      final response = await _dio.post(
+        ApiConstants.zipCodeClaimStatusEndpoint,
+        data: {'zipcode': trimmed},
+        options: Options(
+          headers: {
+            ...ApiConstants.ngrokHeaders,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+        ),
+      );
+
+      final data = response.data;
+      if (response.statusCode == 200 && data is Map<String, dynamic>) {
+        return {
+          'message': data['message']?.toString() ?? '',
+          'claimedBy': data['claimedBy']?.toString(),
+        };
+      }
+
+      throw ZipCodesServiceException(
+        message: 'Failed to check ZIP claim status',
+        statusCode: response.statusCode,
+      );
+    } on DioException catch (e) {
+      final errorMessage =
+          e.response?.data?['message']?.toString() ??
+          e.response?.data?['error']?.toString() ??
+          e.message ??
+          'Failed to check ZIP claim status';
+      throw ZipCodesServiceException(
+        message: errorMessage,
+        statusCode: e.response?.statusCode,
+        originalError: e,
+      );
+    } catch (e) {
+      if (e is ZipCodesServiceException) rethrow;
+      throw ZipCodesServiceException(
+        message: 'Unexpected error: ${e.toString()}',
+        originalError: e,
+      );
+    }
+  }
+
   /// Gets the number of listings a user has created for a specific ZIP code
   /// GET /api/v1/zip-codes/getZipListings/:userId/:zipCode
   /// Returns the count of listings for that ZIP code

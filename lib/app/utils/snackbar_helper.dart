@@ -8,6 +8,11 @@ import 'package:getrebate/app/theme/app_theme.dart';
 class SnackbarHelper {
   static OverlayEntry? _currentOverlay;
 
+  /// Public helper to safely dismiss any active custom snackbar overlay.
+  static void dismissCurrent() {
+    _dismiss();
+  }
+
   /// Get the current context (from GetX or provided)
   /// Tries multiple methods to find a valid context with overlay
   static BuildContext? _getContext([BuildContext? context]) {

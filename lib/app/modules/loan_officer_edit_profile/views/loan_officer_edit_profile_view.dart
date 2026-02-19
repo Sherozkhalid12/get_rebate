@@ -99,12 +99,12 @@ class LoanOfficerEditProfileView
                         ),
                         const SizedBox(height: 16),
 
-                        // CustomTextField(
-                        //   controller: controller.licenseNumberController,
-                        //   labelText: 'License Number',
-                        //   prefixIcon: Icons.badge_outlined,
-                        // ),
-                        // const SizedBox(height: 16),
+                        CustomTextField(
+                          controller: controller.licenseNumberController,
+                          labelText: 'License Number',
+                          prefixIcon: Icons.badge_outlined,
+                        ),
+                        const SizedBox(height: 16),
                         CustomTextField(
                           controller: controller.companyNameController,
                           labelText: 'Company Name',
@@ -156,21 +156,29 @@ class LoanOfficerEditProfileView
                   .fadeIn(duration: 300.ms, delay: 200.ms)
                   .slideY(begin: -0.1, duration: 300.ms, delay: 200.ms),
 
-              // const SizedBox(height: 24),
+              const SizedBox(height: 24),
 
-              // Service Areas
-              // _buildServiceAreasSection(context)
-              //     .animate()
-              //     .fadeIn(duration: 300.ms, delay: 300.ms)
-              //     .slideY(begin: -0.1, duration: 300.ms, delay: 300.ms),
-              //
-              // const SizedBox(height: 24),
+              // Office ZIP
+              _buildServiceAreasSection(context)
+                  .animate()
+                  .fadeIn(duration: 300.ms, delay: 260.ms)
+                  .slideY(begin: -0.1, duration: 300.ms, delay: 260.ms),
+
+              const SizedBox(height: 24),
 
               // Specialty Products
-              // _buildSpecialtyProductsSection(context)
-              //     .animate()
-              //     .fadeIn(duration: 300.ms, delay: 350.ms)
-              //     .slideY(begin: -0.1, duration: 300.ms, delay: 350.ms),
+              _buildSpecialtyProductsSection(context)
+                  .animate()
+                  .fadeIn(duration: 300.ms, delay: 300.ms)
+                  .slideY(begin: -0.1, duration: 300.ms, delay: 300.ms),
+
+              const SizedBox(height: 24),
+
+              // Video Introduction
+              _buildVideoSection(context)
+                  .animate()
+                  .fadeIn(duration: 300.ms, delay: 350.ms)
+                  .slideY(begin: -0.1, duration: 300.ms, delay: 350.ms),
               const SizedBox(height: 24),
 
               // Professional Links
@@ -542,7 +550,7 @@ class LoanOfficerEditProfileView
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Service Areas',
+            'Office ZIP Code',
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
               color: AppTheme.black,
               fontWeight: FontWeight.w600,
@@ -550,17 +558,19 @@ class LoanOfficerEditProfileView
           ),
           const SizedBox(height: 8),
           Text(
-            'Enter ZIP codes or service areas separated by commas (e.g., 90210, 90211, Los Angeles)',
+            'Enter the office ZIP code you used during signup.',
             style: Theme.of(
               context,
             ).textTheme.bodySmall?.copyWith(color: AppTheme.mediumGray),
           ),
           const SizedBox(height: 16),
           CustomTextField(
-            controller: controller.serviceAreasController,
-            labelText: 'Service Areas',
+            controller: controller.officeZipController,
+            labelText: 'Office ZIP Code',
             prefixIcon: Icons.location_on_outlined,
-            hintText: '90210, 90211, Los Angeles',
+            keyboardType: TextInputType.number,
+            maxLength: 5,
+            hintText: 'e.g., 90210',
             suffixIcon: IconButton(
               icon: Icon(Icons.my_location, color: AppTheme.primaryBlue, size: 20),
               onPressed: controller.useCurrentLocationForZip,
@@ -580,7 +590,7 @@ class LoanOfficerEditProfileView
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Specialty Products',
+            'Areas of Expertise & Specialty Products (Select all that apply)',
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
               color: AppTheme.black,
               fontWeight: FontWeight.w600,
@@ -588,70 +598,70 @@ class LoanOfficerEditProfileView
           ),
           const SizedBox(height: 8),
           Text(
-            'Select the mortgage loan types you specialize in.',
+            'Select the mortgage types you specialize in. Buyers will see descriptions of each type.',
             style: Theme.of(
               context,
-            ).textTheme.bodySmall?.copyWith(color: AppTheme.mediumGray),
+            ).textTheme.bodySmall?.copyWith(
+                  color: AppTheme.mediumGray,
+                  fontStyle: FontStyle.italic,
+                ),
           ),
-          const SizedBox(height: 16),
-          Obx(() {
-            // Access the reactive variable directly to ensure GetX tracks it
-            final specialtyProducts = controller.specialtyProducts;
-
-            // Build the list of widgets directly in Obx instead of using itemBuilder
-            // This ensures GetX can properly track the reactive variable
-            return Column(
+          const SizedBox(height: 12),
+          Obx(
+            () => Wrap(
+              spacing: 8,
+              runSpacing: 8,
               children: allProducts.map((product) {
-                final description = MortgageTypes.getDescription(product);
-                // Check selection directly from the reactive list
-                final isSelected = specialtyProducts.contains(product);
-
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  child: InkWell(
-                    onTap: () => controller.toggleSpecialtyProduct(product),
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Row(
-                        children: [
-                          Checkbox(
-                            value: isSelected,
-                            onChanged: (bool? value) {
-                              controller.toggleSpecialtyProduct(product);
-                            },
-                            activeColor: AppTheme.primaryBlue,
-                          ),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  product,
-                                  style: Theme.of(context).textTheme.titleSmall
-                                      ?.copyWith(
-                                        color: AppTheme.black,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                ),
-                                if (description != null) ...[
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    description,
-                                    style: Theme.of(context).textTheme.bodySmall
-                                        ?.copyWith(color: AppTheme.mediumGray),
-                                  ),
-                                ],
-                              ],
-                            ),
-                          ),
-                        ],
+                final isSelected = controller.specialtyProducts.contains(product);
+                return GestureDetector(
+                  onTap: () => controller.toggleSpecialtyProduct(product),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? AppTheme.lightGreen.withOpacity(0.1)
+                          : AppTheme.white,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: isSelected
+                            ? AppTheme.lightGreen
+                            : AppTheme.mediumGray.withOpacity(0.3),
+                        width: 1.5,
                       ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          isSelected ? Icons.check_circle : Icons.circle_outlined,
+                          size: 16,
+                          color: isSelected
+                              ? AppTheme.lightGreen
+                              : AppTheme.mediumGray,
+                        ),
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Text(
+                            product,
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  color: isSelected
+                                      ? AppTheme.lightGreen
+                                      : AppTheme.darkGray,
+                                  fontWeight: isSelected
+                                      ? FontWeight.w600
+                                      : FontWeight.normal,
+                                ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 );
               }).toList(),
-            );
-          }),
+            ),
+          ),
         ],
       ),
     );
@@ -671,6 +681,14 @@ class LoanOfficerEditProfileView
             ),
           ),
           const SizedBox(height: 20),
+
+          CustomTextField(
+            controller: controller.websiteUrlController,
+            labelText: 'Website URL',
+            prefixIcon: Icons.language_outlined,
+            hintText: 'https://yourwebsite.com',
+          ),
+          const SizedBox(height: 16),
 
           CustomTextField(
             controller: controller.mortgageApplicationUrlController,
@@ -719,6 +737,55 @@ class LoanOfficerEditProfileView
             prefixIcon: Icons.star_outline,
             hintText: 'https://example.com/reviews',
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildVideoSection(BuildContext context) {
+    return GradientCard(
+      gradientColors: AppTheme.cardGradient,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Video Introduction',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              color: AppTheme.black,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Upload a short intro video to match your signup profile.',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: AppTheme.mediumGray,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Obx(() {
+            final hasVideo =
+                controller.selectedVideo != null ||
+                (controller.existingVideoUrl?.isNotEmpty ?? false);
+            return Row(
+              children: [
+                Expanded(
+                  child: CustomButton(
+                    text: hasVideo ? 'Change Video' : 'Upload Video',
+                    isOutlined: true,
+                    onPressed: controller.pickVideo,
+                  ),
+                ),
+                if (hasVideo) ...[
+                  const SizedBox(width: 8),
+                  IconButton(
+                    onPressed: controller.removeVideo,
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ],
+            );
+          }),
         ],
       ),
     );

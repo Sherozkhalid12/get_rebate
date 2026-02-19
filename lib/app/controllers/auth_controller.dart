@@ -1366,13 +1366,18 @@ class AuthController extends GetxController {
     String? phone,
     String? bio,
     String? description,
+    String? licenseNumber,
+    String? zipCode,
     String? companyName,
     String? websiteLink,
     String? googleReviewsLink,
     String? clientReviewsLink,
     String? thirdPartReviewLink,
+    String? mortgageApplicationUrl,
+    String? externalReviewsUrl,
     List<String>? serviceAreas,
     List<String>? areasOfExpertise,
+    List<String>? specialtyProducts,
     List<String>? licensedStates,
     bool? dualAgencyState,
     bool? dualAgencySBrokerage,
@@ -1405,6 +1410,13 @@ class AuthController extends GetxController {
       if (description != null && description.isNotEmpty) {
         formData.fields.add(MapEntry('description', description));
       }
+      if (licenseNumber != null && licenseNumber.isNotEmpty) {
+        // API uses "liscenceNumber" key.
+        formData.fields.add(MapEntry('liscenceNumber', licenseNumber));
+      }
+      if (zipCode != null && zipCode.isNotEmpty) {
+        formData.fields.add(MapEntry('zipCode', zipCode));
+      }
       if (companyName != null && companyName.isNotEmpty) {
         formData.fields.add(MapEntry('CompanyName', companyName));
       }
@@ -1422,6 +1434,22 @@ class AuthController extends GetxController {
           MapEntry('thirdPartReviewLink', thirdPartReviewLink),
         );
       }
+      if (mortgageApplicationUrl != null && mortgageApplicationUrl.isNotEmpty) {
+        // Backend expects the legacy key "mortagelink".
+        formData.fields.add(
+          MapEntry('mortagelink', mortgageApplicationUrl),
+        );
+        // Keep the newer key as well for backward compatibility.
+        formData.fields.add(
+          MapEntry('mortgageApplicationUrl', mortgageApplicationUrl),
+        );
+      }
+      if (externalReviewsUrl != null && externalReviewsUrl.isNotEmpty) {
+        // Backend persists this under thirdPartReviewLink in some responses.
+        formData.fields.add(
+          MapEntry('thirdPartReviewLink', externalReviewsUrl),
+        );
+      }
 
       // Add arrays as JSON
       if (serviceAreas != null && serviceAreas.isNotEmpty) {
@@ -1430,6 +1458,11 @@ class AuthController extends GetxController {
       if (areasOfExpertise != null && areasOfExpertise.isNotEmpty) {
         formData.fields.add(
           MapEntry('areasOfExpertise', jsonEncode(areasOfExpertise)),
+        );
+      }
+      if (specialtyProducts != null && specialtyProducts.isNotEmpty) {
+        formData.fields.add(
+          MapEntry('specialtyProducts', jsonEncode(specialtyProducts)),
         );
       }
       if (licensedStates != null && licensedStates.isNotEmpty) {
@@ -1552,6 +1585,11 @@ class AuthController extends GetxController {
               'CompanyName': userData['CompanyName'] ?? companyName,
               'bio': userData['bio'] ?? bio,
               'description': userData['description'] ?? description,
+              'liscenceNumber':
+                  userData['liscenceNumber'] ??
+                  userData['licenseNumber'] ??
+                  licenseNumber,
+              'zipCode': userData['zipCode'] ?? zipCode,
               'website_link': userData['website_link'] ?? websiteLink,
               'google_reviews_link':
                   userData['google_reviews_link'] ?? googleReviewsLink,
@@ -1562,9 +1600,15 @@ class AuthController extends GetxController {
               'serviceAreas': userData['serviceAreas'] ?? serviceAreas,
               'areasOfExpertise':
                   userData['areasOfExpertise'] ?? areasOfExpertise,
+              'specialtyProducts':
+                  userData['specialtyProducts'] ?? specialtyProducts,
               'dualAgencyState': userData['dualAgencyState'] ?? dualAgencyState,
               'dualAgencySBrokerage':
                   userData['dualAgencySBrokerage'] ?? dualAgencySBrokerage,
+              'mortgageApplicationUrl':
+                  userData['mortgageApplicationUrl'] ?? mortgageApplicationUrl,
+              'externalReviewsUrl':
+                  userData['externalReviewsUrl'] ?? externalReviewsUrl,
               'companyLogo': userData['companyLogo'],
               'video': userData['video'] ?? userData['videoUrl'],
               'yearsOfExperience':
@@ -1665,6 +1709,9 @@ class AuthController extends GetxController {
   }
 
   void logout() async {
+    // Ensure any active snackbar overlay is removed before route teardown.
+    SnackbarHelper.dismissCurrent();
+
     // Remove FCM token before clearing user data
     if (_currentUser.value != null) {
       await removeFCM(_currentUser.value!.id);

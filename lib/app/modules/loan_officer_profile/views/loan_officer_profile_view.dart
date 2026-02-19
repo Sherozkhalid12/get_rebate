@@ -5,6 +5,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/modules/loan_officer_profile/controllers/loan_officer_profile_controller.dart';
+import 'package:getrebate/app/modules/loan_officer/views/loan_officer_reviews_view.dart';
 import 'package:getrebate/app/widgets/custom_button.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -568,6 +569,48 @@ class LoanOfficerProfileView extends GetView<LoanOfficerProfileController> {
             ),
           ),
         ],
+
+        const SizedBox(height: 12),
+        InkWell(
+          onTap: () => Get.to(
+            () => LoanOfficerReviewsView(officer: controller.loanOfficer),
+          ),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppTheme.lightGreen.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: AppTheme.lightGreen.withOpacity(0.25),
+                width: 1,
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.rate_review_outlined,
+                  color: AppTheme.lightGreen,
+                  size: 20,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'View detailed reviews and rating summary',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppTheme.lightGreen,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                Icon(
+                  Icons.arrow_forward_ios,
+                  color: AppTheme.lightGreen,
+                  size: 16,
+                ),
+              ],
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -677,38 +720,46 @@ class LoanOfficerProfileView extends GetView<LoanOfficerProfileController> {
 
             const SizedBox(height: 24),
 
-            // Service Areas
+            // Claimed ZIP Codes shown to buyers/sellers
             Text(
-              'Service Areas',
+              'Claimed ZIP Codes',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 color: AppTheme.black,
                 fontWeight: FontWeight.w600,
               ),
             ),
             const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: loanOfficer.claimedZipCodes.map((zip) {
-                return Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppTheme.primaryBlue.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Text(
-                    zip,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppTheme.primaryBlue,
-                      fontWeight: FontWeight.w600,
+            if (loanOfficer.claimedZipCodes.isEmpty)
+              Text(
+                'No claimed ZIP codes available.',
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(color: AppTheme.mediumGray),
+              )
+            else
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: loanOfficer.claimedZipCodes.map((zip) {
+                  return Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
                     ),
-                  ),
-                );
-              }).toList(),
-            ),
+                    decoration: BoxDecoration(
+                      color: AppTheme.primaryBlue.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Text(
+                      zip,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppTheme.primaryBlue,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
 
             const SizedBox(height: 24),
 

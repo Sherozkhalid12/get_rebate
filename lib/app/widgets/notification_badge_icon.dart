@@ -5,24 +5,37 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/modules/notifications/controllers/notifications_controller.dart';
 
-class NotificationBadgeIcon extends StatelessWidget {
+class NotificationBadgeIcon extends StatefulWidget {
   const NotificationBadgeIcon({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    // Get or create notifications controller - make it permanent so it persists
-    NotificationsController? controller;
-    try {
-      controller = Get.find<NotificationsController>();
-    } catch (e) {
-      controller = Get.put(NotificationsController(), permanent: true);
-    }
+  State<NotificationBadgeIcon> createState() => _NotificationBadgeIconState();
+}
 
+class _NotificationBadgeIconState extends State<NotificationBadgeIcon> {
+  late final NotificationsController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    try {
+      _controller = Get.find<NotificationsController>();
+    } catch (e) {
+      _controller = Get.put(NotificationsController(), permanent: true);
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _controller.fetchNotifications();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Obx(() {
-      final unreadCount = controller?.unreadCount ?? 0;
+      final unreadCount = _controller.unreadCount;
 
       return GestureDetector(
         onTap: () {
+          _controller.fetchNotifications();
           Get.toNamed('/notifications');
         },
         child: Stack(

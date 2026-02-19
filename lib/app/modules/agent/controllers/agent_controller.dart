@@ -10,6 +10,7 @@ import 'package:getrebate/app/models/waiting_list_entry_model.dart';
 import 'package:getrebate/app/models/zip_code_model.dart';
 import 'package:getrebate/app/models/agent_listing_model.dart';
 import 'package:getrebate/app/models/activity_item_model.dart';
+import 'package:getrebate/app/models/notification_model.dart';
 import 'package:getrebate/app/models/subscription_model.dart';
 import 'package:getrebate/app/models/promo_code_model.dart';
 import 'package:getrebate/app/models/lead_model.dart';
@@ -17,6 +18,7 @@ import 'package:getrebate/app/services/zip_code_pricing_service.dart';
 import 'package:getrebate/app/services/leads_service.dart';
 import 'package:getrebate/app/services/zip_codes_service.dart';
 import 'package:getrebate/app/services/rebate_states_service.dart';
+import 'package:getrebate/app/services/notification_service.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart' as global;
 import 'package:getrebate/app/controllers/location_controller.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
@@ -38,6 +40,7 @@ class AgentController extends GetxController {
   final Dio _dio = Dio();
   final _storage = GetStorage();
   final RebateStatesService _rebateStatesService = RebateStatesService();
+  final NotificationService _notificationService = NotificationService();
   // Using ApiConstants for centralized URL management
   static String get _baseUrl => ApiConstants.apiBaseUrl;
 
@@ -54,6 +57,8 @@ class AgentController extends GetxController {
   final _selectedTab = 0
       .obs; // 0: Dashboard, 1: ZIP Management, 2: My Listings, 3: Stats, 4: Billing, 5: Leads
   final _recentlyActivatedListingId = Rxn<String>();
+  final _recentNotifications = <NotificationModel>[].obs;
+  final _isLoadingRecentActivity = false.obs;
 
   /// Session-only flag: user tapped Skip on ZIP selection screen (no persistence).
   final _hasSkippedZipSelection = false.obs;
@@ -114,6 +119,8 @@ class AgentController extends GetxController {
   String? get selectedState => _selectedState.value;
   int get selectedTab => _selectedTab.value;
   String? get recentlyActivatedListingId => _recentlyActivatedListingId.value;
+  List<NotificationModel> get recentNotifications => _recentNotifications;
+  bool get isLoadingRecentActivity => _isLoadingRecentActivity.value;
 
   /// True once we've received firstZipCodeClaimed from API. Use to avoid flicker: show loading until known.
   bool get isZipClaimStatusKnown => _firstZipCodeClaimed.value != null;
@@ -203,8 +210,12 @@ class AgentController extends GetxController {
   int get websiteClicks => _websiteClicks.value;
   double get totalRevenue => _totalRevenue.value;
 
-  List<ActivityItem> get recentActivityItems =>
-      _buildRecentActivityItems().take(3).toList();
+  List<ActivityItem> get recentActivityItems {
+    if (_recentNotifications.isNotEmpty) {
+      return _recentNotifications.take(3).map(_notificationToActivityItem).toList();
+    }
+    return _buildRecentActivityItems().take(3).toList();
+  }
 
   // Subscription & Promo Code Getters
   SubscriptionModel? get subscription => _subscription.value;
@@ -325,6 +336,71 @@ class AgentController extends GetxController {
     return items;
   }
 
+  ActivityItem _notificationToActivityItem(NotificationModel notification) {
+    return ActivityItem(
+      title: notification.title.isNotEmpty ? notification.title : notification.message,
+      timeLabel: _formatNotificationTime(notification.createdAt),
+      icon: _notificationIcon(notification.type),
+    );
+  }
+
+  IconData _notificationIcon(String type) {
+    switch (type.toLowerCase()) {
+      case 'lead':
+        return Icons.person_add_rounded;
+      case 'lead_response':
+        return Icons.check_circle_rounded;
+      case 'lead_completed':
+        return Icons.done_all_rounded;
+      case 'proposal':
+        return Icons.description_rounded;
+      default:
+        return Icons.notifications_rounded;
+    }
+  }
+
+  String _formatNotificationTime(DateTime date) {
+    final now = DateTime.now();
+    final difference = now.difference(date);
+    if (difference.inDays == 0) {
+      if (difference.inHours == 0) {
+        if (difference.inMinutes == 0) return 'Just now';
+        return '${difference.inMinutes}m ago';
+      }
+      return '${difference.inHours}h ago';
+    }
+    if (difference.inDays == 1) return 'Yesterday';
+    if (difference.inDays < 7) return '${difference.inDays}d ago';
+    return '${difference.inDays}d ago';
+  }
+
+  Future<void> fetchRecentActivityNotifications({int retryCount = 0}) async {
+    final userId = Get.find<global.AuthController>().currentUser?.id;
+    if (userId == null || userId.isEmpty) {
+      if (retryCount < 8) {
+        Future.delayed(
+          const Duration(milliseconds: 700),
+          () => fetchRecentActivityNotifications(retryCount: retryCount + 1),
+        );
+      }
+      return;
+    }
+
+    _isLoadingRecentActivity.value = true;
+    try {
+      final response = await _notificationService.getNotifications(userId);
+      _recentNotifications.value = response.notifications;
+    } catch (e) {
+      if (kDebugMode) {
+        print('⚠️ Failed to load recent activity notifications for agent: $e');
+      }
+      // Keep fallback local activity items.
+      _recentNotifications.clear();
+    } finally {
+      _isLoadingRecentActivity.value = false;
+    }
+  }
+
   String _formatRelativeTime(String? iso) {
     if (iso == null) return 'Today';
     final parsed = DateTime.tryParse(iso);
@@ -358,6 +434,10 @@ class AgentController extends GetxController {
 
     // Preload chat threads for instant access when agent opens messages
     _preloadThreads();
+    Future.microtask(() => fetchRecentActivityNotifications());
+
+    // Ensure ZIP tab has ready state/results when user enters it.
+    Future.microtask(() => _ensureZipStateAndResultsLoaded());
   }
 
   @override
@@ -753,6 +833,15 @@ class AgentController extends GetxController {
   void setSelectedTab(int index) {
     _selectedTab.value = index;
 
+    if (index == 0) {
+      Future.microtask(() => fetchRecentActivityNotifications());
+    }
+
+    // Ensure auto-selected state also loads ZIP results on first ZIP-tab entry.
+    if (index == 1) {
+      Future.microtask(() => _ensureZipStateAndResultsLoaded());
+    }
+
     // Refresh listings when "My Listings" tab is selected
     if (index == 2) {
       Future.microtask(() => fetchAgentListings());
@@ -768,6 +857,45 @@ class AgentController extends GetxController {
     if (index == 5 && !_isLoadingLeads.value) {
       // Fetch leads every time user visits the leads tab
       Future.microtask(() => refreshLeads());
+    }
+  }
+
+  Future<void> _ensureZipStateAndResultsLoaded() async {
+    try {
+      var state = _selectedState.value?.trim() ?? '';
+
+      if (state.isEmpty) {
+        final authController = Get.find<global.AuthController>();
+        final licensedStates = authController.currentUser?.licensedStates ?? [];
+        final allowedStates = await _filterAllowedStates(licensedStates);
+        if (allowedStates.isNotEmpty) {
+          state = _getStateCodeFromName(allowedStates.first);
+          _selectedState.value = state;
+          _storage.write(_selectedStateStorageKey, state);
+        }
+      } else {
+        final normalized = _getStateCodeFromName(state);
+        if (normalized != state) {
+          state = normalized;
+          _selectedState.value = state;
+          _storage.write(_selectedStateStorageKey, state);
+        }
+      }
+
+      if (state.isEmpty) return;
+
+      final needsLoad =
+          _stateZipCodesFromApi.isEmpty ||
+          _availableZipCodes.isEmpty ||
+          !_stateZipCodesFromApi.any((zip) => zip.state == state);
+
+      if (needsLoad && !_isLoadingZipCodes.value) {
+        await selectStateAndFetchZipCodes(state);
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('⚠️ Failed to ensure ZIP state/results on tab entry: $e');
+      }
     }
   }
 
@@ -1119,75 +1247,55 @@ class AgentController extends GetxController {
         return;
       }
 
-      // Step 1: Call claim API ONCE (before payment) - do NOT call again after payment
+      // Step 1: Check live ZIP claim status BEFORE payment
       _setupDio();
-      dynamic preCheckClaimResponse;
       try {
-        final formattedPrice = zipCode.calculatedPrice.toStringAsFixed(2);
-        final claimBody = {
-          'id': userId,
-          'zipcode': zipCode.zipCode,
-          'zipCodeId': zipCode.id ?? zipCode.zipCode,
-          'price': formattedPrice,
-          'state': zipCode.state,
-          'population': zipCode.population.toString(),
-        };
+        final status = await ZipCodesService().getZipClaimStatus(zipCode.zipCode);
+        final claimedBy = status['claimedBy']?.toString();
+        final message = status['message']?.toString() ?? '';
+
         if (kDebugMode) {
-          print('📡 Claim API (single call before payment) for ZIP ${zipCode.zipCode}');
+          print('📡 ZIP claim status pre-check for ${zipCode.zipCode}');
+          print('   claimedBy: ${claimedBy ?? "null"}');
+          print('   message: $message');
         }
-        final claimResponse = await _dio.post(
-          '/zip-codes/claim',
-          data: claimBody,
-          options: Options(
-            headers: {
-              'ngrok-skip-browser-warning': 'true',
-              'Content-Type': 'application/json',
-              if (authToken != null) 'Authorization': 'Bearer $authToken',
-            },
-          ),
-        );
-        if (claimResponse.statusCode != 200 && claimResponse.statusCode != 201) {
-          final err = claimResponse.data;
-          final msg = err is Map
-              ? (err['error']?.toString() ?? err['message']?.toString() ?? 'Failed to claim zip code')
-              : 'Failed to claim zip code';
-          _showSnackbarSafely(msg, isError: true);
-          _processingZipCodes.remove(zipCode.zipCode);
+
+        // Agent flow blocks only when claimedBy == "agent".
+        if (claimedBy == 'agent') {
+          _markZipAsClaimedByAnotherAgent(zipCode.zipCode);
+          await fetchWaitingListEntries(zipCode.zipCode);
+          _showSnackbarSafely(
+            message.isNotEmpty
+                ? message
+                : 'This ZIP code is already claimed by an Agent.',
+            isError: false,
+            isAlreadyClaimed: true,
+          );
           return;
         }
-        preCheckClaimResponse = claimResponse.data;
-        if (kDebugMode) {
-          print('✅ Claim API passed for ${zipCode.zipCode}');
-        }
-      } on DioException catch (e) {
-        final responseData = e.response?.data;
-        String errorMessage = 'Failed to claim zip code. Please try again.';
-        if (responseData is Map) {
-          errorMessage = responseData['error']?.toString() ??
-              responseData['message']?.toString() ??
-              errorMessage;
-        }
-        final isAlreadyClaimed = errorMessage.toLowerCase().contains('already claimed');
+      } on ZipCodesServiceException catch (e) {
+        String errorMessage = e.message;
+        final isAlreadyClaimed =
+            errorMessage.toLowerCase().contains('already claimed');
         _showSnackbarSafely(
           errorMessage,
           isError: !isAlreadyClaimed,
           isAlreadyClaimed: isAlreadyClaimed,
         );
         if (isAlreadyClaimed) {
-          _availableZipCodes.removeWhere((z) => z.zipCode == zipCode.zipCode);
+          _markZipAsClaimedByAnotherAgent(zipCode.zipCode);
+          await fetchWaitingListEntries(zipCode.zipCode);
         }
-        _processingZipCodes.remove(zipCode.zipCode);
         return;
       } catch (e) {
         _showSnackbarSafely(
-          'Failed to claim zip code: ${e.toString()}',
+          'Failed to check ZIP claim status: ${e.toString()}',
           isError: true,
         );
-        _processingZipCodes.remove(zipCode.zipCode);
         return;
       }
 
-      // Step 2: Create checkout session (only if claim succeeded)
+      // Step 2: Create checkout session
       final zipCodePrice = zipCode.calculatedPrice.toStringAsFixed(2);
 
       // Prepare request body
@@ -1245,7 +1353,7 @@ class AgentController extends GetxController {
           fullscreenDialog: true,
         );
 
-        // Step 3: If payment successful, call paymentSuccess API first, then claim the ZIP code
+        // Step 3: If payment successful, verify payment then claim ZIP
         if (paymentSuccess == true) {
           if (sessionId != null && sessionId.isNotEmpty) {
             // Call paymentSuccess API and wait for it to complete successfully
@@ -1259,7 +1367,6 @@ class AgentController extends GetxController {
               SnackbarHelper.showError(
                 'Payment verification failed. Please contact support.',
               );
-              _processingZipCodes.remove(zipCode.zipCode);
               return;
             }
           } else {
@@ -1269,8 +1376,60 @@ class AgentController extends GetxController {
               );
             }
           }
-          // Update local state from pre-check response (API already claimed in step 1)
-          await _completeZipCodeClaim(zipCode, preCheckClaimResponse);
+          // Step 4: Claim ZIP after successful payment verification.
+          dynamic claimResponseData;
+          try {
+            final formattedPrice = zipCode.calculatedPrice.toStringAsFixed(2);
+            final claimBody = {
+              'id': userId,
+              'zipcode': zipCode.zipCode,
+              'zipCodeId': zipCode.id ?? zipCode.zipCode,
+              'price': formattedPrice,
+              'state': zipCode.state,
+              'population': zipCode.population.toString(),
+            };
+            if (kDebugMode) {
+              print('📡 Claim API (after payment) for ZIP ${zipCode.zipCode}');
+            }
+            final claimResponse = await _dio.post(
+              '/zip-codes/claim',
+              data: claimBody,
+              options: Options(
+                headers: {
+                  'ngrok-skip-browser-warning': 'true',
+                  'Content-Type': 'application/json',
+                  if (authToken != null) 'Authorization': 'Bearer $authToken',
+                },
+              ),
+            );
+            if (claimResponse.statusCode != 200 &&
+                claimResponse.statusCode != 201) {
+              throw Exception('Failed to claim zip code');
+            }
+            claimResponseData = claimResponse.data;
+          } on DioException catch (e) {
+            final responseData = e.response?.data;
+            final errorMessage = responseData is Map
+                ? (responseData['error']?.toString() ??
+                      responseData['message']?.toString() ??
+                      'Failed to claim zip code')
+                : 'Failed to claim zip code';
+            final isAlreadyClaimed = errorMessage.toLowerCase().contains(
+              'already claimed',
+            );
+            if (isAlreadyClaimed) {
+              _markZipAsClaimedByAnotherAgent(zipCode.zipCode);
+              await fetchWaitingListEntries(zipCode.zipCode);
+            }
+            _showSnackbarSafely(
+              errorMessage,
+              isError: !isAlreadyClaimed,
+              isAlreadyClaimed: isAlreadyClaimed,
+            );
+            return;
+          }
+
+          await _completeZipCodeClaim(zipCode, claimResponseData);
         } else {
           SnackbarHelper.showError('Payment was cancelled or failed');
         }
@@ -1374,6 +1533,24 @@ class AgentController extends GetxController {
     }
   }
 
+  void _markZipAsClaimedByAnotherAgent(String zipCodeId) {
+    final stateIdx = _stateZipCodesFromApi.indexWhere((z) => z.zipCode == zipCodeId);
+    if (stateIdx != -1) {
+      _stateZipCodesFromApi[stateIdx] = _stateZipCodesFromApi[stateIdx].copyWith(
+        claimedByAgent: true,
+        isAvailable: false,
+      );
+    }
+    final availableIdx = _availableZipCodes.indexWhere((z) => z.zipCode == zipCodeId);
+    if (availableIdx != -1) {
+      _availableZipCodes[availableIdx] = _availableZipCodes[availableIdx].copyWith(
+        claimedByAgent: true,
+        isAvailable: false,
+      );
+      _availableZipCodes.refresh();
+    }
+  }
+
   /// Extracts checkout session ID from Stripe checkout URL
   String? _extractCheckoutSessionId(String checkoutUrl) {
     try {
@@ -1463,7 +1640,7 @@ class AgentController extends GetxController {
     }
   }
 
-  /// Updates local state after successful payment (claim API was called in pre-check)
+  /// Updates local state after successful payment + claim API success.
   Future<void> _completeZipCodeClaim(
     ZipCodeModel zipCode,
     dynamic preCheckClaimResponse,
@@ -3276,8 +3453,8 @@ class AgentController extends GetxController {
   }
 
   /// Contacts a buyer from a lead
-  /// Shows a form dialog first (if not already accepted), then calls the respondToLead API, then navigates to chat
-  /// If lead is already accepted, skips dialog and goes directly to chat
+  /// If lead is already accepted, opens chat directly.
+  /// Otherwise, accepts the lead via API and opens chat without showing a dialog.
   Future<void> contactBuyerFromLead(LeadModel lead) async {
     final buyerInfo = lead.buyerInfo;
     if (buyerInfo == null) {
@@ -3302,8 +3479,43 @@ class AgentController extends GetxController {
       return;
     }
 
-    // Show form dialog first for new leads
-    _showRespondToLeadDialog(lead, currentUser.id, buyerInfo);
+    // No dialog: directly accept/respond, then open chat.
+    await _submitRespondToLead(lead, currentUser.id, 'accept', '', buyerInfo);
+  }
+
+  /// Accepts a new lead directly via respondToLead API.
+  Future<void> acceptLead(LeadModel lead) async {
+    final authController = Get.find<global.AuthController>();
+    final currentUser = authController.currentUser;
+    if (currentUser == null || currentUser.id.isEmpty) {
+      SnackbarHelper.showError('Agent not logged in');
+      return;
+    }
+
+    if (lead.isAccepted || lead.isCompleted || lead.isReported) {
+      SnackbarHelper.showInfo('This lead is already processed.');
+      return;
+    }
+
+    try {
+      _isLoading.value = true;
+      final leadsService = LeadsService();
+      await leadsService.respondToLead(
+        lead.id,
+        currentUser.id,
+        action: 'accept',
+      );
+
+      SnackbarHelper.showSuccess('Lead accepted successfully');
+      await fetchLeads();
+    } catch (e) {
+      final msg = e.toString().toLowerCase().contains('already responded')
+          ? 'Lead already accepted.'
+          : 'Failed to accept lead. Please try again.';
+      SnackbarHelper.showError(msg);
+    } finally {
+      _isLoading.value = false;
+    }
   }
 
   /// Opens chat directly without showing dialog (for already accepted leads)
@@ -3320,7 +3532,7 @@ class AgentController extends GetxController {
         otherUserId: buyerInfo.id,
         otherUserName: buyerInfo.fullname ?? 'Buyer',
         otherUserProfilePic: buyerInfo.profilePic,
-        otherUserRole: buyerInfo.role ?? 'user',
+        otherUserRole: 'buyer/seller',
       );
     } catch (e) {
       if (kDebugMode) {
@@ -3615,7 +3827,7 @@ class AgentController extends GetxController {
         otherUserId: buyerInfo.id,
         otherUserName: buyerInfo.fullname ?? 'Buyer',
         otherUserProfilePic: buyerInfo.profilePic,
-        otherUserRole: buyerInfo.role ?? 'user',
+        otherUserRole: 'buyer/seller',
       );
     } catch (e) {
       _isLoading.value = false;
@@ -3645,7 +3857,7 @@ class AgentController extends GetxController {
           otherUserId: buyerInfo.id,
           otherUserName: buyerInfo.fullname ?? 'Buyer',
           otherUserProfilePic: buyerInfo.profilePic,
-          otherUserRole: buyerInfo.role ?? 'user',
+          otherUserRole: 'buyer/seller',
         );
         return;
       }

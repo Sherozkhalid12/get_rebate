@@ -142,7 +142,6 @@ class AuthView extends GetView<AuthViewController> {
                 .fadeIn(duration: 600.ms),
 
             const SizedBox(height: 16),
-
             // Profile Picture (only for signup)
             _buildProfilePicturePicker(context)
                 .animate()

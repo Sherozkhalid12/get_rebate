@@ -76,6 +76,7 @@ class AgentProfileController extends GetxController {
       Future.microtask(() {
         _loadAgentProperties();
         _recordProfileView();
+        _recordSearchView();
       });
     } else {
       // Fallback to mock data
@@ -229,6 +230,33 @@ class AgentProfileController extends GetxController {
         print('⚠️ Error recording profile view: $e');
       }
       // Don't show error to user - tracking is silent
+    }
+  }
+
+  /// Records a profile search hit for the current agent (on profile open).
+  /// API: GET /api/v1/agent/addSearch/:id
+  Future<void> _recordSearchView() async {
+    if (_agent.value == null || _agent.value!.id.isEmpty) {
+      return;
+    }
+
+    final agentId = _agent.value!.id;
+    final endpoint = '${ApiConstants.apiBaseUrl}/agent/addSearch/$agentId';
+
+    try {
+      print('📡 addSearch (Agent Profile)');
+      print('   Endpoint: $endpoint');
+      final response = await _dio.get(
+        endpoint,
+        options: Options(
+          headers: ApiConstants.ngrokHeaders,
+          validateStatus: (status) => true,
+        ),
+      );
+      print('   Status Code: ${response.statusCode}');
+      print('   Response: ${response.data}');
+    } catch (e) {
+      print('⚠️ addSearch error (Agent Profile): $e');
     }
   }
   

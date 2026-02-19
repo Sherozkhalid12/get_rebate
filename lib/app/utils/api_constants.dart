@@ -70,6 +70,8 @@ class ApiConstants {
   }
 
   static String get zipCodeClaimEndpoint => "$apiBaseUrl/zip-codes/claim";
+  static String get zipCodeClaimStatusEndpoint =>
+      "$apiBaseUrl/zip-codes/zipclaimstatus";
   static String get zipCodeReleaseEndpoint => "$apiBaseUrl/zip-codes/release";
 
   /// POST body: { "subscriptionId": "", "userId": "" }
@@ -271,6 +273,8 @@ class ApiConstants {
 
   // Survey endpoints
   static String get submitSurveyEndpoint => "$apiBaseUrl/survey/submit";
+  static String get submitLoanSurveyEndpoint =>
+      "$apiBaseUrl/survey/submitLoanSurvey";
 
   // Helper to get ngrok headers if using ngrok
   static Map<String, String> get ngrokHeaders {
