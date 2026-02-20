@@ -76,6 +76,7 @@ class LoanOfficerController extends GetxController {
   final _selectedState = Rxn<String>(); // Selected state for ZIP code filtering
   final _selectedTab =
       0.obs; // 0: Dashboard, 1: Messages, 2: ZIP Management, 3: Billing
+  final _zipSectionTabIndex = 0.obs; // 0: Claimed ZIPs, 1: Available ZIPs
   final _recentNotifications = <NotificationModel>[].obs;
   final _isLoadingRecentActivity = false.obs;
   /// Session-only flag: user tapped Skip on ZIP selection screen (no persistence).
@@ -156,6 +157,11 @@ class LoanOfficerController extends GetxController {
 
   String? get selectedState => _selectedState.value;
   int get selectedTab => _selectedTab.value;
+  int get zipSectionTabIndex => _zipSectionTabIndex.value;
+
+  void setZipSectionTab(int index) {
+    _zipSectionTabIndex.value = index.clamp(0, 1);
+  }
   List<NotificationModel> get recentNotifications => _recentNotifications;
   bool get isLoadingRecentActivity => _isLoadingRecentActivity.value;
   /// True once we've received firstZipCodeClaimed from API. Use to avoid flicker: show loading until known.
@@ -549,6 +555,26 @@ class LoanOfficerController extends GetxController {
       final current = currentIdx != -1 ? _claimedZipCodes[currentIdx] : null;
       if (current == null || current.population > 0) continue;
       if (_hydratingClaimedZipCodes.contains(postalCode)) continue;
+
+      // Use cache to avoid repeated API calls when switching states/tabs
+      final cached = _claimedZipDetailsCache[postalCode];
+      if (cached != null && cached.population > 0) {
+        final hydrated = cached.copyWith(claimedByOfficer: true);
+        if (currentIdx != -1) {
+          _claimedZipCodes[currentIdx] = _pickRicherZipModel(
+            _claimedZipCodes[currentIdx],
+            hydrated,
+          );
+          _claimedZipCodes.refresh();
+          _updateSubscriptionPrice();
+        }
+        if (kDebugMode) {
+          print(
+            '✅ Hydrated claimed ZIP from cache: $postalCode population=${hydrated.population}',
+          );
+        }
+        continue;
+      }
 
       _hydratingClaimedZipCodes.add(postalCode);
       try {
@@ -1440,14 +1466,8 @@ class LoanOfficerController extends GetxController {
       // Prefetch waiting lists for claimed zip codes
       _prefetchWaitingLists(_allZipCodes);
 
-      // Claim cards should be independent of selected state filter.
-      // Hydrate any placeholder claimed zips (population=0) in background.
-      Future.microtask(
-        () => _hydrateMissingClaimedZipDetails(
-          loanOfficer,
-          effectiveClaimedZipCodes,
-        ),
-      );
+      // Do NOT call verifyZipCode (api/v1/zip-codes/:country/:state/:zipcode) here.
+      // That API is only hit when user explicitly enters a valid 5-digit ZIP in search.
     } catch (e, stackTrace) {
       if (kDebugMode) {
         print('❌ Error updating zip code lists: $e');
@@ -1806,6 +1826,7 @@ class LoanOfficerController extends GetxController {
                 .whereType<Map<String, dynamic>>()
                 .map(
                   (subJson) => {
+                    'zipcode': subJson['zipcode']?.toString(),
                     'stripeCustomerId': subJson['stripeCustomerId']?.toString(),
                     'stripeSubscriptionId': subJson['stripeSubscriptionId']
                         ?.toString(),
@@ -2108,6 +2129,7 @@ class LoanOfficerController extends GetxController {
             final paymentSuccessResult = await _callPaymentSuccessAPI(
               sessionId,
               authToken,
+              zipcode: zipCode.postalCode,
             );
             if (!paymentSuccessResult) {
               SnackbarHelper.showError(
@@ -2469,19 +2491,26 @@ class LoanOfficerController extends GetxController {
   }
 
   /// Calls the paymentSuccess API after successful payment
+  /// Pass [zipcode] for ZIP subscription payments (required for loan officer flow).
   Future<bool> _callPaymentSuccessAPI(
     String checkoutSessionId,
-    String? authToken,
-  ) async {
+    String? authToken, {
+    String? zipcode,
+  }) async {
     try {
+      final path = ApiConstants.getPaymentSuccessPath(
+        checkoutSessionId,
+        zipcode: zipcode,
+      );
       if (kDebugMode) {
         print('📡 Calling paymentSuccess API');
         print('   Checkout Session ID: $checkoutSessionId');
-        print('   Endpoint: /subscription/paymentSuccess/$checkoutSessionId');
+        if (zipcode != null) print('   ZIP Code: $zipcode');
+        print('   Endpoint: $path');
       }
 
       final response = await _dio.get(
-        '/subscription/paymentSuccess/$checkoutSessionId',
+        path,
         options: Options(
           headers: {
             'ngrok-skip-browser-warning': 'true',
@@ -3496,24 +3525,46 @@ class LoanOfficerController extends GetxController {
         print('   Response: $responseData');
       }
 
-      // INSTANT update: Mark subscription as cancelled in local state immediately
+      // INSTANT update: Mark subscription as cancelled in local state FIRST for immediate UI
       final cancelledSubId = stripeSubscriptionId;
-      final subs = List<Map<String, dynamic>>.from(_subscriptions);
-      for (var i = 0; i < subs.length; i++) {
-        final subId = subs[i]['stripeSubscriptionId']?.toString() ??
-            subs[i]['_id']?.toString();
+      final subsBefore = List<Map<String, dynamic>>.from(_subscriptions);
+      Map<String, dynamic>? cancelledSubCopy;
+      for (var i = 0; i < subsBefore.length; i++) {
+        final subId = subsBefore[i]['stripeSubscriptionId']?.toString() ??
+            subsBefore[i]['_id']?.toString();
         if (subId == cancelledSubId) {
-          subs[i] = Map<String, dynamic>.from(subs[i])
+          subsBefore[i] = Map<String, dynamic>.from(subsBefore[i])
             ..['subscriptionStatus'] = 'cancelled';
+          cancelledSubCopy = Map<String, dynamic>.from(subsBefore[i]);
           break;
         }
       }
-      _subscriptions.value = subs;
+      _subscriptions.value = subsBefore;
+      _subscriptions.refresh();
 
-      // Refresh data for instant claimed ZIP removal
+      // Refresh from API (claimed ZIPs, etc.)
       await fetchUserStats();
 
-      // Show success instantly (no delay)
+      // Re-apply cancelled status in case API returned stale data or excluded the sub
+      final subsAfter = List<Map<String, dynamic>>.from(_subscriptions);
+      var found = false;
+      for (var i = 0; i < subsAfter.length; i++) {
+        final subId = subsAfter[i]['stripeSubscriptionId']?.toString() ??
+            subsAfter[i]['_id']?.toString();
+        if (subId == cancelledSubId) {
+          subsAfter[i] = Map<String, dynamic>.from(subsAfter[i])
+            ..['subscriptionStatus'] = 'cancelled';
+          found = true;
+          break;
+        }
+      }
+      if (!found && cancelledSubCopy != null) {
+        subsAfter.insert(0, cancelledSubCopy);
+      }
+      _subscriptions.value = subsAfter;
+      _subscriptions.refresh();
+
+      // Show success (no delay)
       SnackbarHelper.showSuccess(
         'Subscription cancellation processed. Your subscription status has been updated.',
         title: 'Success',

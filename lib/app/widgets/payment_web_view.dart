@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
@@ -174,27 +175,39 @@ class _PaymentWebViewState extends State<PaymentWebView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.white,
         leading: IconButton(
-          icon: Icon(
-            Icons.close,
-            color: AppTheme.black,
-            size: 24.sp,
+          icon: Container(
+            padding: EdgeInsets.all(8.sp),
+            decoration: BoxDecoration(
+              color: AppTheme.lightGray.withOpacity(0.3),
+              borderRadius: BorderRadius.circular(12.r),
+            ),
+            child: Icon(
+              Icons.close_rounded,
+              color: AppTheme.darkGray,
+              size: 20.sp,
+            ),
           ),
           onPressed: () {
             widget.onPaymentComplete?.call(false, 'Payment cancelled');
             Navigator.of(context).pop(false);
           },
+          style: IconButton.styleFrom(
+            padding: EdgeInsets.zero,
+            minimumSize: Size(44.w, 44.h),
+          ),
         ),
         title: Text(
           'Complete Payment',
           style: TextStyle(
             color: AppTheme.black,
             fontSize: 18.sp,
-            fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.3,
           ),
         ),
         centerTitle: true,
@@ -202,100 +215,180 @@ class _PaymentWebViewState extends State<PaymentWebView> {
           preferredSize: Size.fromHeight(1.h),
           child: Container(
             height: 1.h,
-            color: AppTheme.lightGray.withOpacity(0.3),
+            margin: EdgeInsets.symmetric(horizontal: 16.w),
+            color: AppTheme.lightGray.withOpacity(0.5),
           ),
         ),
       ),
       body: Stack(
         children: [
           if (_errorMessage != null)
-            Center(
-              child: Padding(
-                padding: EdgeInsets.all(24.w),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.error_outline,
-                      size: 64.sp,
-                      color: Colors.red,
-                    ),
-                    SizedBox(height: 16.h),
-                    Text(
-                      'Error loading payment page',
-                      style: TextStyle(
-                        fontSize: 18.sp,
-                        fontWeight: FontWeight.w600,
-                        color: AppTheme.black,
-                      ),
-                    ),
-                    SizedBox(height: 8.h),
-                    Text(
-                      _errorMessage ?? 'Unknown error',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 14.sp,
-                        color: AppTheme.mediumGray,
-                      ),
-                    ),
-                    SizedBox(height: 24.h),
-                    ElevatedButton(
-                      onPressed: () {
-                        setState(() {
-                          _errorMessage = null;
-                        });
-                        _controller.reload();
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.primaryBlue,
-                        padding: EdgeInsets.symmetric(
-                          horizontal: 24.w,
-                          vertical: 12.h,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8.r),
-                        ),
-                      ),
-                      child: Text(
-                        'Retry',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16.sp,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
+            _buildErrorState(context)
+          else
+            ClipRRect(
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(20.r),
+                topRight: Radius.circular(20.r),
+              ),
+              child: WebViewWidget(controller: _controller),
+            ),
+          if (_isLoading && _errorMessage == null)
+            _buildLoadingOverlay(context),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLoadingOverlay(BuildContext context) {
+    return Container(
+      color: Colors.white,
+      child: Center(
+        child: Container(
+          margin: EdgeInsets.symmetric(horizontal: 32.w),
+          padding: EdgeInsets.symmetric(horizontal: 32.w, vertical: 40.h),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20.r),
+            boxShadow: [
+              BoxShadow(
+                color: AppTheme.black.withOpacity(0.06),
+                blurRadius: 24,
+                offset: const Offset(0, 8),
+              ),
+              BoxShadow(
+                color: AppTheme.primaryBlue.withOpacity(0.04),
+                blurRadius: 32,
+                offset: const Offset(0, 12),
+              ),
+            ],
+            border: Border.all(
+              color: AppTheme.primaryBlue.withOpacity(0.08),
+              width: 1,
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SpinKitFadingCircle(
+                color: AppTheme.primaryBlue,
+                size: 48.sp,
+              ),
+              SizedBox(height: 24.h),
+              Text(
+                'Loading secure payment',
+                style: TextStyle(
+                  fontSize: 16.sp,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.black,
                 ),
               ),
-            )
-          else
-            WebViewWidget(controller: _controller),
-          if (_isLoading && _errorMessage == null)
-            Container(
-              color: Colors.white,
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        AppTheme.primaryBlue,
-                      ),
-                    ),
-                    SizedBox(height: 16.h),
-                    Text(
-                      'Loading payment page...',
-                      style: TextStyle(
-                        fontSize: 14.sp,
-                        color: AppTheme.mediumGray,
-                      ),
-                    ),
-                  ],
+              SizedBox(height: 8.h),
+              Text(
+                'Please wait while we connect to the payment provider',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 13.sp,
+                  color: AppTheme.mediumGray,
+                  height: 1.4,
                 ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorState(BuildContext context) {
+    return Center(
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: EdgeInsets.all(28.w),
+          child: Container(
+            padding: EdgeInsets.all(32.w),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24.r),
+              boxShadow: [
+                BoxShadow(
+                  color: AppTheme.black.withOpacity(0.06),
+                  blurRadius: 24,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+              border: Border.all(
+                color: Colors.red.withOpacity(0.15),
+                width: 1,
               ),
             ),
-        ],
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: EdgeInsets.all(16.sp),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withOpacity(0.08),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.error_outline_rounded,
+                    size: 48.sp,
+                    color: Colors.red.shade600,
+                  ),
+                ),
+                SizedBox(height: 24.h),
+                Text(
+                  'Payment page unavailable',
+                  style: TextStyle(
+                    fontSize: 20.sp,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.black,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                SizedBox(height: 12.h),
+                Text(
+                  _errorMessage ?? 'Unable to load the payment form. Please check your connection and try again.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 14.sp,
+                    color: AppTheme.mediumGray,
+                    height: 1.5,
+                  ),
+                ),
+                SizedBox(height: 28.h),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      setState(() {
+                        _errorMessage = null;
+                      });
+                      _controller.reload();
+                    },
+                    icon: Icon(Icons.refresh_rounded, size: 20.sp),
+                    label: Text(
+                      'Try again',
+                      style: TextStyle(
+                        fontSize: 16.sp,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.primaryBlue,
+                      foregroundColor: Colors.white,
+                      padding: EdgeInsets.symmetric(vertical: 14.h),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12.r),
+                      ),
+                      elevation: 0,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

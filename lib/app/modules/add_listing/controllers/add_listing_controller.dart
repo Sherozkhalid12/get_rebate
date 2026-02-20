@@ -122,10 +122,10 @@ class AddListingController extends GetxController {
 
   void setIsListingAgent(bool value) {
     _isListingAgent.value = value;
-
     // If not listing agent, disable dual agency
     // (can't offer dual agency on someone else's listing)
     if (!value) {
+
       _dualAgencyAllowed.value = false;
     }
   }

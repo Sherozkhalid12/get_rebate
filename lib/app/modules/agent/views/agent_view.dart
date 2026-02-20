@@ -26,6 +26,7 @@ import 'package:getrebate/app/utils/snackbar_helper.dart';
 import 'package:getrebate/app/modules/agent_checklist/bindings/agent_checklist_binding.dart';
 import 'package:getrebate/app/modules/agent_checklist/views/agent_checklist_view.dart';
 import 'package:getrebate/app/modules/agent/views/waiting_list_page.dart';
+import 'package:getrebate/app/modules/agent/views/edit_agent_listing_view.dart';
 import 'package:getrebate/app/modules/rebate_calculator/views/rebate_calculator_option_bottomsheet.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
@@ -33,36 +34,11 @@ import 'dart:io';
 class AgentView extends GetView<AgentController> {
   const AgentView({super.key});
   static final ScrollController _zipScrollController = ScrollController();
-  final GlobalKey _availableZipSectionKey = const GlobalObjectKey(
-    'agent_available_zip_section',
-  );
 
   void _scrollToAvailableZipSection(BuildContext context) {
     FocusManager.instance.primaryFocus?.unfocus();
     FocusScope.of(context).unfocus();
-
-    void scrollNow() {
-      final targetContext = _availableZipSectionKey.currentContext;
-      if (targetContext != null) {
-        Scrollable.ensureVisible(
-          targetContext,
-          duration: const Duration(milliseconds: 320),
-          curve: Curves.easeOutCubic,
-          alignment: 0.02,
-        );
-      }
-      if (_zipScrollController.hasClients) {
-        _zipScrollController.animateTo(
-          _zipScrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 420),
-          curve: Curves.easeOutCubic,
-        );
-      }
-    }
-
-    WidgetsBinding.instance.addPostFrameCallback((_) => scrollNow());
-    Future.delayed(const Duration(milliseconds: 450), scrollNow);
-    Future.delayed(const Duration(milliseconds: 850), scrollNow);
+    controller.setZipSectionTab(1);
   }
 
   /// Helper function to filter licensed states to only include rebate-allowed states
@@ -826,7 +802,7 @@ class AgentView extends GetView<AgentController> {
       controller: _zipScrollController,
       slivers: [
         SliverPadding(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
           sliver: SliverList(
             delegate: SliverChildListDelegate([
               // Info message at top of ZIP Codes tab
@@ -995,32 +971,114 @@ class AgentView extends GetView<AgentController> {
 
                                 return DropdownButtonFormField<String>(
                                   value: safeValue,
+                                  isExpanded: true,
+                                  menuMaxHeight: 320,
+                                  dropdownColor: AppTheme.white,
+                                  borderRadius: BorderRadius.circular(12),
+                                  elevation: 8,
                                   decoration: InputDecoration(
                                     labelText: 'Select State',
-                                    prefixIcon: Icon(
-                                      Icons.map,
-                                      color: AppTheme.primaryBlue,
+                                    labelStyle: const TextStyle(
+                                      color: AppTheme.mediumGray,
+                                      fontWeight: FontWeight.w500,
                                     ),
+                                    hintText: 'Select a state',
+                                    prefixIcon: Container(
+                                      margin: const EdgeInsets.only(left: 12, right: 8),
+                                      padding: const EdgeInsets.all(6),
+                                      decoration: BoxDecoration(
+                                        color: AppTheme.primaryBlue.withOpacity(0.12),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Icon(
+                                        Icons.map_outlined,
+                                        color: AppTheme.primaryBlue,
+                                        size: 20,
+                                      ),
+                                    ),
+                                    contentPadding: const EdgeInsets.fromLTRB(16, 16, 12, 16),
                                     border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(8),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: BorderSide(
+                                        color: AppTheme.primaryBlue.withOpacity(0.25),
+                                        width: 1.5,
+                                      ),
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: const BorderSide(
+                                        color: AppTheme.primaryBlue,
+                                        width: 2,
+                                      ),
                                     ),
                                     filled: true,
-                                    fillColor: AppTheme.lightGray,
+                                    fillColor: AppTheme.primaryBlue.withOpacity(0.04),
                                   ),
-                                  items: [
-                                    DropdownMenuItem<String>(
-                                      value: null,
-                                      child: Text(
+                                  selectedItemBuilder: (context) {
+                                    return [
+                                      Text(
                                         'Select a state',
                                         style: TextStyle(
                                           color: AppTheme.mediumGray,
+                                          fontSize: 15,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      ...uniqueStates.map((stateName) => Text(
+                                        stateName,
+                                        style: const TextStyle(
+                                          color: AppTheme.darkGray,
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      )),
+                                    ];
+                                  },
+                                  items: [
+                                    DropdownMenuItem<String>(
+                                      value: null,
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(vertical: 4),
+                                        child: Text(
+                                          'Select a state',
+                                          style: TextStyle(
+                                            color: AppTheme.mediumGray,
+                                            fontSize: 15,
+                                          ),
                                         ),
                                       ),
                                     ),
                                     ...uniqueStates.map((stateName) {
                                       return DropdownMenuItem<String>(
                                         value: stateName,
-                                        child: Text(stateName),
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(vertical: 8),
+                                          child: Row(
+                                            children: [
+                                              Container(
+                                                width: 4,
+                                                height: 20,
+                                                decoration: BoxDecoration(
+                                                  color: AppTheme.primaryBlue,
+                                                  borderRadius: BorderRadius.circular(2),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 12),
+                                              Text(
+                                                stateName,
+                                                style: const TextStyle(
+                                                  color: AppTheme.darkGray,
+                                                  fontSize: 15,
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
                                       );
                                     }),
                                   ],
@@ -1081,7 +1139,7 @@ class AgentView extends GetView<AgentController> {
                 if (controller.selectedState == null)
                   return const SizedBox.shrink();
                 return Padding(
-                  padding: const EdgeInsets.only(bottom: 20),
+                  padding: const EdgeInsets.only(bottom: 8),
                   child: CustomTextField(
                     controller: controller.zipSearchController,
                     labelText: 'Search or enter 5-digit ZIP',
@@ -1118,65 +1176,28 @@ class AgentView extends GetView<AgentController> {
                 );
               }),
 
-              // Claimed ZIP Codes
+              // Tab bar: Claimed | Available
               Obx(() {
-                if (controller.claimedZipCodes.isEmpty) {
-                  return _buildEmptyState(
-                    context,
-                    'No claimed ZIP codes',
-                    'Start by claiming a ZIP code below',
-                    icon: Icons.location_on_outlined,
-                    infoMessage:
-                        'Claim ZIP codes in your licensed states to appear in buyer and seller searches.',
-                  );
-                }
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Your Claimed ZIP Codes (${controller.claimedZipCodes.length}/6)',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: AppTheme.black,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    ...controller.claimedZipCodes.map(
-                      (zip) => RepaintBoundary(
-                        child: _buildZipCodeCard(context, zip, true),
-                      ),
-                    ),
-                  ],
+                if (controller.selectedState == null) return const SizedBox.shrink();
+                return Padding(
+                  padding: const EdgeInsets.only(top: 0, bottom: 0),
+                  child: _buildZipSectionTabBar(context),
                 );
               }),
-
-              const SizedBox(height: 24),
-
-              // Available ZIP Codes Header
-              KeyedSubtree(
-                key: _availableZipSectionKey,
-                child: Text(
-                  'Available ZIP Codes',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    color: AppTheme.black,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
             ]),
           ),
         ),
 
-        // Available ZIP Codes List (optimized with SliverList)
+        // ZIP section content: Claimed or Available (tabbed)
         Obx(() {
           if (controller.selectedState == null) {
             return SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.only(top: 0),
+                padding: const EdgeInsets.only(top: 8),
                 child: _buildEmptyState(
                   context,
                   'Select a State',
-                  'Please select a state above to view available ZIP codes',
+                  'Please select a state above to view ZIP codes',
                   icon: Icons.location_off_outlined,
                 ),
               ),
@@ -1186,7 +1207,7 @@ class AgentView extends GetView<AgentController> {
           if (controller.isLoadingZipCodes) {
             return SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.only(top: 0),
+                padding: const EdgeInsets.only(top: 8),
                 child: Center(
                   child: Padding(
                     padding: const EdgeInsets.all(40),
@@ -1211,40 +1232,186 @@ class AgentView extends GetView<AgentController> {
             );
           }
 
-          if (controller.availableZipCodes.isEmpty) {
-            return SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.only(top: 0),
-                child: _buildEmptyState(
-                  context,
-                  'No available ZIP codes',
-                  'All ZIP codes in ${controller.selectedState} are claimed',
-                  icon: Icons.location_off_outlined,
-                ),
-              ),
-            );
-          }
-
           return SliverPadding(
-            padding: const EdgeInsets.only(left: 20, right: 20),
-            sliver: SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (context, index) {
-                  final zip = controller.availableZipCodes[index];
-                  return RepaintBoundary(
-                    child: _buildZipCodeCard(context, zip, false),
-                  );
-                },
-                childCount: controller.availableZipCodes.length,
-                addAutomaticKeepAlives: false,
-
-                addRepaintBoundaries: true,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            sliver: SliverToBoxAdapter(
+              child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 300),
+              switchInCurve: Curves.easeOutCubic,
+              switchOutCurve: Curves.easeInCubic,
+              transitionBuilder: (child, animation) => FadeTransition(
+                opacity: animation,
+                child: child,
               ),
+              child: KeyedSubtree(
+                key: ValueKey<int>(controller.zipSectionTabIndex),
+                child: controller.zipSectionTabIndex == 0
+                    ? _buildClaimedZipContent(context)
+                    : _buildAvailableZipContent(context),
+              ),
+            ),
             ),
           );
         }),
       ],
     );
+  }
+
+  Widget _buildZipSectionTabBar(BuildContext context) {
+    return Obx(() {
+      final index = controller.zipSectionTabIndex;
+      return Container(
+        padding: const EdgeInsets.all(2),
+        decoration: BoxDecoration(
+          color: AppTheme.lightGray,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppTheme.primaryBlue.withOpacity(0.2)),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: _buildZipTabChip(
+                context,
+                label: 'Claimed (${controller.claimedZipCodes.length}/6)',
+                icon: Icons.check_circle_outline,
+                isSelected: index == 0,
+                onTap: () => controller.setZipSectionTab(0),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _buildZipTabChip(
+                context,
+                label: 'Available',
+                icon: Icons.add_location_alt_outlined,
+                isSelected: index == 1,
+                onTap: () => controller.setZipSectionTab(1),
+              ),
+            ),
+          ],
+        ),
+      );
+    });
+  }
+
+  Widget _buildZipTabChip(
+    BuildContext context, {
+    required String label,
+    required IconData icon,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? AppTheme.primaryBlue : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: AppTheme.primaryBlue.withOpacity(0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              size: 18,
+              color: isSelected ? AppTheme.white : AppTheme.mediumGray,
+            ),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: isSelected ? AppTheme.white : AppTheme.darkGray,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildClaimedZipContent(BuildContext context) {
+    return Obx(() {
+      if (controller.claimedZipCodes.isEmpty) {
+        return _buildEmptyState(
+          context,
+          'No claimed ZIP codes',
+          'Start by claiming a ZIP code from the Available tab',
+          icon: Icons.location_on_outlined,
+          infoMessage:
+              'Claim ZIP codes in your licensed states to appear in buyer and seller searches.',
+        );
+      }
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text(
+              'Your Claimed ZIP Codes',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: AppTheme.black,
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+          ),
+          ...controller.claimedZipCodes.map(
+            (zip) => RepaintBoundary(
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: _buildZipCodeCard(context, zip, true),
+              ),
+            ),
+          ),
+        ],
+      );
+    });
+  }
+
+  Widget _buildAvailableZipContent(BuildContext context) {
+    return Obx(() {
+      if (controller.availableZipCodes.isEmpty) {
+        return _buildEmptyState(
+          context,
+          'No available ZIP codes',
+          'All ZIP codes in ${controller.selectedState} are claimed',
+          icon: Icons.location_off_outlined,
+        );
+      }
+      final height = MediaQuery.of(context).size.height - 320;
+      return SizedBox(
+        height: height.clamp(280.0, 600.0),
+        child: ListView.builder(
+          padding: const EdgeInsets.only(top: 0, bottom: 16),
+          itemCount: controller.availableZipCodes.length,
+          itemBuilder: (context, index) {
+            final zip = controller.availableZipCodes[index];
+            return RepaintBoundary(
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: _buildZipCodeCard(context, zip, false),
+              ),
+            );
+          },
+        ),
+      );
+    });
   }
 
   Widget _buildZipTabInfoNote(BuildContext context, String message) {
@@ -1702,7 +1869,7 @@ class AgentView extends GetView<AgentController> {
             Expanded(
               child: _buildStatCard(
                 context,
-                'Under Contract',
+                'Pending',
                 controller.pendingListingsCount.toString(),
                 Icons.rule_folder_outlined,
                 Colors.orange,
@@ -1724,17 +1891,16 @@ class AgentView extends GetView<AgentController> {
                 'Closed + recorded',
               ),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildStatCard(
-                context,
-                'Needs Update',
-                controller.staleListingsCount.toString(),
-                Icons.warning_amber_outlined,
-                Colors.deepOrange,
-                '60+ days For Sale',
-              ),
-            ),
+            // Expanded(
+            //   child: _buildStatCard(
+            //     context,
+            //     'Needs Update',
+            //     controller.staleListingsCount.toString(),
+            //     Icons.warning_amber_outlined,
+            //     Colors.deepOrange,
+            //     '60+ days For Sale',
+            //   ),
+            // ),
           ],
         ),
         const SizedBox(height: 20),
@@ -1851,8 +2017,6 @@ class AgentView extends GetView<AgentController> {
   }
 
   Widget _buildListingCard(BuildContext context, AgentListingModel listing) {
-    final isActivatedState =
-        listing.isActive || controller.recentlyActivatedListingId == listing.id;
     return Container(
       decoration: BoxDecoration(
         color: AppTheme.white,
@@ -1919,39 +2083,11 @@ class AgentView extends GetView<AgentController> {
                       ],
                     ),
                   ),
-                // Status chip with quick actions
+                // Status chip (read-only)
                 Positioned(
                   top: 12,
                   right: 12,
-                  child: PopupMenuButton<MarketStatus>(
-                    tooltip: 'Update listing status',
-                    onSelected: (status) => controller
-                        .updateListingMarketStatus(listing.id, status),
-                    itemBuilder: (context) => MarketStatus.values
-                        .map(
-                          (status) => PopupMenuItem<MarketStatus>(
-                            value: status,
-                            child: Row(
-                              children: [
-                                if (listing.marketStatus == status)
-                                  const Icon(Icons.check, size: 16)
-                                else
-                                  const SizedBox(width: 16),
-                                const SizedBox(width: 8),
-                                Text(
-                                  status == MarketStatus.pending
-                                      ? 'Mark Under Contract'
-                                      : status == MarketStatus.sold
-                                      ? 'Mark Sold'
-                                      : 'Mark For Sale',
-                                ),
-                              ],
-                            ),
-                          ),
-                        )
-                        .toList(),
-                    child: _buildStatusChip(context, listing),
-                  ),
+                  child: _buildStatusChip(context, listing, showDropdown: false),
                 ),
               ],
             ),
@@ -2116,30 +2252,13 @@ class AgentView extends GetView<AgentController> {
                     Expanded(
                       child: CustomButton(
                         text: 'Edit',
-                        onPressed: () =>
-                            _showEditListingDialog(context, listing),
+                        onPressed: () => Get.to(
+                          () => EditAgentListingView(listing: listing),
+                          fullscreenDialog: true,
+                        ),
                         icon: Icons.edit_outlined,
                         isOutlined: true,
                         height: 44,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: CustomButton(
-                        text: listing.isActive ? 'Deactivate' : 'Activate',
-                        onPressed: () =>
-                            controller.toggleListingStatus(listing.id),
-                        icon: listing.isActive
-                            ? Icons.pause_outlined
-                            : Icons.play_arrow_outlined,
-                        isOutlined: true,
-                        height: 44,
-                        backgroundColor: listing.isActive
-                            ? Colors.orange
-                            : AppTheme.lightGreen,
-                        textColor: listing.isActive
-                            ? Colors.orange
-                            : AppTheme.lightGreen,
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -2166,28 +2285,6 @@ class AgentView extends GetView<AgentController> {
                     ),
                   ],
                 ),
-                if (isActivatedState)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.check_circle,
-                          color: AppTheme.lightGreen,
-                          size: 18,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          'Activated',
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(
-                                color: AppTheme.lightGreen,
-                                fontWeight: FontWeight.w600,
-                              ),
-                        ),
-                      ],
-                    ),
-                  ),
               ],
             ),
           ),
@@ -2196,37 +2293,32 @@ class AgentView extends GetView<AgentController> {
     );
   }
 
-  Widget _buildStatusChip(BuildContext context, AgentListingModel listing) {
+  Widget _buildStatusChip(BuildContext context, AgentListingModel listing, {bool showDropdown = true}) {
     Color color = AppTheme.mediumGray;
     IconData icon = Icons.help_outline;
     String label = 'Status';
 
-    if (!listing.isApproved) {
-      color = Colors.orange;
-      icon = Icons.pending_actions;
-      label = 'Pending Approval';
-    } else if (listing.rejectionReason != null) {
+    // Use marketStatus from API as the primary display (For Sale, Pending, Sold)
+    if (listing.rejectionReason != null) {
       color = Colors.red;
       icon = Icons.cancel_outlined;
       label = 'Needs Attention';
+    } else if (listing.marketStatus == MarketStatus.sold) {
+      color = Colors.teal;
+      icon = Icons.verified_outlined;
+      label = 'Sold';
+    } else if (listing.marketStatus == MarketStatus.pending) {
+      color = Colors.orange;
+      icon = Icons.rule_folder_outlined;
+      label = 'Pending';
+    } else if (!listing.isApproved) {
+      color = Colors.orange;
+      icon = Icons.pending_actions;
+      label = 'Pending Approval';
     } else {
-      switch (listing.marketStatus) {
-        case MarketStatus.forSale:
-          color = AppTheme.lightGreen;
-          icon = Icons.check_circle_outline;
-          label = 'For Sale';
-          break;
-        case MarketStatus.pending:
-          color = Colors.orange;
-          icon = Icons.rule_folder_outlined;
-          label = 'Under Contract';
-          break;
-        case MarketStatus.sold:
-          color = Colors.teal;
-          icon = Icons.verified_outlined;
-          label = 'Sold';
-          break;
-      }
+      color = AppTheme.lightGreen;
+      icon = Icons.check_circle_outline;
+      label = 'For Sale';
     }
 
     return Container(
@@ -2249,8 +2341,10 @@ class AgentView extends GetView<AgentController> {
               fontSize: 12,
             ),
           ),
-          const SizedBox(width: 2),
-          Icon(Icons.arrow_drop_down, color: color, size: 16),
+          if (showDropdown) ...[
+            const SizedBox(width: 2),
+            Icon(Icons.arrow_drop_down, color: color, size: 16),
+          ],
         ],
       ),
     );
@@ -3726,57 +3820,66 @@ class AgentView extends GetView<AgentController> {
           const SizedBox(height: 20),
 
           // Payment History
+          Row(
+            children: [
+              Icon(
+                Icons.receipt_long_rounded,
+                color: AppTheme.primaryBlue,
+                size: 22,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Payment History',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  color: AppTheme.black,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
           Text(
-            'Payment History',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              color: AppTheme.black,
-              fontWeight: FontWeight.w600,
+            'All your subscription and payment records',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: AppTheme.mediumGray,
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
 
-          // Display subscriptions from API
           Obx(() {
             if (controller.subscriptions.isEmpty) {
-              return Padding(
-                padding: const EdgeInsets.all(16),
-                child: Text(
-                  'No payment history available',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyMedium?.copyWith(color: AppTheme.mediumGray),
+              return Container(
+                padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 20),
+                decoration: BoxDecoration(
+                  color: AppTheme.lightGray,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: AppTheme.primaryBlue.withOpacity(0.2),
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.history_rounded,
+                      color: AppTheme.mediumGray,
+                      size: 32,
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      'No payment history yet',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppTheme.mediumGray,
+                      ),
+                    ),
+                  ],
                 ),
               );
             }
 
             return Column(
               children: controller.subscriptions.map((subscription) {
-                // Format date from createdAt or subscriptionStart
-                final dateStr =
-                    subscription['createdAt']?.toString() ??
-                    subscription['subscriptionStart']?.toString() ??
-                    '';
-                final date = DateTime.tryParse(dateStr);
-                final monthYear = date != null
-                    ? '${_getMonthName(date.month)} ${date.year}'
-                    : 'Unknown Date';
-
-                // Format amount
-                final amount = subscription['amountPaid'] as double? ?? 0.0;
-                final amountStr = '\$${amount.toStringAsFixed(2)}';
-
-                // Format status
-                final status =
-                    subscription['subscriptionStatus']?.toString() ?? '';
-                final displayStatus = _formatSubscriptionStatus(status);
-
-                // Payment History only shows payment records, no cancel buttons
-                return _buildPaymentItem(
-                  context,
-                  monthYear,
-                  amountStr,
-                  displayStatus,
-                );
+                return _buildPaymentHistoryCard(context, subscription);
               }).toList(),
             );
           }),
@@ -3789,7 +3892,6 @@ class AgentView extends GetView<AgentController> {
     BuildContext context,
     Map<String, dynamic> subscription,
   ) {
-    // Format date from createdAt or subscriptionStart
     final dateStr =
         subscription['createdAt']?.toString() ??
         subscription['subscriptionStart']?.toString() ??
@@ -3798,47 +3900,148 @@ class AgentView extends GetView<AgentController> {
     final monthYear = date != null
         ? '${_getMonthName(date.month)} ${date.year}'
         : 'Unknown Date';
+    final fullDate = date != null
+        ? '${_getMonthName(date.month)} ${date.day}, ${date.year}'
+        : 'Unknown Date';
 
-    // Format amount
-    final amount = subscription['amountPaid'] as double? ?? 0.0;
+    final amount = (subscription['amountPaid'] as num?)?.toDouble() ?? 0.0;
     final amountStr = '\$${amount.toStringAsFixed(2)}';
 
-    // Format status
     final status = subscription['subscriptionStatus']?.toString() ?? '';
     final displayStatus = _formatSubscriptionStatus(status);
 
-    // Get stripe customer ID for cancellation
     final stripeCustomerId = subscription['stripeCustomerId']?.toString();
 
-    return Card(
+    final startStr = subscription['subscriptionStart']?.toString();
+    final endStr = subscription['subscriptionEnd']?.toString();
+    final periodText = startStr != null && endStr != null
+        ? '${_formatShortDate(startStr)} – ${_formatShortDate(endStr)}'
+        : null;
+
+    final tier = subscription['subscriptionTier']?.toString();
+    final population = subscription['population'];
+    final zipcode = subscription['zipcode']?.toString();
+
+    final isActive = displayStatus == 'Active' || displayStatus == 'Paid';
+
+    return Container(
       margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: AppTheme.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.black.withOpacity(0.06),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+        border: Border.all(
+          color: AppTheme.primaryBlue.withOpacity(0.15),
+          width: 1,
+        ),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppTheme.primaryBlue.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    Icons.subscriptions_rounded,
+                    color: AppTheme.primaryBlue,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Subscription',
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(
-                              fontWeight: FontWeight.w600,
-                              color: AppTheme.black,
-                            ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        monthYear,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: AppTheme.darkGray,
+                        'Active subscription',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppTheme.primaryBlue,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.5,
                         ),
                       ),
+                      const SizedBox(height: 2),
+                      Text(
+                        monthYear,
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          color: AppTheme.black,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        fullDate,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppTheme.mediumGray,
+                        ),
+                      ),
+                      if (periodText != null) ...[
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.calendar_today_rounded,
+                              size: 12,
+                              color: AppTheme.mediumGray,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              periodText,
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                color: AppTheme.mediumGray,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                      if (tier != null && tier.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          tier,
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: AppTheme.darkGray,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                      if (zipcode != null && zipcode.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.location_on_outlined,
+                              size: 12,
+                              color: AppTheme.mediumGray,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              'ZIP: $zipcode',
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                color: AppTheme.darkGray,
+                                fontWeight: FontWeight.w500,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -3848,32 +4051,29 @@ class AgentView extends GetView<AgentController> {
                     Text(
                       amountStr,
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w800,
                         color: AppTheme.primaryBlue,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 6),
                     Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
+                        horizontal: 10,
+                        vertical: 5,
                       ),
                       decoration: BoxDecoration(
-                        color:
-                            displayStatus == 'Paid' || displayStatus == 'Active'
-                            ? Colors.green.withOpacity(0.1)
-                            : Colors.orange.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(4),
+                        color: isActive
+                            ? AppTheme.lightGreen.withOpacity(0.2)
+                            : Colors.orange.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
                         displayStatus,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color:
-                              displayStatus == 'Paid' ||
-                                  displayStatus == 'Active'
-                              ? Colors.green.shade700
-                              : Colors.orange.shade700,
                           fontWeight: FontWeight.w600,
+                          color: isActive
+                              ? AppTheme.lightGreen
+                              : Colors.orange.shade700,
                         ),
                       ),
                     ),
@@ -3881,25 +4081,58 @@ class AgentView extends GetView<AgentController> {
                 ),
               ],
             ),
+            if (population != null && (population as int) > 0) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: AppTheme.lightGray,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.people_outline_rounded,
+                      size: 14,
+                      color: AppTheme.mediumGray,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Population covered: ${_formatNumber(population)}',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppTheme.darkGray,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             if (stripeCustomerId != null && stripeCustomerId.isNotEmpty) ...[
+              const SizedBox(height: 14),
+              const Divider(height: 1),
               const SizedBox(height: 12),
               SizedBox(
                 width: double.infinity,
-                child: OutlinedButton(
+                child: OutlinedButton.icon(
                   onPressed: () => _showCancelConfirmationForSubscription(
                     context,
                     stripeCustomerId,
+                    subscription,
                   ),
-                  style: OutlinedButton.styleFrom(
-                    side: BorderSide(color: Colors.red.shade400),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                  child: Text(
-                    'Cancel Subscription',
+                  icon: Icon(Icons.cancel_outlined, size: 18, color: Colors.red.shade600),
+                  label: Text(
+                    'Cancel subscription',
                     style: TextStyle(
                       color: Colors.red.shade600,
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(color: Colors.red.shade300),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
                     ),
                   ),
                 ),
@@ -3913,56 +4146,206 @@ class AgentView extends GetView<AgentController> {
 
   void _showCancelConfirmationForSubscription(
     BuildContext context,
-    String stripeCustomerId,
-  ) {
+    String stripeCustomerId, [
+    Map<String, dynamic>? subscription,
+  ]) {
+    final amount = (subscription?['amountPaid'] as num?)?.toDouble() ?? 0.0;
+    final amountStr = '\$${amount.toStringAsFixed(2)}/month';
+    final startStr = subscription?['subscriptionStart']?.toString();
+    final endStr = subscription?['subscriptionEnd']?.toString();
+    String? periodText;
+    if (startStr != null && endStr != null) {
+      final s = DateTime.tryParse(startStr);
+      final e = DateTime.tryParse(endStr);
+      if (s != null && e != null) {
+        periodText = '${_getMonthName(s.month)} ${s.day}, ${s.year} – ${_getMonthName(e.month)} ${e.day}, ${e.year}';
+      }
+    }
+    final tier = subscription?['subscriptionTier']?.toString();
+    final zipcodeForDialog = subscription?['zipcode']?.toString();
+
     Get.dialog(
       AlertDialog(
-        title: const Text('Cancel Subscription'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
           children: [
-            const Text(
-              'Are you sure you want to cancel this subscription?',
-              style: TextStyle(fontSize: 16),
-            ),
-            const SizedBox(height: 12),
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.orange.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
+                color: Colors.orange.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(10),
               ),
-              child: Row(
-                children: [
-                  Icon(Icons.info_outline, color: Colors.orange, size: 20),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Your subscription will remain active for 30 days from today. You can cancel anytime with 30 days\' notice.',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.orange.shade700,
-                      ),
-                    ),
-                  ),
-                ],
+              child: Icon(Icons.cancel_outlined, color: Colors.orange.shade700, size: 24),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Text(
+                'Cancel Subscription',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
           ],
         ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'You are about to cancel your subscription. Please review the details below before confirming.',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppTheme.darkGray,
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppTheme.lightGray,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppTheme.primaryBlue.withOpacity(0.15)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Subscription details',
+                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                        color: AppTheme.primaryBlue,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    _buildCancelDialogDetailRow(context, 'Monthly amount', amountStr),
+                    if (periodText != null)
+                      _buildCancelDialogDetailRow(context, 'Current period', periodText),
+                    if (tier != null && tier.isNotEmpty)
+                      _buildCancelDialogDetailRow(context, 'Tier', tier),
+                    if (zipcodeForDialog != null && zipcodeForDialog.isNotEmpty)
+                      _buildCancelDialogDetailRow(
+                        context,
+                        'ZIP code',
+                        zipcodeForDialog,
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.info_outline_rounded, color: Colors.orange.shade700, size: 22),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'What happens when you cancel?',
+                            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                              color: Colors.orange.shade800,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            '• Your subscription will remain active for up to 30 days from today.\n'
+                            '• You will retain full access until the end of your current billing period.\n'
+                            '• Your claimed ZIP codes will remain yours until the period ends.\n'
+                            '• No further charges will be applied after cancellation.',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Colors.orange.shade800,
+                              height: 1.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Are you sure you want to proceed?',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppTheme.darkGray,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+        actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Keep Subscription'),
+            child: Text(
+              'Keep subscription',
+              style: TextStyle(
+                color: AppTheme.primaryBlue,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
-          TextButton(
+          const SizedBox(width: 8),
+          ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
               controller.cancelSubscription(stripeCustomerId);
             },
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Cancel Subscription'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red.shade600,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: const Text('Yes, cancel subscription'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCancelDialogDetailRow(
+    BuildContext context,
+    String label,
+    String value,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 110,
+            child: Text(
+              label,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: AppTheme.mediumGray,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: AppTheme.black,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
           ),
         ],
       ),
@@ -4034,72 +4417,216 @@ class AgentView extends GetView<AgentController> {
     }
   }
 
-  Widget _buildPaymentItem(
+  Widget _buildPaymentHistoryCard(
     BuildContext context,
-    String month,
-    String amount,
-    String status, {
-    bool canCancel = false,
-    VoidCallback? onCancel,
-  }) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
+    Map<String, dynamic> subscription,
+  ) {
+    final dateStr =
+        subscription['createdAt']?.toString() ??
+        subscription['subscriptionStart']?.toString() ??
+        '';
+    final date = DateTime.tryParse(dateStr);
+    final monthYear = date != null
+        ? '${_getMonthName(date.month)} ${date.year}'
+        : 'Unknown Date';
+    final fullDate = date != null
+        ? '${_getMonthName(date.month)} ${date.day}, ${date.year}'
+        : 'Unknown Date';
+
+    final amount = (subscription['amountPaid'] as num?)?.toDouble() ?? 0.0;
+    final amountStr = '\$${amount.toStringAsFixed(2)}';
+
+    final status = subscription['subscriptionStatus']?.toString() ?? '';
+    final displayStatus = _formatSubscriptionStatus(status);
+
+    final startStr = subscription['subscriptionStart']?.toString();
+    final endStr = subscription['subscriptionEnd']?.toString();
+    final periodText = startStr != null && endStr != null
+        ? '${_formatShortDate(startStr)} – ${_formatShortDate(endStr)}'
+        : null;
+
+    final tier = subscription['subscriptionTier']?.toString();
+    final population = subscription['population'];
+    final zipcode = subscription['zipcode']?.toString();
+
+    final isActive = displayStatus == 'Active' || displayStatus == 'Paid';
+    final isCancelled = displayStatus == 'Canceled' || displayStatus == 'Cancelled';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: AppTheme.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.black.withOpacity(0.06),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+        border: Border.all(
+          color: AppTheme.primaryBlue.withOpacity(0.15),
+          width: 1,
+        ),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppTheme.primaryBlue.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    isCancelled ? Icons.cancel_outlined : Icons.payment_rounded,
+                    color: AppTheme.primaryBlue,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        month,
-                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          color: AppTheme.darkGray,
-                          fontWeight: FontWeight.w500,
+                        monthYear,
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          color: AppTheme.black,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 2),
                       Text(
-                        status,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fullDate,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: AppTheme.mediumGray,
                         ),
                       ),
+                      if (periodText != null) ...[
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.calendar_today_rounded,
+                              size: 12,
+                              color: AppTheme.mediumGray,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              periodText,
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                color: AppTheme.mediumGray,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                      if (tier != null && tier.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          tier,
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: AppTheme.darkGray,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                      if (zipcode != null && zipcode.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.location_on_outlined,
+                              size: 12,
+                              color: AppTheme.mediumGray,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              'ZIP: $zipcode',
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                color: AppTheme.darkGray,
+                                fontWeight: FontWeight.w500,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ],
                   ),
                 ),
-                Text(
-                  amount,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: AppTheme.primaryBlue,
-                    fontWeight: FontWeight.w600,
-                  ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      amountStr,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: AppTheme.primaryBlue,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: isActive
+                            ? AppTheme.lightGreen.withOpacity(0.2)
+                            : isCancelled
+                                ? Colors.red.withOpacity(0.1)
+                                : Colors.orange.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        displayStatus,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: isActive
+                              ? AppTheme.lightGreen
+                              : isCancelled
+                                  ? Colors.red.shade700
+                                  : Colors.orange.shade700,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
-            if (canCancel && onCancel != null) ...[
+            if (population != null && (population as int) > 0) ...[
               const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton(
-                  onPressed: onCancel,
-                  style: OutlinedButton.styleFrom(
-                    side: BorderSide(color: Colors.red.shade400),
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                  ),
-                  child: Text(
-                    'Cancel Subscription',
-                    style: TextStyle(
-                      color: Colors.red.shade600,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: AppTheme.lightGray,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.people_outline_rounded,
+                      size: 14,
+                      color: AppTheme.mediumGray,
                     ),
-                  ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Population covered: ${_formatNumber(population)}',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppTheme.darkGray,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -4107,6 +4634,18 @@ class AgentView extends GetView<AgentController> {
         ),
       ),
     );
+  }
+
+  String _formatShortDate(String dateStr) {
+    final d = DateTime.tryParse(dateStr);
+    if (d == null) return dateStr;
+    return '${_getMonthName(d.month).substring(0, 3)} ${d.day}, ${d.year}';
+  }
+
+  String _formatNumber(int n) {
+    if (n >= 1000000) return '${(n / 1000000).toStringAsFixed(1)}M';
+    if (n >= 1000) return '${(n / 1000).toStringAsFixed(1)}K';
+    return n.toString();
   }
 
   /// Helper method to get month name from month number
@@ -4387,12 +4926,12 @@ class AgentView extends GetView<AgentController> {
                       activityData['Inquiries'] ?? 0,
                       AppTheme.lightGreen,
                     ),
-                    const SizedBox(height: 12),
-                    _buildStatsActivityItem(
-                      'Showings',
-                      activityData['Showings'] ?? 0,
-                      Colors.orange,
-                    ),
+                    // const SizedBox(height: 12),
+                    // _buildStatsActivityItem(
+                    //   'Showings',
+                    //   activityData['Showings'] ?? 0,
+                    //   Colors.orange,
+                    // ),
                     const SizedBox(height: 12),
                     _buildStatsActivityItem(
                       'Offers',

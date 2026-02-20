@@ -56,6 +56,7 @@ class AgentController extends GetxController {
   final _isLoadingLeads = false.obs;
   final _selectedTab = 0
       .obs; // 0: Dashboard, 1: ZIP Management, 2: My Listings, 3: Stats, 4: Billing, 5: Leads
+  final _zipSectionTabIndex = 0.obs; // 0: Claimed ZIPs, 1: Available ZIPs
   final _recentlyActivatedListingId = Rxn<String>();
   final _recentNotifications = <NotificationModel>[].obs;
   final _isLoadingRecentActivity = false.obs;
@@ -118,6 +119,11 @@ class AgentController extends GetxController {
   bool get isLoadingZipCodes => _isLoadingZipCodes.value;
   String? get selectedState => _selectedState.value;
   int get selectedTab => _selectedTab.value;
+  int get zipSectionTabIndex => _zipSectionTabIndex.value;
+
+  void setZipSectionTab(int index) {
+    _zipSectionTabIndex.value = index.clamp(0, 1);
+  }
   String? get recentlyActivatedListingId => _recentlyActivatedListingId.value;
   List<NotificationModel> get recentNotifications => _recentNotifications;
   bool get isLoadingRecentActivity => _isLoadingRecentActivity.value;
@@ -1062,6 +1068,7 @@ class AgentController extends GetxController {
               .whereType<Map<String, dynamic>>()
               .map(
                 (subJson) => {
+                  'zipcode': subJson['zipcode']?.toString(),
                   'stripeCustomerId': subJson['stripeCustomerId']?.toString(),
                   'stripeSubscriptionId': subJson['stripeSubscriptionId']
                       ?.toString(),
@@ -1360,6 +1367,7 @@ class AgentController extends GetxController {
             final paymentSuccessResult = await _callPaymentSuccessAPI(
               sessionId,
               authToken,
+              zipcode: zipCode.zipCode,
             );
             final successFlag =
                 paymentSuccessResult?['success'] as bool? ?? true;
@@ -1581,20 +1589,27 @@ class AgentController extends GetxController {
   }
 
   /// Calls the paymentSuccess API after successful payment
-  /// Returns true if successful, false otherwise
+  /// Returns the response map if successful, null otherwise
+  /// Pass [zipcode] for ZIP subscription payments; omit for listing purchases.
   Future<Map<String, dynamic>?> _callPaymentSuccessAPI(
     String checkoutSessionId,
-    String? authToken,
-  ) async {
+    String? authToken, {
+    String? zipcode,
+  }) async {
     try {
+      final path = ApiConstants.getPaymentSuccessPath(
+        checkoutSessionId,
+        zipcode: zipcode,
+      );
       if (kDebugMode) {
         print('📡 Calling paymentSuccess API');
         print('   Checkout Session ID: $checkoutSessionId');
-        print('   Endpoint: /subscription/paymentSuccess/$checkoutSessionId');
+        if (zipcode != null) print('   ZIP Code: $zipcode');
+        print('   Endpoint: $path');
       }
 
       final response = await _dio.get(
-        '/subscription/paymentSuccess/$checkoutSessionId',
+        path,
         options: Options(
           headers: {
             'ngrok-skip-browser-warning': 'true',
@@ -1983,7 +1998,10 @@ class AgentController extends GetxController {
     try {
       _isLoadingZipCodes.value = true;
       final svc = ZipCodesService();
-      final list = await svc.getStateZipCodes(state: stateName);
+      final list = await svc.getStateZipCodes(
+        state: stateName,
+        includeClaimStatus: false, // verify API only when user enters 5-digit ZIP
+      );
       _stateZipCodesFromApi.addAll(list);
       final filtered = _filterAvailableZipCodes(_stateZipCodesFromApi);
       _availableZipCodes.value = filtered;
@@ -2480,24 +2498,46 @@ class AgentController extends GetxController {
         print('   Response: $responseData');
       }
 
-      // INSTANT update: Mark subscription as cancelled in local state immediately
+      // INSTANT update: Mark subscription as cancelled in local state FIRST for immediate UI
       final cancelledSubId = stripeSubscriptionId;
-      final subs = List<Map<String, dynamic>>.from(_subscriptions);
-      for (var i = 0; i < subs.length; i++) {
-        final subId = subs[i]['stripeSubscriptionId']?.toString() ??
-            subs[i]['_id']?.toString();
+      final subsBefore = List<Map<String, dynamic>>.from(_subscriptions);
+      Map<String, dynamic>? cancelledSubCopy;
+      for (var i = 0; i < subsBefore.length; i++) {
+        final subId = subsBefore[i]['stripeSubscriptionId']?.toString() ??
+            subsBefore[i]['_id']?.toString();
         if (subId == cancelledSubId) {
-          subs[i] = Map<String, dynamic>.from(subs[i])
+          subsBefore[i] = Map<String, dynamic>.from(subsBefore[i])
             ..['subscriptionStatus'] = 'cancelled';
+          cancelledSubCopy = Map<String, dynamic>.from(subsBefore[i]);
           break;
         }
       }
-      _subscriptions.value = subs;
+      _subscriptions.value = subsBefore;
+      _subscriptions.refresh();
 
-      // Clear claimed ZIPs for cancelled subscription - instant UI update
+      // Refresh from API (claimed ZIPs, etc.)
       await fetchUserStats();
 
-      // Show success instantly (no delay)
+      // Re-apply cancelled status in case API returned stale data or excluded the sub
+      final subsAfter = List<Map<String, dynamic>>.from(_subscriptions);
+      var found = false;
+      for (var i = 0; i < subsAfter.length; i++) {
+        final subId = subsAfter[i]['stripeSubscriptionId']?.toString() ??
+            subsAfter[i]['_id']?.toString();
+        if (subId == cancelledSubId) {
+          subsAfter[i] = Map<String, dynamic>.from(subsAfter[i])
+            ..['subscriptionStatus'] = 'cancelled';
+          found = true;
+          break;
+        }
+      }
+      if (!found && cancelledSubCopy != null) {
+        subsAfter.insert(0, cancelledSubCopy);
+      }
+      _subscriptions.value = subsAfter;
+      _subscriptions.refresh();
+
+      // Show success (no delay)
       SnackbarHelper.showSuccess(
         'Subscription cancellation processed. Your subscription status has been updated.',
         title: 'Success',
@@ -2864,6 +2904,7 @@ class AgentController extends GetxController {
     String bacPercentage,
     bool listingAgent,
     bool dualAgencyAllowed, {
+    MarketStatus? marketStatus,
     List<String>? remainingImageUrls,
     List<File>? newImageFiles,
   }) async {
@@ -2874,6 +2915,22 @@ class AgentController extends GetxController {
       final authToken = _storage.read('auth_token');
       if (authToken == null) {
         throw Exception('Not authenticated');
+      }
+
+      // Map MarketStatus to API status string (API uses: active, pending, sold)
+      String statusStr = 'active';
+      if (marketStatus != null) {
+        switch (marketStatus) {
+          case MarketStatus.forSale:
+            statusStr = 'active';
+            break;
+          case MarketStatus.pending:
+            statusStr = 'pending';
+            break;
+          case MarketStatus.sold:
+            statusStr = 'sold';
+            break;
+        }
       }
 
       // Create FormData for multipart/form-data request
@@ -2888,7 +2945,7 @@ class AgentController extends GetxController {
         'city': city,
         'state': state,
         'zipCode': zipCode,
-        'status': 'active', // Default to active
+        'status': statusStr,
         'createdByRole': 'agent',
       });
 
@@ -2964,7 +3021,22 @@ class AgentController extends GetxController {
           print('✅ Listing updated successfully');
         }
 
-        // Refresh listings
+        // Update local listing instantly so status shows immediately on the card
+        if (marketStatus != null) {
+          final idx = _allListings.indexWhere((l) => l.id == listingId);
+          if (idx != -1) {
+            final curr = _allListings[idx];
+            _allListings[idx] = curr.copyWith(
+              marketStatus: marketStatus,
+              updatedAt: DateTime.now(),
+              isActive: marketStatus != MarketStatus.sold,
+            );
+            _allListings.refresh();
+            _applyFilters();
+          }
+        }
+
+        // Refresh from API
         await fetchAgentListings();
       }
     } catch (e) {

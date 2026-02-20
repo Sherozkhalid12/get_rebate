@@ -159,22 +159,23 @@ class AgentListingModel {
         .cast<String>()
         .toList();
 
-    // Determine approval status and market status
-    // status: "active" means For Sale, "draft" means pending approval
+    // Determine approval status and market status from API
+    // Prefer marketStatus from API if present; else derive from status
     final statusString = json['status']?.toString() ?? '';
+    final marketStatusRaw = json['marketStatus']?.toString() ?? '';
     final isActive = json['active'] ?? false;
     final isApproved = statusString == 'active' || isActive;
     
-    // Map status to MarketStatus
     MarketStatus marketStatus;
-    if (statusString == 'active') {
+    if (marketStatusRaw.isNotEmpty) {
+      marketStatus = _marketStatusFromString(marketStatusRaw);
+    } else if (statusString == 'active') {
       marketStatus = MarketStatus.forSale;
     } else if (statusString == 'pending' || statusString == 'draft') {
       marketStatus = MarketStatus.pending;
     } else if (statusString == 'sold') {
       marketStatus = MarketStatus.sold;
     } else {
-      // Default based on active flag
       marketStatus = isActive ? MarketStatus.forSale : MarketStatus.pending;
     }
 

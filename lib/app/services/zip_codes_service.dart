@@ -406,12 +406,13 @@ class ZipCodesService {
   ///
   /// [country] e.g. "US", [state] e.g. "CA" or "California"
   /// [includeClaimStatus] when true, enriches zips with claimedByAgent/claimedByOfficer
-  /// from verify API (:country/:state/:zipcode) since getstateZip may omit them
+  /// from verify API (:country/:state/:zipcode). Default false - only call verify API
+  /// when user explicitly enters a 5-digit ZIP in search.
   /// Throws [ZipCodesServiceException] on failure
   Future<List<ZipCodeModel>> getStateZipCodes({
     String country = 'US',
     required String state,
-    bool includeClaimStatus = true,
+    bool includeClaimStatus = false,
   }) async {
     if (state.isEmpty) {
       throw ZipCodesServiceException(

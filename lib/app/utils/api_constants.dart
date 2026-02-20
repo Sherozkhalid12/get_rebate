@@ -78,6 +78,16 @@ class ApiConstants {
   static String get cancelSubscriptionEndpoint =>
       "$apiBaseUrl/subscription/cancelSubscription";
 
+  /// Path for payment success API (relative to apiBaseUrl).
+  /// GET subscription/paymentSuccess/sessionid/{sessionId}/zipcode/{zipcode}
+  /// Called after successful Stripe checkout to verify and record payment for a ZIP subscription.
+  static String getPaymentSuccessPath(String sessionId, {String? zipcode}) {
+    if (zipcode != null && zipcode.isNotEmpty) {
+      return "/subscription/paymentSuccess/$sessionId/$zipcode";
+    }
+    return "/subscription/paymentSuccess/sessionid/$sessionId";
+  }
+
   // API version prefix
   static const String _apiVersion = '/api/v1';
 
