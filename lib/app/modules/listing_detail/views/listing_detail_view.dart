@@ -1215,7 +1215,9 @@ class ListingDetailView extends GetView<ListingDetailController> {
                         agent.phone!,
                         onTap: () async {
                           try {
-                            // Record contact when user taps to call
+                            // Record listing contact
+                            controller.recordListingContact();
+                            // Record agent contact when user taps to call
                             try {
                               final agentService = AgentService();
                               await agentService.recordContact(agent.id);
@@ -1262,6 +1264,7 @@ class ListingDetailView extends GetView<ListingDetailController> {
                       agent.email,
                       onTap: () async {
                         try {
+                          controller.recordListingContact();
                           final uri = Uri.parse(
                             'mailto:${agent.email}?subject=Inquiry about Property Listing',
                           );

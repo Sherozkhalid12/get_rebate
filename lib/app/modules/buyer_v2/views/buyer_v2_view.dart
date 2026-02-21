@@ -87,7 +87,7 @@ class BuyerV2View extends GetView<BuyerV2Controller> {
               Obx(
                 () => CustomSearchField(
                   controller: controller.searchController,
-                  hintText: 'Enter ZIP code (5 digits)',
+                  hintText: 'Enter a ZIP code to begin your search',
                   isLocationLoading: controller.isFetchingLocation,
                   onChanged: (value) {
                     if (value.isEmpty || value.trim().isEmpty) {
@@ -109,10 +109,18 @@ class BuyerV2View extends GetView<BuyerV2Controller> {
                   },
                 ),
               ),
-              // if (hasSearch) ...[
-              //   const SizedBox(height: 12),
-              //   _buildStateLimitNote(context),
-              // ],
+              if (controller.searchController.text.trim().isEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8, left: 4),
+                  child: Text(
+                    'Find rebate-friendly agents, homes, and loan officers in your area',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppTheme.mediumGray,
+                      fontSize: 12,
+                      height: 1.3,
+                    ),
+                  ),
+                ),
               const SizedBox(height: 20),
 
               // 4 BUTTONS — 2×2 GRID — USING ONLY CustomButton

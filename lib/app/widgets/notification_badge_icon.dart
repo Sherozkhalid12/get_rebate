@@ -38,78 +38,48 @@ class _NotificationBadgeIconState extends State<NotificationBadgeIcon> {
           _controller.fetchNotifications();
           Get.toNamed('/notifications');
         },
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            Icon(
-              Icons.notifications_outlined,
-              color: AppTheme.white,
-              size: 24.sp,
-            ),
-            if (unreadCount > 0)
-              Positioned(
-                right: -6,
-                top: -6,
-                child: Builder(
-                  builder: (context) {
-                    final badge = Container(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: unreadCount > 9 ? 5.w : 6.w,
-                        vertical: 4.h,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.red,
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: AppTheme.white,
-                          width: 2,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.red.withOpacity(0.5),
-                            blurRadius: 4,
-                            spreadRadius: 1,
-                          ),
-                        ],
-                      ),
-                      constraints: BoxConstraints(
-                        minWidth: 20.w,
-                        minHeight: 20.h,
-                      ),
-                      child: Center(
-                        child: Text(
-                          unreadCount > 99 ? '99+' : unreadCount.toString(),
-                          style: TextStyle(
-                            color: AppTheme.white,
-                            fontSize: 10.sp,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                    );
-
-                    return badge
-                        .animate()
-                        .scale(
-                          duration: 200.ms,
-                          curve: Curves.elasticOut,
-                        )
-                        .then()
-                        .shake(
-                          duration: 300.ms,
-                          hz: 4,
-                        );
-                  },
-                ),
+        child: SizedBox(
+          width: 24.w,
+          height: 24.h,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Icon(
+                Icons.notifications_outlined,
+                color: AppTheme.white,
+                size: 24.sp,
               ),
-          ],
-        )
-            .animate()
-            .scale(
-              duration: 200.ms,
-              curve: Curves.easeOut,
-            ),
+              if (unreadCount > 0)
+                Positioned(
+                  right: -1,
+                  top: -1,
+                  child: Container(
+                    width: 9,
+                    height: 9,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFF4757),
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFFFF4757).withOpacity(0.4),
+                          blurRadius: 2,
+                          spreadRadius: 0,
+                        ),
+                      ],
+                    ),
+                  )
+                      .animate()
+                      .scale(
+                        begin: const Offset(0.5, 0.5),
+                        end: const Offset(1, 1),
+                        duration: 220.ms,
+                        curve: Curves.easeOutCubic,
+                      )
+                      .fadeIn(duration: 180.ms),
+                ),
+            ],
+          ),
+        ),
       );
     });
   }

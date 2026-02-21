@@ -99,7 +99,7 @@ class FindAgentsView extends GetView<FindAgentsController> {
               const SizedBox(height: 12),
               CustomSearchField(
                 controller: controller.zipSearchController,
-                hintText: 'Enter ZIP code (5 digits)',
+                hintText: 'Enter a ZIP code to begin your search',
                 onChanged: (value) {
                   if (value.isEmpty || value.trim().isEmpty) {
                     controller.clearZipCodeFilter();
@@ -119,6 +119,18 @@ class FindAgentsView extends GetView<FindAgentsController> {
                   controller.clearZipCodeFilter();
                 },
               ),
+              if (controller.zipSearchController.text.trim().isEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8, left: 4),
+                  child: Text(
+                    'Find rebate-friendly agents who serve your area',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppTheme.mediumGray,
+                      fontSize: 12,
+                      height: 1.3,
+                    ),
+                  ),
+                ),
             ],
           );
         },

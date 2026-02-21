@@ -1647,8 +1647,7 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                   child: CustomTextField(
                     controller: controller.zipSearchController,
                     labelText: 'Search or enter 5-digit ZIP',
-                    hintText:
-                        'Filter by prefix, or type 5 digits to validate & fetch',
+                    hintText: 'Enter a ZIP code to begin your search',
                     prefixIcon: Icons.search,
                     keyboardType: TextInputType.number,
                     maxLength: 5,

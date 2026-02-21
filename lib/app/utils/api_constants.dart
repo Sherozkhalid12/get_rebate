@@ -249,6 +249,21 @@ class ApiConstants {
   // Listing specific endpoints
   static String get createListingEndpoint => "$apiBaseUrl/agent/createListing/";
 
+  /// GET - Record listing view (when user opens listing detail)
+  static String getAddListingViewEndpoint(String listingId) {
+    return "$apiBaseUrl/agent/addListingView/$listingId";
+  }
+
+  /// GET - Record listing search (when listing appears in search results)
+  static String getAddListingSearchEndpoint(String listingId) {
+    return "$apiBaseUrl/agent/addListingSearch/$listingId";
+  }
+
+  /// GET - Record listing contact (when user taps contact on listing)
+  static String getAddListingContactEndpoint(String listingId) {
+    return "$apiBaseUrl/agent/addListingContact/$listingId";
+  }
+
   static String getUpdateListingEndpoint(String listingId) {
     return "$apiBaseUrl/agent/updateListing/$listingId";
   }

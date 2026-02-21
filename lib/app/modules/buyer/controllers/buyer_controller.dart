@@ -1206,15 +1206,21 @@ class BuyerV2Controller extends GetxController {
     final zipCode = _currentZipCode.value;
 
     if (zipCode == null || zipCode.isEmpty) {
-      _agents.value = List.from(_allAgents);
-      _loanOfficers.value = List.from(_allLoanOfficers);
+      // Only show agents and loan officers who have at least one claimed zip
+      // Don't show if claimedZipCodes array is empty
+      _agents.value = _allAgents
+          .where((a) => a.claimedZipCodes.isNotEmpty)
+          .toList();
+      _loanOfficers.value = _allLoanOfficers
+          .where((lo) => lo.claimedZipCodes.isNotEmpty)
+          .toList();
       _listings.value = List.from(_allListings);
       _openHouses.value = List.from(_allOpenHouses);
       _agents.refresh();
       _loanOfficers.refresh();
       _listings.refresh();
       _openHouses.refresh();
-      if (kDebugMode) print('📋 Showing all data (no filter)');
+      if (kDebugMode) print('📋 Showing agents/LOs with claimed zips only (no filter)');
       _recordSearchesForDisplayedAgents();
       _recordSearchesForDisplayedLoanOfficers();
       return;
@@ -1228,25 +1234,12 @@ class BuyerV2Controller extends GetxController {
       final mapNorm = map.map((k, v) => MapEntry(k.trim(), v));
       final zipSet = mapNorm.keys.toSet();
 
+      // Only agents who have claimed the zip (claimedZipCodes only)
       double minDistAgent(AgentModel a) {
+        if (a.claimedZipCodes.isEmpty) return double.infinity;
         double best = double.infinity;
-        for (final z in [...a.claimedZipCodes, ...a.serviceZipCodes]) {
+        for (final z in a.claimedZipCodes) {
           final t = z.trim();
-          if (zipSet.contains(t)) {
-            final d = mapNorm[t] ?? double.infinity;
-            if (d < best) best = d;
-          }
-        }
-        for (final z in a.serviceAreas ?? []) {
-          final t = z.trim();
-          if (zipSet.contains(t)) {
-            final d = mapNorm[t] ?? double.infinity;
-            if (d < best) best = d;
-          }
-        }
-        for (final l in _allListings) {
-          if (l.agentId != a.id) continue;
-          final t = (l.address.zip ?? '').trim();
           if (zipSet.contains(t)) {
             final d = mapNorm[t] ?? double.infinity;
             if (d < best) best = d;
@@ -1255,7 +1248,9 @@ class BuyerV2Controller extends GetxController {
         return best;
       }
 
+      // Only loan officers who have claimed the zip (claimedZipCodes only)
       double minDistLO(LoanOfficerModel lo) {
+        if (lo.claimedZipCodes.isEmpty) return double.infinity;
         double best = double.infinity;
         for (final z in lo.claimedZipCodes) {
           final t = z.trim();
@@ -1303,16 +1298,16 @@ class BuyerV2Controller extends GetxController {
       });
       _openHouses.value = ohList;
     } else {
+      // Only show agents and loan officers who have claimed this specific zip
+      // Don't show if claimedZipCodes is empty
       _agents.value = _allAgents.where((agent) {
-        final hasClaimed = agent.claimedZipCodes.any((z) => z.trim() == normalizedZipCode);
-        final hasService = agent.serviceZipCodes.any((z) => z.trim() == normalizedZipCode);
-        final hasArea = agent.serviceAreas?.any((z) => z.trim() == normalizedZipCode) ?? false;
-        final hasListing = _allListings.any((l) =>
-            l.agentId == agent.id && (l.address.zip ?? '').trim() == normalizedZipCode);
-        return hasClaimed || hasService || hasArea || hasListing;
+        if (agent.claimedZipCodes.isEmpty) return false;
+        return agent.claimedZipCodes.any((z) => z.trim() == normalizedZipCode);
       }).toList();
-      _loanOfficers.value = _allLoanOfficers.where((lo) =>
-          lo.claimedZipCodes.any((z) => z.trim() == normalizedZipCode)).toList();
+      _loanOfficers.value = _allLoanOfficers.where((lo) {
+        if (lo.claimedZipCodes.isEmpty) return false;
+        return lo.claimedZipCodes.any((z) => z.trim() == normalizedZipCode);
+      }).toList();
       final filteredIds = _allListings
           .where((l) => (l.address.zip ?? '').trim() == normalizedZipCode)
           .where((l) => !RebateRestrictedStates.isRestricted(l.address.state ?? ''))

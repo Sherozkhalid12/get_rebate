@@ -397,8 +397,11 @@ class FindAgentsController extends GetxController {
   void _applyZipCodeFilterAndSort() {
     if (selectedZipCode.value.isEmpty) {
       _within10MilesMap = null;
+      // Only show agents who have at least one claimed zip (don't show if empty)
       _filteredAndSortedAgents.clear();
-      _filteredAndSortedAgents.addAll(_allLoadedAgents);
+      _filteredAndSortedAgents.addAll(
+        _allLoadedAgents.where((a) => a.claimedZipCodes.isNotEmpty),
+      );
       _totalFilteredCount.value = _filteredAndSortedAgents.length;
       return;
     }
@@ -414,23 +417,11 @@ class FindAgentsController extends GetxController {
       final mapNorm = map.map((k, v) => MapEntry(k.trim(), v));
       final zipSet = mapNorm.keys.toSet();
 
+      // Only agents who have claimed the zip (claimedZipCodes only)
       double minDistAgent(AgentModel a) {
+        if (a.claimedZipCodes.isEmpty) return double.infinity;
         double best = double.infinity;
-        for (final z in [...a.claimedZipCodes, ...a.serviceZipCodes]) {
-          final t = z.trim();
-          if (zipSet.contains(t)) {
-            final d = mapNorm[t] ?? double.infinity;
-            if (d < best) best = d;
-          }
-        }
-        for (final z in a.serviceAreas ?? []) {
-          final t = z.trim();
-          if (zipSet.contains(t)) {
-            final d = mapNorm[t] ?? double.infinity;
-            if (d < best) best = d;
-          }
-        }
-        for (final z in a.activeListingZipCodes) {
+        for (final z in a.claimedZipCodes) {
           final t = z.trim();
           if (zipSet.contains(t)) {
             final d = mapNorm[t] ?? double.infinity;
@@ -445,18 +436,11 @@ class FindAgentsController extends GetxController {
           .toList();
       matchingAgents.sort((a, b) => minDistAgent(a).compareTo(minDistAgent(b)));
     } else {
-      // Fallback: exact ZIP match only
+      // Only agents who have claimed this specific zip (don't show if empty)
       matchingAgents = _allLoadedAgents.where((agent) {
-        final hasClaimedZip = agent.claimedZipCodes.any(
+        if (agent.claimedZipCodes.isEmpty) return false;
+        return agent.claimedZipCodes.any(
             (claimedZip) => claimedZip.trim() == zipCode);
-        final hasServiceZip = agent.serviceZipCodes.any(
-            (serviceZip) => serviceZip.trim() == zipCode);
-        final hasServiceArea = agent.serviceAreas
-                ?.any((area) => area.trim() == zipCode) ??
-            false;
-        final hasListingZip = agent.activeListingZipCodes.any(
-            (listingZip) => listingZip.trim() == zipCode);
-        return hasClaimedZip || hasServiceZip || hasServiceArea || hasListingZip;
       }).toList();
 
       matchingAgents.sort((a, b) {

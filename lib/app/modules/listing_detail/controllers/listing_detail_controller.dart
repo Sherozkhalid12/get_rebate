@@ -3,9 +3,11 @@ import 'package:get/get.dart';
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:getrebate/app/models/listing.dart';
 import 'package:getrebate/app/services/listing_service.dart';
+import 'package:getrebate/app/services/listing_tracking_service.dart';
 
 class ListingDetailController extends GetxController {
   final ListingService _listingService = InMemoryListingService();
+  final ListingTrackingService _listingTrackingService = ListingTrackingService();
   final Rxn<Listing> _listing = Rxn<Listing>();
   final CarouselSliderController carouselController = CarouselSliderController();
   final _currentImageIndex = 0.obs;
@@ -22,6 +24,7 @@ class ListingDetailController extends GetxController {
     _listing.value = args?['listing'] as Listing?;
     if (listing != null) {
       _listingService.incrementStats(listing!.id, view: true);
+      _listingTrackingService.recordListingView(listing!.id);
       
       // Print full listing data
       if (kDebugMode) {
@@ -63,6 +66,13 @@ class ListingDetailController extends GetxController {
 
   void onImageChanged(int index) {
     _currentImageIndex.value = index;
+  }
+
+  /// Record listing contact - call when user taps contact (phone/email)
+  void recordListingContact() {
+    if (listing != null && listing!.id.isNotEmpty) {
+      _listingTrackingService.recordListingContact(listing!.id);
+    }
   }
 
   @override

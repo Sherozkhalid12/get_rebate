@@ -318,13 +318,21 @@ class AgentView extends GetView<AgentController> {
             const SizedBox(height: 20),
             CustomButton(
               text: 'View Complete Checklist',
+              onPressed: () => Get.toNamed('/rebate-checklist'),
+              icon: Icons.assignment_outlined,
+              width: double.infinity,
+            ),
+            const SizedBox(height: 12),
+            CustomButton(
+              text: 'Profile & Setup Guide',
               onPressed: () {
                 Get.to(
                   () => const AgentChecklistView(),
                   binding: AgentChecklistBinding(),
                 );
               },
-              icon: Icons.assignment_outlined,
+              icon: Icons.lightbulb_outline,
+              isOutlined: true,
               width: double.infinity,
             ),
           ],
@@ -1143,8 +1151,7 @@ class AgentView extends GetView<AgentController> {
                   child: CustomTextField(
                     controller: controller.zipSearchController,
                     labelText: 'Search or enter 5-digit ZIP',
-                    hintText:
-                        'Filter by prefix, or type 5 digits to validate & fetch',
+                    hintText: 'Enter a ZIP code to begin your search',
                     prefixIcon: Icons.search,
                     keyboardType: TextInputType.number,
                     maxLength: 5,

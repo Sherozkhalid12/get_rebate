@@ -180,7 +180,7 @@ class BuyerLeadFormView extends GetView<BuyerLeadFormController> {
             CustomTextField(
               controller: controller.locationController,
               labelText: 'Where are you planning to buy or build? *',
-              hintText: 'Enter ZIP code or city, state',
+              hintText: 'Enter a ZIP code to begin your search',
               prefixIcon: Icons.location_on_outlined,
               suffixIcon: IconButton(
                 icon: Icon(Icons.my_location, color: AppTheme.primaryBlue, size: 20),
