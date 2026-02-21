@@ -10,6 +10,7 @@ import 'dart:convert';
 import 'package:getrebate/app/models/user_model.dart';
 import 'package:getrebate/app/routes/app_pages.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
+import 'package:getrebate/app/utils/timezone_helper.dart';
 import 'package:getrebate/app/utils/connectivity_helper.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
 import 'package:getrebate/app/controllers/current_loan_officer_controller.dart';
@@ -760,12 +761,14 @@ class AuthController extends GetxController {
       final formData = FormData();
 
       // Add text fields
+      final timezone = await getTimezoneIdentifier();
       formData.fields.addAll([
         MapEntry('fullname', name),
         MapEntry('email', email),
         MapEntry('password', password),
         if (phone != null && phone.isNotEmpty) MapEntry('phone', phone),
         MapEntry('role', _mapRoleToApiFormat(role)),
+        MapEntry('timezone', timezone),
       ]);
 
       // Add licensed states if provided (as JSON array string)
@@ -1017,6 +1020,7 @@ class AuthController extends GetxController {
       print('📤 Request Data:');
       print('  - fullname: $name');
       print('  - email: $email');
+      print('  - timezone: $timezone');
       print('  - phone: ${phone ?? "not provided"}');
       print('  - role: ${_mapRoleToApiFormat(role)}');
       if (licensedStates != null && licensedStates.isNotEmpty) {
@@ -1393,6 +1397,9 @@ class AuthController extends GetxController {
 
       // Prepare form data
       final formData = FormData();
+
+      // Add timezone (IANA e.g. Asia/Karachi, sent on every update)
+      formData.fields.add(MapEntry('timezone', await getTimezoneIdentifier()));
 
       // Add text fields
       if (fullname != null && fullname.isNotEmpty) {

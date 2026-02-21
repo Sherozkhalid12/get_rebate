@@ -2719,6 +2719,7 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
 
     final isActive = displayStatus == 'Active' || displayStatus == 'Paid';
     final isCancelled = displayStatus == 'Cancelled';
+    final isExpired = displayStatus == 'Expired';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -2853,7 +2854,9 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                             ? AppTheme.lightGreen.withOpacity(0.2)
                             : isCancelled
                                 ? Colors.red.withOpacity(0.1)
-                                : Colors.orange.withOpacity(0.15),
+                                : isExpired
+                                    ? AppTheme.mediumGray.withOpacity(0.15)
+                                    : Colors.orange.withOpacity(0.15),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
@@ -2864,7 +2867,9 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                               ? AppTheme.lightGreen
                               : isCancelled
                                   ? Colors.red.shade700
-                                  : Colors.orange.shade700,
+                                  : isExpired
+                                      ? AppTheme.darkGray
+                                      : Colors.orange.shade700,
                         ),
                       ),
                     ),
@@ -3139,32 +3144,55 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
               const SizedBox(height: 14),
               const Divider(height: 1),
               const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: () => _showCancelConfirmationForSubscription(
-                    context,
-                    stripeCustomerId,
-                    subscription,
-                  ),
-                  icon: Icon(Icons.cancel_outlined, size: 18, color: Colors.red.shade600),
-                  label: Text(
-                    'Cancel subscription',
-                    style: TextStyle(
-                      color: Colors.red.shade600,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
+              _isSubscriptionExpired(status)
+                  ? Container(
+                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                      decoration: BoxDecoration(
+                        color: AppTheme.mediumGray.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AppTheme.mediumGray.withOpacity(0.3)),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.event_busy_outlined, size: 18, color: AppTheme.darkGray),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Expired',
+                            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                              color: AppTheme.darkGray,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: () => _showCancelConfirmationForSubscription(
+                          context,
+                          stripeCustomerId,
+                          subscription,
+                        ),
+                        icon: Icon(Icons.cancel_outlined, size: 18, color: Colors.red.shade600),
+                        label: Text(
+                          'Cancel subscription',
+                          style: TextStyle(
+                            color: Colors.red.shade600,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          side: BorderSide(color: Colors.red.shade300),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    side: BorderSide(color: Colors.red.shade300),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                ),
-              ),
             ],
           ],
         ),
@@ -3480,6 +3508,10 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
     return months[month - 1];
   }
 
+  bool _isSubscriptionExpired(String status) {
+    return status.toLowerCase() == 'expired';
+  }
+
   String _formatSubscriptionStatus(String status) {
     final lowerStatus = status.toLowerCase();
     if (lowerStatus.isEmpty) return 'Unknown';
@@ -3488,6 +3520,8 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
         lowerStatus == 'paid' ||
         lowerStatus == 'trialing') {
       return 'Active';
+    } else if (lowerStatus == 'expired') {
+      return 'Expired';
     } else if (lowerStatus == 'past_due' || lowerStatus == 'unpaid') {
       return 'Past Due';
     } else if (lowerStatus == 'canceled' || lowerStatus == 'cancelled') {

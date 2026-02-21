@@ -2754,7 +2754,19 @@ class LoanOfficerController extends GetxController {
       // Call cancelSubscription API first; only on 200 OK proceed to release
       final authController = Get.find<global.AuthController>();
       final userId = authController.currentUser?.id ?? loanOfficerId;
-      final activeSub = activeSubscriptionFromAPI;
+      // Find subscription for this specific zipcode, or fall back to first active
+      Map<String, dynamic>? subForZip;
+      for (final sub in _subscriptions) {
+        final status = sub['subscriptionStatus']?.toString().toLowerCase() ?? '';
+        if (status != 'canceled' && status != 'cancelled') {
+          final subZip = sub['zipcode']?.toString() ?? '';
+          if (subZip == zipCode.postalCode) {
+            subForZip = sub;
+            break;
+          }
+        }
+      }
+      final activeSub = subForZip ?? activeSubscriptionFromAPI;
       final stripeSubscriptionId = activeSub?['stripeSubscriptionId']?.toString() ??
           activeSub?['_id']?.toString() ??
           '';
@@ -2762,6 +2774,8 @@ class LoanOfficerController extends GetxController {
       if (stripeSubscriptionId.isNotEmpty) {
         try {
           await _callCancelSubscriptionApi(stripeSubscriptionId, userId);
+          // INSTANT update: Mark subscription as cancelled in local state for immediate UI
+          _markSubscriptionAsCancelledLocally(stripeSubscriptionId);
         } on DioException catch (e) {
           final statusCode = e.response?.statusCode;
           final data = e.response?.data;
@@ -3463,6 +3477,44 @@ class LoanOfficerController extends GetxController {
     throw Exception(
       'Cancel subscription failed: ${response.statusCode}',
     );
+  }
+
+  /// Marks subscription as cancelled in local _subscriptions for instant UI update.
+  void _markSubscriptionAsCancelledLocally(String stripeSubscriptionId) {
+    final subsBefore = List<Map<String, dynamic>>.from(_subscriptions);
+    Map<String, dynamic>? cancelledSubCopy;
+    for (var i = 0; i < subsBefore.length; i++) {
+      final subId = subsBefore[i]['stripeSubscriptionId']?.toString() ??
+          subsBefore[i]['_id']?.toString();
+      if (subId == stripeSubscriptionId) {
+        subsBefore[i] = Map<String, dynamic>.from(subsBefore[i])
+          ..['subscriptionStatus'] = 'cancelled';
+        cancelledSubCopy = Map<String, dynamic>.from(subsBefore[i]);
+        break;
+      }
+    }
+    _subscriptions.value = subsBefore;
+    _subscriptions.refresh();
+    // Re-apply in case of race with fetchUserStats
+    if (cancelledSubCopy != null) {
+      final subsAfter = List<Map<String, dynamic>>.from(_subscriptions);
+      var found = false;
+      for (var i = 0; i < subsAfter.length; i++) {
+        final subId = subsAfter[i]['stripeSubscriptionId']?.toString() ??
+            subsAfter[i]['_id']?.toString();
+        if (subId == stripeSubscriptionId) {
+          subsAfter[i] = Map<String, dynamic>.from(subsAfter[i])
+            ..['subscriptionStatus'] = 'cancelled';
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        subsAfter.insert(0, cancelledSubCopy);
+      }
+      _subscriptions.value = subsAfter;
+      _subscriptions.refresh();
+    }
   }
 
   /// Cancels a specific subscription (by stripeCustomerId for UI, uses subscriptionId + userId for API).

@@ -22,6 +22,7 @@ import 'package:getrebate/app/services/notification_service.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart' as global;
 import 'package:getrebate/app/controllers/location_controller.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
+import 'package:getrebate/app/utils/timezone_helper.dart';
 import 'package:getrebate/app/utils/storage_keys.dart';
 import 'package:getrebate/app/utils/network_error_handler.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
@@ -1788,7 +1789,19 @@ class AgentController extends GetxController {
       }
 
       // Call cancelSubscription API first; only on 200 OK proceed to release
-      final activeSub = activeSubscriptionFromAPI;
+      // Find subscription for this specific zipcode, or fall back to first active
+      Map<String, dynamic>? subForZip;
+      for (final sub in _subscriptions) {
+        final status = sub['subscriptionStatus']?.toString().toLowerCase() ?? '';
+        if (status != 'canceled' && status != 'cancelled') {
+          final subZip = sub['zipcode']?.toString() ?? '';
+          if (subZip == zipCode.zipCode) {
+            subForZip = sub;
+            break;
+          }
+        }
+      }
+      final activeSub = subForZip ?? activeSubscriptionFromAPI;
       final stripeSubscriptionId =
           activeSub?['stripeSubscriptionId']?.toString() ??
           activeSub?['_id']?.toString() ??
@@ -1797,6 +1810,8 @@ class AgentController extends GetxController {
       if (stripeSubscriptionId.isNotEmpty) {
         try {
           await _callCancelSubscriptionApi(stripeSubscriptionId, userId);
+          // INSTANT update: Mark subscription as cancelled in local state for immediate UI
+          _markSubscriptionAsCancelledLocally(stripeSubscriptionId);
         } on DioException catch (e) {
           final statusCode = e.response?.statusCode;
           final data = e.response?.data;
@@ -2434,6 +2449,43 @@ class AgentController extends GetxController {
       return data is Map<String, dynamic> ? data : <String, dynamic>{};
     }
     throw Exception('Cancel subscription failed: ${response.statusCode}');
+  }
+
+  /// Marks subscription as cancelled in local _subscriptions for instant UI update.
+  void _markSubscriptionAsCancelledLocally(String stripeSubscriptionId) {
+    final subsBefore = List<Map<String, dynamic>>.from(_subscriptions);
+    Map<String, dynamic>? cancelledSubCopy;
+    for (var i = 0; i < subsBefore.length; i++) {
+      final subId = subsBefore[i]['stripeSubscriptionId']?.toString() ??
+          subsBefore[i]['_id']?.toString();
+      if (subId == stripeSubscriptionId) {
+        subsBefore[i] = Map<String, dynamic>.from(subsBefore[i])
+          ..['subscriptionStatus'] = 'cancelled';
+        cancelledSubCopy = Map<String, dynamic>.from(subsBefore[i]);
+        break;
+      }
+    }
+    _subscriptions.value = subsBefore;
+    _subscriptions.refresh();
+    if (cancelledSubCopy != null) {
+      final subsAfter = List<Map<String, dynamic>>.from(_subscriptions);
+      var found = false;
+      for (var i = 0; i < subsAfter.length; i++) {
+        final subId = subsAfter[i]['stripeSubscriptionId']?.toString() ??
+            subsAfter[i]['_id']?.toString();
+        if (subId == stripeSubscriptionId) {
+          subsAfter[i] = Map<String, dynamic>.from(subsAfter[i])
+            ..['subscriptionStatus'] = 'cancelled';
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        subsAfter.insert(0, cancelledSubCopy);
+      }
+      _subscriptions.value = subsAfter;
+      _subscriptions.refresh();
+    }
   }
 
   /// Cancels a specific subscription (by stripeCustomerId for UI, uses subscriptionId + userId for API).
@@ -4034,6 +4086,82 @@ class AgentController extends GetxController {
       SnackbarHelper.showError(message, title: snackbarTitle);
     } else {
       SnackbarHelper.showSuccess(message, title: snackbarTitle);
+    }
+  }
+
+  /// [TESTING] Update subscription end date – opens date/time picker, then PUTs to update-enddate.
+  static const String _testUserId = '6996d1b162d53ad007474d44';
+  static const String _testSubscriptionId = 'sub_1T3E0tDhX5unP4Gn6KfNB8Un';
+
+  Future<void> testUpdateEndDate(BuildContext context) async {
+    final now = DateTime.now();
+    final pickedDate = await showDatePicker(
+      context: context,
+      initialDate: now,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2030),
+    );
+    if (pickedDate == null || !context.mounted) return;
+
+    final pickedTime = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(now),
+    );
+    if (pickedTime == null || !context.mounted) return;
+
+    // Build datetime in local timezone (exactly what user selected), then convert to UTC for API
+    final localDateTime = DateTime(
+      pickedDate.year,
+      pickedDate.month,
+      pickedDate.day,
+      pickedTime.hour,
+      pickedTime.minute,
+    );
+    final newEndDateIso = localDateTime.toUtc().toIso8601String();
+    final timezone = await getTimezoneIdentifier();
+
+    final authToken = _storage.read('auth_token');
+    final path = ApiConstants.updateEndDateEndpoint.replaceFirst(_baseUrl, '');
+    final body = {
+      'userId': _testUserId,
+      'subscriptionId': _testSubscriptionId,
+      'newEndDate': newEndDateIso,
+      'timezone': timezone,
+    };
+    if (kDebugMode) {
+      print('📡 [TEST] PUT update-enddate: $_baseUrl$path');
+      print('   Body: $body');
+    }
+    try {
+      final response = await _dio.put(
+        path,
+        data: body,
+        options: Options(
+          headers: {
+            'ngrok-skip-browser-warning': 'true',
+            'Content-Type': 'application/json',
+            if (authToken != null) 'Authorization': 'Bearer $authToken',
+          },
+        ),
+      );
+      if (kDebugMode) {
+        print('📡 [TEST] update-enddate response status: ${response.statusCode}');
+        print('   Response data: ${response.data}');
+      }
+      if (context.mounted) {
+        SnackbarHelper.showSuccess(
+          'Response: ${response.data}',
+          title: 'Test OK (${response.statusCode})',
+        );
+      }
+    } catch (e, st) {
+      if (kDebugMode) {
+        print('📡 [TEST] update-enddate error: $e');
+        print(st);
+      }
+      if (context.mounted) {
+        SnackbarHelper.showError('$e', title: 'Test Error');
+      }
     }
   }
 }

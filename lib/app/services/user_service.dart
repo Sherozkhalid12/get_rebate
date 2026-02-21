@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
+import 'package:getrebate/app/utils/timezone_helper.dart';
 
 /// Custom exception for user service errors
 class UserServiceException implements Exception {
@@ -318,6 +319,7 @@ class UserService {
 
       // Prepare form data
       final formData = FormData();
+      formData.fields.add(MapEntry('timezone', await getTimezoneIdentifier()));
       if (fullname != null) formData.fields.add(MapEntry('fullname', fullname));
       if (email != null) formData.fields.add(MapEntry('email', email));
       if (phone != null) formData.fields.add(MapEntry('phone', phone));

@@ -3789,6 +3789,69 @@ class AgentView extends GetView<AgentController> {
               ),
             ),
           ),
+          //
+          // const SizedBox(height: 20),
+          //
+          // // Testing: Update end date - visible at top of Billing
+          // Container(
+          //   padding: const EdgeInsets.all(16),
+          //   decoration: BoxDecoration(
+          //     color: Colors.orange.shade50,
+          //     borderRadius: BorderRadius.circular(12),
+          //     border: Border.all(color: Colors.orange.shade200, width: 1.5),
+          //   ),
+          //   child: Column(
+          //     crossAxisAlignment: CrossAxisAlignment.stretch,
+          //     children: [
+          //       Row(
+          //         children: [
+          //           Icon(Icons.bug_report, color: Colors.orange.shade700, size: 22),
+          //           const SizedBox(width: 8),
+          //           Text(
+          //             'Testing',
+          //             style: Theme.of(context).textTheme.titleMedium?.copyWith(
+          //               color: Colors.orange.shade900,
+          //               fontWeight: FontWeight.w700,
+          //             ),
+          //           ),
+          //         ],
+          //       ),
+          //       const SizedBox(height: 8),
+          //       Text(
+          //         'Update subscription end date (test endpoint)',
+          //         style: Theme.of(context).textTheme.bodySmall?.copyWith(
+          //           color: Colors.orange.shade800,
+          //         ),
+          //       ),
+          //       const SizedBox(height: 14),
+          //       Material(
+          //         color: Colors.orange.shade600,
+          //         borderRadius: BorderRadius.circular(10),
+          //         child: InkWell(
+          //           onTap: () => controller.testUpdateEndDate(context),
+          //           borderRadius: BorderRadius.circular(10),
+          //           child: Padding(
+          //             padding: const EdgeInsets.symmetric(vertical: 14),
+          //             child: Row(
+          //               mainAxisAlignment: MainAxisAlignment.center,
+          //               children: [
+          //                 Icon(Icons.date_range, color: Colors.white, size: 22),
+          //                 const SizedBox(width: 10),
+          //                 Text(
+          //                   'Test: Pick Date & Update End Date',
+          //                   style: Theme.of(context).textTheme.titleSmall?.copyWith(
+          //                     color: Colors.white,
+          //                     fontWeight: FontWeight.w600,
+          //                   ),
+          //                 ),
+          //               ],
+          //             ),
+          //           ),
+          //         ),
+          //       ),
+          //     ],
+          //   ),
+          // ),
 
           const SizedBox(height: 20),
 
@@ -4118,32 +4181,55 @@ class AgentView extends GetView<AgentController> {
               const SizedBox(height: 14),
               const Divider(height: 1),
               const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: () => _showCancelConfirmationForSubscription(
-                    context,
-                    stripeCustomerId,
-                    subscription,
-                  ),
-                  icon: Icon(Icons.cancel_outlined, size: 18, color: Colors.red.shade600),
-                  label: Text(
-                    'Cancel subscription',
-                    style: TextStyle(
-                      color: Colors.red.shade600,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
+              _isSubscriptionExpired(status)
+                  ? Container(
+                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                      decoration: BoxDecoration(
+                        color: AppTheme.mediumGray.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AppTheme.mediumGray.withOpacity(0.3)),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.event_busy_outlined, size: 18, color: AppTheme.darkGray),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Expired',
+                            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                              color: AppTheme.darkGray,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: () => _showCancelConfirmationForSubscription(
+                          context,
+                          stripeCustomerId,
+                          subscription,
+                        ),
+                        icon: Icon(Icons.cancel_outlined, size: 18, color: Colors.red.shade600),
+                        label: Text(
+                          'Cancel subscription',
+                          style: TextStyle(
+                            color: Colors.red.shade600,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          side: BorderSide(color: Colors.red.shade300),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    side: BorderSide(color: Colors.red.shade300),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                ),
-              ),
             ],
           ],
         ),
@@ -4458,6 +4544,7 @@ class AgentView extends GetView<AgentController> {
 
     final isActive = displayStatus == 'Active' || displayStatus == 'Paid';
     final isCancelled = displayStatus == 'Canceled' || displayStatus == 'Cancelled';
+    final isExpired = displayStatus == 'Expired';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -4592,7 +4679,9 @@ class AgentView extends GetView<AgentController> {
                             ? AppTheme.lightGreen.withOpacity(0.2)
                             : isCancelled
                                 ? Colors.red.withOpacity(0.1)
-                                : Colors.orange.withOpacity(0.15),
+                                : isExpired
+                                    ? AppTheme.mediumGray.withOpacity(0.15)
+                                    : Colors.orange.withOpacity(0.15),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
@@ -4603,7 +4692,9 @@ class AgentView extends GetView<AgentController> {
                               ? AppTheme.lightGreen
                               : isCancelled
                                   ? Colors.red.shade700
-                                  : Colors.orange.shade700,
+                                  : isExpired
+                                      ? AppTheme.darkGray
+                                      : Colors.orange.shade700,
                         ),
                       ),
                     ),
@@ -4677,6 +4768,10 @@ class AgentView extends GetView<AgentController> {
     return 'Unknown';
   }
 
+  bool _isSubscriptionExpired(String status) {
+    return (status.toLowerCase()) == 'expired';
+  }
+
   /// Helper method to format subscription status for display
   String _formatSubscriptionStatus(String status) {
     final lowerStatus = status.toLowerCase();
@@ -4684,6 +4779,8 @@ class AgentView extends GetView<AgentController> {
       return 'Paid';
     } else if (lowerStatus == 'canceled' || lowerStatus == 'cancelled') {
       return 'Canceled';
+    } else if (lowerStatus == 'expired') {
+      return 'Expired';
     } else if (lowerStatus == 'past_due' || lowerStatus == 'pastdue') {
       return 'Past Due';
     } else if (lowerStatus == 'unpaid') {

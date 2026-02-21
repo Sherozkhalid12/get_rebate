@@ -188,6 +188,9 @@ class ApiConstants {
   static String get resendVerificationEmailEndpoint =>
       "${authEndPoint}resendVerificationEmail";
 
+  /// PUT - Update subscription end date (testing)
+  static String get updateEndDateEndpoint => "${authEndPoint}update-enddate";
+
   // Forgot / Reset password endpoints
   static String get sendPasswordResetEmailEndpoint =>
       "${authEndPoint}sendPasswordResetEmail";
