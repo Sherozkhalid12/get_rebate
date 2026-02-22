@@ -29,11 +29,6 @@ class RebateDisplayWidget extends StatelessWidget {
           ? listing.dualAgencyCommissionPercent! / 100.0
           : null,
     );
-    final String bacPercentText = listing.bacPercent.toStringAsFixed(1);
-    final String? dualAgencyPercentText = listing.dualAgencyCommissionPercent != null
-        ? listing.dualAgencyCommissionPercent!.toStringAsFixed(1)
-        : null;
-
     final isRestricted = RebateRestrictedStates.isRestricted(listing.address.state);
 
     return Container(
@@ -101,12 +96,12 @@ class RebateDisplayWidget extends StatelessWidget {
 
           // Find agents button - moved above rebate options
 
-          // Standard rebate range
+          // Standard rebate range (compliance: show range, not exact amount or BAC)
           _buildRebateRange(
             context,
             'When you work with an Agent from this site',
             rebateRange.standardRebateRangeText,
-            'Estimated rebate based on the $bacPercentText% BAC entered by the listing agent',
+            'Estimated rebate range based on buyer agent commission offered for this listing',
             Icons.handshake,
             onTap: () => _showBACDialog(context),
           ),
@@ -135,9 +130,7 @@ class RebateDisplayWidget extends StatelessWidget {
               context,
               'When you work directly with the listing agent',
               rebateRange.dualAgencyRebateRangeText,
-              dualAgencyPercentText != null
-                  ? 'Estimated rebate based on the ${dualAgencyPercentText}% total commission entered by the listing agent'
-                  : 'Estimated rebate based on the total commission the listing agent receives when dual agency applies',
+              'Estimated rebate range when working directly with the listing agent',
               Icons.person,
               isHighlighted: true,
               onTap: onDualAgencyInfo,

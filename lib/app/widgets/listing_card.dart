@@ -2,7 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../models/listing.dart';
-import '../utils/rebate.dart';
+import '../services/rebate_calculator_service.dart';
 import '../utils/rebate_restricted_states.dart';
 
 class ListingCard extends StatelessWidget {
@@ -24,16 +24,20 @@ class ListingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final RebateEstimate rebate = estimateRebate(
-      priceCents: listing.priceCents,
-      bacPercent: listing.bacPercent,
-      dualAgencyAllowed: listing.dualAgencyAllowed,
-      dualAgencyCommissionPercent: listing.dualAgencyCommissionPercent,
+    final rebateRange = RebateCalculatorService.calculateRebateRange(
+      listPrice: listing.priceCents / 100.0,
+      bacPercentage: listing.bacPercent / 100.0,
+      allowsDualAgency: listing.dualAgencyAllowed,
+      dualAgencyCommissionPercentage: listing.dualAgencyCommissionPercent != null
+          ? listing.dualAgencyCommissionPercent! / 100.0
+          : null,
     );
 
     final String priceText = _formatMoney(listing.priceCents);
-    final String ownAgentRebateText = _formatMoney(rebate.ownAgentRebateCents);
-    final String directRebateText = _formatMoney(rebate.directRebateCents);
+    final String ownAgentRebateText = rebateRange.standardRebateRangeText;
+    final String directRebateText = rebateRange.hasDualAgencyOption
+        ? rebateRange.dualAgencyRebateRangeText
+        : '—';
 
     return Card(
       clipBehavior: Clip.antiAlias,

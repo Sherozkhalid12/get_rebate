@@ -5,32 +5,42 @@ class RebateCalculatorService {
   // Buyer keeps 40% of the total commission when going directly to listing agent
   static const double dualAgencyDirectSharePercentage = 0.40;
 
-  /// Calculates potential rebate range based on BAC percentage
+  /// Variance for compliance: rebate range ±15% to avoid displaying exact amounts.
+  /// Aligns with NAR guidance to not publicly display exact BAC/commission.
+  static const double _rebateRangeVariance = 0.15;
+
+  /// Calculates potential rebate range based on BAC percentage.
+  /// Returns a range (not exact amount) for NAR compliance—exact BAC is not displayed.
   static RebateRange calculateRebateRange({
     required double listPrice,
     required double bacPercentage,
     required bool allowsDualAgency,
     double? dualAgencyCommissionPercentage,
   }) {
-    // Calculate standard rebate using the actual BAC entered for the listing.
-    final minStandardRebate = listPrice * bacPercentage * standardRebatePercentage;
-    final maxStandardRebate = minStandardRebate;
+    // Base rebate using the BAC entered for the listing.
+    final baseStandardRebate =
+        listPrice * bacPercentage * standardRebatePercentage;
+    // Range: ±15% for compliance—no exact amount publicly displayed.
+    final minStandardRebate = baseStandardRebate * (1 - _rebateRangeVariance);
+    final maxStandardRebate = baseStandardRebate * (1 + _rebateRangeVariance);
 
-    // Calculate dual agency rebate from the total commission (if provided),
-    // otherwise fall back to the BAC value.
-    double? dualAgencyRebate;
+    // Dual agency rebate range
+    double? minDualAgencyRebate;
+    double? maxDualAgencyRebate;
     if (allowsDualAgency) {
       final commissionPercent =
           dualAgencyCommissionPercentage ?? bacPercentage;
-      dualAgencyRebate =
+      final baseDualAgencyRebate =
           listPrice * commissionPercent * dualAgencyDirectSharePercentage;
+      minDualAgencyRebate = baseDualAgencyRebate * (1 - _rebateRangeVariance);
+      maxDualAgencyRebate = baseDualAgencyRebate * (1 + _rebateRangeVariance);
     }
 
     return RebateRange(
       minStandardRebate: minStandardRebate,
       maxStandardRebate: maxStandardRebate,
-      minDualAgencyRebate: dualAgencyRebate,
-      maxDualAgencyRebate: dualAgencyRebate, // Single number, not a range
+      minDualAgencyRebate: minDualAgencyRebate,
+      maxDualAgencyRebate: maxDualAgencyRebate,
       listPrice: listPrice,
       bacPercentage: bacPercentage,
       allowsDualAgency: allowsDualAgency,
@@ -98,10 +108,10 @@ class RebateRange {
   }
 
   String get dualAgencyRebateRangeText {
-    if (minDualAgencyRebate == null) {
+    if (minDualAgencyRebate == null || maxDualAgencyRebate == null) {
       return '';
     }
-    return formattedMinDualAgencyRebate;
+    return '$formattedMinDualAgencyRebate - $formattedMaxDualAgencyRebate';
   }
 
   bool get hasDualAgencyOption =>

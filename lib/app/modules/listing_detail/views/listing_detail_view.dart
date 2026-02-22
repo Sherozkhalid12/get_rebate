@@ -9,7 +9,7 @@ import 'package:getrebate/app/modules/listing_detail/controllers/listing_detail_
 import 'package:getrebate/app/modules/buyer_v2/controllers/buyer_v2_controller.dart';
 import 'package:getrebate/app/models/agent_model.dart';
 import 'package:getrebate/app/models/listing.dart';
-import 'package:getrebate/app/utils/rebate.dart';
+import 'package:getrebate/app/services/rebate_calculator_service.dart';
 import 'package:getrebate/app/utils/rebate_restricted_states.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
@@ -60,11 +60,13 @@ class ListingDetailView extends GetView<ListingDetailController> {
       );
     }
 
-    final rebate = estimateRebate(
-      priceCents: listing.priceCents,
-      bacPercent: listing.bacPercent,
-      dualAgencyAllowed: listing.dualAgencyAllowed,
-      dualAgencyCommissionPercent: listing.dualAgencyCommissionPercent,
+    final rebateRange = RebateCalculatorService.calculateRebateRange(
+      listPrice: listing.priceCents / 100.0,
+      bacPercentage: listing.bacPercent / 100.0,
+      allowsDualAgency: listing.dualAgencyAllowed,
+      dualAgencyCommissionPercentage: listing.dualAgencyCommissionPercent != null
+          ? listing.dualAgencyCommissionPercent! / 100.0
+          : null,
     );
 
     return Scaffold(
@@ -537,7 +539,7 @@ class ListingDetailView extends GetView<ListingDetailController> {
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              'When you work with an Agent from this site, this estimate uses the ${listing.bacPercent.toStringAsFixed(1)}% BAC entered by the listing agent.',
+                              'Estimated rebate range based on buyer agent commission offered for this listing. Final amount may vary.',
                               style: Theme.of(context).textTheme.bodyMedium
                                   ?.copyWith(
                                     color: AppTheme.darkGray,
@@ -551,7 +553,7 @@ class ListingDetailView extends GetView<ListingDetailController> {
 
                     const SizedBox(height: 16),
 
-                    // Rebate Information Cards
+                    // Rebate Information Cards (compliance: show range, not exact amount or BAC)
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 24),
                       child: Row(
@@ -560,11 +562,11 @@ class ListingDetailView extends GetView<ListingDetailController> {
                             child: _RebateCard(
                               title:
                                   'When you work with an Agent from this site',
-                              amount: _formatMoney(rebate.ownAgentRebateCents),
+                              amount: rebateRange.standardRebateRangeText,
                               icon: Icons.person,
                               color: AppTheme.primaryBlue,
                               subtitle:
-                                  'Estimated rebate based on the ${listing.bacPercent.toStringAsFixed(1)}% BAC entered by the listing agent',
+                                  'Estimated rebate range based on commission offered for this listing',
                             ),
                           ),
                           // Only show "With The Listing Agent" card if dual agency is allowed
@@ -573,10 +575,11 @@ class ListingDetailView extends GetView<ListingDetailController> {
                             Expanded(
                               child: _RebateCard(
                                 title: 'With The Listing Agent',
-                                amount: _formatMoney(rebate.directRebateCents),
+                                amount: rebateRange.dualAgencyRebateRangeText,
                                 icon: Icons.trending_up,
                                 color: AppTheme.lightGreen,
-                                subtitle: 'Estimated rebate',
+                                subtitle:
+                                    'Estimated rebate range when working directly with listing agent',
                               ),
                             ),
                           ],

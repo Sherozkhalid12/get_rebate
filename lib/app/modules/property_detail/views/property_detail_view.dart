@@ -9,6 +9,7 @@ import 'package:getrebate/app/widgets/custom_button.dart';
 import 'package:getrebate/app/widgets/rebate_display_widget.dart';
 import 'package:getrebate/app/widgets/nearby_agents_widget.dart';
 import 'package:getrebate/app/models/listing.dart';
+import 'package:getrebate/app/services/rebate_calculator_service.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
 import 'package:getrebate/app/utils/rebate_restricted_states.dart';
 import 'package:intl/intl.dart';
@@ -713,35 +714,8 @@ class PropertyDetailView extends GetView<PropertyDetailController> {
       price = property['price'].toDouble();
     }
 
-    // BAC = Buyer's Agent Commission (default 2.7%)
-    final bacPercent = (property['bacPercent'] ?? 2.7);
-    final buyerCommission = price * (bacPercent / 100);
-
-    // Apply tier-based rebate percentages (matching rebate calculator)
-    final isHighValue = price >= 700000;
-
-    // Determine rebate percentage based on commission rate and price
-    double rebatePercent;
-    if (bacPercent >= 4.0) {
-      rebatePercent = 40.0; // Tier 1
-    } else if (bacPercent >= 3.01) {
-      rebatePercent = 35.0; // Tier 2
-    } else if (bacPercent >= 2.5) {
-      rebatePercent = 30.0; // Tier 3
-    } else if (bacPercent >= 2.0) {
-      rebatePercent = 25.0; // Tier 4
-    } else if (bacPercent >= 1.5 && !isHighValue) {
-      rebatePercent = 20.0; // Tier 5 (not available for $700k+)
-    } else if (bacPercent >= 0.25 && !isHighValue) {
-      rebatePercent = 10.0; // Tier 6 (not available for $700k+)
-    } else if (bacPercent < 0.25) {
-      rebatePercent = 0.0; // Tier 7
-    } else {
-      // For $700k+ homes with commission < 2%, minimum is Tier 4 (25%)
-      rebatePercent = isHighValue ? 25.0 : 10.0;
-    }
-
-    final rebateAmount = buyerCommission * (rebatePercent / 100);
+    // BAC = Buyer's Agent Commission (default 2.7%) - used internally for calculation only, not displayed
+    final bacPercent = ((property['bacPercent'] ?? 2.7) as num).toDouble();
 
     // === 3. MOCK LISTING FOR WIDGETS ===
     // Extract ZIP code from various possible locations in property data
@@ -804,6 +778,16 @@ class PropertyDetailView extends GetView<PropertyDetailController> {
       dualAgencyCommissionPercent:
           dualAgencyAllowed ? dualAgencyCommissionPercent : null,
       createdAt: DateTime.now(),
+    );
+
+    // Compliance: use range, not exact amount
+    final rebateRange = RebateCalculatorService.calculateRebateRange(
+      listPrice: price,
+      bacPercentage: bacPercent / 100.0,
+      allowsDualAgency: dualAgencyAllowed,
+      dualAgencyCommissionPercentage: dualAgencyCommissionPercent != null
+          ? dualAgencyCommissionPercent! / 100.0
+          : null,
     );
 
     final propertyState = property['state']?.toString() ??
@@ -912,9 +896,9 @@ class PropertyDetailView extends GetView<PropertyDetailController> {
               ),
               SizedBox(height: 16.h),
 
-              // Big Rebate Amount
+              // Rebate range (compliance: no exact amount or BAC displayed)
               Text(
-                '\$${rebateAmount.toStringAsFixed(0)}',
+                rebateRange.standardRebateRangeText,
                 style: TextStyle(
                   fontSize: 36.sp,
                   fontWeight: FontWeight.w900,
@@ -924,11 +908,9 @@ class PropertyDetailView extends GetView<PropertyDetailController> {
               ),
               SizedBox(height: 8.h),
 
-              // Dynamic Disclaimer
+              // Compliance-friendly disclaimer (no BAC or tier references)
               Text(
-                isHighValue
-                    ? 'Minimum 25% rebate on homes \$700k+ (Tier ${_getTierName(bacPercent, isHighValue)})'
-                    : 'Up to 40% of buyer-agent commission (Tier ${_getTierName(bacPercent, isHighValue)})',
+                'Estimated rebate range based on buyer agent commission offered for this listing.',
                 style: TextStyle(
                   fontSize: 14.sp,
                   color: AppTheme.darkGray,
@@ -1220,17 +1202,6 @@ class PropertyDetailView extends GetView<PropertyDetailController> {
       context: context,
       builder: (context) => const DualAgencyExplanationDialog(),
     );
-  }
-
-  String _getTierName(double bacPercent, bool isHighValue) {
-    if (bacPercent >= 4.0) return '1';
-    if (bacPercent >= 3.01) return '2';
-    if (bacPercent >= 2.5) return '3';
-    if (bacPercent >= 2.0) return '4';
-    if (bacPercent >= 1.5 && !isHighValue) return '5';
-    if (bacPercent >= 0.25 && !isHighValue) return '6';
-    if (bacPercent < 0.25) return '7';
-    return '4'; // Default for high-value homes
   }
 
   Widget _buildActionButtons(BuildContext context) {
