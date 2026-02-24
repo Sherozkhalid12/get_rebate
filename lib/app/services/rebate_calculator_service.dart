@@ -28,8 +28,7 @@ class RebateCalculatorService {
     double? minDualAgencyRebate;
     double? maxDualAgencyRebate;
     if (allowsDualAgency) {
-      final commissionPercent =
-          dualAgencyCommissionPercentage ?? bacPercentage;
+      final commissionPercent = dualAgencyCommissionPercentage ?? bacPercentage;
       final baseDualAgencyRebate =
           listPrice * commissionPercent * dualAgencyDirectSharePercentage;
       minDualAgencyRebate = baseDualAgencyRebate * (1 - _rebateRangeVariance);
@@ -108,10 +107,12 @@ class RebateRange {
   }
 
   String get dualAgencyRebateRangeText {
-    if (minDualAgencyRebate == null || maxDualAgencyRebate == null) {
+    if (minDualAgencyRebate == null) {
       return '';
     }
-    return '$formattedMinDualAgencyRebate - $formattedMaxDualAgencyRebate';
+    // Product requirement: dual-agency card should display a single amount with
+    // "or more" instead of a min-max range.
+    return '$formattedMinDualAgencyRebate or more';
   }
 
   bool get hasDualAgencyOption =>

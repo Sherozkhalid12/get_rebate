@@ -12,6 +12,7 @@ import 'package:getrebate/app/models/listing.dart';
 import 'package:getrebate/app/services/rebate_calculator_service.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
 import 'package:getrebate/app/utils/rebate_restricted_states.dart';
+import 'package:getrebate/app/utils/rebate_wording_constants.dart';
 import 'package:intl/intl.dart';
 
 class PropertyDetailView extends GetView<PropertyDetailController> {
@@ -908,9 +909,9 @@ class PropertyDetailView extends GetView<PropertyDetailController> {
               ),
               SizedBox(height: 8.h),
 
-              // Compliance-friendly disclaimer (no BAC or tier references)
+              // Compliance-friendly disclaimer (consistent wording across all listings)
               Text(
-                'Estimated rebate range based on buyer agent commission offered for this listing.',
+                RebateWordingConstants.estimatedRebateRangeNotice,
                 style: TextStyle(
                   fontSize: 14.sp,
                   color: AppTheme.darkGray,

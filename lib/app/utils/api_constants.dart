@@ -27,8 +27,8 @@ class ApiConstants {
   //
   // ============================================================================
 
-  // Server URL
-  static const String _serverUrl = 'http://98.93.16.113:3001';
+  // Production API URL
+  static const String _serverUrl = 'https://api.getarebate.com';
 
   // Ngrok URL (update this when ngrok restarts)
   static const String _ngrokUrl = 'https://004db1f400ae.ngrok-free.app';
@@ -91,7 +91,7 @@ class ApiConstants {
   // API version prefix
   static const String _apiVersion = '/api/v1';
 
-  // Base URL getter - ALWAYS use server URL: http://98.93.16.113:3001
+  // Base URL getter - ALWAYS use production API URL
   static String get baseUrl {
     // Always return the server URL
     if (kDebugMode) {

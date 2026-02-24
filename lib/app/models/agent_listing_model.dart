@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 enum MarketStatus { forSale, pending, sold }
 
 extension MarketStatusLabel on MarketStatus {
@@ -26,7 +28,7 @@ extension MarketStatusLabel on MarketStatus {
 
 MarketStatus _marketStatusFromString(String? value) {
   if (value == null || value.isEmpty) return MarketStatus.forSale;
-  
+
   switch (value.toLowerCase()) {
     case 'pending':
     case 'draft':
@@ -41,6 +43,68 @@ MarketStatus _marketStatusFromString(String? value) {
     default:
       return MarketStatus.forSale;
   }
+}
+
+double? _asDouble(dynamic value) {
+  if (value == null) return null;
+  if (value is num) return value.toDouble();
+  final text = value.toString().trim();
+  if (text.isEmpty) return null;
+  return double.tryParse(text);
+}
+
+double _normalizeCommissionPercent(double rawPercent) {
+  if (rawPercent <= 0) return 0.0;
+
+  // Some API payloads send fractional values (e.g., 0.025 for 2.5%).
+  if (rawPercent <= 1) return rawPercent * 100;
+
+  // Some payloads appear to be scaled by 10 (e.g., 20 for 2.0%).
+  if (rawPercent > 10 && rawPercent <= 100) return rawPercent / 10;
+
+  return rawPercent;
+}
+
+double? _parseDualAgencyTotalCommissionPercent(Map<String, dynamic> json) {
+  final directPercent = _asDouble(json['dualAgencyCommissionPercent']);
+  if (directPercent != null) {
+    return _normalizeCommissionPercent(directPercent);
+  }
+
+  final listingSideCommissionRaw = json['listingSideCommission'];
+  if (listingSideCommissionRaw == null) return null;
+
+  Map<String, dynamic>? listingSideCommission;
+
+  if (listingSideCommissionRaw is Map<String, dynamic>) {
+    listingSideCommission = listingSideCommissionRaw;
+  } else if (listingSideCommissionRaw is Map) {
+    listingSideCommission = listingSideCommissionRaw.map(
+      (key, value) => MapEntry(key.toString(), value),
+    );
+  } else if (listingSideCommissionRaw is String) {
+    final encoded = listingSideCommissionRaw.trim();
+    if (encoded.isEmpty) return null;
+    try {
+      final decoded = jsonDecode(encoded);
+      if (decoded is Map<String, dynamic>) {
+        listingSideCommission = decoded;
+      } else if (decoded is Map) {
+        listingSideCommission = decoded.map(
+          (key, value) => MapEntry(key.toString(), value),
+        );
+      }
+    } catch (_) {
+      return null;
+    }
+  }
+
+  if (listingSideCommission == null) return null;
+
+  final totalCommission = _asDouble(listingSideCommission['totalCommission']);
+  if (totalCommission == null) return null;
+
+  return _normalizeCommissionPercent(totalCommission);
 }
 
 class AgentListingModel {
@@ -99,6 +163,10 @@ class AgentListingModel {
   });
 
   factory AgentListingModel.fromJson(Map<String, dynamic> json) {
+    final bacPercent = _normalizeCommissionPercent(
+      _asDouble(json['bacPercent']) ?? 0.0,
+    );
+
     return AgentListingModel(
       id: json['id'] ?? '',
       agentId: json['agentId'] ?? '',
@@ -110,11 +178,9 @@ class AgentListingModel {
       state: json['state'] ?? '',
       zipCode: json['zipCode'] ?? '',
       photoUrls: List<String>.from(json['photoUrls'] ?? []),
-      bacPercent: (json['bacPercent'] ?? 0.0).toDouble(),
+      bacPercent: bacPercent,
       dualAgencyAllowed: json['dualAgencyAllowed'] ?? false,
-      dualAgencyCommissionPercent: json['dualAgencyCommissionPercent'] != null
-          ? (json['dualAgencyCommissionPercent'] as num).toDouble()
-          : null,
+      dualAgencyCommissionPercent: _parseDualAgencyTotalCommissionPercent(json),
       isListingAgent: json['isListingAgent'] ?? true,
       isActive: json['isActive'] ?? true,
       isApproved: json['isApproved'] ?? false,
@@ -143,8 +209,14 @@ class AgentListingModel {
     final priceCents = (priceDouble * 100).toInt();
 
     // Convert BACPercentage string to double
-    final bacPercentageString = json['BACPercentage']?.toString() ?? '0';
-    final bacPercent = double.tryParse(bacPercentageString) ?? 0.0;
+    final rawBacPercent =
+        _asDouble(json['BACPercentage']) ??
+        _asDouble(json['bacPercent']) ??
+        0.0;
+    final bacPercent = _normalizeCommissionPercent(rawBacPercent);
+    final dualAgencyCommissionPercent = _parseDualAgencyTotalCommissionPercent(
+      json,
+    );
 
     // Handle propertyPhotos - URLs should already be processed by controller
     // If they're full URLs, use as is; if relative, they should already have base URL prepended
@@ -165,7 +237,7 @@ class AgentListingModel {
     final marketStatusRaw = json['marketStatus']?.toString() ?? '';
     final isActive = json['active'] ?? false;
     final isApproved = statusString == 'active' || isActive;
-    
+
     MarketStatus marketStatus;
     if (marketStatusRaw.isNotEmpty) {
       marketStatus = _marketStatusFromString(marketStatusRaw);
@@ -181,7 +253,8 @@ class AgentListingModel {
 
     return AgentListingModel(
       id: json['_id']?.toString() ?? json['id']?.toString() ?? '',
-      agentId: json['id']?.toString() ?? '', // The agent ID field in API response
+      agentId:
+          json['id']?.toString() ?? '', // The agent ID field in API response
       title: json['propertyTitle']?.toString() ?? '',
       description: json['description']?.toString() ?? '',
       priceCents: priceCents,
@@ -192,6 +265,7 @@ class AgentListingModel {
       photoUrls: photoUrls,
       bacPercent: bacPercent,
       dualAgencyAllowed: json['dualAgencyAllowed'] ?? false,
+      dualAgencyCommissionPercent: dualAgencyCommissionPercent,
       isListingAgent: json['listingAgent'] ?? true,
       isActive: isActive,
       isApproved: isApproved,

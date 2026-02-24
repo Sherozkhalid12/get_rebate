@@ -10,6 +10,7 @@ import 'package:getrebate/app/modules/buyer_v2/controllers/buyer_v2_controller.d
 import 'package:getrebate/app/models/agent_model.dart';
 import 'package:getrebate/app/models/listing.dart';
 import 'package:getrebate/app/services/rebate_calculator_service.dart';
+import 'package:getrebate/app/utils/rebate_wording_constants.dart';
 import 'package:getrebate/app/utils/rebate_restricted_states.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
@@ -64,7 +65,8 @@ class ListingDetailView extends GetView<ListingDetailController> {
       listPrice: listing.priceCents / 100.0,
       bacPercentage: listing.bacPercent / 100.0,
       allowsDualAgency: listing.dualAgencyAllowed,
-      dualAgencyCommissionPercentage: listing.dualAgencyCommissionPercent != null
+      dualAgencyCommissionPercentage:
+          listing.dualAgencyCommissionPercent != null
           ? listing.dualAgencyCommissionPercent! / 100.0
           : null,
     );
@@ -539,7 +541,7 @@ class ListingDetailView extends GetView<ListingDetailController> {
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              'Estimated rebate range based on buyer agent commission offered for this listing. Final amount may vary.',
+                              RebateWordingConstants.estimatedRebateRangeNotice,
                               style: Theme.of(context).textTheme.bodyMedium
                                   ?.copyWith(
                                     color: AppTheme.darkGray,
@@ -556,34 +558,52 @@ class ListingDetailView extends GetView<ListingDetailController> {
                     // Rebate Information Cards (compliance: show range, not exact amount or BAC)
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: _RebateCard(
-                              title:
-                                  'When you work with an Agent from this site',
-                              amount: rebateRange.standardRebateRangeText,
-                              icon: Icons.person,
-                              color: AppTheme.primaryBlue,
-                              subtitle:
-                                  'Estimated rebate range based on commission offered for this listing',
-                            ),
-                          ),
-                          // Only show "With The Listing Agent" card if dual agency is allowed
-                          if (listing.dualAgencyAllowed) ...[
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: _RebateCard(
-                                title: 'With The Listing Agent',
-                                amount: rebateRange.dualAgencyRebateRangeText,
-                                icon: Icons.trending_up,
-                                color: AppTheme.lightGreen,
-                                subtitle:
-                                    'Estimated rebate range when working directly with listing agent',
-                              ),
-                            ),
-                          ],
-                        ],
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final standardCard = _RebateCard(
+                            title: 'When you work with an Agent from this site',
+                            amount: rebateRange.standardRebateRangeText,
+                            icon: Icons.person,
+                            color: AppTheme.primaryBlue,
+                            subtitle:
+                                RebateWordingConstants.standardRebateSubtitle,
+                          );
+
+                          // Single-card layout.
+                          if (!listing.dualAgencyAllowed) {
+                            return standardCard;
+                          }
+
+                          final dualAgencyCard = _RebateCard(
+                            title: 'With The Listing Agent',
+                            amount: rebateRange.dualAgencyRebateRangeText,
+                            icon: Icons.trending_up,
+                            color: AppTheme.lightGreen,
+                            subtitle:
+                                RebateWordingConstants.dualAgencyRebateSubtitle,
+                            isHighlighted: true,
+                          );
+
+                          // Stack cards on narrower screens to avoid unreadable text columns.
+                          final useSingleColumn = constraints.maxWidth < 760;
+                          if (useSingleColumn) {
+                            return Column(
+                              children: [
+                                standardCard,
+                                const SizedBox(height: 12),
+                                dualAgencyCard,
+                              ],
+                            );
+                          }
+
+                          return Row(
+                            children: [
+                              Expanded(child: standardCard),
+                              const SizedBox(width: 12),
+                              Expanded(child: dualAgencyCard),
+                            ],
+                          );
+                        },
                       ),
                     ),
 
@@ -627,7 +647,7 @@ class ListingDetailView extends GetView<ListingDetailController> {
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              'Buyer Agent Compensation is negotiable and may vary from property to property and state to state. Once the exact commission percentage is known, you can determine your rebate amount more accurately. Work with your agent for specific details.',
+                              RebateWordingConstants.importantNotice,
                               style: Theme.of(context).textTheme.bodySmall
                                   ?.copyWith(
                                     color: Colors.amber.shade900,
@@ -1668,6 +1688,7 @@ class _RebateCard extends StatelessWidget {
   final String subtitle;
   final IconData icon;
   final Color color;
+  final bool isHighlighted;
 
   const _RebateCard({
     required this.title,
@@ -1675,19 +1696,25 @@ class _RebateCard extends StatelessWidget {
     required this.subtitle,
     required this.icon,
     required this.color,
+    this.isHighlighted = false,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppTheme.white,
+        color: isHighlighted
+            ? AppTheme.lightGreen.withOpacity(0.07)
+            : AppTheme.white,
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: color.withOpacity(isHighlighted ? 0.3 : 0.14),
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
+            blurRadius: 8,
             offset: const Offset(0, 2),
           ),
         ],
@@ -1696,6 +1723,7 @@ class _RebateCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
                 padding: const EdgeInsets.all(8),
@@ -1707,34 +1735,32 @@ class _RebateCard extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        color: AppTheme.darkGray,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    Text(
-                      subtitle,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppTheme.mediumGray,
-                      ),
-                    ),
-                  ],
+                child: Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: AppTheme.darkGray,
+                    fontWeight: FontWeight.w700,
+                    height: 1.3,
+                  ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           Text(
             amount,
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
               color: color,
               fontWeight: FontWeight.w800,
-              fontSize: 24,
+              fontSize: 26,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            subtitle,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: AppTheme.mediumGray,
+              height: 1.42,
             ),
           ),
         ],

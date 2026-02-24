@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
 import 'package:getrebate/app/services/rebate_calculator_service.dart';
 import 'package:getrebate/app/models/listing.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/utils/rebate_restricted_states.dart';
+import 'package:getrebate/app/utils/rebate_wording_constants.dart';
 
 class RebateDisplayWidget extends StatelessWidget {
   final Listing listing;
@@ -29,7 +29,9 @@ class RebateDisplayWidget extends StatelessWidget {
           ? listing.dualAgencyCommissionPercent! / 100.0
           : null,
     );
-    final isRestricted = RebateRestrictedStates.isRestricted(listing.address.state);
+    final isRestricted = RebateRestrictedStates.isRestricted(
+      listing.address.state,
+    );
 
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 12),
@@ -101,7 +103,7 @@ class RebateDisplayWidget extends StatelessWidget {
             context,
             'When you work with an Agent from this site',
             rebateRange.standardRebateRangeText,
-            'Estimated rebate range based on buyer agent commission offered for this listing',
+            RebateWordingConstants.standardRebateSubtitle,
             Icons.handshake,
             onTap: () => _showBACDialog(context),
           ),
@@ -130,7 +132,7 @@ class RebateDisplayWidget extends StatelessWidget {
               context,
               'When you work directly with the listing agent',
               rebateRange.dualAgencyRebateRangeText,
-              'Estimated rebate range when working directly with the listing agent',
+              RebateWordingConstants.dualAgencyRebateSubtitle,
               Icons.person,
               isHighlighted: true,
               onTap: onDualAgencyInfo,
@@ -163,52 +165,56 @@ class RebateDisplayWidget extends StatelessWidget {
               ? Border.all(color: AppTheme.lightGreen.withOpacity(0.3))
               : null,
         ),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(
-              icon,
-              color: isHighlighted ? AppTheme.lightGreen : AppTheme.mediumGray,
-              size: 18,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  icon,
+                  color: isHighlighted
+                      ? AppTheme.lightGreen
+                      : AppTheme.mediumGray,
+                  size: 18,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
                     title,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: AppTheme.darkGray,
-                      fontWeight: FontWeight.w500,
+                      fontWeight: FontWeight.w600,
+                      height: 1.3,
                     ),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodySmall?.copyWith(color: AppTheme.mediumGray),
+                ),
+                if (onTap != null)
+                  Icon(
+                    Icons.info_outline,
+                    color: isHighlighted
+                        ? AppTheme.lightGreen
+                        : AppTheme.primaryBlue,
+                    size: 16,
                   ),
-                ],
-              ),
+              ],
             ),
+            const SizedBox(height: 10),
             Text(
               amount,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
                 color: isHighlighted ? AppTheme.lightGreen : AppTheme.black,
                 fontWeight: FontWeight.bold,
               ),
             ),
-            SizedBox(width: 8),
-            if (onTap != null) ...[
-              Icon(
-                Icons.info_outline,
-                color: isHighlighted
-                    ? AppTheme.lightGreen
-                    : AppTheme.primaryBlue,
-                size: 16,
+            const SizedBox(height: 6),
+            Text(
+              subtitle,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: AppTheme.mediumGray,
+                height: 1.4,
               ),
-            ],
+            ),
           ],
         ),
       ),
