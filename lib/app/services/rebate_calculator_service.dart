@@ -1,49 +1,127 @@
 class RebateCalculatorService {
-  // Buyer keeps 30% of BAC when working with an agent from this site
-  static const double standardRebatePercentage = 0.30;
+  // Buyer rebate percentages by tier
+  static const double _tier1RebatePercentage = 0.40; // 4.0% or more
+  static const double _tier2RebatePercentage = 0.35; // 3.01% - 3.99%
+  static const double _tier3RebatePercentage = 0.30; // 2.5% - 3.0%
+  static const double _tier4RebatePercentage = 0.25; // 2.0% - 2.49%
+  static const double _tier5RebatePercentage = 0.20; // 1.5% - 1.99%
+  static const double _tier6RebatePercentage = 0.10; // .25% - 1.49%
+  static const double _tier7RebatePercentage = 0.00; // 0% - .24%
 
-  // Buyer keeps 40% of the total commission when going directly to listing agent
+  // Dual agency listing display requirement:
+  // always show 4.0% x 40% as the minimum with "or more".
+  static const double _dualAgencyMinimumCommissionPercent = 0.04;
   static const double dualAgencyDirectSharePercentage = 0.40;
 
-  /// Variance for compliance: rebate range ±15% to avoid displaying exact amounts.
-  /// Aligns with NAR guidance to not publicly display exact BAC/commission.
-  static const double _rebateRangeVariance = 0.15;
-
   /// Calculates potential rebate range based on BAC percentage.
-  /// Returns a range (not exact amount) for NAR compliance—exact BAC is not displayed.
+  /// Uses tier commission ranges to match the rebate calculator behavior.
   static RebateRange calculateRebateRange({
     required double listPrice,
     required double bacPercentage,
     required bool allowsDualAgency,
     double? dualAgencyCommissionPercentage,
   }) {
-    // Base rebate using the BAC entered for the listing.
-    final baseStandardRebate =
-        listPrice * bacPercentage * standardRebatePercentage;
-    // Range: ±15% for compliance—no exact amount publicly displayed.
-    final minStandardRebate = baseStandardRebate * (1 - _rebateRangeVariance);
-    final maxStandardRebate = baseStandardRebate * (1 + _rebateRangeVariance);
+    final tier = _getTierRange(
+      commissionPercent: bacPercentage,
+      listPrice: listPrice,
+    );
 
-    // Dual agency rebate range
+    final minStandardRebate =
+        listPrice * tier.minCommissionPercent * tier.rebatePercentage;
+    final maxStandardRebate = tier.maxCommissionPercent != null
+        ? listPrice * tier.maxCommissionPercent! * tier.rebatePercentage
+        : null;
+
     double? minDualAgencyRebate;
-    double? maxDualAgencyRebate;
     if (allowsDualAgency) {
-      final commissionPercent = dualAgencyCommissionPercentage ?? bacPercentage;
-      final baseDualAgencyRebate =
-          listPrice * commissionPercent * dualAgencyDirectSharePercentage;
-      minDualAgencyRebate = baseDualAgencyRebate * (1 - _rebateRangeVariance);
-      maxDualAgencyRebate = baseDualAgencyRebate * (1 + _rebateRangeVariance);
+      minDualAgencyRebate =
+          listPrice *
+          _dualAgencyMinimumCommissionPercent *
+          dualAgencyDirectSharePercentage;
     }
 
     return RebateRange(
       minStandardRebate: minStandardRebate,
       maxStandardRebate: maxStandardRebate,
       minDualAgencyRebate: minDualAgencyRebate,
-      maxDualAgencyRebate: maxDualAgencyRebate,
+      maxDualAgencyRebate: null,
       listPrice: listPrice,
       bacPercentage: bacPercentage,
       allowsDualAgency: allowsDualAgency,
       dualAgencyCommissionPercentage: dualAgencyCommissionPercentage,
+    );
+  }
+
+  static _TierRange _getTierRange({
+    required double commissionPercent,
+    required double listPrice,
+  }) {
+    final isHighValue = listPrice >= 700000;
+
+    if (commissionPercent >= 0.04) {
+      return const _TierRange(
+        minCommissionPercent: 0.04,
+        maxCommissionPercent: null,
+        rebatePercentage: _tier1RebatePercentage,
+      );
+    }
+    if (commissionPercent >= 0.0301) {
+      return const _TierRange(
+        minCommissionPercent: 0.0301,
+        maxCommissionPercent: 0.0399,
+        rebatePercentage: _tier2RebatePercentage,
+      );
+    }
+    if (commissionPercent >= 0.025) {
+      return const _TierRange(
+        minCommissionPercent: 0.025,
+        maxCommissionPercent: 0.03,
+        rebatePercentage: _tier3RebatePercentage,
+      );
+    }
+    if (commissionPercent >= 0.02) {
+      return const _TierRange(
+        minCommissionPercent: 0.02,
+        maxCommissionPercent: 0.0249,
+        rebatePercentage: _tier4RebatePercentage,
+      );
+    }
+
+    if (isHighValue) {
+      if (commissionPercent < 0.0025) {
+        return const _TierRange(
+          minCommissionPercent: 0.0,
+          maxCommissionPercent: 0.0024,
+          rebatePercentage: _tier7RebatePercentage,
+        );
+      }
+
+      return const _TierRange(
+        minCommissionPercent: 0.02,
+        maxCommissionPercent: 0.0249,
+        rebatePercentage: _tier4RebatePercentage,
+      );
+    }
+
+    if (commissionPercent >= 0.015) {
+      return const _TierRange(
+        minCommissionPercent: 0.015,
+        maxCommissionPercent: 0.0199,
+        rebatePercentage: _tier5RebatePercentage,
+      );
+    }
+    if (commissionPercent >= 0.0025) {
+      return const _TierRange(
+        minCommissionPercent: 0.0025,
+        maxCommissionPercent: 0.0149,
+        rebatePercentage: _tier6RebatePercentage,
+      );
+    }
+
+    return const _TierRange(
+      minCommissionPercent: 0.0,
+      maxCommissionPercent: 0.0024,
+      rebatePercentage: _tier7RebatePercentage,
     );
   }
 
@@ -52,7 +130,11 @@ class RebateCalculatorService {
     required double listPrice,
     required double bacPercentage,
   }) {
-    return listPrice * bacPercentage * standardRebatePercentage;
+    final tier = _getTierRange(
+      commissionPercent: bacPercentage,
+      listPrice: listPrice,
+    );
+    return listPrice * bacPercentage * tier.rebatePercentage;
   }
 
   /// Formats currency for display
@@ -62,13 +144,25 @@ class RebateCalculatorService {
 
   /// Gets rebate percentage range text
   static String getRebatePercentageRangeText() {
-    return '${(standardRebatePercentage * 100).toStringAsFixed(0)}%';
+    return '0% - 40%';
   }
+}
+
+class _TierRange {
+  final double minCommissionPercent;
+  final double? maxCommissionPercent;
+  final double rebatePercentage;
+
+  const _TierRange({
+    required this.minCommissionPercent,
+    required this.maxCommissionPercent,
+    required this.rebatePercentage,
+  });
 }
 
 class RebateRange {
   final double minStandardRebate;
-  final double maxStandardRebate;
+  final double? maxStandardRebate;
   final double? minDualAgencyRebate;
   final double? maxDualAgencyRebate;
   final double listPrice;
@@ -78,7 +172,7 @@ class RebateRange {
 
   RebateRange({
     required this.minStandardRebate,
-    required this.maxStandardRebate,
+    this.maxStandardRebate,
     this.minDualAgencyRebate,
     this.maxDualAgencyRebate,
     required this.listPrice,
@@ -89,8 +183,9 @@ class RebateRange {
 
   String get formattedMinStandardRebate =>
       RebateCalculatorService.formatCurrency(minStandardRebate);
-  String get formattedMaxStandardRebate =>
-      RebateCalculatorService.formatCurrency(maxStandardRebate);
+  String get formattedMaxStandardRebate => maxStandardRebate != null
+      ? RebateCalculatorService.formatCurrency(maxStandardRebate!)
+      : '';
   String get formattedMinDualAgencyRebate => minDualAgencyRebate != null
       ? RebateCalculatorService.formatCurrency(minDualAgencyRebate!)
       : '';
@@ -99,7 +194,9 @@ class RebateRange {
       : '';
 
   String get standardRebateRangeText {
-    // If min and max are the same (based on actual BAC), show single amount
+    if (maxStandardRebate == null) {
+      return '$formattedMinStandardRebate or more';
+    }
     if (minStandardRebate == maxStandardRebate) {
       return formattedMinStandardRebate;
     }
@@ -110,8 +207,6 @@ class RebateRange {
     if (minDualAgencyRebate == null) {
       return '';
     }
-    // Product requirement: dual-agency card should display a single amount with
-    // "or more" instead of a min-max range.
     return '$formattedMinDualAgencyRebate or more';
   }
 

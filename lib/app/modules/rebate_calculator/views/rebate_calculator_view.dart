@@ -21,7 +21,10 @@ class RebateCalculatorView extends StatelessWidget {
     // Read mode from bottom sheet
     final args = Get.arguments;
     if (args != null && args['mode'] is int) {
-      controller.currentMode.value = args['mode'] as int;
+      final requestedMode = args['mode'] as int;
+      if (controller.currentMode.value != requestedMode) {
+        controller.setMode(requestedMode);
+      }
     }
     final authController = Get.isRegistered<AuthController>()
         ? Get.find<AuthController>()
@@ -193,9 +196,9 @@ class RebateCalculatorView extends StatelessWidget {
                       child: Text(
                         message,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: AppTheme.primaryBlue,
-                              fontWeight: FontWeight.w500,
-                            ),
+                          color: AppTheme.primaryBlue,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ),
                   ],
@@ -278,17 +281,14 @@ class RebateCalculatorView extends StatelessWidget {
             ? SizedBox(
                 height: 20,
                 width: 20,
-                child: SpinKitFadingCircle(
-                  color: Colors.white,
-                  size: 20,
-                ),
+                child: SpinKitFadingCircle(color: Colors.white, size: 20),
               )
             : Text(
                 'Calculate',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
-                    ),
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
       ),
     );
@@ -438,7 +438,7 @@ class RebateCalculatorView extends StatelessWidget {
   }) {
     // Show API results if available, otherwise show local calculations
     final apiResult = c.currentApiResult;
-    
+
     if (apiResult != null && apiResult.success) {
       return _buildApiResults(
         context,
@@ -449,7 +449,7 @@ class RebateCalculatorView extends StatelessWidget {
     }
 
     // Fallback to local calculations
-    if (c.estimatedRebate.value <= 0 && c.currentMode.value != 0) {
+    if (c.currentMode.value != 0 && !_hasRequiredInputsForCurrentMode(c)) {
       return _emptyState(context, "Enter details to calculate");
     }
 
@@ -604,10 +604,7 @@ class RebateCalculatorView extends StatelessWidget {
                   icon: const Icon(Icons.search, size: 24),
                   label: const Text(
                     'Find Agents',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                   ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppTheme.primaryBlue,
@@ -625,6 +622,24 @@ class RebateCalculatorView extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  bool _hasRequiredInputsForCurrentMode(RebateCalculatorController c) {
+    final priceText = c.homePriceController.text.replaceAll(
+      RegExp(r'[,\$]'),
+      '',
+    );
+    final price = double.tryParse(priceText) ?? 0.0;
+
+    final sellerCommission =
+        double.tryParse(c.sellerOriginalFeeController.text) ?? 0.0;
+    final buyerCommission =
+        double.tryParse(c.agentCommissionController.text) ?? 0.0;
+    final commission = c.currentMode.value == 2
+        ? (sellerCommission > 0 ? sellerCommission : buyerCommission)
+        : buyerCommission;
+
+    return price > 0 && commission > 0;
   }
 
   Widget _resultItem(
@@ -681,8 +696,7 @@ class RebateCalculatorView extends StatelessWidget {
   Widget _buildApiResults(
     BuildContext context,
     RebateCalculatorController c,
-    RebateCalculatorResponse result,
-    {
+    RebateCalculatorResponse result, {
     required bool shouldShowFindAgentsButton,
   }) {
     // Check if maxRebate is "or more" from rawData
@@ -702,19 +716,14 @@ class RebateCalculatorView extends StatelessWidget {
 
     return Card(
       elevation: 4,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              Colors.white,
-              AppTheme.lightGray.withOpacity(0.3),
-            ],
+            colors: [Colors.white, AppTheme.lightGray.withOpacity(0.3)],
           ),
         ),
         child: Padding(
@@ -746,9 +755,9 @@ class RebateCalculatorView extends StatelessWidget {
                           ? 'Exact Rebate Results'
                           : 'Seller Conversion Results',
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: AppTheme.darkGray,
-                          ),
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.darkGray,
+                      ),
                     ),
                   ),
                 ],
@@ -800,9 +809,9 @@ class RebateCalculatorView extends StatelessWidget {
                       Text(
                         'Rebate Percentage',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: AppTheme.mediumGray,
-                              fontWeight: FontWeight.w500,
-                            ),
+                          color: AppTheme.mediumGray,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                       const SizedBox(height: 8),
                       Text(
@@ -832,7 +841,8 @@ class RebateCalculatorView extends StatelessWidget {
                           children: [
                             Text(
                               'Estimated Rebate Range',
-                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(
                                     color: AppTheme.darkGray,
                                     fontWeight: FontWeight.w600,
                                   ),
@@ -841,7 +851,10 @@ class RebateCalculatorView extends StatelessWidget {
                             Text(
                               isOrMore || result.maxRebate == null
                                   ? '${_formatCurrency(result.minRebate!)} or more'
-                                  : _formatCurrencyRange(result.minRebate!, result.maxRebate!),
+                                  : _formatCurrencyRange(
+                                      result.minRebate!,
+                                      result.maxRebate!,
+                                    ),
                               style: TextStyle(
                                 color: AppTheme.lightGreen,
                                 fontWeight: FontWeight.bold,
@@ -876,10 +889,7 @@ class RebateCalculatorView extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: Colors.blue.shade50,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: Colors.blue.shade200,
-                      width: 1,
-                    ),
+                    border: Border.all(color: Colors.blue.shade200, width: 1),
                   ),
                   child: ExpansionTile(
                     tilePadding: const EdgeInsets.symmetric(
@@ -894,9 +904,9 @@ class RebateCalculatorView extends StatelessWidget {
                     title: Text(
                       'Additional Information',
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            color: Colors.blue.shade900,
-                            fontWeight: FontWeight.w600,
-                          ),
+                        color: Colors.blue.shade900,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                     children: [
                       ...result.notes!.map((note) {
@@ -914,9 +924,8 @@ class RebateCalculatorView extends StatelessWidget {
                               Expanded(
                                 child: Text(
                                   note,
-                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                        color: Colors.blue.shade900,
-                                      ),
+                                  style: Theme.of(context).textTheme.bodyMedium
+                                      ?.copyWith(color: Colors.blue.shade900),
                                 ),
                               ),
                             ],
@@ -954,7 +963,8 @@ class RebateCalculatorView extends StatelessWidget {
                           const SizedBox(width: 8),
                           Text(
                             'Important Warnings',
-                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(
                                   color: Colors.orange.shade900,
                                   fontWeight: FontWeight.w600,
                                 ),
@@ -977,9 +987,8 @@ class RebateCalculatorView extends StatelessWidget {
                               Expanded(
                                 child: Text(
                                   warning,
-                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                        color: Colors.orange.shade900,
-                                      ),
+                                  style: Theme.of(context).textTheme.bodyMedium
+                                      ?.copyWith(color: Colors.orange.shade900),
                                 ),
                               ),
                             ],
@@ -1045,9 +1054,9 @@ class RebateCalculatorView extends StatelessWidget {
             child: Text(
               label,
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    fontWeight: isBold ? FontWeight.w600 : FontWeight.w500,
-                    color: AppTheme.darkGray,
-                  ),
+                fontWeight: isBold ? FontWeight.w600 : FontWeight.w500,
+                color: AppTheme.darkGray,
+              ),
             ),
           ),
           Expanded(
@@ -1056,10 +1065,10 @@ class RebateCalculatorView extends StatelessWidget {
               value,
               textAlign: TextAlign.right,
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: color,
-                    fontWeight: isBold ? FontWeight.bold : FontWeight.w600,
-                    fontSize: isBold ? 18 : 16,
-                  ),
+                color: color,
+                fontWeight: isBold ? FontWeight.bold : FontWeight.w600,
+                fontSize: isBold ? 18 : 16,
+              ),
             ),
           ),
         ],

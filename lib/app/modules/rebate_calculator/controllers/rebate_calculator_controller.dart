@@ -59,8 +59,8 @@ class RebateCalculatorController extends GetxController {
   // Seller-specific limitations (currently only New Jersey)
   static const Set<String> _sellerRebateLimitedStates = {'NJ'};
 
-  List<String> get allowedStates => _allowedStates.isEmpty 
-      ? RebateStatesService.getFallbackAllowedStates() 
+  List<String> get allowedStates => _allowedStates.isEmpty
+      ? RebateStatesService.getFallbackAllowedStates()
       : _allowedStates;
 
   // GETTERS
@@ -95,7 +95,8 @@ class RebateCalculatorController extends GetxController {
         print('⚠️ Failed to load allowed states: $e');
       }
       // Fallback is handled in the getter
-      _allowedStates.value = RebateStatesService.getFallbackAllowedStates()..sort();
+      _allowedStates.value = RebateStatesService.getFallbackAllowedStates()
+        ..sort();
     }
   }
 
@@ -134,7 +135,10 @@ class RebateCalculatorController extends GetxController {
       }
       _updateFormValidity();
     });
-    currentMode.listen((_) => _updateFormValidity());
+    currentMode.listen((_) {
+      _updateFormValidity();
+      _calculate();
+    });
   }
 
   /// Clears API results for the current mode
@@ -333,6 +337,12 @@ class RebateCalculatorController extends GetxController {
 
   // ACTIONS
   void setMode(int mode) {
+    // Keep seller mode usable immediately by defaulting LAC to BAC when needed.
+    if (mode == 2 &&
+        sellerOriginalFeeController.text.trim().isEmpty &&
+        agentCommissionController.text.trim().isNotEmpty) {
+      sellerOriginalFeeController.text = agentCommissionController.text.trim();
+    }
     currentMode.value = mode;
     _calculate();
   }
