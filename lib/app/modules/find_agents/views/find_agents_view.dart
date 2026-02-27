@@ -101,16 +101,15 @@ class FindAgentsView extends GetView<FindAgentsController> {
                 controller: controller.zipSearchController,
                 hintText: 'Enter a ZIP code to begin your search',
                 onChanged: (value) {
-                  if (value.isEmpty || value.trim().isEmpty) {
+                  final trimmedValue = value.trim();
+                  if (trimmedValue.isEmpty) {
                     controller.clearZipCodeFilter();
                     return;
                   }
-                  final trimmedValue = value.trim();
+                  // Only trigger search once a full ZIP is entered; keep text while typing.
                   if (trimmedValue.length == 5 &&
                       RegExp(r'^\d+$').hasMatch(trimmedValue)) {
                     controller.searchByZipCode(trimmedValue);
-                  } else if (value.length < 5) {
-                    controller.clearZipCodeFilter();
                   }
                 },
                 onLocationTap: controller.useCurrentLocationForZip,

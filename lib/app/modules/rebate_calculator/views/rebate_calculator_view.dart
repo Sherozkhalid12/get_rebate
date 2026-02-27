@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart';
@@ -121,7 +122,19 @@ class RebateCalculatorView extends StatelessWidget {
     final active = c.currentMode.value == idx;
     return Expanded(
       child: GestureDetector(
-        onTap: () => c.setMode(idx),
+        onTap: () {
+          c.setMode(idx);
+          if (idx != 0 && !_hasRequiredInputsForMode(c, idx)) {
+            Get.snackbar(
+              'Add price & commission',
+              'Enter price and commission to see results instantly.',
+              snackPosition: SnackPosition.BOTTOM,
+              backgroundColor: Colors.orange.shade100,
+              colorText: Colors.orange.shade900,
+              duration: const Duration(seconds: 3),
+            );
+          }
+        },
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 14),
           decoration: BoxDecoration(
@@ -158,10 +171,16 @@ class RebateCalculatorView extends StatelessWidget {
               controller: c.homePriceController,
               labelText: 'Sales Price',
               prefixIcon: Icons.home,
+              keyboardType: TextInputType.number,
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[0-9,]')),
+                LengthLimitingTextInputFormatter(12),
+              ],
+              hintText: 'e.g. 750,000',
             ),
 
             const SizedBox(height: 20),
-            _dropdown(
+            _dropdownStyled(
               context,
               'State',
               c.selectedState,
@@ -219,6 +238,12 @@ class RebateCalculatorView extends StatelessWidget {
                       labelText: 'Listing Agent Commission (LAC) %',
                       prefixIcon: Icons.percent,
                       hintText: 'e.g. 2.5, 3.0',
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                        signed: false,
+                      ),
+                      inputFormatters: _percentFormatters,
+                      onChanged: c.handleCommissionChanged,
                     ),
                   ],
                 );
@@ -229,6 +254,12 @@ class RebateCalculatorView extends StatelessWidget {
                 labelText: 'Buyer Agent Commission (BAC) %',
                 prefixIcon: Icons.percent,
                 hintText: 'e.g. 2.5, 3.0',
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                  signed: false,
+                ),
+                inputFormatters: _percentFormatters,
+                onChanged: c.handleCommissionChanged,
               );
             }),
 
@@ -294,27 +325,121 @@ class RebateCalculatorView extends StatelessWidget {
     );
   }
 
-  Widget _dropdown(
+  List<TextInputFormatter> get _percentFormatters => [
+        FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+        LengthLimitingTextInputFormatter(5),
+      ];
+
+  Widget _dropdownStyled(
     BuildContext context,
     String label,
     String value,
     List<String> items,
     Function(String) onChanged,
   ) {
+    final sorted = [...items]..sort();
+    final safeValue = sorted.contains(value) ? value : null;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(fontWeight: FontWeight.w500)),
+        Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(
-          value: value,
-          items: items
-              .map((s) => DropdownMenuItem(value: s, child: Text(s)))
+          value: safeValue,
+          isExpanded: true,
+          menuMaxHeight: 320,
+          dropdownColor: AppTheme.white,
+          borderRadius: BorderRadius.circular(12),
+          elevation: 8,
+          items: sorted
+              .map(
+                (s) => DropdownMenuItem<String>(
+                  value: s,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 4,
+                          height: 18,
+                          decoration: BoxDecoration(
+                            color: AppTheme.primaryBlue,
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          s,
+                          style: const TextStyle(
+                            color: AppTheme.darkGray,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              )
               .toList(),
           onChanged: (v) => v != null ? onChanged(v) : null,
+          selectedItemBuilder: (context) {
+            // Prevent clipped text in the closed state by rendering a simple row
+            return sorted
+                .map(
+                  (s) => Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      s,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppTheme.darkGray,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                )
+                .toList();
+          },
           decoration: InputDecoration(
-            prefixIcon: const Icon(Icons.location_on, size: 20),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            labelText: 'Select State',
+            labelStyle: const TextStyle(
+              color: AppTheme.mediumGray,
+              fontWeight: FontWeight.w500,
+            ),
+            prefixIcon: Container(
+              margin: const EdgeInsets.only(left: 12, right: 8),
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: AppTheme.primaryBlue.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(
+                Icons.map_outlined,
+                color: AppTheme.primaryBlue,
+                size: 20,
+              ),
+            ),
+            contentPadding: const EdgeInsets.fromLTRB(16, 16, 12, 16),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                color: AppTheme.primaryBlue.withOpacity(0.25),
+                width: 1.5,
+              ),
+            ),
+            focusedBorder: const OutlineInputBorder(
+              borderRadius: BorderRadius.all(Radius.circular(12)),
+              borderSide: BorderSide(
+                color: AppTheme.primaryBlue,
+                width: 2,
+              ),
+            ),
+            filled: true,
+            fillColor: AppTheme.primaryBlue.withOpacity(0.04),
           ),
         ),
       ],
@@ -625,6 +750,10 @@ class RebateCalculatorView extends StatelessWidget {
   }
 
   bool _hasRequiredInputsForCurrentMode(RebateCalculatorController c) {
+    return _hasRequiredInputsForMode(c, c.currentMode.value);
+  }
+
+  bool _hasRequiredInputsForMode(RebateCalculatorController c, int mode) {
     final priceText = c.homePriceController.text.replaceAll(
       RegExp(r'[,\$]'),
       '',
@@ -635,7 +764,7 @@ class RebateCalculatorView extends StatelessWidget {
         double.tryParse(c.sellerOriginalFeeController.text) ?? 0.0;
     final buyerCommission =
         double.tryParse(c.agentCommissionController.text) ?? 0.0;
-    final commission = c.currentMode.value == 2
+    final commission = mode == 2
         ? (sellerCommission > 0 ? sellerCommission : buyerCommission)
         : buyerCommission;
 

@@ -2,6 +2,7 @@
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/services/rebate_calculator_api_service.dart';
@@ -157,8 +158,7 @@ class RebateCalculatorController extends GetxController {
   }
 
   void _updateFormValidity() {
-    final priceText = homePriceController.text.replaceAll(RegExp(r'[,\$]'), '');
-    final price = double.tryParse(priceText);
+    final price = _parsePrice(homePriceController.text);
 
     String commissionText;
     if (currentMode.value == 2) {
@@ -166,10 +166,10 @@ class RebateCalculatorController extends GetxController {
     } else {
       commissionText = agentCommissionController.text;
     }
-    final commission = double.tryParse(commissionText);
+    final commission = _parsePercent(commissionText);
 
     _isFormValid.value =
-        (price != null && price > 0) &&
+        (price > 0) &&
         (commission != null && commission > 0) &&
         _selectedState.value.isNotEmpty;
   }
@@ -182,11 +182,10 @@ class RebateCalculatorController extends GetxController {
       return;
     }
 
-    final price =
-        double.tryParse(homePriceController.text.replaceAll(',', '')) ?? 0.0;
-    final agentRate = double.tryParse(agentCommissionController.text) ?? 0.0;
+    final price = _parsePrice(homePriceController.text);
+    final agentRate = _parsePercent(agentCommissionController.text) ?? 0.0;
     final sellerFeeRate =
-        double.tryParse(sellerOriginalFeeController.text) ?? agentRate;
+        _parsePercent(sellerOriginalFeeController.text) ?? agentRate;
 
     if (price <= 0) {
       _resetResults();
@@ -376,7 +375,7 @@ class RebateCalculatorController extends GetxController {
     } else {
       commissionText = agentCommissionController.text;
     }
-    final commission = double.tryParse(commissionText);
+    final commission = _parsePercent(commissionText);
 
     if (price == null || price <= 0) {
       Get.snackbar(
@@ -393,6 +392,16 @@ class RebateCalculatorController extends GetxController {
       Get.snackbar(
         'Validation Error',
         'Please enter a valid commission percentage greater than 0.',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red.shade100,
+        colorText: Colors.red.shade900,
+      );
+      return false;
+    }
+    if (commission > 10) {
+      Get.snackbar(
+        'Validation Error',
+        'Commission looks too high. Please enter a percentage up to 10%.',
         snackPosition: SnackPosition.BOTTOM,
         backgroundColor: Colors.red.shade100,
         colorText: Colors.red.shade900,
@@ -417,6 +426,69 @@ class RebateCalculatorController extends GetxController {
   /// Formats price for API (removes commas and dollar sign)
   String _formatPriceForApi(String priceText) {
     return priceText.replaceAll(RegExp(r'[,\$]'), '');
+  }
+
+  double _parsePrice(String raw) {
+    final cleaned = raw.replaceAll(RegExp(r'[,\$]'), '');
+    return double.tryParse(cleaned) ?? 0.0;
+  }
+
+  double? _parsePercent(String raw) {
+    if (raw.trim().isEmpty) return null;
+    final cleaned = raw.replaceAll(RegExp(r'[^0-9.]'), '');
+    if (cleaned.isEmpty) return null;
+    final parsed = double.tryParse(cleaned);
+    if (parsed == null) return null;
+    // Clamp to 0 - 10% to avoid extreme or invalid inputs
+    if (parsed < 0) return 0;
+    if (parsed > 10) return 10;
+    return parsed;
+  }
+
+  /// Sanitize commission fields as user types to avoid bad characters / out-of-range values
+  void handleCommissionChanged(String _) {
+    final targetController = currentMode.value == 2
+        ? sellerOriginalFeeController
+        : agentCommissionController;
+    final rawText = targetController.text;
+
+    // Strip invalid chars but keep the first decimal point if present
+    final cleaned = rawText.replaceAll(RegExp(r'[^0-9.]'), '');
+    final parts = cleaned.split('.');
+    String normalized = parts.isEmpty ? '' : parts.first;
+    if (parts.length > 1) {
+      normalized += '.${parts.sublist(1).join()}';
+    }
+
+    // Allow empty or lone decimal during typing
+    if (normalized.isEmpty || normalized == '.') {
+      targetController
+        ..text = normalized
+        ..selection = TextSelection.collapsed(offset: normalized.length);
+      return;
+    }
+
+    final parsed = double.tryParse(normalized);
+    if (parsed == null) {
+      targetController
+        ..text = normalized
+        ..selection = TextSelection.collapsed(offset: normalized.length);
+      return;
+    }
+
+    if (parsed > 10) {
+      targetController
+        ..text = '10'
+        ..selection = const TextSelection.collapsed(offset: 2);
+      return;
+    }
+
+    // Keep the user's typing as-is (no auto-rounding) to avoid forcing 10
+    if (rawText != normalized) {
+      targetController
+        ..text = normalized
+        ..selection = TextSelection.collapsed(offset: normalized.length);
+    }
   }
 
   /// Calls API for Estimated tab (Mode 0)
