@@ -19,7 +19,7 @@ class RebateStatesService {
     'AZ', 'AR', 'CA', 'CO', 'CT', 'DC', 'DE', 'FL', 'GA',
     'HI', 'ID', 'IL', 'IN', 'KY', 'ME', 'MD', 'MA',
     'MI', 'MN', 'MT', 'NE', 'NV', 'NH', 'NJ', 'NM',
-    'NY', 'NC', 'OH', 'PA', 'RI', 'SC', 'SD',
+    'NY', 'NC', 'ND', 'OH', 'PA', 'RI', 'SC', 'SD',
     'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY',
   ];
 
@@ -45,10 +45,15 @@ class RebateStatesService {
       if (!forceRefresh) {
         final cachedStates = _getCachedStates();
         if (cachedStates != null && _isCacheValid()) {
+          final corrected = _ensureNdIncluded(cachedStates);
           if (kDebugMode) {
             print('✅ Using cached rebate-allowed states');
           }
-          return cachedStates;
+          // If we had to add ND, update cache
+          if (corrected.length != cachedStates.length) {
+            _cacheStates(corrected);
+          }
+          return corrected;
         }
       }
 
@@ -84,6 +89,7 @@ class RebateStatesService {
         }
 
         if (states.isNotEmpty) {
+          states = _ensureNdIncluded(states);
           // Cache the result
           _cacheStates(states);
           if (kDebugMode) {
@@ -102,10 +108,14 @@ class RebateStatesService {
     // Fallback to cached or default list
     final cachedStates = _getCachedStates();
     if (cachedStates != null) {
-      return cachedStates;
+      final corrected = _ensureNdIncluded(cachedStates);
+      if (corrected.length != cachedStates.length) {
+        _cacheStates(corrected);
+      }
+      return corrected;
     }
 
-    return List<String>.from(_fallbackAllowedStates);
+    return _ensureNdIncluded(List<String>.from(_fallbackAllowedStates));
   }
 
   /// Checks if a state allows rebates
@@ -156,6 +166,14 @@ class RebateStatesService {
         print('Error caching states: $e');
       }
     }
+  }
+
+  /// Ensure ND is present even if upstream omitted it
+  List<String> _ensureNdIncluded(List<String> states) {
+    if (!states.contains('ND')) {
+      return [...states, 'ND'];
+    }
+    return states;
   }
 
   /// Gets the fallback list (for UI display when API is unavailable)

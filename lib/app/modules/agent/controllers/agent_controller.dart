@@ -1955,6 +1955,7 @@ class AgentController extends GetxController {
       'Rhode Island': 'RI',
       'South Carolina': 'SC',
       'South Dakota': 'SD',
+      'North Dakota': 'ND',
       'Texas': 'TX',
       'Utah': 'UT',
       'Vermont': 'VT',

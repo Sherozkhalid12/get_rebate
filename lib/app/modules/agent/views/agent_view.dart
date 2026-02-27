@@ -58,6 +58,7 @@ class AgentView extends GetView<AgentController> {
         'Washington D.C.': 'DC',
         'Florida': 'FL', 'Georgia': 'GA', 'Hawaii': 'HI', 'Idaho': 'ID',
         'Illinois': 'IL', 'Indiana': 'IN',
+        'North Dakota': 'ND',
         'Kentucky': 'KY', 'Maine': 'ME', 'Maryland': 'MD',
         'Massachusetts': 'MA', 'Michigan': 'MI', 'Minnesota': 'MN',
         'Montana': 'MT', 'Nebraska': 'NE', 'Nevada': 'NV',
