@@ -204,26 +204,26 @@ class AuthView extends GetView<AuthViewController> {
           if (controller.isLoginMode) ...[
             const SizedBox(height: 8),
             Align(
-              alignment: Alignment.centerRight,
-              child: TextButton(
-                onPressed: () => Get.to(
-                  () => const ForgotPasswordView(),
-                  binding: ForgotPasswordBinding(),
-                ),
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 0),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-                child: Text(
-                  'Forgot password?',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: () => Get.to(
+                      () => const ForgotPasswordView(),
+                      binding: ForgotPasswordBinding(),
+                    ),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 0),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: Text(
+                      'Forgot password?',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: AppTheme.primaryBlue,
                         fontWeight: FontWeight.w600,
                       ),
-                ),
-              ),
-            )
+                    ),
+                  ),
+                )
                 .animate()
                 .slideX(
                   begin: 0.1,
@@ -775,57 +775,55 @@ class AuthView extends GetView<AuthViewController> {
   }
 
   Widget _buildLicensedStatesSelection(BuildContext context) {
-    return Obx(
-      () {
-        final allowedStates = controller.allowedStates;
-        return Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: allowedStates.map((state) {
-            final isSelected = controller.isLicensedStateSelected(state);
-            final color = controller.selectedRole == UserRole.agent
-                ? AppTheme.primaryBlue
-                : AppTheme.lightGreen;
-            return GestureDetector(
-              onTap: () => controller.toggleLicensedState(state),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: isSelected ? color.withOpacity(0.1) : AppTheme.white,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: isSelected
-                        ? color
-                        : AppTheme.mediumGray.withOpacity(0.3),
-                    width: 1.5,
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      isSelected ? Icons.check_circle : Icons.circle_outlined,
-                      size: 16,
-                      color: isSelected ? color : AppTheme.mediumGray,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      state,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: isSelected ? color : AppTheme.darkGray,
-                        fontWeight: isSelected
-                            ? FontWeight.w600
-                            : FontWeight.normal,
-                      ),
-                    ),
-                  ],
+    return Obx(() {
+      final allowedStates = controller.allowedStates;
+      return Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: allowedStates.map((state) {
+          final isSelected = controller.isLicensedStateSelected(state);
+          final color = controller.selectedRole == UserRole.agent
+              ? AppTheme.primaryBlue
+              : AppTheme.lightGreen;
+          return GestureDetector(
+            onTap: () => controller.toggleLicensedState(state),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: isSelected ? color.withOpacity(0.1) : AppTheme.white,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: isSelected
+                      ? color
+                      : AppTheme.mediumGray.withOpacity(0.3),
+                  width: 1.5,
                 ),
               ),
-            );
-          }).toList(),
-        );
-      },
-    );
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    isSelected ? Icons.check_circle : Icons.circle_outlined,
+                    size: 16,
+                    color: isSelected ? color : AppTheme.mediumGray,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    state,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: isSelected ? color : AppTheme.darkGray,
+                      fontWeight: isSelected
+                          ? FontWeight.w600
+                          : FontWeight.normal,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }).toList(),
+      );
+    });
   }
 
   Widget _buildAgentProfileFields(BuildContext context) {
@@ -1364,10 +1362,8 @@ class AuthView extends GetView<AuthViewController> {
                       const SizedBox(height: 8),
                       RichText(
                         text: TextSpan(
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: AppTheme.darkGray,
-                            height: 1.5,
-                          ),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: AppTheme.darkGray, height: 1.5),
                           children: [
                             const TextSpan(
                               text: 'I have read and agree to the ',
@@ -1377,19 +1373,18 @@ class AuthView extends GetView<AuthViewController> {
                                 onTap: () => controller.openTermsOfService(),
                                 child: Text(
                                   'Terms of Service',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .bodySmall
+                                  style: Theme.of(context).textTheme.bodySmall
                                       ?.copyWith(
-                                    color: AppTheme.primaryBlue,
-                                    fontWeight: FontWeight.w600,
-                                    decoration: TextDecoration.underline,
-                                  ),
+                                        color: AppTheme.primaryBlue,
+                                        fontWeight: FontWeight.w600,
+                                        decoration: TextDecoration.underline,
+                                      ),
                                 ),
                               ),
                             ),
                             const TextSpan(
-                              text: '. By checking this box, you acknowledge that you have read, understood, and agree to be bound by all terms and conditions.',
+                              text:
+                                  '. By checking this box, you acknowledge that you have read, understood, and agree to be bound by all terms and conditions.',
                             ),
                           ],
                         ),

@@ -31,9 +31,6 @@ Key Points:
 • The platform helps you get discovered and generate leads, while transactions occur in real life''';
   }
 
-
-
-
   List<String> getSuccessTips() {
     return [
       'Keep your profile complete and accurate',

@@ -159,17 +159,21 @@ class RebateCalculatorResponse {
           calc['rebateTier']?.toString() ?? estimateData['tier']?.toString();
       final details = json['detailedAmounts'];
       final isSeller =
-          calc.containsKey('sellerSavings') || calc.containsKey('effectiveCommissionRate');
+          calc.containsKey('sellerSavings') ||
+          calc.containsKey('effectiveCommissionRate');
 
       // Parse amounts - handle formatted strings like "$5,062.50"
       String? _fmt(dynamic v) =>
           v == null ? null : v.toString().replaceFirst('\$', '').trim();
 
-      String? rebateAmt = calc['rebateAmount']?.toString() ??
+      String? rebateAmt =
+          calc['rebateAmount']?.toString() ??
           (details is Map ? details['rebateAmount']?.toString() : null);
-      String? totalComm = calc['totalCommission']?.toString() ??
+      String? totalComm =
+          calc['totalCommission']?.toString() ??
           (details is Map ? details['totalCommission']?.toString() : null);
-      String? netComm = calc['netAgentCommission']?.toString() ??
+      String? netComm =
+          calc['netAgentCommission']?.toString() ??
           (details is Map ? details['netAgentCommission']?.toString() : null);
 
       final rebateAmountNum = _toDouble(
@@ -191,8 +195,9 @@ class RebateCalculatorResponse {
       // Parse instructions
       List<String>? instructionsList;
       if (json['instructions'] is List) {
-        instructionsList =
-            List<String>.from((json['instructions'] as List).map((e) => e.toString()));
+        instructionsList = List<String>.from(
+          (json['instructions'] as List).map((e) => e.toString()),
+        );
       }
 
       // Tab 3: Seller-specific fields
@@ -205,14 +210,24 @@ class RebateCalculatorResponse {
       String? simplInstr;
 
       if (isSeller) {
-        sellerSavingsStr = calc['sellerSavings']?.toString() ??
+        sellerSavingsStr =
+            calc['sellerSavings']?.toString() ??
             (details is Map ? details['sellerSavings']?.toString() : null);
-        origCommStr = calc['originalCommissionAmount']?.toString() ??
-            (details is Map ? details['originalCommissionAmount']?.toString() : null);
-        newCommStr = calc['newCommissionAmount']?.toString() ??
-            (details is Map ? details['newCommissionAmount']?.toString() : null);
-        effRateStr = calc['effectiveCommissionRate']?.toString() ??
-            (details is Map ? details['effectiveCommissionRate']?.toString() : null);
+        origCommStr =
+            calc['originalCommissionAmount']?.toString() ??
+            (details is Map
+                ? details['originalCommissionAmount']?.toString()
+                : null);
+        newCommStr =
+            calc['newCommissionAmount']?.toString() ??
+            (details is Map
+                ? details['newCommissionAmount']?.toString()
+                : null);
+        effRateStr =
+            calc['effectiveCommissionRate']?.toString() ??
+            (details is Map
+                ? details['effectiveCommissionRate']?.toString()
+                : null);
 
         final simpl = json['simplifiedForContract'];
         if (simpl is Map<String, dynamic>) {

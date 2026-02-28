@@ -40,11 +40,11 @@ class _PaymentWebViewState extends State<PaymentWebView> {
       // Stripe checkout URLs typically have format: https://checkout.stripe.com/c/pay/cs_test_... or cs_live_...
       final uri = Uri.parse(widget.checkoutUrl);
       final pathSegments = uri.pathSegments;
-      
+
       // Session ID is typically in the path after /pay/
       // e.g., /c/pay/cs_test_a18zyHkYPoZF6Uz8VJ43dRYM9rX8xD7LJRa9kSoJCEgzRh0pwKRJlhTbQu
       String? sessionId;
-      
+
       // Look for segment starting with 'cs_' (checkout session)
       for (final segment in pathSegments) {
         if (segment.startsWith('cs_')) {
@@ -52,7 +52,7 @@ class _PaymentWebViewState extends State<PaymentWebView> {
           break;
         }
       }
-      
+
       // If not found in path, try extracting from URL string directly
       if (sessionId == null) {
         final regex = RegExp(r'cs_(test|live)_[A-Za-z0-9]+');
@@ -61,12 +61,14 @@ class _PaymentWebViewState extends State<PaymentWebView> {
           sessionId = match.group(0);
         }
       }
-      
+
       if (kDebugMode) {
         if (sessionId != null) {
           print('💳 Stripe Checkout Session ID: $sessionId');
         } else {
-          print('⚠️ Could not extract session ID from URL: ${widget.checkoutUrl}');
+          print(
+            '⚠️ Could not extract session ID from URL: ${widget.checkoutUrl}',
+          );
         }
       }
     } catch (e) {
@@ -86,7 +88,7 @@ class _PaymentWebViewState extends State<PaymentWebView> {
               _isLoading = true;
               _errorMessage = null;
             });
-            
+
             // Check URL immediately when navigation starts
             _checkPaymentStatus(url);
           },
@@ -94,7 +96,7 @@ class _PaymentWebViewState extends State<PaymentWebView> {
             setState(() {
               _isLoading = false;
             });
-            
+
             // Check for payment success/failure indicators in the URL
             _checkPaymentStatus(url);
           },
@@ -115,10 +117,9 @@ class _PaymentWebViewState extends State<PaymentWebView> {
       ..loadRequest(Uri.parse(widget.checkoutUrl));
   }
 
-
   void _checkPaymentStatus(String url) {
     if (url.isEmpty) return;
-    
+
     if (kDebugMode) {
       print('🔍 Checking payment status for URL: $url');
     }
@@ -130,14 +131,16 @@ class _PaymentWebViewState extends State<PaymentWebView> {
     // - session_id with success status
     // - Redirects to success page after payment
     final lowerUrl = url.toLowerCase();
-    
+
     // Check for success indicators (broader pattern matching)
-    if (lowerUrl.contains('success') || 
+    if (lowerUrl.contains('success') ||
         lowerUrl.contains('payment_success') ||
         lowerUrl.contains('payment_succeeded') ||
-        (lowerUrl.contains('checkout.stripe.com') && 
-         (lowerUrl.contains('session_id') || lowerUrl.contains('payment_intent')) &&
-         !lowerUrl.contains('cancel') && !lowerUrl.contains('error'))) {
+        (lowerUrl.contains('checkout.stripe.com') &&
+            (lowerUrl.contains('session_id') ||
+                lowerUrl.contains('payment_intent')) &&
+            !lowerUrl.contains('cancel') &&
+            !lowerUrl.contains('error'))) {
       // Payment successful - wait a bit to ensure page is fully loaded
       if (kDebugMode) {
         print('✅ Payment successful detected from URL');
@@ -150,14 +153,14 @@ class _PaymentWebViewState extends State<PaymentWebView> {
       });
       return;
     }
-    
+
     // Check for cancellation/failure indicators
-    if (lowerUrl.contains('cancel') || 
+    if (lowerUrl.contains('cancel') ||
         lowerUrl.contains('payment_failed') ||
         lowerUrl.contains('payment_declined') ||
         lowerUrl.contains('error') ||
-        (lowerUrl.contains('checkout.stripe.com') && 
-         (lowerUrl.contains('cancel') || lowerUrl.contains('error')))) {
+        (lowerUrl.contains('checkout.stripe.com') &&
+            (lowerUrl.contains('cancel') || lowerUrl.contains('error')))) {
       // Payment cancelled or failed
       if (kDebugMode) {
         print('❌ Payment cancelled/failed detected from URL');
@@ -269,10 +272,7 @@ class _PaymentWebViewState extends State<PaymentWebView> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              SpinKitFadingCircle(
-                color: AppTheme.primaryBlue,
-                size: 48.sp,
-              ),
+              SpinKitFadingCircle(color: AppTheme.primaryBlue, size: 48.sp),
               SizedBox(height: 24.h),
               Text(
                 'Loading secure payment',
@@ -316,10 +316,7 @@ class _PaymentWebViewState extends State<PaymentWebView> {
                   offset: const Offset(0, 8),
                 ),
               ],
-              border: Border.all(
-                color: Colors.red.withOpacity(0.15),
-                width: 1,
-              ),
+              border: Border.all(color: Colors.red.withOpacity(0.15), width: 1),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -348,7 +345,8 @@ class _PaymentWebViewState extends State<PaymentWebView> {
                 ),
                 SizedBox(height: 12.h),
                 Text(
-                  _errorMessage ?? 'Unable to load the payment form. Please check your connection and try again.',
+                  _errorMessage ??
+                      'Unable to load the payment form. Please check your connection and try again.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 14.sp,
@@ -393,4 +391,3 @@ class _PaymentWebViewState extends State<PaymentWebView> {
     );
   }
 }
-

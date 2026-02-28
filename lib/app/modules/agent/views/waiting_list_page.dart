@@ -8,10 +8,7 @@ import 'package:getrebate/app/utils/snackbar_helper.dart';
 class WaitingListPage extends StatefulWidget {
   final ZipCodeModel zipCode;
 
-  const WaitingListPage({
-    super.key,
-    required this.zipCode,
-  });
+  const WaitingListPage({super.key, required this.zipCode});
 
   @override
   State<WaitingListPage> createState() => _WaitingListPageState();
@@ -41,13 +38,16 @@ class _WaitingListPageState extends State<WaitingListPage> {
         leading: const BackButton(color: AppTheme.black),
         actions: [
           Obx(() {
-            if (!_controller.hasJoinedWaitingList(_zipCode)) return const SizedBox.shrink();
+            if (!_controller.hasJoinedWaitingList(_zipCode))
+              return const SizedBox.shrink();
             final isRemoving = _controller.isRemovingFromWaitingList(_zipCode);
             return TextButton.icon(
               onPressed: isRemoving
                   ? null
                   : () async {
-                      final removed = await _controller.removeFromWaitingList(_zipCode);
+                      final removed = await _controller.removeFromWaitingList(
+                        _zipCode,
+                      );
                       if (removed && context.mounted) {
                         SnackbarHelper.showSuccess(
                           'You have been removed from the waiting list.',
@@ -60,12 +60,22 @@ class _WaitingListPageState extends State<WaitingListPage> {
                   ? SizedBox(
                       width: 18,
                       height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.primaryBlue),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppTheme.primaryBlue,
+                      ),
                     )
-                  : const Icon(Icons.exit_to_app, size: 20, color: AppTheme.primaryBlue),
+                  : const Icon(
+                      Icons.exit_to_app,
+                      size: 20,
+                      color: AppTheme.primaryBlue,
+                    ),
               label: Text(
                 isRemoving ? 'Leaving...' : 'Leave list',
-                style: const TextStyle(color: AppTheme.primaryBlue, fontWeight: FontWeight.w600),
+                style: const TextStyle(
+                  color: AppTheme.primaryBlue,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             );
           }),
@@ -95,17 +105,17 @@ class _WaitingListPageState extends State<WaitingListPage> {
                       ? '${widget.zipCode.zipCode} (${widget.zipCode.city})'
                       : widget.zipCode.zipCode,
                   style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                        color: AppTheme.white,
-                        fontWeight: FontWeight.w700,
-                      ),
+                    color: AppTheme.white,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   'Claimed by another agent. Here are the agents waiting for it.',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppTheme.white.withOpacity(0.85),
-                        height: 1.4,
-                      ),
+                    color: AppTheme.white.withOpacity(0.85),
+                    height: 1.4,
+                  ),
                 ),
               ],
             ),
@@ -136,18 +146,17 @@ class _WaitingListPageState extends State<WaitingListPage> {
                         const SizedBox(height: 12),
                         Text(
                           'No agents are waiting yet.',
-                          style:
-                              Theme.of(context).textTheme.titleMedium?.copyWith(
-                                    color: AppTheme.darkGray,
-                                    fontWeight: FontWeight.w600,
-                                  ),
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(
+                                color: AppTheme.darkGray,
+                                fontWeight: FontWeight.w600,
+                              ),
                         ),
                         const SizedBox(height: 8),
                         Text(
                           'We will notify you once the ZIP code is free.',
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                color: AppTheme.mediumGray,
-                              ),
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(color: AppTheme.mediumGray),
                           textAlign: TextAlign.center,
                         ),
                       ],
@@ -184,7 +193,9 @@ class _WaitingListPageState extends State<WaitingListPage> {
                         children: [
                           CircleAvatar(
                             radius: 26,
-                            backgroundColor: AppTheme.primaryBlue.withOpacity(0.12),
+                            backgroundColor: AppTheme.primaryBlue.withOpacity(
+                              0.12,
+                            ),
                             child: Text(
                               initial,
                               style: const TextStyle(
@@ -200,9 +211,7 @@ class _WaitingListPageState extends State<WaitingListPage> {
                               children: [
                                 Text(
                                   entry.name.isNotEmpty ? entry.name : 'Agent',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .bodyLarge
+                                  style: Theme.of(context).textTheme.bodyLarge
                                       ?.copyWith(
                                         color: AppTheme.black,
                                         fontWeight: FontWeight.w600,
@@ -211,21 +220,15 @@ class _WaitingListPageState extends State<WaitingListPage> {
                                 const SizedBox(height: 2),
                                 Text(
                                   entry.email,
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .bodyMedium
+                                  style: Theme.of(context).textTheme.bodyMedium
                                       ?.copyWith(color: AppTheme.mediumGray),
                                 ),
                                 const SizedBox(height: 6),
                                 if (entry.formattedTimestamp.isNotEmpty)
                                   Text(
                                     'Joined ${entry.formattedTimestamp}',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodySmall
-                                        ?.copyWith(
-                                          color: AppTheme.darkGray,
-                                        ),
+                                    style: Theme.of(context).textTheme.bodySmall
+                                        ?.copyWith(color: AppTheme.darkGray),
                                   ),
                               ],
                             ),

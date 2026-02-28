@@ -58,7 +58,8 @@ class LoanOfficerController extends GetxController {
   final _availableZipCodes = <LoanOfficerZipCodeModel>[].obs;
   final _allZipCodes =
       <LoanOfficerZipCodeModel>[].obs; // All zip codes from API
-  final _stateZipCodesFromApi = <LoanOfficerZipCodeModel>[]; // getstateZip result
+  final _stateZipCodesFromApi =
+      <LoanOfficerZipCodeModel>[]; // getstateZip result
   final _filteredAvailableZipCodes = <LoanOfficerZipCodeModel>[]
       .obs; // Filtered available zip codes for search
   final _filteredClaimedZipCodes =
@@ -79,8 +80,10 @@ class LoanOfficerController extends GetxController {
   final _zipSectionTabIndex = 0.obs; // 0: Claimed ZIPs, 1: Available ZIPs
   final _recentNotifications = <NotificationModel>[].obs;
   final _isLoadingRecentActivity = false.obs;
+
   /// Session-only flag: user tapped Skip on ZIP selection screen (no persistence).
   final _hasSkippedZipSelection = false.obs;
+
   /// From API: true = old user (has claimed before), false = new user. Null = not yet loaded, fallback to claimedZipCodes.isEmpty.
   final _firstZipCodeClaimed = Rxn<bool>();
 
@@ -162,8 +165,10 @@ class LoanOfficerController extends GetxController {
   void setZipSectionTab(int index) {
     _zipSectionTabIndex.value = index.clamp(0, 1);
   }
+
   List<NotificationModel> get recentNotifications => _recentNotifications;
   bool get isLoadingRecentActivity => _isLoadingRecentActivity.value;
+
   /// True once we've received firstZipCodeClaimed from API. Use to avoid flicker: show loading until known.
   bool get isZipClaimStatusKnown => _firstZipCodeClaimed.value != null;
 
@@ -176,6 +181,7 @@ class LoanOfficerController extends GetxController {
     if (firstClaimed != false) return false;
     return !_hasSkippedZipSelection.value;
   }
+
   int get searchesAppearedIn => _searchesAppearedIn.value;
   int get profileViews => _profileViews.value;
   int get contacts => _contacts.value;
@@ -510,13 +516,16 @@ class LoanOfficerController extends GetxController {
     final existingIdx = _claimedZipCodes.indexWhere(
       (z) => z.postalCode == postalCode,
     );
-    final existingClaimed = existingIdx != -1 ? _claimedZipCodes[existingIdx] : null;
+    final existingClaimed = existingIdx != -1
+        ? _claimedZipCodes[existingIdx]
+        : null;
     final cached = _claimedZipDetailsCache[postalCode];
 
     if (existingClaimed != null && cached != null) {
-      return _pickRicherZipModel(existingClaimed, cached).copyWith(
-        claimedByOfficer: claimedByOfficer,
-      );
+      return _pickRicherZipModel(
+        existingClaimed,
+        cached,
+      ).copyWith(claimedByOfficer: claimedByOfficer);
     }
     if (cached != null) {
       return cached.copyWith(claimedByOfficer: claimedByOfficer);
@@ -622,22 +631,48 @@ class LoanOfficerController extends GetxController {
   // Only includes states where rebates are allowed
   // CRITICAL: Only these states are allowed - do not add others without approval
   static const Map<String, String> _stateNameToCode = {
-    'Arizona': 'AZ', 'Arkansas': 'AR',
-    'California': 'CA', 'Colorado': 'CO', 'Connecticut': 'CT', 'Delaware': 'DE',
+    'Arizona': 'AZ',
+    'Arkansas': 'AR',
+    'California': 'CA',
+    'Colorado': 'CO',
+    'Connecticut': 'CT',
+    'Delaware': 'DE',
     'District of Columbia': 'DC',
     'Washington, D.C.': 'DC',
     'Washington D.C.': 'DC',
-    'Florida': 'FL', 'Georgia': 'GA', 'Hawaii': 'HI', 'Idaho': 'ID',
-    'Illinois': 'IL', 'Indiana': 'IN',
-    'Kentucky': 'KY', 'Maine': 'ME', 'Maryland': 'MD',
-    'Massachusetts': 'MA', 'Michigan': 'MI', 'Minnesota': 'MN',
-    'Montana': 'MT', 'Nebraska': 'NE', 'Nevada': 'NV',
-    'New Hampshire': 'NH', 'New Jersey': 'NJ', 'New Mexico': 'NM', 'New York': 'NY',
-    'North Carolina': 'NC', 'Ohio': 'OH',
-    'Pennsylvania': 'PA', 'Rhode Island': 'RI', 'South Carolina': 'SC',
-    'South Dakota': 'SD', 'Texas': 'TX', 'Utah': 'UT',
-    'Vermont': 'VT', 'Virginia': 'VA', 'Washington': 'WA', 'West Virginia': 'WV',
-    'Wisconsin': 'WI', 'Wyoming': 'WY',
+    'Florida': 'FL',
+    'Georgia': 'GA',
+    'Hawaii': 'HI',
+    'Idaho': 'ID',
+    'Illinois': 'IL',
+    'Indiana': 'IN',
+    'Kentucky': 'KY',
+    'Maine': 'ME',
+    'Maryland': 'MD',
+    'Massachusetts': 'MA',
+    'Michigan': 'MI',
+    'Minnesota': 'MN',
+    'Montana': 'MT',
+    'Nebraska': 'NE',
+    'Nevada': 'NV',
+    'New Hampshire': 'NH',
+    'New Jersey': 'NJ',
+    'New Mexico': 'NM',
+    'New York': 'NY',
+    'North Carolina': 'NC',
+    'Ohio': 'OH',
+    'Pennsylvania': 'PA',
+    'Rhode Island': 'RI',
+    'South Carolina': 'SC',
+    'South Dakota': 'SD',
+    'Texas': 'TX',
+    'Utah': 'UT',
+    'Vermont': 'VT',
+    'Virginia': 'VA',
+    'Washington': 'WA',
+    'West Virginia': 'WV',
+    'Wisconsin': 'WI',
+    'Wyoming': 'WY',
   };
 
   /// Normalize state to two-letter code. Prevents wrong zips (e.g. AL vs Alaska).
@@ -650,9 +685,14 @@ class LoanOfficerController extends GetxController {
   List<String> get licensedStateCodes {
     final currentLoanOfficerController =
         Get.isRegistered<CurrentLoanOfficerController>()
-            ? Get.find<CurrentLoanOfficerController>()
-            : null;
-    final states = currentLoanOfficerController?.currentLoanOfficer.value?.licensedStates ?? [];
+        ? Get.find<CurrentLoanOfficerController>()
+        : null;
+    final states =
+        currentLoanOfficerController
+            ?.currentLoanOfficer
+            .value
+            ?.licensedStates ??
+        [];
     final codes = states.map((s) => _normalizeStateToCode(s)).toList();
     return codes.toSet().toList()..sort((a, b) => a.compareTo(b));
   }
@@ -666,10 +706,12 @@ class LoanOfficerController extends GetxController {
   Future<void> _loadFilteredLicensedStates() async {
     try {
       final allowedStates = await _rebateStatesService.getAllowedStates();
-      final allowedStatesSet = allowedStates.map((s) => s.toUpperCase()).toSet();
-      final codes = licensedStateCodes.where((code) => 
-        allowedStatesSet.contains(code.toUpperCase())
-      ).toList();
+      final allowedStatesSet = allowedStates
+          .map((s) => s.toUpperCase())
+          .toSet();
+      final codes = licensedStateCodes
+          .where((code) => allowedStatesSet.contains(code.toUpperCase()))
+          .toList();
       _filteredLicensedStateCodes.value = codes..sort((a, b) => a.compareTo(b));
     } catch (e) {
       if (kDebugMode) {
@@ -747,7 +789,8 @@ class LoanOfficerController extends GetxController {
       // Country is always US, only state changes. Use selected state or first licensed (as code).
       const country = 'US';
       final codes = licensedStateCodes;
-      final state = _selectedState.value != null && _selectedState.value!.isNotEmpty
+      final state =
+          _selectedState.value != null && _selectedState.value!.isNotEmpty
           ? _normalizeStateToCode(_selectedState.value!)
           : (codes.isNotEmpty ? codes.first : 'CA');
 
@@ -1109,8 +1152,7 @@ class LoanOfficerController extends GetxController {
 
       // Create LoanOfficerZipCodeModel objects for claimed zip codes
       // IMPORTANT: Deduplicate claimedZipCodesFromModel - backend may return duplicates
-      final uniqueClaimedFromModel =
-          claimedZipCodesFromModel.toSet().toList();
+      final uniqueClaimedFromModel = claimedZipCodesFromModel.toSet().toList();
       final claimedZips = <LoanOfficerZipCodeModel>[];
       final existingClaimedByPostal = {
         for (final z in _claimedZipCodes) z.postalCode: z,
@@ -1271,9 +1313,10 @@ class LoanOfficerController extends GetxController {
         if (isClaimedInModel && !isPendingRelease) {
           final existingClaimed = existingClaimedByPostal[zip.postalCode];
           if (existingClaimed != null) {
-            final merged = _pickRicherZipModel(existingClaimed, zip).copyWith(
-              claimedByOfficer: true,
-            );
+            final merged = _pickRicherZipModel(
+              existingClaimed,
+              zip,
+            ).copyWith(claimedByOfficer: true);
             claimed.add(merged);
             _rememberClaimedZipDetails(merged);
             continue;
@@ -1365,7 +1408,8 @@ class LoanOfficerController extends GetxController {
             (z) => z.postalCode == pendingZip,
             orElse: () => available.firstWhere(
               (z) => z.postalCode == pendingZip,
-              orElse: () => existingClaimed ??
+              orElse: () =>
+                  existingClaimed ??
                   LoanOfficerZipCodeModel(
                     postalCode: pendingZip,
                     state: loanOfficer?.licensedStates.isNotEmpty == true
@@ -1790,10 +1834,10 @@ class LoanOfficerController extends GetxController {
           // Handle response formats: {user: {...}}, {agent: {...}}, {officer: {...}}, or direct object
           final userData = responseData is Map
               ? (responseData['user'] ??
-                  responseData['agent'] ??
-                  responseData['officer'] ??
-                  responseData['loanOfficer'] ??
-                  responseData)
+                    responseData['agent'] ??
+                    responseData['officer'] ??
+                    responseData['loanOfficer'] ??
+                    responseData)
               : responseData;
 
           // Extract firstZipCodeClaimed from API (false = new user, true = old user)
@@ -2011,7 +2055,9 @@ class LoanOfficerController extends GetxController {
 
       // Validate that rebates are allowed in this state before checkout
       final stateCode = _normalizeStateToCode(zipCode.state);
-      final isStateAllowed = await _rebateStatesService.isStateAllowed(stateCode);
+      final isStateAllowed = await _rebateStatesService.isStateAllowed(
+        stateCode,
+      );
       if (!isStateAllowed) {
         SnackbarHelper.showError(
           'Real estate rebates are not permitted in ${zipCode.state}. Only states that allow rebates are available for subscription.',
@@ -2051,8 +2097,9 @@ class LoanOfficerController extends GetxController {
         if (kDebugMode) {
           print('❌ ZIP status check failed before payment: ${e.message}');
         }
-        final isAlreadyClaimed =
-            e.message.toLowerCase().contains('already claimed');
+        final isAlreadyClaimed = e.message.toLowerCase().contains(
+          'already claimed',
+        );
         if (isAlreadyClaimed) {
           _markZipAsClaimedByOtherOfficer(zipCode.postalCode);
           await fetchWaitingListEntries(zipCode.postalCode);
@@ -2159,8 +2206,9 @@ class LoanOfficerController extends GetxController {
                   population,
                 );
           } on LoanOfficerZipCodeServiceException catch (e) {
-            final isAlreadyClaimed =
-                e.message.toLowerCase().contains('already claimed');
+            final isAlreadyClaimed = e.message.toLowerCase().contains(
+              'already claimed',
+            );
             if (isAlreadyClaimed) {
               _markZipAsClaimedByOtherOfficer(zipCode.postalCode);
               await fetchWaitingListEntries(zipCode.postalCode);
@@ -2190,7 +2238,9 @@ class LoanOfficerController extends GetxController {
     } on DioException catch (e) {
       if (kDebugMode) {
         print('❌ Error in payment flow: ${e.message}');
-        print('   API: POST ${ApiConstants.apiBaseUrl}/subscription/create-checkout-session');
+        print(
+          '   API: POST ${ApiConstants.apiBaseUrl}/subscription/create-checkout-session',
+        );
         print('   Status Code: ${e.response?.statusCode}');
         print('   Response: ${e.response?.data}');
       }
@@ -2251,7 +2301,9 @@ class LoanOfficerController extends GetxController {
 
       if (kDebugMode) {
         print('❌ Final error message to user: $errorMessage');
-        print('   API that failed: POST ${ApiConstants.apiBaseUrl}/subscription/create-checkout-session');
+        print(
+          '   API that failed: POST ${ApiConstants.apiBaseUrl}/subscription/create-checkout-session',
+        );
         print('   Is already claimed: $isAlreadyClaimed');
       }
 
@@ -2302,8 +2354,9 @@ class LoanOfficerController extends GetxController {
       final claimedZipCodesRaw = preCheckClaimResponse is Map
           ? preCheckClaimResponse['claimedZipCodes']
           : null;
-      final claimedZipCodesData =
-          claimedZipCodesRaw is List ? claimedZipCodesRaw : null;
+      final claimedZipCodesData = claimedZipCodesRaw is List
+          ? claimedZipCodesRaw
+          : null;
       if (claimedZipCodesData != null && claimedZipCodesData.isNotEmpty) {
         final parsed = claimedZipCodesData
             .whereType<Map<String, dynamic>>()
@@ -2451,7 +2504,9 @@ class LoanOfficerController extends GetxController {
   void _markZipAsClaimedByOtherOfficer(String postalCode) {
     final allIdx = _allZipCodes.indexWhere((z) => z.postalCode == postalCode);
     if (allIdx != -1) {
-      _allZipCodes[allIdx] = _allZipCodes[allIdx].copyWith(claimedByOfficer: true);
+      _allZipCodes[allIdx] = _allZipCodes[allIdx].copyWith(
+        claimedByOfficer: true,
+      );
       _allZipCodes.refresh();
     }
     final availableIdx = _availableZipCodes.indexWhere(
@@ -2759,7 +2814,8 @@ class LoanOfficerController extends GetxController {
       // Find subscription for this specific zipcode, or fall back to first active
       Map<String, dynamic>? subForZip;
       for (final sub in _subscriptions) {
-        final status = sub['subscriptionStatus']?.toString().toLowerCase() ?? '';
+        final status =
+            sub['subscriptionStatus']?.toString().toLowerCase() ?? '';
         if (status != 'canceled' && status != 'cancelled') {
           final subZip = sub['zipcode']?.toString() ?? '';
           if (subZip == zipCode.postalCode) {
@@ -2769,7 +2825,8 @@ class LoanOfficerController extends GetxController {
         }
       }
       final activeSub = subForZip ?? activeSubscriptionFromAPI;
-      final stripeSubscriptionId = activeSub?['stripeSubscriptionId']?.toString() ??
+      final stripeSubscriptionId =
+          activeSub?['stripeSubscriptionId']?.toString() ??
           activeSub?['_id']?.toString() ??
           '';
 
@@ -2819,14 +2876,14 @@ class LoanOfficerController extends GetxController {
       ); // Remove from pending claims if there
       _profileClaimedZipCodes.remove(zipCode.postalCode);
 
-      final currentOfficer = currentLoanOfficerController?.currentLoanOfficer.value;
+      final currentOfficer =
+          currentLoanOfficerController?.currentLoanOfficer.value;
       if (currentOfficer != null) {
         final updatedClaimed = currentOfficer.claimedZipCodes
             .where((z) => z != zipCode.postalCode)
             .toList();
-        currentLoanOfficerController!.currentLoanOfficer.value = currentOfficer.copyWith(
-          claimedZipCodes: updatedClaimed,
-        );
+        currentLoanOfficerController!.currentLoanOfficer.value = currentOfficer
+            .copyWith(claimedZipCodes: updatedClaimed);
         currentLoanOfficerController.currentLoanOfficer.refresh();
       }
 
@@ -3029,7 +3086,9 @@ class LoanOfficerController extends GetxController {
         zipCode.length == 5 &&
         RegExp(r'^\d+$').hasMatch(zipCode)) {
       zipSearchController.text = zipCode;
-      zipSearchController.selection = TextSelection.collapsed(offset: zipCode.length);
+      zipSearchController.selection = TextSelection.collapsed(
+        offset: zipCode.length,
+      );
       onZipSearchChanged(zipCode);
     } else {
       SnackbarHelper.showInfo(
@@ -3049,7 +3108,10 @@ class LoanOfficerController extends GetxController {
       return;
     }
     if (q.length == 5 && RegExp(r'^\d{5}$').hasMatch(q)) {
-      _zipVerifyDebounce = Timer(const Duration(milliseconds: 400), _validateAndFetchZip);
+      _zipVerifyDebounce = Timer(
+        const Duration(milliseconds: 400),
+        _validateAndFetchZip,
+      );
       return;
     }
     filterZipCodesBySearch(query);
@@ -3067,9 +3129,16 @@ class LoanOfficerController extends GetxController {
 
     try {
       _isLoadingZipCodes.value = true;
-      await _loanOfficerZipCodeService.validateZipCode(zipcode: zip, state: state);
+      await _loanOfficerZipCodeService.validateZipCode(
+        zipcode: zip,
+        state: state,
+      );
       const country = 'US';
-      final list = await _loanOfficerZipCodeService.verifyZipCode(country, state, zip);
+      final list = await _loanOfficerZipCodeService.verifyZipCode(
+        country,
+        state,
+        zip,
+      );
       _allZipCodes.value = list;
       _updateZipCodeLists();
     } on LoanOfficerZipCodeServiceException catch (e) {
@@ -3079,7 +3148,9 @@ class LoanOfficerController extends GetxController {
       _updateZipCodeLists();
     } catch (e) {
       if (kDebugMode) print('❌ Validate ZIP: $e');
-      SnackbarHelper.showError('Failed to validate or fetch ZIP: ${e.toString()}');
+      SnackbarHelper.showError(
+        'Failed to validate or fetch ZIP: ${e.toString()}',
+      );
       _allZipCodes.value = List.from(_stateZipCodesFromApi);
       _updateZipCodeLists();
     } finally {
@@ -3454,7 +3525,10 @@ class LoanOfficerController extends GetxController {
     String userId,
   ) async {
     final authToken = _storage.read('auth_token');
-    final path = ApiConstants.cancelSubscriptionEndpoint.replaceFirst(_baseUrl, '');
+    final path = ApiConstants.cancelSubscriptionEndpoint.replaceFirst(
+      _baseUrl,
+      '',
+    );
     // Backend expects stripeSubscriptionId (e.g. sub_xxx or pi_xxx) in subscriptionId field
     final body = {'subscriptionId': subscriptionId, 'userId': userId};
     if (kDebugMode) {
@@ -3476,9 +3550,7 @@ class LoanOfficerController extends GetxController {
       final data = response.data;
       return data is Map<String, dynamic> ? data : <String, dynamic>{};
     }
-    throw Exception(
-      'Cancel subscription failed: ${response.statusCode}',
-    );
+    throw Exception('Cancel subscription failed: ${response.statusCode}');
   }
 
   /// Marks subscription as cancelled in local _subscriptions for instant UI update.
@@ -3486,7 +3558,8 @@ class LoanOfficerController extends GetxController {
     final subsBefore = List<Map<String, dynamic>>.from(_subscriptions);
     Map<String, dynamic>? cancelledSubCopy;
     for (var i = 0; i < subsBefore.length; i++) {
-      final subId = subsBefore[i]['stripeSubscriptionId']?.toString() ??
+      final subId =
+          subsBefore[i]['stripeSubscriptionId']?.toString() ??
           subsBefore[i]['_id']?.toString();
       if (subId == stripeSubscriptionId) {
         subsBefore[i] = Map<String, dynamic>.from(subsBefore[i])
@@ -3502,7 +3575,8 @@ class LoanOfficerController extends GetxController {
       final subsAfter = List<Map<String, dynamic>>.from(_subscriptions);
       var found = false;
       for (var i = 0; i < subsAfter.length; i++) {
-        final subId = subsAfter[i]['stripeSubscriptionId']?.toString() ??
+        final subId =
+            subsAfter[i]['stripeSubscriptionId']?.toString() ??
             subsAfter[i]['_id']?.toString();
         if (subId == stripeSubscriptionId) {
           subsAfter[i] = Map<String, dynamic>.from(subsAfter[i])
@@ -3535,8 +3609,7 @@ class LoanOfficerController extends GetxController {
       if (stripeCustomerId != null && stripeCustomerId.isNotEmpty) {
         try {
           activeSub = _subscriptions.firstWhere(
-            (sub) =>
-                sub['stripeCustomerId']?.toString() == stripeCustomerId,
+            (sub) => sub['stripeCustomerId']?.toString() == stripeCustomerId,
           );
         } catch (_) {
           activeSub = null;
@@ -3550,7 +3623,8 @@ class LoanOfficerController extends GetxController {
         return;
       }
 
-      final stripeSubscriptionId = activeSub['stripeSubscriptionId']?.toString() ??
+      final stripeSubscriptionId =
+          activeSub['stripeSubscriptionId']?.toString() ??
           activeSub['_id']?.toString() ??
           '';
       if (stripeSubscriptionId.isEmpty) {
@@ -3571,8 +3645,10 @@ class LoanOfficerController extends GetxController {
         print('   userId: $userId');
       }
 
-      final responseData =
-          await _callCancelSubscriptionApi(stripeSubscriptionId, userId);
+      final responseData = await _callCancelSubscriptionApi(
+        stripeSubscriptionId,
+        userId,
+      );
 
       if (kDebugMode) {
         print('📥 Cancel subscription response: 200 OK');
@@ -3584,7 +3660,8 @@ class LoanOfficerController extends GetxController {
       final subsBefore = List<Map<String, dynamic>>.from(_subscriptions);
       Map<String, dynamic>? cancelledSubCopy;
       for (var i = 0; i < subsBefore.length; i++) {
-        final subId = subsBefore[i]['stripeSubscriptionId']?.toString() ??
+        final subId =
+            subsBefore[i]['stripeSubscriptionId']?.toString() ??
             subsBefore[i]['_id']?.toString();
         if (subId == cancelledSubId) {
           subsBefore[i] = Map<String, dynamic>.from(subsBefore[i])
@@ -3603,7 +3680,8 @@ class LoanOfficerController extends GetxController {
       final subsAfter = List<Map<String, dynamic>>.from(_subscriptions);
       var found = false;
       for (var i = 0; i < subsAfter.length; i++) {
-        final subId = subsAfter[i]['stripeSubscriptionId']?.toString() ??
+        final subId =
+            subsAfter[i]['stripeSubscriptionId']?.toString() ??
             subsAfter[i]['_id']?.toString();
         if (subId == cancelledSubId) {
           subsAfter[i] = Map<String, dynamic>.from(subsAfter[i])
@@ -3632,10 +3710,7 @@ class LoanOfficerController extends GetxController {
             'The subscription you have cancelled. Your ZIP codes remain yours until the end of the month you subscribed.',
           ),
           actions: [
-            TextButton(
-              onPressed: () => Get.back(),
-              child: const Text('OK'),
-            ),
+            TextButton(onPressed: () => Get.back(), child: const Text('OK')),
           ],
         ),
         barrierDismissible: false,
@@ -3660,8 +3735,7 @@ class LoanOfficerController extends GetxController {
         print('   Status Code: ${e.response?.statusCode}');
       }
 
-      String errorMessage =
-          'Failed to cancel subscription. Please try again.';
+      String errorMessage = 'Failed to cancel subscription. Please try again.';
       if (e.response != null) {
         final responseData = e.response?.data;
         if (responseData is Map && responseData.containsKey('message')) {
@@ -3671,8 +3745,8 @@ class LoanOfficerController extends GetxController {
         } else if (e.response?.statusCode == 404) {
           errorMessage = 'Subscription not found.';
         } else if (e.response?.statusCode == 400) {
-          errorMessage = (responseData is Map &&
-                  responseData.containsKey('message'))
+          errorMessage =
+              (responseData is Map && responseData.containsKey('message'))
               ? responseData['message'].toString()
               : 'Invalid request. Please contact support.';
         } else if (e.type == DioExceptionType.connectionTimeout ||
@@ -3811,11 +3885,12 @@ class LoanOfficerController extends GetxController {
     }
   }
 
-  void _addCurrentUserToZipWaitingUsers(LoanOfficerZipCodeModel zip, String userId) {
+  void _addCurrentUserToZipWaitingUsers(
+    LoanOfficerZipCodeModel zip,
+    String userId,
+  ) {
     if (zip.waitingUsers.contains(userId)) return;
-    final updated = zip.copyWith(
-      waitingUsers: [...zip.waitingUsers, userId],
-    );
+    final updated = zip.copyWith(waitingUsers: [...zip.waitingUsers, userId]);
     final key = zip.postalCode;
     for (var i = 0; i < _allZipCodes.length; i++) {
       if (_allZipCodes[i].postalCode == key) {
@@ -3834,9 +3909,7 @@ class LoanOfficerController extends GetxController {
     _applySearchFilter();
   }
 
-  Future<List<WaitingListEntry>> fetchWaitingListEntries(
-    String zipCode,
-  ) async {
+  Future<List<WaitingListEntry>> fetchWaitingListEntries(String zipCode) async {
     if (zipCode.isEmpty) {
       return [];
     }
@@ -3885,7 +3958,9 @@ class LoanOfficerController extends GetxController {
     }
   }
 
-  Future<void> _prefetchWaitingLists(List<LoanOfficerZipCodeModel> zipCodes) async {
+  Future<void> _prefetchWaitingLists(
+    List<LoanOfficerZipCodeModel> zipCodes,
+  ) async {
     for (final zip in zipCodes) {
       if (zip.claimedByOfficer == true &&
           !_waitingListEntries.containsKey(zip.postalCode)) {
@@ -3895,8 +3970,6 @@ class LoanOfficerController extends GetxController {
   }
 
   Future<void> addLoan(LoanModel loan) async {
-
-
     try {
       _isLoading.value = true;
       // Simulate API call

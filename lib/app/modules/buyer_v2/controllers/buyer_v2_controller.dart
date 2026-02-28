@@ -92,7 +92,8 @@ class BuyerV2Controller extends GetxController {
 
   // Services
   final ListingService _listingService = InMemoryListingService();
-  final ListingTrackingService _listingTrackingService = ListingTrackingService();
+  final ListingTrackingService _listingTrackingService =
+      ListingTrackingService();
   final AgentService _agentService = AgentService();
   final LoanOfficerService _loanOfficerService = LoanOfficerService();
   final ZipCodesService _zipCodesService = ZipCodesService();
@@ -456,7 +457,11 @@ class BuyerV2Controller extends GetxController {
       if (kDebugMode) {
         print('❌ Error loading more agents: $e');
       }
-      ErrorHandler.handleError(e, defaultMessage: 'Unable to load more agents. Please check your connection and try again.');
+      ErrorHandler.handleError(
+        e,
+        defaultMessage:
+            'Unable to load more agents. Please check your connection and try again.',
+      );
     } finally {
       _isLoadingMoreAgents.value = false;
     }
@@ -1364,7 +1369,8 @@ class BuyerV2Controller extends GetxController {
       _loanOfficers.refresh();
       _listings.refresh();
       _openHouses.refresh();
-      if (kDebugMode) print('📋 Showing agents/LOs with claimed zips only (no filter)');
+      if (kDebugMode)
+        print('📋 Showing agents/LOs with claimed zips only (no filter)');
       return;
     }
 
@@ -1448,19 +1454,17 @@ class BuyerV2Controller extends GetxController {
       // Don't show if claimedZipCodes is empty
       _agents.value = _allAgents.where((agent) {
         if (agent.claimedZipCodes.isEmpty) return false;
-        return agent.claimedZipCodes.any(
-          (z) => z.trim() == normalizedZipCode,
-        );
+        return agent.claimedZipCodes.any((z) => z.trim() == normalizedZipCode);
       }).toList();
       _loanOfficers.value = _allLoanOfficers.where((lo) {
         if (lo.claimedZipCodes.isEmpty) return false;
-        return lo.claimedZipCodes.any(
-          (z) => z.trim() == normalizedZipCode,
-        );
+        return lo.claimedZipCodes.any((z) => z.trim() == normalizedZipCode);
       }).toList();
       final filteredIds = _allListings
           .where((l) => (l.address.zip ?? '').trim() == normalizedZipCode)
-          .where((l) => !RebateRestrictedStates.isRestricted(l.address.state ?? ''))
+          .where(
+            (l) => !RebateRestrictedStates.isRestricted(l.address.state ?? ''),
+          )
           .map((l) => l.id)
           .toSet();
       _listings.value = _allListings

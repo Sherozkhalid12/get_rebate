@@ -125,6 +125,7 @@ class AgentController extends GetxController {
   void setZipSectionTab(int index) {
     _zipSectionTabIndex.value = index.clamp(0, 1);
   }
+
   String? get recentlyActivatedListingId => _recentlyActivatedListingId.value;
   List<NotificationModel> get recentNotifications => _recentNotifications;
   bool get isLoadingRecentActivity => _isLoadingRecentActivity.value;
@@ -219,7 +220,10 @@ class AgentController extends GetxController {
 
   List<ActivityItem> get recentActivityItems {
     if (_recentNotifications.isNotEmpty) {
-      return _recentNotifications.take(3).map(_notificationToActivityItem).toList();
+      return _recentNotifications
+          .take(3)
+          .map(_notificationToActivityItem)
+          .toList();
     }
     return _buildRecentActivityItems().take(3).toList();
   }
@@ -264,28 +268,29 @@ class AgentController extends GetxController {
 
   // Listing limits - PER ZIP CODE
   int get freeListingLimit => 3;
-  
+
   /// Get listing count for a specific ZIP code
   int getListingCountForZipCode(String zipCode) {
     if (zipCode.isEmpty) return 0;
-    return _allListings.where((listing) => listing.zipCode.trim() == zipCode.trim()).length;
+    return _allListings
+        .where((listing) => listing.zipCode.trim() == zipCode.trim())
+        .length;
   }
-  
+
   /// Get remaining free listings for a specific ZIP code
   int getRemainingFreeListingsForZipCode(String zipCode) {
     final count = getListingCountForZipCode(zipCode);
     return (freeListingLimit - count).clamp(0, freeListingLimit);
   }
-  
+
   /// Check if agent can add free listing for a specific ZIP code
   bool canAddFreeListingForZipCode(String zipCode) {
     return getRemainingFreeListingsForZipCode(zipCode) > 0;
   }
-  
+
   // Legacy getters for backward compatibility (deprecated - use ZIP code specific methods)
   @Deprecated('Use canAddFreeListingForZipCode(zipCode) instead')
-  int get currentListingCount =>
-      _allListings.length; // Use allListings for count
+  int get currentListingCount => _allListings.length; // Use allListings for count
   @Deprecated('Use getRemainingFreeListingsForZipCode(zipCode) instead')
   int get remainingFreeListings =>
       (freeListingLimit - currentListingCount).clamp(0, freeListingLimit);
@@ -345,7 +350,9 @@ class AgentController extends GetxController {
 
   ActivityItem _notificationToActivityItem(NotificationModel notification) {
     return ActivityItem(
-      title: notification.title.isNotEmpty ? notification.title : notification.message,
+      title: notification.title.isNotEmpty
+          ? notification.title
+          : notification.message,
       timeLabel: _formatNotificationTime(notification.createdAt),
       icon: _notificationIcon(notification.type),
     );
@@ -590,9 +597,7 @@ class AgentController extends GetxController {
     }
   }
 
-  Future<List<WaitingListEntry>> fetchWaitingListEntries(
-    String zipCode,
-  ) async {
+  Future<List<WaitingListEntry>> fetchWaitingListEntries(String zipCode) async {
     if (zipCode.isEmpty) {
       return [];
     }
@@ -604,7 +609,9 @@ class AgentController extends GetxController {
     _waitingListLoading.add(zipCode);
     try {
       if (kDebugMode) {
-        print('📡 [fetchWaitingListEntries] REQUEST: GET /waiting-list/$zipCode');
+        print(
+          '📡 [fetchWaitingListEntries] REQUEST: GET /waiting-list/$zipCode',
+        );
       }
       final response = await _dio.get(
         '/waiting-list/$zipCode',
@@ -617,7 +624,9 @@ class AgentController extends GetxController {
       );
 
       if (kDebugMode) {
-        print('📥 [fetchWaitingListEntries] FULL RESPONSE (zipCode: $zipCode):');
+        print(
+          '📥 [fetchWaitingListEntries] FULL RESPONSE (zipCode: $zipCode):',
+        );
         print('   statusCode: ${response.statusCode}');
         print('   statusMessage: ${response.statusMessage}');
         print('   headers: ${response.headers.map}');
@@ -639,7 +648,9 @@ class AgentController extends GetxController {
       return _waitingListEntries[zipCode] ?? [];
     } on DioException catch (e) {
       if (kDebugMode) {
-        print('❌ [fetchWaitingListEntries] ERROR (zipCode: $zipCode): ${e.message}');
+        print(
+          '❌ [fetchWaitingListEntries] ERROR (zipCode: $zipCode): ${e.message}',
+        );
         if (e.response != null) {
           final r = e.response!;
           print('   statusCode: ${r.statusCode}');
@@ -672,10 +683,7 @@ class AgentController extends GetxController {
 
     _removeFromWaitingListRequests.add(zipCode);
     try {
-      final requestBody = {
-        'zipCode': zipCode,
-        'userId': user.id,
-      };
+      final requestBody = {'zipCode': zipCode, 'userId': user.id};
       if (kDebugMode) {
         print('📡 [removeFromWaitingList] REQUEST: DELETE /waiting-list');
         print('   body: $requestBody');
@@ -1246,7 +1254,9 @@ class AgentController extends GetxController {
 
       // Validate that rebates are allowed in this state before checkout
       final stateCode = _getStateCodeFromName(zipCode.state);
-      final isStateAllowed = await _rebateStatesService.isStateAllowed(stateCode);
+      final isStateAllowed = await _rebateStatesService.isStateAllowed(
+        stateCode,
+      );
       if (!isStateAllowed) {
         SnackbarHelper.showError(
           'Real estate rebates are not permitted in ${zipCode.state}. Only states that allow rebates are available for subscription.',
@@ -1258,7 +1268,9 @@ class AgentController extends GetxController {
       // Step 1: Check live ZIP claim status BEFORE payment
       _setupDio();
       try {
-        final status = await ZipCodesService().getZipClaimStatus(zipCode.zipCode);
+        final status = await ZipCodesService().getZipClaimStatus(
+          zipCode.zipCode,
+        );
         final claimedBy = status['claimedBy']?.toString();
         final message = status['message']?.toString() ?? '';
 
@@ -1283,8 +1295,9 @@ class AgentController extends GetxController {
         }
       } on ZipCodesServiceException catch (e) {
         String errorMessage = e.message;
-        final isAlreadyClaimed =
-            errorMessage.toLowerCase().contains('already claimed');
+        final isAlreadyClaimed = errorMessage.toLowerCase().contains(
+          'already claimed',
+        );
         _showSnackbarSafely(
           errorMessage,
           isError: !isAlreadyClaimed,
@@ -1450,7 +1463,9 @@ class AgentController extends GetxController {
     } on DioException catch (e) {
       if (kDebugMode) {
         print('❌ Error in payment flow: ${e.message}');
-        print('   API: POST ${ApiConstants.apiBaseUrl}/subscription/create-checkout-session');
+        print(
+          '   API: POST ${ApiConstants.apiBaseUrl}/subscription/create-checkout-session',
+        );
         print('   Status Code: ${e.response?.statusCode}');
         print('   Response: ${e.response?.data}');
       }
@@ -1514,7 +1529,9 @@ class AgentController extends GetxController {
 
       if (kDebugMode) {
         print('❌ Final error message to user: $errorMessage');
-        print('   API that failed: POST ${ApiConstants.apiBaseUrl}/subscription/create-checkout-session');
+        print(
+          '   API that failed: POST ${ApiConstants.apiBaseUrl}/subscription/create-checkout-session',
+        );
         print('   Is already claimed: $isAlreadyClaimed');
       }
 
@@ -1545,19 +1562,19 @@ class AgentController extends GetxController {
   }
 
   void _markZipAsClaimedByAnotherAgent(String zipCodeId) {
-    final stateIdx = _stateZipCodesFromApi.indexWhere((z) => z.zipCode == zipCodeId);
+    final stateIdx = _stateZipCodesFromApi.indexWhere(
+      (z) => z.zipCode == zipCodeId,
+    );
     if (stateIdx != -1) {
-      _stateZipCodesFromApi[stateIdx] = _stateZipCodesFromApi[stateIdx].copyWith(
-        claimedByAgent: true,
-        isAvailable: false,
-      );
+      _stateZipCodesFromApi[stateIdx] = _stateZipCodesFromApi[stateIdx]
+          .copyWith(claimedByAgent: true, isAvailable: false);
     }
-    final availableIdx = _availableZipCodes.indexWhere((z) => z.zipCode == zipCodeId);
+    final availableIdx = _availableZipCodes.indexWhere(
+      (z) => z.zipCode == zipCodeId,
+    );
     if (availableIdx != -1) {
-      _availableZipCodes[availableIdx] = _availableZipCodes[availableIdx].copyWith(
-        claimedByAgent: true,
-        isAvailable: false,
-      );
+      _availableZipCodes[availableIdx] = _availableZipCodes[availableIdx]
+          .copyWith(claimedByAgent: true, isAvailable: false);
       _availableZipCodes.refresh();
     }
   }
@@ -1667,14 +1684,17 @@ class AgentController extends GetxController {
       _isLoading.value = true;
 
       if (kDebugMode) {
-        print('✅ Syncing claimed ZIP from pre-check response: ${zipCode.zipCode}');
+        print(
+          '✅ Syncing claimed ZIP from pre-check response: ${zipCode.zipCode}',
+        );
       }
 
       // Parse claimedZipCodes from pre-check response for instant UI sync
       final claimedZipCodesData =
           (preCheckClaimResponse is Map
-              ? preCheckClaimResponse['claimedZipCodes']
-              : null) as List<dynamic>?;
+                  ? preCheckClaimResponse['claimedZipCodes']
+                  : null)
+              as List<dynamic>?;
       if (claimedZipCodesData != null && claimedZipCodesData.isNotEmpty) {
         final parsed = claimedZipCodesData
             .whereType<Map<String, dynamic>>()
@@ -1794,7 +1814,8 @@ class AgentController extends GetxController {
       // Find subscription for this specific zipcode, or fall back to first active
       Map<String, dynamic>? subForZip;
       for (final sub in _subscriptions) {
-        final status = sub['subscriptionStatus']?.toString().toLowerCase() ?? '';
+        final status =
+            sub['subscriptionStatus']?.toString().toLowerCase() ?? '';
         if (status != 'canceled' && status != 'cancelled') {
           final subZip = sub['zipcode']?.toString() ?? '';
           if (subZip == zipCode.zipCode) {
@@ -1980,8 +2001,10 @@ class AgentController extends GetxController {
   Future<List<String>> _filterAllowedStates(List<String> licensedStates) async {
     try {
       final allowedStates = await _rebateStatesService.getAllowedStates();
-      final allowedStatesSet = allowedStates.map((s) => s.toUpperCase()).toSet();
-      
+      final allowedStatesSet = allowedStates
+          .map((s) => s.toUpperCase())
+          .toSet();
+
       return licensedStates.where((state) {
         final stateCode = _getStateCodeFromName(state).toUpperCase();
         return allowedStatesSet.contains(stateCode);
@@ -2018,7 +2041,8 @@ class AgentController extends GetxController {
       final svc = ZipCodesService();
       final list = await svc.getStateZipCodes(
         state: stateName,
-        includeClaimStatus: false, // verify API only when user enters 5-digit ZIP
+        includeClaimStatus:
+            false, // verify API only when user enters 5-digit ZIP
       );
       _stateZipCodesFromApi.addAll(list);
       final filtered = _filterAvailableZipCodes(_stateZipCodesFromApi);
@@ -2031,7 +2055,11 @@ class AgentController extends GetxController {
       _availableZipCodes.clear();
     } catch (e) {
       if (kDebugMode) print('❌ getStateZipCodes: $e');
-      ErrorHandler.handleError(e, defaultMessage: 'Unable to load ZIP codes. Please check your connection and try again.');
+      ErrorHandler.handleError(
+        e,
+        defaultMessage:
+            'Unable to load ZIP codes. Please check your connection and try again.',
+      );
       _stateZipCodesFromApi.clear();
       _availableZipCodes.clear();
     } finally {
@@ -2459,7 +2487,8 @@ class AgentController extends GetxController {
     final subsBefore = List<Map<String, dynamic>>.from(_subscriptions);
     Map<String, dynamic>? cancelledSubCopy;
     for (var i = 0; i < subsBefore.length; i++) {
-      final subId = subsBefore[i]['stripeSubscriptionId']?.toString() ??
+      final subId =
+          subsBefore[i]['stripeSubscriptionId']?.toString() ??
           subsBefore[i]['_id']?.toString();
       if (subId == stripeSubscriptionId) {
         subsBefore[i] = Map<String, dynamic>.from(subsBefore[i])
@@ -2474,7 +2503,8 @@ class AgentController extends GetxController {
       final subsAfter = List<Map<String, dynamic>>.from(_subscriptions);
       var found = false;
       for (var i = 0; i < subsAfter.length; i++) {
-        final subId = subsAfter[i]['stripeSubscriptionId']?.toString() ??
+        final subId =
+            subsAfter[i]['stripeSubscriptionId']?.toString() ??
             subsAfter[i]['_id']?.toString();
         if (subId == stripeSubscriptionId) {
           subsAfter[i] = Map<String, dynamic>.from(subsAfter[i])
@@ -2558,7 +2588,8 @@ class AgentController extends GetxController {
       final subsBefore = List<Map<String, dynamic>>.from(_subscriptions);
       Map<String, dynamic>? cancelledSubCopy;
       for (var i = 0; i < subsBefore.length; i++) {
-        final subId = subsBefore[i]['stripeSubscriptionId']?.toString() ??
+        final subId =
+            subsBefore[i]['stripeSubscriptionId']?.toString() ??
             subsBefore[i]['_id']?.toString();
         if (subId == cancelledSubId) {
           subsBefore[i] = Map<String, dynamic>.from(subsBefore[i])
@@ -2577,7 +2608,8 @@ class AgentController extends GetxController {
       final subsAfter = List<Map<String, dynamic>>.from(_subscriptions);
       var found = false;
       for (var i = 0; i < subsAfter.length; i++) {
-        final subId = subsAfter[i]['stripeSubscriptionId']?.toString() ??
+        final subId =
+            subsAfter[i]['stripeSubscriptionId']?.toString() ??
             subsAfter[i]['_id']?.toString();
         if (subId == cancelledSubId) {
           subsAfter[i] = Map<String, dynamic>.from(subsAfter[i])
@@ -2606,10 +2638,7 @@ class AgentController extends GetxController {
             'The subscription you have cancelled. Your ZIP codes remain yours until the end of the month you subscribed.',
           ),
           actions: [
-            TextButton(
-              onPressed: () => _safePop(),
-              child: const Text('OK'),
-            ),
+            TextButton(onPressed: () => _safePop(), child: const Text('OK')),
           ],
         ),
         barrierDismissible: false,
@@ -4075,7 +4104,10 @@ class AgentController extends GetxController {
     if (delayBeforeShow) {
       Future.delayed(const Duration(milliseconds: 1200), () {
         if (isError) {
-          SnackbarHelper.showError(message, title: isAlreadyClaimed ? 'Notice' : 'Error');
+          SnackbarHelper.showError(
+            message,
+            title: isAlreadyClaimed ? 'Notice' : 'Error',
+          );
         } else {
           SnackbarHelper.showSuccess(message, title: 'Success');
         }
@@ -4148,7 +4180,9 @@ class AgentController extends GetxController {
         ),
       );
       if (kDebugMode) {
-        print('📡 [TEST] update-enddate response status: ${response.statusCode}');
+        print(
+          '📡 [TEST] update-enddate response status: ${response.statusCode}',
+        );
         print('   Response data: ${response.data}');
       }
       if (context.mounted) {

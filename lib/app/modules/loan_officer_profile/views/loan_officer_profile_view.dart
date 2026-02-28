@@ -43,10 +43,7 @@ class LoanOfficerProfileView extends GetView<LoanOfficerProfileController> {
         child: Obx(() {
           if (controller.loanOfficer == null) {
             return const Center(
-              child: SpinKitFadingCircle(
-                color: AppTheme.primaryBlue,
-                size: 40,
-              ),
+              child: SpinKitFadingCircle(color: AppTheme.primaryBlue, size: 40),
             );
           }
           return _buildProfile(context);
@@ -94,21 +91,25 @@ class LoanOfficerProfileView extends GetView<LoanOfficerProfileController> {
                 CircleAvatar(
                   radius: 40,
                   backgroundColor: AppTheme.lightGreen.withOpacity(0.1),
-                  backgroundImage: (loanOfficer.profileImage != null &&
-                      loanOfficer.profileImage!.isNotEmpty &&
-                      (loanOfficer.profileImage!.startsWith('http://') ||
-                          loanOfficer.profileImage!.startsWith('https://')))
+                  backgroundImage:
+                      (loanOfficer.profileImage != null &&
+                          loanOfficer.profileImage!.isNotEmpty &&
+                          (loanOfficer.profileImage!.startsWith('http://') ||
+                              loanOfficer.profileImage!.startsWith('https://')))
                       ? NetworkImage(loanOfficer.profileImage!)
                       : null,
-                  child: (loanOfficer.profileImage == null ||
-                      loanOfficer.profileImage!.isEmpty ||
-                      (!loanOfficer.profileImage!.startsWith('http://') &&
-                          !loanOfficer.profileImage!.startsWith('https://')))
+                  child:
+                      (loanOfficer.profileImage == null ||
+                          loanOfficer.profileImage!.isEmpty ||
+                          (!loanOfficer.profileImage!.startsWith('http://') &&
+                              !loanOfficer.profileImage!.startsWith(
+                                'https://',
+                              )))
                       ? const Icon(
-                    Icons.account_balance,
-                    color: AppTheme.lightGreen,
-                    size: 40,
-                  )
+                          Icons.account_balance,
+                          color: AppTheme.lightGreen,
+                          size: 40,
+                        )
                       : null,
                 ),
                 const SizedBox(width: 16),
@@ -143,9 +144,9 @@ class LoanOfficerProfileView extends GetView<LoanOfficerProfileController> {
                             '${loanOfficer.rating} (${loanOfficer.reviewCount} reviews)',
                             style: Theme.of(context).textTheme.bodyMedium
                                 ?.copyWith(
-                              color: AppTheme.darkGray,
-                              fontWeight: FontWeight.w500,
-                            ),
+                                  color: AppTheme.darkGray,
+                                  fontWeight: FontWeight.w500,
+                                ),
                           ),
                         ],
                       ),
@@ -178,9 +179,8 @@ class LoanOfficerProfileView extends GetView<LoanOfficerProfileController> {
                           maxWidthDiskCache: 400,
                           maxHeightDiskCache: 400,
                           fadeInDuration: Duration.zero,
-                          placeholder: (context, url) => Container(
-                            color: AppTheme.white,
-                          ),
+                          placeholder: (context, url) =>
+                              Container(color: AppTheme.white),
                           errorWidget: (context, url, error) => const Icon(
                             Icons.account_balance,
                             color: AppTheme.lightGreen,
@@ -213,9 +213,9 @@ class LoanOfficerProfileView extends GetView<LoanOfficerProfileController> {
                           'Verified',
                           style: Theme.of(context).textTheme.bodySmall
                               ?.copyWith(
-                            color: AppTheme.lightGreen,
-                            fontWeight: FontWeight.w600,
-                          ),
+                                color: AppTheme.lightGreen,
+                                fontWeight: FontWeight.w600,
+                              ),
                         ),
                       ],
                     ),
@@ -224,7 +224,6 @@ class LoanOfficerProfileView extends GetView<LoanOfficerProfileController> {
             ),
 
             const SizedBox(height: 20),
-
 
             // Bio
             if (loanOfficer.bio != null) ...[
@@ -263,18 +262,18 @@ class LoanOfficerProfileView extends GetView<LoanOfficerProfileController> {
                             'Rebate-Friendly Lender Verified',
                             style: Theme.of(context).textTheme.titleMedium
                                 ?.copyWith(
-                              color: AppTheme.lightGreen,
-                              fontWeight: FontWeight.w600,
-                            ),
+                                  color: AppTheme.lightGreen,
+                                  fontWeight: FontWeight.w600,
+                                ),
                           ),
                           const SizedBox(height: 4),
                           Text(
                             'This loan officer has confirmed their lender allows real estate commission rebates to be credited to buyers at closing, appearing directly on the Closing Disclosure or Settlement Statement.',
                             style: Theme.of(context).textTheme.bodyMedium
                                 ?.copyWith(
-                              color: AppTheme.darkGray,
-                              height: 1.4,
-                            ),
+                                  color: AppTheme.darkGray,
+                                  height: 1.4,
+                                ),
                           ),
                         ],
                       ),
@@ -320,7 +319,10 @@ class LoanOfficerProfileView extends GetView<LoanOfficerProfileController> {
 
                     final url = Uri.parse(urlString);
                     if (await canLaunchUrl(url)) {
-                      await launchUrl(url, mode: LaunchMode.externalApplication);
+                      await launchUrl(
+                        url,
+                        mode: LaunchMode.externalApplication,
+                      );
                     } else {
                       Get.snackbar(
                         'Error',
@@ -619,7 +621,7 @@ class LoanOfficerProfileView extends GetView<LoanOfficerProfileController> {
     return Container(
       color: AppTheme.white,
       child: Obx(
-            () => Row(
+        () => Row(
           children: [
             Expanded(child: _buildTab(context, 'Overview', 0)),
             Expanded(child: _buildTab(context, 'Reviews', 1)),
@@ -793,11 +795,11 @@ class LoanOfficerProfileView extends GetView<LoanOfficerProfileController> {
   }
 
   Widget _buildContactItem(
-      BuildContext context,
-      IconData icon,
-      String label,
-      String value,
-      ) {
+    BuildContext context,
+    IconData icon,
+    String label,
+    String value,
+  ) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
@@ -865,7 +867,9 @@ class LoanOfficerProfileView extends GetView<LoanOfficerProfileController> {
   Widget _buildReviewItem(BuildContext context, Map<String, dynamic> review) {
     // Build full profile picture URL if available
     String? profilePicUrl = review['profilePic'];
-    if (profilePicUrl != null && profilePicUrl.isNotEmpty && !profilePicUrl.startsWith('http')) {
+    if (profilePicUrl != null &&
+        profilePicUrl.isNotEmpty &&
+        !profilePicUrl.startsWith('http')) {
       final baseUrl = ApiConstants.baseUrl.endsWith('/')
           ? ApiConstants.baseUrl.substring(0, ApiConstants.baseUrl.length - 1)
           : ApiConstants.baseUrl;
@@ -883,26 +887,28 @@ class LoanOfficerProfileView extends GetView<LoanOfficerProfileController> {
               children: [
                 // Profile Picture or Initial
                 profilePicUrl != null &&
-                    profilePicUrl.isNotEmpty &&
-                    (profilePicUrl.startsWith('http://') || profilePicUrl.startsWith('https://'))
+                        profilePicUrl.isNotEmpty &&
+                        (profilePicUrl.startsWith('http://') ||
+                            profilePicUrl.startsWith('https://'))
                     ? CircleAvatar(
-                  radius: 20,
-                  backgroundImage: NetworkImage(profilePicUrl),
-                  backgroundColor: AppTheme.lightGreen.withOpacity(0.1),
-                  onBackgroundImageError: (_, __) {},
-                  child: const SizedBox(),
-                )
+                        radius: 20,
+                        backgroundImage: NetworkImage(profilePicUrl),
+                        backgroundColor: AppTheme.lightGreen.withOpacity(0.1),
+                        onBackgroundImageError: (_, __) {},
+                        child: const SizedBox(),
+                      )
                     : CircleAvatar(
-                  radius: 20,
-                  backgroundColor: AppTheme.lightGreen.withOpacity(0.1),
-                  child: Text(
-                    review['name'][0].toString().toUpperCase(),
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: AppTheme.lightGreen,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
+                        radius: 20,
+                        backgroundColor: AppTheme.lightGreen.withOpacity(0.1),
+                        child: Text(
+                          review['name'][0].toString().toUpperCase(),
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(
+                                color: AppTheme.lightGreen,
+                                fontWeight: FontWeight.w600,
+                              ),
+                        ),
+                      ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -912,9 +918,9 @@ class LoanOfficerProfileView extends GetView<LoanOfficerProfileController> {
                         review['name'],
                         style: Theme.of(context).textTheme.titleMedium
                             ?.copyWith(
-                          color: AppTheme.black,
-                          fontWeight: FontWeight.w600,
-                        ),
+                              color: AppTheme.black,
+                              fontWeight: FontWeight.w600,
+                            ),
                       ),
                       Row(
                         children: [
@@ -932,7 +938,8 @@ class LoanOfficerProfileView extends GetView<LoanOfficerProfileController> {
                                 color: AppTheme.lightGreen,
                                 size: 16,
                               );
-                            } else if (starIndex - rating < 1 && starIndex - rating > 0) {
+                            } else if (starIndex - rating < 1 &&
+                                starIndex - rating > 0) {
                               // Half star
                               return const Icon(
                                 Icons.star_half,
@@ -1032,9 +1039,9 @@ class LoanOfficerProfileView extends GetView<LoanOfficerProfileController> {
   }
 
   Widget _buildLoanProgramItem(
-      BuildContext context,
-      Map<String, dynamic> program,
-      ) {
+    BuildContext context,
+    Map<String, dynamic> program,
+  ) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),

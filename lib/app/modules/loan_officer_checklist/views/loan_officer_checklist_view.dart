@@ -27,10 +27,7 @@ class LoanOfficerChecklistView extends GetView<LoanOfficerChecklistController> {
         ),
         title: Text(
           'Loan Officer Checklist',
-          style: TextStyle(
-            color: AppTheme.white,
-            fontWeight: FontWeight.w600,
-          ),
+          style: TextStyle(color: AppTheme.white, fontWeight: FontWeight.w600),
         ),
         iconTheme: IconThemeData(color: AppTheme.white),
       ),
@@ -113,9 +110,7 @@ class LoanOfficerChecklistView extends GetView<LoanOfficerChecklistController> {
               decoration: BoxDecoration(
                 color: AppTheme.lightGreen.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: AppTheme.lightGreen.withOpacity(0.3),
-                ),
+                border: Border.all(color: AppTheme.lightGreen.withOpacity(0.3)),
               ),
               child: Row(
                 children: [
@@ -231,9 +226,7 @@ class LoanOfficerChecklistView extends GetView<LoanOfficerChecklistController> {
             decoration: BoxDecoration(
               color: AppTheme.lightGreen.withOpacity(0.1),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: AppTheme.lightGreen.withOpacity(0.3),
-              ),
+              border: Border.all(color: AppTheme.lightGreen.withOpacity(0.3)),
             ),
             child: Center(
               child: Text(
@@ -272,11 +265,7 @@ class LoanOfficerChecklistView extends GetView<LoanOfficerChecklistController> {
           children: [
             Row(
               children: [
-                Icon(
-                  Icons.star_outline,
-                  color: AppTheme.lightGreen,
-                  size: 24,
-                ),
+                Icon(Icons.star_outline, color: AppTheme.lightGreen, size: 24),
                 const SizedBox(width: 12),
                 Text(
                   'Tips for Success',
@@ -288,29 +277,31 @@ class LoanOfficerChecklistView extends GetView<LoanOfficerChecklistController> {
               ],
             ),
             const SizedBox(height: 16),
-            ...tips.map((tip) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(
-                    Icons.check_circle_outline,
-                    color: AppTheme.lightGreen,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      tip,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppTheme.darkGray,
-                        height: 1.5,
+            ...tips.map(
+              (tip) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      Icons.check_circle_outline,
+                      color: AppTheme.lightGreen,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        tip,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: AppTheme.darkGray,
+                          height: 1.5,
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            )),
+            ),
           ],
         ),
       ),
