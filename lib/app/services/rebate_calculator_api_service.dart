@@ -19,6 +19,7 @@ class RebateCalculatorApiException implements Exception {
 }
 
 /// API response model for rebate calculator
+/// Supports all 3 endpoints: estimate, calculate-exact, calculate-seller-rate
 class RebateCalculatorResponse {
   final bool success;
   final String? tier;
@@ -31,6 +32,21 @@ class RebateCalculatorResponse {
   final List<String>? warnings;
   final Map<String, dynamic>? rawData;
 
+  /// Tab 2 (Actual/Exact): rebate amount, total commission, net agent commission
+  final String? rebateAmountFormatted;
+  final String? totalCommissionFormatted;
+  final String? netAgentCommissionFormatted;
+  final List<String>? instructions;
+
+  /// Tab 3 (Seller): seller savings, commission amounts, listing fee for contract
+  final String? sellerSavingsFormatted;
+  final String? originalCommissionAmountFormatted;
+  final String? newCommissionAmountFormatted;
+  final String? effectiveCommissionRateFormatted;
+  final String? listingFeeForContract;
+  final String? simplifiedNote;
+  final String? simplifiedInstructions;
+
   RebateCalculatorResponse({
     required this.success,
     this.tier,
@@ -42,12 +58,32 @@ class RebateCalculatorResponse {
     this.notes,
     this.warnings,
     this.rawData,
+    this.rebateAmountFormatted,
+    this.totalCommissionFormatted,
+    this.netAgentCommissionFormatted,
+    this.instructions,
+    this.sellerSavingsFormatted,
+    this.originalCommissionAmountFormatted,
+    this.newCommissionAmountFormatted,
+    this.effectiveCommissionRateFormatted,
+    this.listingFeeForContract,
+    this.simplifiedNote,
+    this.simplifiedInstructions,
   });
 
   factory RebateCalculatorResponse.fromJson(Map<String, dynamic> json) {
+    double? _toDouble(dynamic v) {
+      if (v == null) return null;
+      if (v is num) return v.toDouble();
+      final cleaned = v.toString().replaceAll(RegExp(r'[^0-9.+-]'), '').trim();
+      if (cleaned.isEmpty) return null;
+      return double.tryParse(cleaned);
+    }
+
     // Handle nested structure: check if data is in 'estimate' object
     Map<String, dynamic>? estimateData;
-    if (json.containsKey('estimate') && json['estimate'] is Map<String, dynamic>) {
+    if (json.containsKey('estimate') &&
+        json['estimate'] is Map<String, dynamic>) {
       estimateData = json['estimate'] as Map<String, dynamic>;
     } else {
       // Fallback: use top-level data if no 'estimate' key
@@ -62,23 +98,23 @@ class RebateCalculatorResponse {
       if (range is Map<String, dynamic>) {
         minRebate = range['min'] != null
             ? (range['min'] is num
-                ? (range['min'] as num).toDouble()
-                : double.tryParse(range['min'].toString()))
+                  ? (range['min'] as num).toDouble()
+                  : double.tryParse(range['min'].toString()))
             : null;
         maxRebateStr = range['max']?.toString();
       }
     } else if (estimateData.containsKey('minRebate')) {
       minRebate = estimateData['minRebate'] != null
           ? (estimateData['minRebate'] is num
-              ? (estimateData['minRebate'] as num).toDouble()
-              : double.tryParse(estimateData['minRebate'].toString()))
+                ? (estimateData['minRebate'] as num).toDouble()
+                : double.tryParse(estimateData['minRebate'].toString()))
           : null;
     }
 
     // Handle maxRebate - could be "or more" string or number
     double? maxRebate;
     if (maxRebateStr != null) {
-      if (maxRebateStr.toLowerCase().contains('more') || 
+      if (maxRebateStr.toLowerCase().contains('more') ||
           maxRebateStr.toLowerCase().contains('or')) {
         maxRebate = null; // Will be handled as "or more" in UI
       } else {
@@ -86,14 +122,15 @@ class RebateCalculatorResponse {
       }
     } else if (estimateData.containsKey('maxRebate')) {
       final maxVal = estimateData['maxRebate'];
-      if (maxVal is String && (maxVal.toLowerCase().contains('more') || 
-          maxVal.toLowerCase().contains('or'))) {
+      if (maxVal is String &&
+          (maxVal.toLowerCase().contains('more') ||
+              maxVal.toLowerCase().contains('or'))) {
         maxRebate = null;
       } else {
         maxRebate = maxVal != null
             ? (maxVal is num
-                ? (maxVal as num).toDouble()
-                : double.tryParse(maxVal.toString()))
+                  ? (maxVal as num).toDouble()
+                  : double.tryParse(maxVal.toString()))
             : null;
       }
     }
@@ -104,51 +141,137 @@ class RebateCalculatorResponse {
     if (estimateData.containsKey('commissionRangeForTier')) {
       final range = estimateData['commissionRangeForTier'];
       if (range is Map<String, dynamic>) {
-        minCommission = range['min'] != null
-            ? (range['min'] is num
-                ? (range['min'] as num).toDouble()
-                : double.tryParse(range['min'].toString()))
-            : null;
-        maxCommission = range['max'] != null
-            ? (range['max'] is num
-                ? (range['max'] as num).toDouble()
-                : double.tryParse(range['max'].toString()))
-            : null;
+        minCommission = _toDouble(range['min']);
+        maxCommission = _toDouble(range['max']);
       }
     } else {
-      minCommission = estimateData['minCommission'] != null
-          ? (estimateData['minCommission'] is num
-              ? (estimateData['minCommission'] as num).toDouble()
-              : double.tryParse(estimateData['minCommission'].toString()))
-          : null;
-      maxCommission = estimateData['maxCommission'] != null
-          ? (estimateData['maxCommission'] is num
-              ? (estimateData['maxCommission'] as num).toDouble()
-              : double.tryParse(estimateData['maxCommission'].toString()))
-          : null;
+      minCommission = _toDouble(estimateData['minCommission']);
+      maxCommission = _toDouble(estimateData['maxCommission']);
+    }
+
+    // Tab 2 (Actual/Exact) or Tab 3 (Seller) - "calculation" style responses
+    final calc = json['calculation'];
+    if (calc is Map<String, dynamic>) {
+      final rebatePct = _toDouble(
+        calc['rebatePercentage'] ?? estimateData['rebatePercentage'],
+      );
+      final tier =
+          calc['rebateTier']?.toString() ?? estimateData['tier']?.toString();
+      final details = json['detailedAmounts'];
+      final isSeller =
+          calc.containsKey('sellerSavings') || calc.containsKey('effectiveCommissionRate');
+
+      // Parse amounts - handle formatted strings like "$5,062.50"
+      String? _fmt(dynamic v) =>
+          v == null ? null : v.toString().replaceFirst('\$', '').trim();
+
+      String? rebateAmt = calc['rebateAmount']?.toString() ??
+          (details is Map ? details['rebateAmount']?.toString() : null);
+      String? totalComm = calc['totalCommission']?.toString() ??
+          (details is Map ? details['totalCommission']?.toString() : null);
+      String? netComm = calc['netAgentCommission']?.toString() ??
+          (details is Map ? details['netAgentCommission']?.toString() : null);
+
+      final rebateAmountNum = _toDouble(
+        calc['rebateAmount'] ??
+            calc['rebate'] ??
+            calc['sellerSavings'] ??
+            (details is Map ? details['rebateAmount'] : null) ??
+            (details is Map ? details['sellerSavings'] : null),
+      );
+
+      minRebate = rebateAmountNum ?? minRebate;
+      minCommission = _toDouble(
+        calc['originalCommissionRate'] ??
+            calc['commissionRate'] ??
+            calc['commissionPercentage'] ??
+            (details is Map ? details['originalCommissionRate'] : null),
+      );
+
+      // Parse instructions
+      List<String>? instructionsList;
+      if (json['instructions'] is List) {
+        instructionsList =
+            List<String>.from((json['instructions'] as List).map((e) => e.toString()));
+      }
+
+      // Tab 3: Seller-specific fields
+      String? sellerSavingsStr;
+      String? origCommStr;
+      String? newCommStr;
+      String? effRateStr;
+      String? listingFee;
+      String? simplNote;
+      String? simplInstr;
+
+      if (isSeller) {
+        sellerSavingsStr = calc['sellerSavings']?.toString() ??
+            (details is Map ? details['sellerSavings']?.toString() : null);
+        origCommStr = calc['originalCommissionAmount']?.toString() ??
+            (details is Map ? details['originalCommissionAmount']?.toString() : null);
+        newCommStr = calc['newCommissionAmount']?.toString() ??
+            (details is Map ? details['newCommissionAmount']?.toString() : null);
+        effRateStr = calc['effectiveCommissionRate']?.toString() ??
+            (details is Map ? details['effectiveCommissionRate']?.toString() : null);
+
+        final simpl = json['simplifiedForContract'];
+        if (simpl is Map<String, dynamic>) {
+          listingFee = simpl['listingFee']?.toString();
+          simplNote = simpl['note']?.toString();
+          simplInstr = simpl['instructions']?.toString();
+        }
+      }
+
+      return RebateCalculatorResponse(
+        success: json['success'] ?? false,
+        tier: tier,
+        rebatePercentage: rebatePct,
+        minRebate: minRebate,
+        maxRebate: maxRebate,
+        minCommission: minCommission,
+        maxCommission: maxCommission,
+        notes: json['notes'] != null
+            ? (json['notes'] is List
+                  ? List<String>.from(json['notes'].map((e) => e.toString()))
+                  : [json['notes'].toString()])
+            : null,
+        warnings: json['warnings'] != null
+            ? (json['warnings'] is List
+                  ? List<String>.from(json['warnings'].map((e) => e.toString()))
+                  : [json['warnings'].toString()])
+            : null,
+        rawData: json,
+        rebateAmountFormatted: rebateAmt,
+        totalCommissionFormatted: totalComm,
+        netAgentCommissionFormatted: netComm,
+        instructions: instructionsList,
+        sellerSavingsFormatted: sellerSavingsStr,
+        originalCommissionAmountFormatted: origCommStr,
+        newCommissionAmountFormatted: newCommStr,
+        effectiveCommissionRateFormatted: effRateStr,
+        listingFeeForContract: listingFee,
+        simplifiedNote: simplNote,
+        simplifiedInstructions: simplInstr,
+      );
     }
 
     return RebateCalculatorResponse(
       success: json['success'] ?? false,
       tier: estimateData['tier']?.toString(),
-      rebatePercentage: estimateData['rebatePercentage'] != null
-          ? (estimateData['rebatePercentage'] is num
-              ? (estimateData['rebatePercentage'] as num).toDouble()
-              : double.tryParse(estimateData['rebatePercentage'].toString()))
-          : null,
+      rebatePercentage: _toDouble(estimateData['rebatePercentage']),
       minRebate: minRebate,
       maxRebate: maxRebate,
       minCommission: minCommission,
       maxCommission: maxCommission,
       notes: json['notes'] != null
           ? (json['notes'] is List
-              ? List<String>.from(json['notes'].map((e) => e.toString()))
-              : [json['notes'].toString()])
+                ? List<String>.from(json['notes'].map((e) => e.toString()))
+                : [json['notes'].toString()])
           : null,
       warnings: json['warnings'] != null
           ? (json['warnings'] is List
-              ? List<String>.from(json['warnings'].map((e) => e.toString()))
-              : [json['warnings'].toString()])
+                ? List<String>.from(json['warnings'].map((e) => e.toString()))
+                : [json['warnings'].toString()])
           : null,
       rawData: json,
     );
@@ -218,9 +341,7 @@ class RebateCalculatorApiService {
           'commission': commission,
           'state': state.toUpperCase(),
         },
-        options: Options(
-          headers: ApiConstants.ngrokHeaders,
-        ),
+        options: Options(headers: ApiConstants.ngrokHeaders),
       );
 
       if (kDebugMode) {
@@ -260,7 +381,8 @@ class RebateCalculatorApiService {
           statusCode = e.response?.statusCode;
           final data = e.response?.data;
           if (data is Map<String, dynamic>) {
-            errorMessage = data['message']?.toString() ??
+            errorMessage =
+                data['message']?.toString() ??
                 data['error']?.toString() ??
                 'Failed to estimate rebate.';
           } else {
@@ -317,9 +439,7 @@ class RebateCalculatorApiService {
           'commission': commission,
           'state': state.toUpperCase(),
         },
-        options: Options(
-          headers: ApiConstants.ngrokHeaders,
-        ),
+        options: Options(headers: ApiConstants.ngrokHeaders),
       );
 
       if (kDebugMode) {
@@ -359,7 +479,8 @@ class RebateCalculatorApiService {
           statusCode = e.response?.statusCode;
           final data = e.response?.data;
           if (data is Map<String, dynamic>) {
-            errorMessage = data['message']?.toString() ??
+            errorMessage =
+                data['message']?.toString() ??
                 data['error']?.toString() ??
                 'Failed to calculate exact rebate.';
           } else {
@@ -413,12 +534,11 @@ class RebateCalculatorApiService {
         ApiConstants.rebateCalculateSellerRateEndpoint,
         data: {
           'price': price,
+          'originalCommission': commission,
           'commission': commission,
           'state': state.toUpperCase(),
         },
-        options: Options(
-          headers: ApiConstants.ngrokHeaders,
-        ),
+        options: Options(headers: ApiConstants.ngrokHeaders),
       );
 
       if (kDebugMode) {
@@ -458,7 +578,8 @@ class RebateCalculatorApiService {
           statusCode = e.response?.statusCode;
           final data = e.response?.data;
           if (data is Map<String, dynamic>) {
-            errorMessage = data['message']?.toString() ??
+            errorMessage =
+                data['message']?.toString() ??
                 data['error']?.toString() ??
                 'Failed to calculate seller rate.';
           } else {
@@ -497,6 +618,3 @@ class RebateCalculatorApiService {
     _dio.close();
   }
 }
-
-
-

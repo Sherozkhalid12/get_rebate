@@ -44,30 +44,58 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
     try {
       final service = RebateStatesService();
       final allowedStates = await service.getAllowedStates();
-      final allowedStatesSet = allowedStates.map((s) => s.toUpperCase()).toSet();
-      
+      final allowedStatesSet = allowedStates
+          .map((s) => s.toUpperCase())
+          .toSet();
+
       // Normalize state names to codes for comparison
       // CRITICAL: Only include states where rebates are allowed
       final stateMap = {
-        'Arizona': 'AZ', 'Arkansas': 'AR',
-        'California': 'CA', 'Colorado': 'CO', 'Connecticut': 'CT', 'Delaware': 'DE',
+        'Arizona': 'AZ',
+        'Arkansas': 'AR',
+        'California': 'CA',
+        'Colorado': 'CO',
+        'Connecticut': 'CT',
+        'Delaware': 'DE',
         'District of Columbia': 'DC',
         'Washington, D.C.': 'DC',
         'Washington D.C.': 'DC',
-        'Florida': 'FL', 'Georgia': 'GA', 'Hawaii': 'HI', 'Idaho': 'ID',
-        'Illinois': 'IL', 'Indiana': 'IN',
+        'Florida': 'FL',
+        'Georgia': 'GA',
+        'Hawaii': 'HI',
+        'Idaho': 'ID',
+        'Illinois': 'IL',
+        'Indiana': 'IN',
         'North Dakota': 'ND',
-        'Kentucky': 'KY', 'Maine': 'ME', 'Maryland': 'MD',
-        'Massachusetts': 'MA', 'Michigan': 'MI', 'Minnesota': 'MN',
-        'Montana': 'MT', 'Nebraska': 'NE', 'Nevada': 'NV',
-        'New Hampshire': 'NH', 'New Jersey': 'NJ', 'New Mexico': 'NM', 'New York': 'NY',
-        'North Carolina': 'NC', 'Ohio': 'OH',
-        'Pennsylvania': 'PA', 'Rhode Island': 'RI', 'South Carolina': 'SC',
-        'South Dakota': 'SD', 'Texas': 'TX', 'Utah': 'UT',
-        'Vermont': 'VT', 'Virginia': 'VA', 'Washington': 'WA', 'West Virginia': 'WV',
-        'Wisconsin': 'WI', 'Wyoming': 'WY',
+        'Kentucky': 'KY',
+        'Maine': 'ME',
+        'Maryland': 'MD',
+        'Massachusetts': 'MA',
+        'Michigan': 'MI',
+        'Minnesota': 'MN',
+        'Montana': 'MT',
+        'Nebraska': 'NE',
+        'Nevada': 'NV',
+        'New Hampshire': 'NH',
+        'New Jersey': 'NJ',
+        'New Mexico': 'NM',
+        'New York': 'NY',
+        'North Carolina': 'NC',
+        'Ohio': 'OH',
+        'Pennsylvania': 'PA',
+        'Rhode Island': 'RI',
+        'South Carolina': 'SC',
+        'South Dakota': 'SD',
+        'Texas': 'TX',
+        'Utah': 'UT',
+        'Vermont': 'VT',
+        'Virginia': 'VA',
+        'Washington': 'WA',
+        'West Virginia': 'WV',
+        'Wisconsin': 'WI',
+        'Wyoming': 'WY',
       };
-      
+
       return licensedStates.where((state) {
         String stateCode;
         if (state.length == 2 && state == state.toUpperCase()) {
@@ -215,25 +243,32 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
   }
 
   Widget _buildTabs(BuildContext context) {
+    final tabs = const [
+      ('Dashboard', Icons.dashboard),
+      ('Messages', Icons.message),
+      ('ZIP Codes', Icons.location_on),
+      ('Billing', Icons.payment),
+      ('Checklists', Icons.checklist_rtl),
+    ];
+
     return Container(
       color: AppTheme.white,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
       child: Obx(
-        () => Row(
-          children: [
-            Expanded(
-              child: _buildTab(context, 'Dashboard', 0, Icons.dashboard),
-            ),
-            Expanded(child: _buildTab(context, 'Messages', 1, Icons.message)),
-            Expanded(
-              child: _buildTab(context, 'ZIP Codes', 2, Icons.location_on),
-            ),
-            Expanded(child: _buildTab(context, 'Billing', 3, Icons.payment)),
-            Expanded(
-              child: _buildTab(context, 'Checklists', 4, Icons.checklist_rtl),
-            ),
-            // COMMENTED OUT: Stats tab
-            // Expanded(child: _buildTab(context, 'Stats', 5, Icons.analytics)),
-          ],
+        () => SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: List.generate(tabs.length, (i) {
+              final t = tabs[i];
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(minWidth: 110),
+                  child: _buildTab(context, t.$1, i, t.$2),
+                ),
+              );
+            }),
+          ),
         ),
       ),
     );
@@ -369,7 +404,7 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
           physics: const NeverScrollableScrollPhysics(),
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 2,
-            childAspectRatio: 1.5,
+            childAspectRatio: 1.15,
             crossAxisSpacing: 16,
             mainAxisSpacing: 16,
           ),
@@ -379,42 +414,36 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
 
             return Card(
                   child: Padding(
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(14),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
                         Icon(
                           stat['icon'],
                           color: AppTheme.lightGreen,
                           size: 22,
                         ),
-                        const SizedBox(height: 6),
-                        Flexible(
-                          child: Text(
-                            stat['value'].toString(),
-                            style: Theme.of(context).textTheme.headlineMedium
-                                ?.copyWith(
-                                  color: AppTheme.black,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                            overflow: TextOverflow.ellipsis,
-                            maxLines: 1,
-                          ),
+                        Text(
+                          stat['value'].toString(),
+                          style: Theme.of(context).textTheme.headlineMedium
+                              ?.copyWith(
+                                color: AppTheme.black,
+                                fontWeight: FontWeight.bold,
+                              ),
+                          maxLines: 1,
+                          overflow: TextOverflow.fade,
+                          softWrap: false,
                         ),
-                        const SizedBox(height: 2),
-                        Flexible(
-                          child: Text(
-                            stat['label'],
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(
-                                  color: AppTheme.mediumGray,
-                                  fontSize: 12,
-                                ),
-                            overflow: TextOverflow.ellipsis,
-                            maxLines: 2,
-                          ),
+                        Text(
+                          stat['label'],
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: AppTheme.mediumGray,
+                                fontSize: 12,
+                              ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ],
                     ),
@@ -460,7 +489,7 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
         physics: const NeverScrollableScrollPhysics(),
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 2,
-          childAspectRatio: 1.5,
+          childAspectRatio: 1.15,
           crossAxisSpacing: 16,
           mainAxisSpacing: 16,
         ),
@@ -470,42 +499,35 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
 
           return Card(
                 child: Padding(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(14),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
                       Icon(
                         stat['icon'] as IconData,
                         color: AppTheme.lightGreen,
                         size: 22,
                       ),
-                      const SizedBox(height: 6),
-                      Flexible(
-                        child: Text(
-                          stat['value'].toString(),
-                          style: Theme.of(context).textTheme.headlineMedium
-                              ?.copyWith(
-                                color: AppTheme.black,
-                                fontWeight: FontWeight.bold,
-                              ),
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 1,
-                        ),
+                      Text(
+                        stat['value'].toString(),
+                        style: Theme.of(context).textTheme.headlineMedium
+                            ?.copyWith(
+                              color: AppTheme.black,
+                              fontWeight: FontWeight.bold,
+                            ),
+                        maxLines: 1,
+                        overflow: TextOverflow.fade,
+                        softWrap: false,
                       ),
-                      const SizedBox(height: 2),
-                      Flexible(
-                        child: Text(
-                          stat['label'].toString(),
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(
-                                color: AppTheme.mediumGray,
-                                fontSize: 12,
-                              ),
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 2,
+                      Text(
+                        stat['label'].toString(),
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppTheme.mediumGray,
+                          fontSize: 12,
                         ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),
@@ -1491,10 +1513,15 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                                 ),
                                 hintText: 'Select a state',
                                 prefixIcon: Container(
-                                  margin: const EdgeInsets.only(left: 12, right: 8),
+                                  margin: const EdgeInsets.only(
+                                    left: 12,
+                                    right: 8,
+                                  ),
                                   padding: const EdgeInsets.all(6),
                                   decoration: BoxDecoration(
-                                    color: AppTheme.primaryBlue.withOpacity(0.12),
+                                    color: AppTheme.primaryBlue.withOpacity(
+                                      0.12,
+                                    ),
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: Icon(
@@ -1503,14 +1530,21 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                                     size: 20,
                                   ),
                                 ),
-                                contentPadding: const EdgeInsets.fromLTRB(16, 16, 12, 16),
+                                contentPadding: const EdgeInsets.fromLTRB(
+                                  16,
+                                  16,
+                                  12,
+                                  16,
+                                ),
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                                 enabledBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(12),
                                   borderSide: BorderSide(
-                                    color: AppTheme.primaryBlue.withOpacity(0.25),
+                                    color: AppTheme.primaryBlue.withOpacity(
+                                      0.25,
+                                    ),
                                     width: 1.5,
                                   ),
                                 ),
@@ -1522,7 +1556,9 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                                   ),
                                 ),
                                 filled: true,
-                                fillColor: AppTheme.primaryBlue.withOpacity(0.04),
+                                fillColor: AppTheme.primaryBlue.withOpacity(
+                                  0.04,
+                                ),
                               ),
                               selectedItemBuilder: (context) {
                                 return [
@@ -1534,22 +1570,26 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                                     ),
                                     overflow: TextOverflow.ellipsis,
                                   ),
-                                  ...uniqueStates.map((stateName) => Text(
-                                    stateName,
-                                    style: const TextStyle(
-                                      color: AppTheme.darkGray,
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w600,
+                                  ...uniqueStates.map(
+                                    (stateName) => Text(
+                                      stateName,
+                                      style: const TextStyle(
+                                        color: AppTheme.darkGray,
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
                                     ),
-                                    overflow: TextOverflow.ellipsis,
-                                  )),
+                                  ),
                                 ];
                               },
                               items: [
                                 DropdownMenuItem<String>(
                                   value: null,
                                   child: Padding(
-                                    padding: const EdgeInsets.symmetric(vertical: 4),
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 4,
+                                    ),
                                     child: Text(
                                       'Select a state',
                                       style: TextStyle(
@@ -1563,7 +1603,9 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                                   return DropdownMenuItem<String>(
                                     value: stateName,
                                     child: Padding(
-                                      padding: const EdgeInsets.symmetric(vertical: 8),
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 8,
+                                      ),
                                       child: Row(
                                         children: [
                                           Container(
@@ -1571,7 +1613,8 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                                             height: 20,
                                             decoration: BoxDecoration(
                                               color: AppTheme.primaryBlue,
-                                              borderRadius: BorderRadius.circular(2),
+                                              borderRadius:
+                                                  BorderRadius.circular(2),
                                             ),
                                           ),
                                           const SizedBox(width: 12),
@@ -1682,7 +1725,8 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
 
               // Tab bar: Claimed | Available
               Obx(() {
-                if (controller.selectedState == null) return const SizedBox.shrink();
+                if (controller.selectedState == null)
+                  return const SizedBox.shrink();
                 return Padding(
                   padding: const EdgeInsets.only(top: 0, bottom: 0),
                   child: _buildZipSectionTabBar(context),
@@ -1740,20 +1784,18 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
             padding: const EdgeInsets.symmetric(horizontal: 20),
             sliver: SliverToBoxAdapter(
               child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 300),
-              switchInCurve: Curves.easeOutCubic,
-              switchOutCurve: Curves.easeInCubic,
-              transitionBuilder: (child, animation) => FadeTransition(
-                opacity: animation,
-                child: child,
+                duration: const Duration(milliseconds: 300),
+                switchInCurve: Curves.easeOutCubic,
+                switchOutCurve: Curves.easeInCubic,
+                transitionBuilder: (child, animation) =>
+                    FadeTransition(opacity: animation, child: child),
+                child: KeyedSubtree(
+                  key: ValueKey<int>(controller.zipSectionTabIndex),
+                  child: controller.zipSectionTabIndex == 0
+                      ? _buildClaimedZipContent(context)
+                      : _buildAvailableZipContent(context),
+                ),
               ),
-              child: KeyedSubtree(
-                key: ValueKey<int>(controller.zipSectionTabIndex),
-                child: controller.zipSectionTabIndex == 0
-                    ? _buildClaimedZipContent(context)
-                    : _buildAvailableZipContent(context),
-              ),
-            ),
             ),
           );
         }),
@@ -1870,9 +1912,9 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
             child: Text(
               'Your Claimed ZIP Codes',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: AppTheme.black,
-                    fontWeight: FontWeight.w600,
-                  ),
+                color: AppTheme.black,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
           ...controller.claimedZipCodes.map(
@@ -2412,7 +2454,6 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
     });
   }
 
-
   Widget _buildPlanDetails(BuildContext context) {
     return Obx(() {
       return Column(
@@ -2639,9 +2680,9 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
         const SizedBox(height: 4),
         Text(
           'All your subscription and payment records',
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: AppTheme.mediumGray,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.bodySmall?.copyWith(color: AppTheme.mediumGray),
         ),
         const SizedBox(height: 16),
 
@@ -2766,10 +2807,11 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                     children: [
                       Text(
                         monthYear,
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          color: AppTheme.black,
-                          fontWeight: FontWeight.w700,
-                        ),
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
+                              color: AppTheme.black,
+                              fontWeight: FontWeight.w700,
+                            ),
                       ),
                       const SizedBox(height: 2),
                       Text(
@@ -2792,9 +2834,9 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                               periodText,
                               style: Theme.of(context).textTheme.bodySmall
                                   ?.copyWith(
-                                color: AppTheme.mediumGray,
-                                fontSize: 12,
-                              ),
+                                    color: AppTheme.mediumGray,
+                                    fontSize: 12,
+                                  ),
                             ),
                           ],
                         ),
@@ -2803,10 +2845,11 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                         const SizedBox(height: 2),
                         Text(
                           tier,
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: AppTheme.darkGray,
-                            fontWeight: FontWeight.w500,
-                          ),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: AppTheme.darkGray,
+                                fontWeight: FontWeight.w500,
+                              ),
                         ),
                       ],
                       if (zipcode != null && zipcode.isNotEmpty) ...[
@@ -2823,10 +2866,10 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                               'ZIP: $zipcode',
                               style: Theme.of(context).textTheme.bodySmall
                                   ?.copyWith(
-                                color: AppTheme.darkGray,
-                                fontWeight: FontWeight.w500,
-                                fontSize: 12,
-                              ),
+                                    color: AppTheme.darkGray,
+                                    fontWeight: FontWeight.w500,
+                                    fontSize: 12,
+                                  ),
                             ),
                           ],
                         ),
@@ -2854,10 +2897,10 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                         color: isActive
                             ? AppTheme.lightGreen.withOpacity(0.2)
                             : isCancelled
-                                ? Colors.red.withOpacity(0.1)
-                                : isExpired
-                                    ? AppTheme.mediumGray.withOpacity(0.15)
-                                    : Colors.orange.withOpacity(0.15),
+                            ? Colors.red.withOpacity(0.1)
+                            : isExpired
+                            ? AppTheme.mediumGray.withOpacity(0.15)
+                            : Colors.orange.withOpacity(0.15),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
@@ -2867,10 +2910,10 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                           color: isActive
                               ? AppTheme.lightGreen
                               : isCancelled
-                                  ? Colors.red.shade700
-                                  : isExpired
-                                      ? AppTheme.darkGray
-                                      : Colors.orange.shade700,
+                              ? Colors.red.shade700
+                              : isExpired
+                              ? AppTheme.darkGray
+                              : Colors.orange.shade700,
                         ),
                       ),
                     ),
@@ -2881,7 +2924,10 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
             if (population != null && (population as int) > 0) ...[
               const SizedBox(height: 12),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: AppTheme.lightGray,
                   borderRadius: BorderRadius.circular(6),
@@ -2896,9 +2942,9 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                     const SizedBox(width: 6),
                     Text(
                       'Population covered: ${_formatNumber(population)}',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppTheme.darkGray,
-                      ),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodySmall?.copyWith(color: AppTheme.darkGray),
                     ),
                   ],
                 ),
@@ -3011,10 +3057,11 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                       const SizedBox(height: 2),
                       Text(
                         monthYear,
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          color: AppTheme.black,
-                          fontWeight: FontWeight.w700,
-                        ),
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
+                              color: AppTheme.black,
+                              fontWeight: FontWeight.w700,
+                            ),
                       ),
                       const SizedBox(height: 2),
                       Text(
@@ -3037,9 +3084,9 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                               periodText,
                               style: Theme.of(context).textTheme.bodySmall
                                   ?.copyWith(
-                                color: AppTheme.mediumGray,
-                                fontSize: 12,
-                              ),
+                                    color: AppTheme.mediumGray,
+                                    fontSize: 12,
+                                  ),
                             ),
                           ],
                         ),
@@ -3048,10 +3095,11 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                         const SizedBox(height: 2),
                         Text(
                           tier,
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: AppTheme.darkGray,
-                            fontWeight: FontWeight.w500,
-                          ),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: AppTheme.darkGray,
+                                fontWeight: FontWeight.w500,
+                              ),
                         ),
                       ],
                       if (zipcode != null && zipcode.isNotEmpty) ...[
@@ -3068,10 +3116,10 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                               'ZIP: $zipcode',
                               style: Theme.of(context).textTheme.bodySmall
                                   ?.copyWith(
-                                color: AppTheme.darkGray,
-                                fontWeight: FontWeight.w500,
-                                fontSize: 12,
-                              ),
+                                    color: AppTheme.darkGray,
+                                    fontWeight: FontWeight.w500,
+                                    fontSize: 12,
+                                  ),
                             ),
                           ],
                         ),
@@ -3118,7 +3166,10 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
             if (population != null && (population as int) > 0) ...[
               const SizedBox(height: 12),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: AppTheme.lightGray,
                   borderRadius: BorderRadius.circular(6),
@@ -3133,9 +3184,9 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                     const SizedBox(width: 6),
                     Text(
                       'Population covered: ${_formatNumber(population)}',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppTheme.darkGray,
-                      ),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodySmall?.copyWith(color: AppTheme.darkGray),
                     ),
                   ],
                 ),
@@ -3147,23 +3198,33 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
               const SizedBox(height: 12),
               _isSubscriptionExpired(status)
                   ? Container(
-                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 12,
+                        horizontal: 16,
+                      ),
                       decoration: BoxDecoration(
                         color: AppTheme.mediumGray.withOpacity(0.12),
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: AppTheme.mediumGray.withOpacity(0.3)),
+                        border: Border.all(
+                          color: AppTheme.mediumGray.withOpacity(0.3),
+                        ),
                       ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.event_busy_outlined, size: 18, color: AppTheme.darkGray),
+                          Icon(
+                            Icons.event_busy_outlined,
+                            size: 18,
+                            color: AppTheme.darkGray,
+                          ),
                           const SizedBox(width: 8),
                           Text(
                             'Expired',
-                            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                              color: AppTheme.darkGray,
-                              fontWeight: FontWeight.w600,
-                            ),
+                            style: Theme.of(context).textTheme.titleSmall
+                                ?.copyWith(
+                                  color: AppTheme.darkGray,
+                                  fontWeight: FontWeight.w600,
+                                ),
                           ),
                         ],
                       ),
@@ -3176,7 +3237,11 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                           stripeCustomerId,
                           subscription,
                         ),
-                        icon: Icon(Icons.cancel_outlined, size: 18, color: Colors.red.shade600),
+                        icon: Icon(
+                          Icons.cancel_outlined,
+                          size: 18,
+                          color: Colors.red.shade600,
+                        ),
                         label: Text(
                           'Cancel subscription',
                           style: TextStyle(
@@ -3215,7 +3280,8 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
       final s = DateTime.tryParse(startStr);
       final e = DateTime.tryParse(endStr);
       if (s != null && e != null) {
-        periodText = '${_getMonthName(s.month)} ${s.day}, ${s.year} – ${_getMonthName(e.month)} ${e.day}, ${e.year}';
+        periodText =
+            '${_getMonthName(s.month)} ${s.day}, ${s.year} – ${_getMonthName(e.month)} ${e.day}, ${e.year}';
       }
     }
     final tier = subscription?['subscriptionTier']?.toString();
@@ -3232,16 +3298,17 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                 color: Colors.orange.withOpacity(0.15),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Icon(Icons.cancel_outlined, color: Colors.orange.shade700, size: 24),
+              child: Icon(
+                Icons.cancel_outlined,
+                color: Colors.orange.shade700,
+                size: 24,
+              ),
             ),
             const SizedBox(width: 12),
             const Expanded(
               child: Text(
                 'Cancel Subscription',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                ),
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
               ),
             ),
           ],
@@ -3264,7 +3331,9 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                 decoration: BoxDecoration(
                   color: AppTheme.lightGray,
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: AppTheme.primaryBlue.withOpacity(0.15)),
+                  border: Border.all(
+                    color: AppTheme.primaryBlue.withOpacity(0.15),
+                  ),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -3279,7 +3348,11 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                     const SizedBox(height: 10),
                     _buildDialogDetailRow(context, 'Monthly amount', amountStr),
                     if (periodText != null)
-                      _buildDialogDetailRow(context, 'Current period', periodText),
+                      _buildDialogDetailRow(
+                        context,
+                        'Current period',
+                        periodText,
+                      ),
                     if (tier != null && tier.isNotEmpty)
                       _buildDialogDetailRow(context, 'Tier', tier),
                     if (zipcodeForDialog != null && zipcodeForDialog.isNotEmpty)
@@ -3302,7 +3375,11 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.info_outline_rounded, color: Colors.orange.shade700, size: 22),
+                    Icon(
+                      Icons.info_outline_rounded,
+                      color: Colors.orange.shade700,
+                      size: 22,
+                    ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
@@ -3310,10 +3387,11 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                         children: [
                           Text(
                             'What happens when you cancel?',
-                            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                              color: Colors.orange.shade800,
-                              fontWeight: FontWeight.w700,
-                            ),
+                            style: Theme.of(context).textTheme.titleSmall
+                                ?.copyWith(
+                                  color: Colors.orange.shade800,
+                                  fontWeight: FontWeight.w700,
+                                ),
                           ),
                           const SizedBox(height: 6),
                           Text(
@@ -3321,10 +3399,11 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
                             '• You will retain full access until the end of your current billing period.\n'
                             '• Your claimed ZIP codes will remain yours until the period ends.\n'
                             '• No further charges will be applied after cancellation.',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Colors.orange.shade800,
-                              height: 1.5,
-                            ),
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: Colors.orange.shade800,
+                                  height: 1.5,
+                                ),
                           ),
                         ],
                       ),
@@ -3390,9 +3469,9 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
             width: 110,
             child: Text(
               label,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: AppTheme.mediumGray,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: AppTheme.mediumGray),
             ),
           ),
           Expanded(
@@ -3563,7 +3642,8 @@ class LoanOfficerView extends GetView<LoanOfficerController> {
           .whereType<LoanOfficerReview>()
           .toList();
       final avgRating = reviews.isNotEmpty
-          ? reviews.map((r) => r.rating).reduce((a, b) => a + b) / reviews.length
+          ? reviews.map((r) => r.rating).reduce((a, b) => a + b) /
+                reviews.length
           : (officer?.rating ?? 0.0);
       final reviewCount = officer?.reviewCount ?? 0;
 

@@ -4,6 +4,8 @@ import 'package:get/get.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart';
 import 'package:getrebate/app/models/loan_officer_model.dart';
 import 'package:getrebate/app/services/loan_officer_service.dart';
+import 'package:getrebate/app/utils/connection_error_helper.dart';
+import 'package:getrebate/app/widgets/connection_error_dialog.dart';
 
 /// Global controller that holds the currently authenticated loan officer.
 ///
@@ -64,17 +66,30 @@ class CurrentLoanOfficerController extends GetxController {
         print('   Status Code: ${e.statusCode}');
       }
 
-      // Show user-friendly message, but keep existing data if any
-      _safeShowSnackbar('Error', e.message);
+      if (_isConnectionError(e)) {
+        ConnectionErrorDialog.show(
+          message: e.message,
+          onRetry: () => refreshData(id),
+        );
+      } else {
+        _safeShowSnackbar('Error', e.message);
+      }
     } catch (e) {
       if (kDebugMode) {
         print('❌ CurrentLoanOfficerController: Unexpected error: $e');
       }
 
-      _safeShowSnackbar(
-        'Error',
-        'Failed to load loan officer profile. Please try again.',
-      );
+      if (ConnectionErrorHelper.isConnectionError(e)) {
+        ConnectionErrorDialog.show(
+          message: 'Failed to load loan officer profile. Please check your connection and try again.',
+          onRetry: () => fetchCurrentLoanOfficer(id),
+        );
+      } else {
+        _safeShowSnackbar(
+          'Error',
+          'Failed to load loan officer profile. Please try again.',
+        );
+      }
     } finally {
       isLoading.value = false;
     }
@@ -127,6 +142,15 @@ class CurrentLoanOfficerController extends GetxController {
     } finally {
       isLoading.value = false;
     }
+  }
+
+  bool _isConnectionError(LoanOfficerServiceException e) {
+    final msg = e.message.toLowerCase();
+    return msg.contains('connection') ||
+        msg.contains('timeout') ||
+        msg.contains('internet') ||
+        msg.contains('network') ||
+        e.statusCode == 408;
   }
 
   void _safeShowSnackbar(String title, String message) {

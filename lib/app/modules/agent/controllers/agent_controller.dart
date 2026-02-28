@@ -1450,6 +1450,7 @@ class AgentController extends GetxController {
     } on DioException catch (e) {
       if (kDebugMode) {
         print('❌ Error in payment flow: ${e.message}');
+        print('   API: POST ${ApiConstants.apiBaseUrl}/subscription/create-checkout-session');
         print('   Status Code: ${e.response?.statusCode}');
         print('   Response: ${e.response?.data}');
       }
@@ -1513,6 +1514,7 @@ class AgentController extends GetxController {
 
       if (kDebugMode) {
         print('❌ Final error message to user: $errorMessage');
+        print('   API that failed: POST ${ApiConstants.apiBaseUrl}/subscription/create-checkout-session');
         print('   Is already claimed: $isAlreadyClaimed');
       }
 

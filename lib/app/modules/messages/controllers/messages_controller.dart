@@ -9,7 +9,9 @@ import 'package:getrebate/app/services/socket_service.dart';
 import 'package:getrebate/app/services/agent_service.dart';
 import 'package:getrebate/app/services/loan_officer_service.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
+import 'package:getrebate/app/utils/connection_error_helper.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
+import 'package:getrebate/app/widgets/connection_error_dialog.dart';
 
 class MessageModel {
   final String id;
@@ -1162,6 +1164,14 @@ class MessagesController extends GetxController {
     }
   }
 
+  bool _isConnectionError(ChatServiceException e) {
+    final msg = e.message.toLowerCase();
+    return msg.contains('connection') ||
+        msg.contains('timeout') ||
+        msg.contains('internet') ||
+        msg.contains('network');
+  }
+
   void _loadArguments() {
     // Just load arguments but don't auto-open conversations
     // This allows navigation to messages screen to show threads list
@@ -1386,10 +1396,22 @@ class MessagesController extends GetxController {
       if (kDebugMode) {
         print('❌ Error loading threads: ${e.message}');
       }
+      if (_isConnectionError(e)) {
+        ConnectionErrorDialog.show(
+          message: e.message,
+          onRetry: loadThreads,
+        );
+      }
     } catch (e) {
       _error.value = e.toString();
       if (kDebugMode) {
         print('❌ Unexpected error loading threads: $e');
+      }
+      if (ConnectionErrorHelper.isConnectionError(e)) {
+        ConnectionErrorDialog.show(
+          message: 'Connection timeout. Please check your internet connection and try again.',
+          onRetry: loadThreads,
+        );
       }
     } finally {
       // Always reset loading state, even if there was an error

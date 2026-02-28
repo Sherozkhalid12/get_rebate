@@ -158,7 +158,11 @@ class NotificationsController extends GetxController {
       if (kDebugMode) {
         print('❌ Error fetching notifications: $e');
       }
-      ErrorHandler.handleError(e, defaultMessage: 'Unable to load notifications. Please try again later.');
+      ErrorHandler.handleError(
+        e,
+        defaultMessage: 'Unable to load notifications. Please try again later.',
+        onRetry: () => fetchNotifications(),
+      );
     } finally {
       _isLoading.value = false;
     }

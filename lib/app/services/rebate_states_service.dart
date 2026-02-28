@@ -29,7 +29,10 @@ class RebateStatesService {
       InterceptorsWrapper(
         onError: (error, handler) {
           if (kDebugMode) {
+            final url = error.requestOptions.uri.toString();
             print('RebateStatesService error: ${error.message}');
+            print('   API: GET $url');
+            print('   Status: ${error.response?.statusCode}');
           }
           return handler.next(error);
         },
@@ -101,6 +104,7 @@ class RebateStatesService {
     } catch (e) {
       if (kDebugMode) {
         print('⚠️ Failed to fetch rebate-allowed states from API: $e');
+        print('   API: GET ${ApiConstants.apiBaseUrl}/rebate/allowed-states');
         print('   Using fallback list');
       }
     }

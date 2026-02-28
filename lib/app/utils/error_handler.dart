@@ -1,27 +1,38 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import 'package:getrebate/app/utils/connection_error_helper.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
+import 'package:getrebate/app/widgets/connection_error_dialog.dart';
 
 /// Professional error handler for consistent, user-friendly error messages
 /// Handles network errors, timeouts, and other exceptions gracefully
 class ErrorHandler {
   ErrorHandler._();
 
-  /// Handles any error and shows a professional, user-friendly message
-  /// 
+  /// Handles any error and shows a professional, user-friendly message.
+  /// Connection/timeout errors show a dialog; others show a snackbar.
+  ///
   /// [error] - The error object (can be DioException, Exception, or any other error)
   /// [defaultMessage] - Default message to show if error cannot be parsed
-  /// [showSnackbar] - Whether to show a snackbar (default: true)
-  /// [context] - Optional BuildContext for snackbar
+  /// [showSnackbar] - Whether to show UI feedback (default: true)
+  /// [onRetry] - Optional retry callback for connection errors (shows Retry button)
   static String handleError(
     dynamic error, {
     String? defaultMessage,
     bool showSnackbar = true,
+    VoidCallback? onRetry,
   }) {
     String userFriendlyMessage = _getUserFriendlyMessage(error, defaultMessage);
 
     if (showSnackbar) {
-      SnackbarHelper.showError(userFriendlyMessage);
+      if (ConnectionErrorHelper.isConnectionError(error)) {
+        ConnectionErrorDialog.show(
+          message: userFriendlyMessage,
+          onRetry: onRetry,
+        );
+      } else {
+        SnackbarHelper.showError(userFriendlyMessage);
+      }
     }
 
     // Log technical details in debug mode
@@ -181,27 +192,35 @@ class ErrorHandler {
     }
   }
 
-  /// Shows a professional error message for common scenarios
-  static void showNetworkError({String? customMessage}) {
-    SnackbarHelper.showError(
-      customMessage ?? 'Unable to connect. Please check your internet connection and try again.',
+  /// Shows the connection error dialog for network issues.
+  static void showNetworkError({String? customMessage, VoidCallback? onRetry}) {
+    ConnectionErrorDialog.show(
+      message: customMessage ??
+          'Unable to connect. Please check your internet connection and try again.',
+      onRetry: onRetry,
     );
   }
 
-  /// Shows a professional error message for timeout scenarios
-  static void showTimeoutError({String? customMessage}) {
-    SnackbarHelper.showError(
-      customMessage ?? 'Connection timed out. Please check your internet connection and try again.',
+  /// Shows the connection error dialog for timeout scenarios.
+  static void showTimeoutError({String? customMessage, VoidCallback? onRetry}) {
+    ConnectionErrorDialog.show(
+      message: customMessage ??
+          'Connection timed out. Please check your internet connection and try again.',
+      onRetry: onRetry,
     );
   }
 
-  /// Shows a professional error message for data loading failures
-  static void showLoadError({String? customMessage, String? itemName}) {
-    final message = customMessage ?? 
-        (itemName != null 
+  /// Shows error UI: connection dialog for load failures due to network, else snackbar.
+  static void showLoadError({
+    String? customMessage,
+    String? itemName,
+    VoidCallback? onRetry,
+  }) {
+    final message = customMessage ??
+        (itemName != null
             ? 'Unable to load $itemName. Please check your connection and try again.'
             : 'Unable to load data. Please check your connection and try again.');
-    SnackbarHelper.showError(message);
+    ConnectionErrorDialog.show(message: message, onRetry: onRetry);
   }
 
   /// Shows a professional error message for server errors

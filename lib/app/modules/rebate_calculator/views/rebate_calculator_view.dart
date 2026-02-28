@@ -49,12 +49,25 @@ class RebateCalculatorView extends StatelessWidget {
                   children: [
                     _buildFullForm(context, controller),
                     const SizedBox(height: 20),
-                    Obx(
-                      () => _buildResults(
-                        context,
-                        controller,
-                        shouldShowFindAgentsButton: shouldShowFindAgentsButton,
-                      ),
+                    GetBuilder<RebateCalculatorController>(
+                      id: 'rebateResults',
+                      init: controller,
+                      builder: (c) {
+                        final mode = c.currentMode.value;
+                        final apiResult = mode == 0
+                            ? c.apiResultEstimated.value
+                            : mode == 1
+                            ? c.apiResultActual.value
+                            : c.apiResultSeller.value;
+                        return _buildResults(
+                          context,
+                          c,
+                          mode: mode,
+                          apiResult: apiResult,
+                          shouldShowFindAgentsButton:
+                              shouldShowFindAgentsButton,
+                        );
+                      },
                     ),
                   ],
                 ),
@@ -282,12 +295,6 @@ class RebateCalculatorView extends StatelessWidget {
     BuildContext context,
     RebateCalculatorController c,
   ) {
-    // Only show Convert button for Estimated tab (mode 0)
-    // Hide for Actual (mode 1) and Seller Conversion (mode 2)
-    if (c.currentMode.value != 0) {
-      return const SizedBox.shrink();
-    }
-
     final isLoading = c.isLoading;
     final isFormValid = c.isFormValid;
 
@@ -295,9 +302,7 @@ class RebateCalculatorView extends StatelessWidget {
       width: double.infinity,
       child: ElevatedButton(
         onPressed: (isFormValid && !isLoading)
-            ? () {
-                c.calculateEstimated();
-              }
+            ? () => c.calculateFromCurrentMode()
             : null,
         style: ElevatedButton.styleFrom(
           backgroundColor: AppTheme.primaryBlue,
@@ -326,9 +331,9 @@ class RebateCalculatorView extends StatelessWidget {
   }
 
   List<TextInputFormatter> get _percentFormatters => [
-        FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
-        LengthLimitingTextInputFormatter(5),
-      ];
+    FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+    LengthLimitingTextInputFormatter(5),
+  ];
 
   Widget _dropdownStyled(
     BuildContext context,
@@ -421,9 +426,7 @@ class RebateCalculatorView extends StatelessWidget {
               ),
             ),
             contentPadding: const EdgeInsets.fromLTRB(16, 16, 12, 16),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide(
@@ -433,10 +436,7 @@ class RebateCalculatorView extends StatelessWidget {
             ),
             focusedBorder: const OutlineInputBorder(
               borderRadius: BorderRadius.all(Radius.circular(12)),
-              borderSide: BorderSide(
-                color: AppTheme.primaryBlue,
-                width: 2,
-              ),
+              borderSide: BorderSide(color: AppTheme.primaryBlue, width: 2),
             ),
             filled: true,
             fillColor: AppTheme.primaryBlue.withOpacity(0.04),
@@ -559,193 +559,28 @@ class RebateCalculatorView extends StatelessWidget {
   Widget _buildResults(
     BuildContext context,
     RebateCalculatorController c, {
+    required int mode,
+    required RebateCalculatorResponse? apiResult,
     required bool shouldShowFindAgentsButton,
   }) {
-    // Show API results if available, otherwise show local calculations
-    final apiResult = c.currentApiResult;
-
+    // Only show API results - no instant/local calculations
     if (apiResult != null && apiResult.success) {
       return _buildApiResults(
         context,
         c,
         apiResult,
+        mode: mode,
         shouldShowFindAgentsButton: shouldShowFindAgentsButton,
       );
     }
 
-    // Fallback to local calculations
-    if (c.currentMode.value != 0 && !_hasRequiredInputsForCurrentMode(c)) {
-      return _emptyState(context, "Enter details to calculate");
-    }
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              c.currentMode.value == 0
-                  ? 'Rebate Tiers'
-                  : c.currentMode.value == 1
-                  ? 'Your Rebate'
-                  : 'Commission Converted to Lower % Fee',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 20),
-
-            // MODE 0: Tiers
-            if (c.currentMode.value == 0) ...[
-              // Show threshold warning if home price >= 700k
-              if ((double.tryParse(c.homePriceController.text) ?? 0.0) >=
-                  700000)
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.blue.shade300),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.info_outline,
-                        color: Colors.blue.shade700,
-                        size: 20,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'For homes \$700,000+: Tiers 5 & 6 do not apply. Minimum is Tier 4.',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.blue.shade900,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ...c.tiers.map(
-                (t) => Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 6),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        flex: 3,
-                        child: Text(
-                          t['range'],
-                          style: const TextStyle(fontSize: 14),
-                        ),
-                      ),
-                      Expanded(
-                        flex: 2,
-                        child: Text(
-                          t['rebate'],
-                          style: TextStyle(color: t['color'], fontSize: 14),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                      Expanded(
-                        flex: 2,
-                        child: Text(
-                          '\$${t['amount']}',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                          ),
-                          textAlign: TextAlign.right,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-
-            // MODE 1: Actual
-            if (c.currentMode.value == 1) ...[
-              _resultItem(
-                context,
-                'Rebate',
-                '\$${c.actualRebate.toStringAsFixed(0)}',
-                AppTheme.lightGreen,
-              ),
-              _resultItem(
-                context,
-                'Tier',
-                c.actualTier.value,
-                AppTheme.primaryBlue,
-              ),
-            ],
-
-            // MODE 2: Seller
-            if (c.currentMode.value == 2) ...[
-              Container(
-                padding: const EdgeInsets.all(12),
-                margin: const EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Text(
-                  'This shows the lower listing agent commission (LAC) percentage when the rebate is applied directly to the listing agent commission.',
-                  style: TextStyle(fontSize: 12, color: Colors.black87),
-                ),
-              ),
-              _resultItem(
-                context,
-                'Original Listing Agent Commission (LAC)',
-                '${c.sellerOriginalFeeController.text}%',
-                AppTheme.mediumGray,
-              ),
-              _resultItem(
-                context,
-                'Rebate Amount',
-                '\$${c.sellerRebate.toStringAsFixed(0)}',
-                AppTheme.lightGreen,
-              ),
-              const Divider(height: 24),
-              _resultItem(
-                context,
-                'New Listing Agent Commission (LAC)',
-                '${c.sellerNewFee.toStringAsFixed(2)}%',
-                AppTheme.primaryBlue,
-                bold: true,
-              ),
-            ],
-
-            if (shouldShowFindAgentsButton) ...[
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    Get.toNamed('/find-agents');
-                  },
-                  icon: const Icon(Icons.search, size: 24),
-                  label: const Text(
-                    'Find Agents',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.primaryBlue,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    elevation: 3,
-                  ),
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
+    // No API result yet - show empty state (API results only, no instant calc)
+    return _emptyState(
+      context,
+      _hasRequiredInputsForMode(c, mode)
+          ? 'Tap Calculate to see results'
+          : 'Enter price, commission, and state to calculate',
+      shouldShowFindAgentsButton: shouldShowFindAgentsButton,
     );
   }
 
@@ -802,7 +637,11 @@ class RebateCalculatorView extends StatelessWidget {
     );
   }
 
-  Widget _emptyState(BuildContext context, String msg) {
+  Widget _emptyState(
+    BuildContext context,
+    String msg, {
+    bool shouldShowFindAgentsButton = false,
+  }) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -815,20 +654,43 @@ class RebateCalculatorView extends StatelessWidget {
               textAlign: TextAlign.center,
               style: const TextStyle(color: AppTheme.mediumGray),
             ),
+            if (shouldShowFindAgentsButton) ...[
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () => Get.toNamed('/find-agents'),
+                  icon: const Icon(Icons.search, size: 24),
+                  label: const Text(
+                    'Find Agents',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primaryBlue,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    elevation: 3,
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),
     );
   }
 
-  /// Builds API results display
+  /// Builds API results display - tab-specific professional layout
   Widget _buildApiResults(
     BuildContext context,
     RebateCalculatorController c,
     RebateCalculatorResponse result, {
+    required int mode,
     required bool shouldShowFindAgentsButton,
   }) {
-    // Check if maxRebate is "or more" from rawData
     bool isOrMore = false;
     if (result.rawData != null) {
       final estimate = result.rawData!['estimate'];
@@ -843,6 +705,12 @@ class RebateCalculatorView extends StatelessWidget {
       }
     }
 
+    final String headerTitle = mode == 0
+        ? 'Estimated Rebate Results'
+        : mode == 1
+        ? 'Exact Rebate Results'
+        : 'Seller Conversion Results';
+
     return Card(
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -852,7 +720,7 @@ class RebateCalculatorView extends StatelessWidget {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [Colors.white, AppTheme.lightGray.withOpacity(0.3)],
+            colors: [Colors.white, AppTheme.lightGray.withOpacity(0.2)],
           ),
         ),
         child: Padding(
@@ -860,274 +728,20 @@ class RebateCalculatorView extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header with icon
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: AppTheme.primaryBlue.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(
-                      Icons.calculate_rounded,
-                      color: AppTheme.primaryBlue,
-                      size: 28,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      c.currentMode.value == 0
-                          ? 'Estimated Rebate Results'
-                          : c.currentMode.value == 1
-                          ? 'Exact Rebate Results'
-                          : 'Seller Conversion Results',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.darkGray,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+              _buildResultsHeader(context, headerTitle),
               const SizedBox(height: 24),
-
-              // Main Results Card
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: AppTheme.lightBlue.withOpacity(0.3),
-                    width: 1.5,
-                  ),
-                ),
-                child: Column(
-                  children: [
-                    // Tier with badge
-                    if (result.tier != null && result.tier!.isNotEmpty) ...[
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppTheme.primaryBlue.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: AppTheme.primaryBlue,
-                            width: 2,
-                          ),
-                        ),
-                        child: Text(
-                          result.tier!,
-                          style: TextStyle(
-                            color: AppTheme.primaryBlue,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                    ],
-
-                    // Rebate Percentage - Large display
-                    if (result.rebatePercentage != null) ...[
-                      Text(
-                        'Rebate Percentage',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: AppTheme.mediumGray,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        '${result.rebatePercentage!.toStringAsFixed(1)}%',
-                        style: TextStyle(
-                          color: AppTheme.lightGreen,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 36,
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                    ],
-
-                    // Estimated Rebate Range - Highlighted
-                    if (result.minRebate != null) ...[
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: AppTheme.lightGreen.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: AppTheme.lightGreen,
-                            width: 2,
-                          ),
-                        ),
-                        child: Column(
-                          children: [
-                            Text(
-                              'Estimated Rebate Range',
-                              style: Theme.of(context).textTheme.bodyMedium
-                                  ?.copyWith(
-                                    color: AppTheme.darkGray,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              isOrMore || result.maxRebate == null
-                                  ? '${_formatCurrency(result.minRebate!)} or more'
-                                  : _formatCurrencyRange(
-                                      result.minRebate!,
-                                      result.maxRebate!,
-                                    ),
-                              style: TextStyle(
-                                color: AppTheme.lightGreen,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 24,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                    ],
-
-                    // Commission Range for Tier
-                    if (result.minCommission != null) ...[
-                      _buildResultRow(
-                        context,
-                        'Commission Range for Tier',
-                        result.maxCommission != null
-                            ? '${result.minCommission!.toStringAsFixed(2)}% – ${result.maxCommission!.toStringAsFixed(2)}%'
-                            : '${result.minCommission!.toStringAsFixed(2)}% or more',
-                        AppTheme.mediumGray,
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-
-              // Notes
-              if (result.notes != null && result.notes!.isNotEmpty) ...[
-                const SizedBox(height: 16),
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.blue.shade50,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.blue.shade200, width: 1),
-                  ),
-                  child: ExpansionTile(
-                    tilePadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                    leading: Icon(
-                      Icons.info_outline,
-                      color: Colors.blue.shade700,
-                    ),
-                    title: Text(
-                      'Additional Information',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: Colors.blue.shade900,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    children: [
-                      ...result.notes!.map((note) {
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Icon(
-                                Icons.check_circle_outline,
-                                size: 18,
-                                color: Colors.blue.shade700,
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  note,
-                                  style: Theme.of(context).textTheme.bodyMedium
-                                      ?.copyWith(color: Colors.blue.shade900),
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      }).toList(),
-                    ],
-                  ),
-                ),
-              ],
-
-              // Warnings
-              if (result.warnings != null && result.warnings!.isNotEmpty) ...[
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.orange.shade50,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: Colors.orange.shade300,
-                      width: 1.5,
-                    ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.warning_amber_rounded,
-                            color: Colors.orange.shade700,
-                            size: 24,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Important Warnings',
-                            style: Theme.of(context).textTheme.titleMedium
-                                ?.copyWith(
-                                  color: Colors.orange.shade900,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      ...result.warnings!.map((warning) {
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Icon(
-                                Icons.circle,
-                                size: 6,
-                                color: Colors.orange.shade700,
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  warning,
-                                  style: Theme.of(context).textTheme.bodyMedium
-                                      ?.copyWith(color: Colors.orange.shade900),
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      }).toList(),
-                    ],
-                  ),
-                ),
-              ],
+              if (mode == 0)
+                _buildEstimatedTabContent(context, result, isOrMore),
+              if (mode == 1) _buildActualTabContent(context, result),
+              if (mode == 2) _buildSellerTabContent(context, result),
+              const SizedBox(height: 20),
+              if (result.notes != null && result.notes!.isNotEmpty)
+                _buildNotesSection(context, result.notes!),
+              if (result.instructions != null &&
+                  result.instructions!.isNotEmpty)
+                _buildInstructionsSection(context, result.instructions!),
+              if (result.warnings != null && result.warnings!.isNotEmpty)
+                _buildWarningsSection(context, result.warnings!),
 
               if (shouldShowFindAgentsButton) ...[
                 const SizedBox(height: 24),
@@ -1160,6 +774,595 @@ class RebateCalculatorView extends StatelessWidget {
               ],
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildResultsHeader(BuildContext context, String title) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: AppTheme.primaryBlue.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(
+            Icons.calculate_rounded,
+            color: AppTheme.primaryBlue,
+            size: 28,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            title,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: AppTheme.darkGray,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEstimatedTabContent(
+    BuildContext context,
+    RebateCalculatorResponse result,
+    bool isOrMore,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: AppTheme.lightBlue.withOpacity(0.3),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (result.tier != null && result.tier!.isNotEmpty) ...[
+            _buildTierBadge(context, result.tier!),
+            const SizedBox(height: 20),
+          ],
+          if (result.rebatePercentage != null) ...[
+            Text(
+              'Rebate Percentage',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: AppTheme.mediumGray,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              '${result.rebatePercentage!.toStringAsFixed(0)}%',
+              style: TextStyle(
+                color: AppTheme.lightGreen,
+                fontWeight: FontWeight.bold,
+                fontSize: 34,
+              ),
+            ),
+            const SizedBox(height: 20),
+          ],
+          if (result.minRebate != null) ...[
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppTheme.lightGreen.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: AppTheme.lightGreen.withOpacity(0.5),
+                  width: 2,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Estimated Rebate Range',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppTheme.darkGray,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    isOrMore || result.maxRebate == null
+                        ? '${_formatCurrency(result.minRebate!)} or more'
+                        : _formatCurrencyRange(
+                            result.minRebate!,
+                            result.maxRebate!,
+                          ),
+                    style: TextStyle(
+                      color: AppTheme.lightGreen,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 24,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+          ],
+          if (result.minCommission != null)
+            _buildResultRow(
+              context,
+              'Commission Range for Tier',
+              result.maxCommission != null
+                  ? '${result.minCommission!.toStringAsFixed(2)}% – ${result.maxCommission!.toStringAsFixed(2)}%'
+                  : '${result.minCommission!.toStringAsFixed(2)}% or more',
+              AppTheme.mediumGray,
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTierBadge(BuildContext context, String tier) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppTheme.primaryBlue.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppTheme.primaryBlue, width: 2),
+      ),
+      child: Text(
+        tier,
+        style: TextStyle(
+          color: AppTheme.primaryBlue,
+          fontWeight: FontWeight.bold,
+          fontSize: 15,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActualTabContent(
+    BuildContext context,
+    RebateCalculatorResponse result,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: AppTheme.lightBlue.withOpacity(0.3),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (result.tier != null && result.tier!.isNotEmpty) ...[
+            _buildTierBadge(context, result.tier!),
+            const SizedBox(height: 20),
+          ],
+          if (result.rebatePercentage != null) ...[
+            _buildResultRow(
+              context,
+              'Rebate Percentage',
+              '${result.rebatePercentage!.toStringAsFixed(0)}%',
+              AppTheme.lightGreen,
+            ),
+            const SizedBox(height: 12),
+          ],
+          if (result.rebateAmountFormatted != null) ...[
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppTheme.lightGreen.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: AppTheme.lightGreen.withOpacity(0.5),
+                  width: 2,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Your Rebate Amount',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.darkGray,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      _ensureCurrencyFormat(result.rebateAmountFormatted!),
+                      style: const TextStyle(
+                        color: AppTheme.lightGreen,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 20,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+          if (result.totalCommissionFormatted != null)
+            _buildResultRow(
+              context,
+              'Total Commission',
+              _ensureCurrencyFormat(result.totalCommissionFormatted!),
+              AppTheme.mediumGray,
+            ),
+          if (result.netAgentCommissionFormatted != null)
+            _buildResultRow(
+              context,
+              'Net Agent Commission',
+              _ensureCurrencyFormat(result.netAgentCommissionFormatted!),
+              AppTheme.primaryBlue,
+              isBold: true,
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSellerTabContent(
+    BuildContext context,
+    RebateCalculatorResponse result,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: AppTheme.lightBlue.withOpacity(0.3),
+              width: 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.04),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (result.tier != null && result.tier!.isNotEmpty) ...[
+                _buildTierBadge(context, result.tier!),
+                const SizedBox(height: 20),
+              ],
+              if (result.rebatePercentage != null)
+                _buildResultRow(
+                  context,
+                  'Rebate Percentage',
+                  '${result.rebatePercentage!.toStringAsFixed(0)}%',
+                  AppTheme.lightGreen,
+                ),
+              if (result.originalCommissionAmountFormatted != null)
+                _buildResultRow(
+                  context,
+                  'Original Commission',
+                  _ensureCurrencyFormat(
+                    result.originalCommissionAmountFormatted!,
+                  ),
+                  AppTheme.mediumGray,
+                ),
+              if (result.newCommissionAmountFormatted != null)
+                _buildResultRow(
+                  context,
+                  'New Commission Amount',
+                  _ensureCurrencyFormat(result.newCommissionAmountFormatted!),
+                  AppTheme.primaryBlue,
+                ),
+              if (result.sellerSavingsFormatted != null) ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppTheme.lightGreen.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: AppTheme.lightGreen.withOpacity(0.5),
+                      width: 2,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Your Savings',
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: AppTheme.darkGray,
+                            ),
+                      ),
+                      const SizedBox(height: 6),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          _ensureCurrencyFormat(result.sellerSavingsFormatted!),
+                          style: const TextStyle(
+                            color: AppTheme.lightGreen,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 20,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              if (result.effectiveCommissionRateFormatted != null)
+                _buildResultRow(
+                  context,
+                  'Effective Commission Rate',
+                  result.effectiveCommissionRateFormatted!.endsWith('%')
+                      ? result.effectiveCommissionRateFormatted!
+                      : '${result.effectiveCommissionRateFormatted}%',
+                  AppTheme.primaryBlue,
+                  isBold: true,
+                ),
+            ],
+          ),
+        ),
+        if (result.listingFeeForContract != null ||
+            result.simplifiedNote != null) ...[
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppTheme.primaryBlue.withOpacity(0.06),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: AppTheme.primaryBlue.withOpacity(0.3),
+                width: 1.5,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'For Your Listing Agreement',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.primaryBlue,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                if (result.listingFeeForContract != null)
+                  _buildResultRow(
+                    context,
+                    'Listing Fee',
+                    result.listingFeeForContract!,
+                    AppTheme.primaryBlue,
+                    isBold: true,
+                  ),
+                if (result.simplifiedNote != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    result.simplifiedNote!,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppTheme.darkGray,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
+                if (result.simplifiedInstructions != null) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    result.simplifiedInstructions!,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppTheme.mediumGray,
+                      height: 1.5,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  String _ensureCurrencyFormat(String value) {
+    if (value.startsWith('\$')) return value;
+    final cleaned = value.replaceAll(RegExp(r'[^0-9.]'), '');
+    final num = double.tryParse(cleaned);
+    return num != null ? _formatCurrency(num) : value;
+  }
+
+  Widget _buildNotesSection(BuildContext context, List<String> notes) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 16),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.blue.shade50,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.blue.shade200, width: 1),
+        ),
+        child: ExpansionTile(
+          tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          leading: Icon(Icons.info_outline, color: Colors.blue.shade700),
+          title: Text(
+            'Additional Information',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              color: Colors.blue.shade900,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          children: notes
+              .map(
+                (note) => Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        Icons.check_circle_outline,
+                        size: 18,
+                        color: Colors.blue.shade700,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          note,
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(color: Colors.blue.shade900),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+              .toList(),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInstructionsSection(
+    BuildContext context,
+    List<String> instructions,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 16),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.blue.shade50,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.blue.shade200, width: 1),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.lightbulb_outline,
+                  color: Colors.blue.shade700,
+                  size: 22,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Instructions',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: Colors.blue.shade900,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            ...instructions.map(
+              (i) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      Icons.arrow_forward_ios,
+                      size: 12,
+                      color: Colors.blue.shade700,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        i,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Colors.blue.shade900,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWarningsSection(BuildContext context, List<String> warnings) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 16),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.orange.shade50,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.orange.shade300, width: 1.5),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.warning_amber_rounded,
+                  color: Colors.orange.shade700,
+                  size: 24,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Important Warnings',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: Colors.orange.shade900,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            ...warnings.map(
+              (w) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.circle, size: 6, color: Colors.orange.shade700),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        w,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Colors.orange.shade900,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

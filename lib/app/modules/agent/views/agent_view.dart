@@ -46,30 +46,58 @@ class AgentView extends GetView<AgentController> {
     try {
       final service = RebateStatesService();
       final allowedStates = await service.getAllowedStates();
-      final allowedStatesSet = allowedStates.map((s) => s.toUpperCase()).toSet();
-      
+      final allowedStatesSet = allowedStates
+          .map((s) => s.toUpperCase())
+          .toSet();
+
       // Normalize state names to codes for comparison
       // CRITICAL: Only include states where rebates are allowed
       final stateMap = {
-        'Arizona': 'AZ', 'Arkansas': 'AR',
-        'California': 'CA', 'Colorado': 'CO', 'Connecticut': 'CT', 'Delaware': 'DE',
+        'Arizona': 'AZ',
+        'Arkansas': 'AR',
+        'California': 'CA',
+        'Colorado': 'CO',
+        'Connecticut': 'CT',
+        'Delaware': 'DE',
         'District of Columbia': 'DC',
         'Washington, D.C.': 'DC',
         'Washington D.C.': 'DC',
-        'Florida': 'FL', 'Georgia': 'GA', 'Hawaii': 'HI', 'Idaho': 'ID',
-        'Illinois': 'IL', 'Indiana': 'IN',
+        'Florida': 'FL',
+        'Georgia': 'GA',
+        'Hawaii': 'HI',
+        'Idaho': 'ID',
+        'Illinois': 'IL',
+        'Indiana': 'IN',
         'North Dakota': 'ND',
-        'Kentucky': 'KY', 'Maine': 'ME', 'Maryland': 'MD',
-        'Massachusetts': 'MA', 'Michigan': 'MI', 'Minnesota': 'MN',
-        'Montana': 'MT', 'Nebraska': 'NE', 'Nevada': 'NV',
-        'New Hampshire': 'NH', 'New Jersey': 'NJ', 'New Mexico': 'NM', 'New York': 'NY',
-        'North Carolina': 'NC', 'Ohio': 'OH',
-        'Pennsylvania': 'PA', 'Rhode Island': 'RI', 'South Carolina': 'SC',
-        'South Dakota': 'SD', 'Texas': 'TX', 'Utah': 'UT',
-        'Vermont': 'VT', 'Virginia': 'VA', 'Washington': 'WA', 'West Virginia': 'WV',
-        'Wisconsin': 'WI', 'Wyoming': 'WY',
+        'Kentucky': 'KY',
+        'Maine': 'ME',
+        'Maryland': 'MD',
+        'Massachusetts': 'MA',
+        'Michigan': 'MI',
+        'Minnesota': 'MN',
+        'Montana': 'MT',
+        'Nebraska': 'NE',
+        'Nevada': 'NV',
+        'New Hampshire': 'NH',
+        'New Jersey': 'NJ',
+        'New Mexico': 'NM',
+        'New York': 'NY',
+        'North Carolina': 'NC',
+        'Ohio': 'OH',
+        'Pennsylvania': 'PA',
+        'Rhode Island': 'RI',
+        'South Carolina': 'SC',
+        'South Dakota': 'SD',
+        'Texas': 'TX',
+        'Utah': 'UT',
+        'Vermont': 'VT',
+        'Virginia': 'VA',
+        'Washington': 'WA',
+        'West Virginia': 'WV',
+        'Wisconsin': 'WI',
+        'Wyoming': 'WY',
       };
-      
+
       return licensedStates.where((state) {
         String stateCode;
         if (state.length == 2 && state == state.toUpperCase()) {
@@ -182,38 +210,32 @@ class AgentView extends GetView<AgentController> {
   }
 
   Widget _buildTabs(BuildContext context) {
+    final tabs = const [
+      ('Dashboard', Icons.dashboard),
+      ('ZIP Codes', Icons.location_on),
+      ('Listings', Icons.home),
+      ('Stats', Icons.analytics),
+      ('Billing', Icons.payment),
+      ('Leads', Icons.people),
+    ];
+
     return Container(
       color: AppTheme.white,
+      padding: const EdgeInsets.symmetric(horizontal: 2),
       child: Obx(
         () => SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: Row(
-            children: [
-              SizedBox(
-                width: MediaQuery.of(context).size.width / 5.5,
-                child: _buildTab(context, 'Dashboard', 0, Icons.dashboard),
-              ),
-              SizedBox(
-                width: MediaQuery.of(context).size.width / 5.5,
-                child: _buildTab(context, 'ZIP Codes', 1, Icons.location_on),
-              ),
-              SizedBox(
-                width: MediaQuery.of(context).size.width / 5.5,
-                child: _buildTab(context, 'Listings', 2, Icons.home),
-              ),
-              SizedBox(
-                width: MediaQuery.of(context).size.width / 5.5,
-                child: _buildTab(context, 'Stats', 3, Icons.analytics),
-              ),
-              SizedBox(
-                width: MediaQuery.of(context).size.width / 5.5,
-                child: _buildTab(context, 'Billing', 4, Icons.payment),
-              ),
-              SizedBox(
-                width: MediaQuery.of(context).size.width / 5.5,
-                child: _buildTab(context, 'Leads', 5, Icons.people),
-              ),
-            ],
+            children: List.generate(tabs.length, (i) {
+              final t = tabs[i];
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(minWidth: 80),
+                  child: _buildTab(context, t.$1, i, t.$2),
+                ),
+              );
+            }),
           ),
         ),
       ),
@@ -284,10 +306,11 @@ class AgentView extends GetView<AgentController> {
                       Expanded(
                         child: Text(
                           'Includes complete compliance checklists for both buying/building and selling transactions.',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: AppTheme.darkGray,
-                            fontWeight: FontWeight.w500,
-                          ),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: AppTheme.darkGray,
+                                fontWeight: FontWeight.w500,
+                              ),
                         ),
                       ),
                     ],
@@ -305,10 +328,11 @@ class AgentView extends GetView<AgentController> {
                       Expanded(
                         child: Text(
                           'Use these every time to handle disclosures correctly, coordinate with lenders/title, and protect your transaction compliance.',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: AppTheme.darkGray,
-                            fontWeight: FontWeight.w500,
-                          ),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: AppTheme.darkGray,
+                                fontWeight: FontWeight.w500,
+                              ),
                         ),
                       ),
                     ],
@@ -442,7 +466,7 @@ class AgentView extends GetView<AgentController> {
         physics: const NeverScrollableScrollPhysics(),
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 2,
-          childAspectRatio: 1.4,
+          childAspectRatio: 1.2,
           crossAxisSpacing: 10,
           mainAxisSpacing: 10,
         ),
@@ -455,30 +479,32 @@ class AgentView extends GetView<AgentController> {
                 iconColor: Colors.white,
                 gradientColors: AppTheme.primaryGradient,
                 child: Padding(
-                  padding: const EdgeInsets.all(4.0),
+                  padding: const EdgeInsets.all(12),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     mainAxisAlignment: MainAxisAlignment.center,
-                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
                         stat['value'].toString(),
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
                           color: Colors.white,
                           fontWeight: FontWeight.bold,
+                          fontSize: 20,
                         ),
-                        overflow: TextOverflow.ellipsis,
                         textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.fade,
+                        softWrap: false,
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(height: 4),
                       Text(
                         stat['label'],
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: Colors.white.withOpacity(0.9),
                           fontSize: 11,
                         ),
-                        overflow: TextOverflow.ellipsis,
                         maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                         textAlign: TextAlign.center,
                       ),
                     ],
@@ -713,7 +739,10 @@ class AgentView extends GetView<AgentController> {
     );
   }
 
-  Widget _buildActivityItem(BuildContext context, NotificationModel notification) {
+  Widget _buildActivityItem(
+    BuildContext context,
+    NotificationModel notification,
+  ) {
     final iconColor = _notificationColor(notification.type);
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -936,7 +965,7 @@ class AgentView extends GetView<AgentController> {
               Obx(() {
                 final licensedStates =
                     authController.currentUser?.licensedStates ?? [];
-                
+
                 return FutureBuilder<List<String>>(
                   future: _filterAllowedStates(licensedStates),
                   builder: (context, snapshot) {
@@ -993,10 +1022,15 @@ class AgentView extends GetView<AgentController> {
                                     ),
                                     hintText: 'Select a state',
                                     prefixIcon: Container(
-                                      margin: const EdgeInsets.only(left: 12, right: 8),
+                                      margin: const EdgeInsets.only(
+                                        left: 12,
+                                        right: 8,
+                                      ),
                                       padding: const EdgeInsets.all(6),
                                       decoration: BoxDecoration(
-                                        color: AppTheme.primaryBlue.withOpacity(0.12),
+                                        color: AppTheme.primaryBlue.withOpacity(
+                                          0.12,
+                                        ),
                                         borderRadius: BorderRadius.circular(8),
                                       ),
                                       child: Icon(
@@ -1005,14 +1039,21 @@ class AgentView extends GetView<AgentController> {
                                         size: 20,
                                       ),
                                     ),
-                                    contentPadding: const EdgeInsets.fromLTRB(16, 16, 12, 16),
+                                    contentPadding: const EdgeInsets.fromLTRB(
+                                      16,
+                                      16,
+                                      12,
+                                      16,
+                                    ),
                                     border: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(12),
                                     ),
                                     enabledBorder: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(12),
                                       borderSide: BorderSide(
-                                        color: AppTheme.primaryBlue.withOpacity(0.25),
+                                        color: AppTheme.primaryBlue.withOpacity(
+                                          0.25,
+                                        ),
                                         width: 1.5,
                                       ),
                                     ),
@@ -1024,7 +1065,9 @@ class AgentView extends GetView<AgentController> {
                                       ),
                                     ),
                                     filled: true,
-                                    fillColor: AppTheme.primaryBlue.withOpacity(0.04),
+                                    fillColor: AppTheme.primaryBlue.withOpacity(
+                                      0.04,
+                                    ),
                                   ),
                                   selectedItemBuilder: (context) {
                                     return [
@@ -1036,22 +1079,26 @@ class AgentView extends GetView<AgentController> {
                                         ),
                                         overflow: TextOverflow.ellipsis,
                                       ),
-                                      ...uniqueStates.map((stateName) => Text(
-                                        stateName,
-                                        style: const TextStyle(
-                                          color: AppTheme.darkGray,
-                                          fontSize: 15,
-                                          fontWeight: FontWeight.w600,
+                                      ...uniqueStates.map(
+                                        (stateName) => Text(
+                                          stateName,
+                                          style: const TextStyle(
+                                            color: AppTheme.darkGray,
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
                                         ),
-                                        overflow: TextOverflow.ellipsis,
-                                      )),
+                                      ),
                                     ];
                                   },
                                   items: [
                                     DropdownMenuItem<String>(
                                       value: null,
                                       child: Padding(
-                                        padding: const EdgeInsets.symmetric(vertical: 4),
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 4,
+                                        ),
                                         child: Text(
                                           'Select a state',
                                           style: TextStyle(
@@ -1065,7 +1112,9 @@ class AgentView extends GetView<AgentController> {
                                       return DropdownMenuItem<String>(
                                         value: stateName,
                                         child: Padding(
-                                          padding: const EdgeInsets.symmetric(vertical: 8),
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 8,
+                                          ),
                                           child: Row(
                                             children: [
                                               Container(
@@ -1073,7 +1122,8 @@ class AgentView extends GetView<AgentController> {
                                                 height: 20,
                                                 decoration: BoxDecoration(
                                                   color: AppTheme.primaryBlue,
-                                                  borderRadius: BorderRadius.circular(2),
+                                                  borderRadius:
+                                                      BorderRadius.circular(2),
                                                 ),
                                               ),
                                               const SizedBox(width: 12),
@@ -1093,9 +1143,13 @@ class AgentView extends GetView<AgentController> {
                                   ],
                                   onChanged: (value) {
                                     if (value != null) {
-                                      controller.selectStateAndFetchZipCodes(value);
+                                      controller.selectStateAndFetchZipCodes(
+                                        value,
+                                      );
                                     } else {
-                                      controller.selectStateAndFetchZipCodes('');
+                                      controller.selectStateAndFetchZipCodes(
+                                        '',
+                                      );
                                     }
                                   },
                                 );
@@ -1186,7 +1240,8 @@ class AgentView extends GetView<AgentController> {
 
               // Tab bar: Claimed | Available
               Obx(() {
-                if (controller.selectedState == null) return const SizedBox.shrink();
+                if (controller.selectedState == null)
+                  return const SizedBox.shrink();
                 return Padding(
                   padding: const EdgeInsets.only(top: 0, bottom: 0),
                   child: _buildZipSectionTabBar(context),
@@ -1244,20 +1299,18 @@ class AgentView extends GetView<AgentController> {
             padding: const EdgeInsets.symmetric(horizontal: 20),
             sliver: SliverToBoxAdapter(
               child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 300),
-              switchInCurve: Curves.easeOutCubic,
-              switchOutCurve: Curves.easeInCubic,
-              transitionBuilder: (child, animation) => FadeTransition(
-                opacity: animation,
-                child: child,
+                duration: const Duration(milliseconds: 300),
+                switchInCurve: Curves.easeOutCubic,
+                switchOutCurve: Curves.easeInCubic,
+                transitionBuilder: (child, animation) =>
+                    FadeTransition(opacity: animation, child: child),
+                child: KeyedSubtree(
+                  key: ValueKey<int>(controller.zipSectionTabIndex),
+                  child: controller.zipSectionTabIndex == 0
+                      ? _buildClaimedZipContent(context)
+                      : _buildAvailableZipContent(context),
+                ),
               ),
-              child: KeyedSubtree(
-                key: ValueKey<int>(controller.zipSectionTabIndex),
-                child: controller.zipSectionTabIndex == 0
-                    ? _buildClaimedZipContent(context)
-                    : _buildAvailableZipContent(context),
-              ),
-            ),
             ),
           );
         }),
@@ -1374,9 +1427,9 @@ class AgentView extends GetView<AgentController> {
             child: Text(
               'Your Claimed ZIP Codes',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: AppTheme.black,
-                    fontWeight: FontWeight.w600,
-                  ),
+                color: AppTheme.black,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
           ...controller.claimedZipCodes.map(
@@ -1768,7 +1821,9 @@ class AgentView extends GetView<AgentController> {
                   decoration: BoxDecoration(
                     color: AppTheme.primaryBlue.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppTheme.primaryBlue.withOpacity(0.3)),
+                    border: Border.all(
+                      color: AppTheme.primaryBlue.withOpacity(0.3),
+                    ),
                   ),
                   child: Row(
                     children: [
@@ -2095,7 +2150,11 @@ class AgentView extends GetView<AgentController> {
                 Positioned(
                   top: 12,
                   right: 12,
-                  child: _buildStatusChip(context, listing, showDropdown: false),
+                  child: _buildStatusChip(
+                    context,
+                    listing,
+                    showDropdown: false,
+                  ),
                 ),
               ],
             ),
@@ -2301,7 +2360,11 @@ class AgentView extends GetView<AgentController> {
     );
   }
 
-  Widget _buildStatusChip(BuildContext context, AgentListingModel listing, {bool showDropdown = true}) {
+  Widget _buildStatusChip(
+    BuildContext context,
+    AgentListingModel listing, {
+    bool showDropdown = true,
+  }) {
     Color color = AppTheme.mediumGray;
     IconData icon = Icons.help_outline;
     String label = 'Status';
@@ -3790,6 +3853,7 @@ class AgentView extends GetView<AgentController> {
               ),
             ),
           ),
+
           //
           // const SizedBox(height: 20),
           //
@@ -3853,7 +3917,6 @@ class AgentView extends GetView<AgentController> {
           //     ],
           //   ),
           // ),
-
           const SizedBox(height: 20),
 
           // Active Subscriptions List
@@ -3911,16 +3974,19 @@ class AgentView extends GetView<AgentController> {
           const SizedBox(height: 4),
           Text(
             'All your subscription and payment records',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: AppTheme.mediumGray,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: AppTheme.mediumGray),
           ),
           const SizedBox(height: 16),
 
           Obx(() {
             if (controller.subscriptions.isEmpty) {
               return Container(
-                padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 20),
+                padding: const EdgeInsets.symmetric(
+                  vertical: 32,
+                  horizontal: 20,
+                ),
                 decoration: BoxDecoration(
                   color: AppTheme.lightGray,
                   borderRadius: BorderRadius.circular(12),
@@ -4048,10 +4114,11 @@ class AgentView extends GetView<AgentController> {
                       const SizedBox(height: 2),
                       Text(
                         monthYear,
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          color: AppTheme.black,
-                          fontWeight: FontWeight.w700,
-                        ),
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
+                              color: AppTheme.black,
+                              fontWeight: FontWeight.w700,
+                            ),
                       ),
                       const SizedBox(height: 2),
                       Text(
@@ -4074,9 +4141,9 @@ class AgentView extends GetView<AgentController> {
                               periodText,
                               style: Theme.of(context).textTheme.bodySmall
                                   ?.copyWith(
-                                color: AppTheme.mediumGray,
-                                fontSize: 12,
-                              ),
+                                    color: AppTheme.mediumGray,
+                                    fontSize: 12,
+                                  ),
                             ),
                           ],
                         ),
@@ -4085,10 +4152,11 @@ class AgentView extends GetView<AgentController> {
                         const SizedBox(height: 2),
                         Text(
                           tier,
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: AppTheme.darkGray,
-                            fontWeight: FontWeight.w500,
-                          ),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: AppTheme.darkGray,
+                                fontWeight: FontWeight.w500,
+                              ),
                         ),
                       ],
                       if (zipcode != null && zipcode.isNotEmpty) ...[
@@ -4105,10 +4173,10 @@ class AgentView extends GetView<AgentController> {
                               'ZIP: $zipcode',
                               style: Theme.of(context).textTheme.bodySmall
                                   ?.copyWith(
-                                color: AppTheme.darkGray,
-                                fontWeight: FontWeight.w500,
-                                fontSize: 12,
-                              ),
+                                    color: AppTheme.darkGray,
+                                    fontWeight: FontWeight.w500,
+                                    fontSize: 12,
+                                  ),
                             ),
                           ],
                         ),
@@ -4155,7 +4223,10 @@ class AgentView extends GetView<AgentController> {
             if (population != null && (population as int) > 0) ...[
               const SizedBox(height: 12),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: AppTheme.lightGray,
                   borderRadius: BorderRadius.circular(6),
@@ -4170,9 +4241,9 @@ class AgentView extends GetView<AgentController> {
                     const SizedBox(width: 6),
                     Text(
                       'Population covered: ${_formatNumber(population)}',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppTheme.darkGray,
-                      ),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodySmall?.copyWith(color: AppTheme.darkGray),
                     ),
                   ],
                 ),
@@ -4184,23 +4255,33 @@ class AgentView extends GetView<AgentController> {
               const SizedBox(height: 12),
               _isSubscriptionExpired(status)
                   ? Container(
-                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 12,
+                        horizontal: 16,
+                      ),
                       decoration: BoxDecoration(
                         color: AppTheme.mediumGray.withOpacity(0.12),
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: AppTheme.mediumGray.withOpacity(0.3)),
+                        border: Border.all(
+                          color: AppTheme.mediumGray.withOpacity(0.3),
+                        ),
                       ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.event_busy_outlined, size: 18, color: AppTheme.darkGray),
+                          Icon(
+                            Icons.event_busy_outlined,
+                            size: 18,
+                            color: AppTheme.darkGray,
+                          ),
                           const SizedBox(width: 8),
                           Text(
                             'Expired',
-                            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                              color: AppTheme.darkGray,
-                              fontWeight: FontWeight.w600,
-                            ),
+                            style: Theme.of(context).textTheme.titleSmall
+                                ?.copyWith(
+                                  color: AppTheme.darkGray,
+                                  fontWeight: FontWeight.w600,
+                                ),
                           ),
                         ],
                       ),
@@ -4213,7 +4294,11 @@ class AgentView extends GetView<AgentController> {
                           stripeCustomerId,
                           subscription,
                         ),
-                        icon: Icon(Icons.cancel_outlined, size: 18, color: Colors.red.shade600),
+                        icon: Icon(
+                          Icons.cancel_outlined,
+                          size: 18,
+                          color: Colors.red.shade600,
+                        ),
                         label: Text(
                           'Cancel subscription',
                           style: TextStyle(
@@ -4252,7 +4337,8 @@ class AgentView extends GetView<AgentController> {
       final s = DateTime.tryParse(startStr);
       final e = DateTime.tryParse(endStr);
       if (s != null && e != null) {
-        periodText = '${_getMonthName(s.month)} ${s.day}, ${s.year} – ${_getMonthName(e.month)} ${e.day}, ${e.year}';
+        periodText =
+            '${_getMonthName(s.month)} ${s.day}, ${s.year} – ${_getMonthName(e.month)} ${e.day}, ${e.year}';
       }
     }
     final tier = subscription?['subscriptionTier']?.toString();
@@ -4269,16 +4355,17 @@ class AgentView extends GetView<AgentController> {
                 color: Colors.orange.withOpacity(0.15),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Icon(Icons.cancel_outlined, color: Colors.orange.shade700, size: 24),
+              child: Icon(
+                Icons.cancel_outlined,
+                color: Colors.orange.shade700,
+                size: 24,
+              ),
             ),
             const SizedBox(width: 12),
             const Expanded(
               child: Text(
                 'Cancel Subscription',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                ),
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
               ),
             ),
           ],
@@ -4301,7 +4388,9 @@ class AgentView extends GetView<AgentController> {
                 decoration: BoxDecoration(
                   color: AppTheme.lightGray,
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: AppTheme.primaryBlue.withOpacity(0.15)),
+                  border: Border.all(
+                    color: AppTheme.primaryBlue.withOpacity(0.15),
+                  ),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -4314,9 +4403,17 @@ class AgentView extends GetView<AgentController> {
                       ),
                     ),
                     const SizedBox(height: 10),
-                    _buildCancelDialogDetailRow(context, 'Monthly amount', amountStr),
+                    _buildCancelDialogDetailRow(
+                      context,
+                      'Monthly amount',
+                      amountStr,
+                    ),
                     if (periodText != null)
-                      _buildCancelDialogDetailRow(context, 'Current period', periodText),
+                      _buildCancelDialogDetailRow(
+                        context,
+                        'Current period',
+                        periodText,
+                      ),
                     if (tier != null && tier.isNotEmpty)
                       _buildCancelDialogDetailRow(context, 'Tier', tier),
                     if (zipcodeForDialog != null && zipcodeForDialog.isNotEmpty)
@@ -4339,7 +4436,11 @@ class AgentView extends GetView<AgentController> {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.info_outline_rounded, color: Colors.orange.shade700, size: 22),
+                    Icon(
+                      Icons.info_outline_rounded,
+                      color: Colors.orange.shade700,
+                      size: 22,
+                    ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
@@ -4347,10 +4448,11 @@ class AgentView extends GetView<AgentController> {
                         children: [
                           Text(
                             'What happens when you cancel?',
-                            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                              color: Colors.orange.shade800,
-                              fontWeight: FontWeight.w700,
-                            ),
+                            style: Theme.of(context).textTheme.titleSmall
+                                ?.copyWith(
+                                  color: Colors.orange.shade800,
+                                  fontWeight: FontWeight.w700,
+                                ),
                           ),
                           const SizedBox(height: 6),
                           Text(
@@ -4358,10 +4460,11 @@ class AgentView extends GetView<AgentController> {
                             '• You will retain full access until the end of your current billing period.\n'
                             '• Your claimed ZIP codes will remain yours until the period ends.\n'
                             '• No further charges will be applied after cancellation.',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Colors.orange.shade800,
-                              height: 1.5,
-                            ),
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: Colors.orange.shade800,
+                                  height: 1.5,
+                                ),
                           ),
                         ],
                       ),
@@ -4427,9 +4530,9 @@ class AgentView extends GetView<AgentController> {
             width: 110,
             child: Text(
               label,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: AppTheme.mediumGray,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: AppTheme.mediumGray),
             ),
           ),
           Expanded(
@@ -4544,7 +4647,8 @@ class AgentView extends GetView<AgentController> {
     final zipcode = subscription['zipcode']?.toString();
 
     final isActive = displayStatus == 'Active' || displayStatus == 'Paid';
-    final isCancelled = displayStatus == 'Canceled' || displayStatus == 'Cancelled';
+    final isCancelled =
+        displayStatus == 'Canceled' || displayStatus == 'Cancelled';
     final isExpired = displayStatus == 'Expired';
 
     return Container(
@@ -4591,10 +4695,11 @@ class AgentView extends GetView<AgentController> {
                     children: [
                       Text(
                         monthYear,
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          color: AppTheme.black,
-                          fontWeight: FontWeight.w700,
-                        ),
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
+                              color: AppTheme.black,
+                              fontWeight: FontWeight.w700,
+                            ),
                       ),
                       const SizedBox(height: 2),
                       Text(
@@ -4617,9 +4722,9 @@ class AgentView extends GetView<AgentController> {
                               periodText,
                               style: Theme.of(context).textTheme.bodySmall
                                   ?.copyWith(
-                                color: AppTheme.mediumGray,
-                                fontSize: 12,
-                              ),
+                                    color: AppTheme.mediumGray,
+                                    fontSize: 12,
+                                  ),
                             ),
                           ],
                         ),
@@ -4628,10 +4733,11 @@ class AgentView extends GetView<AgentController> {
                         const SizedBox(height: 2),
                         Text(
                           tier,
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: AppTheme.darkGray,
-                            fontWeight: FontWeight.w500,
-                          ),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: AppTheme.darkGray,
+                                fontWeight: FontWeight.w500,
+                              ),
                         ),
                       ],
                       if (zipcode != null && zipcode.isNotEmpty) ...[
@@ -4648,10 +4754,10 @@ class AgentView extends GetView<AgentController> {
                               'ZIP: $zipcode',
                               style: Theme.of(context).textTheme.bodySmall
                                   ?.copyWith(
-                                color: AppTheme.darkGray,
-                                fontWeight: FontWeight.w500,
-                                fontSize: 12,
-                              ),
+                                    color: AppTheme.darkGray,
+                                    fontWeight: FontWeight.w500,
+                                    fontSize: 12,
+                                  ),
                             ),
                           ],
                         ),
@@ -4679,10 +4785,10 @@ class AgentView extends GetView<AgentController> {
                         color: isActive
                             ? AppTheme.lightGreen.withOpacity(0.2)
                             : isCancelled
-                                ? Colors.red.withOpacity(0.1)
-                                : isExpired
-                                    ? AppTheme.mediumGray.withOpacity(0.15)
-                                    : Colors.orange.withOpacity(0.15),
+                            ? Colors.red.withOpacity(0.1)
+                            : isExpired
+                            ? AppTheme.mediumGray.withOpacity(0.15)
+                            : Colors.orange.withOpacity(0.15),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
@@ -4692,10 +4798,10 @@ class AgentView extends GetView<AgentController> {
                           color: isActive
                               ? AppTheme.lightGreen
                               : isCancelled
-                                  ? Colors.red.shade700
-                                  : isExpired
-                                      ? AppTheme.darkGray
-                                      : Colors.orange.shade700,
+                              ? Colors.red.shade700
+                              : isExpired
+                              ? AppTheme.darkGray
+                              : Colors.orange.shade700,
                         ),
                       ),
                     ),
@@ -4706,7 +4812,10 @@ class AgentView extends GetView<AgentController> {
             if (population != null && (population as int) > 0) ...[
               const SizedBox(height: 12),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: AppTheme.lightGray,
                   borderRadius: BorderRadius.circular(6),
@@ -4721,9 +4830,9 @@ class AgentView extends GetView<AgentController> {
                     const SizedBox(width: 6),
                     Text(
                       'Population covered: ${_formatNumber(population)}',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppTheme.darkGray,
-                      ),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodySmall?.copyWith(color: AppTheme.darkGray),
                     ),
                   ],
                 ),
@@ -5617,7 +5726,10 @@ class AgentView extends GetView<AgentController> {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: accent.withOpacity(0.12),
                   borderRadius: BorderRadius.circular(20),
@@ -5632,13 +5744,16 @@ class AgentView extends GetView<AgentController> {
               ),
               const SizedBox(width: 8),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: isPending
                       ? Colors.orange.withOpacity(0.12)
                       : lead.isCompleted
-                          ? AppTheme.primaryBlue.withOpacity(0.12)
-                          : AppTheme.lightGreen.withOpacity(0.12),
+                      ? AppTheme.primaryBlue.withOpacity(0.12)
+                      : AppTheme.lightGreen.withOpacity(0.12),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
@@ -5647,8 +5762,8 @@ class AgentView extends GetView<AgentController> {
                     color: isPending
                         ? Colors.orange.shade700
                         : lead.isCompleted
-                            ? AppTheme.primaryBlue
-                            : AppTheme.lightGreen,
+                        ? AppTheme.primaryBlue
+                        : AppTheme.lightGreen,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -5670,11 +5785,17 @@ class AgentView extends GetView<AgentController> {
                 backgroundColor: accent.withOpacity(0.12),
                 backgroundImage:
                     ImageUrlHelper.buildImageUrl(buyerInfo?.profilePic) != null
-                    ? NetworkImage(ImageUrlHelper.buildImageUrl(buyerInfo?.profilePic)!)
+                    ? NetworkImage(
+                        ImageUrlHelper.buildImageUrl(buyerInfo?.profilePic)!,
+                      )
                     : null,
-                child: (buyerInfo?.profilePic == null || buyerInfo!.profilePic!.isEmpty)
+                child:
+                    (buyerInfo?.profilePic == null ||
+                        buyerInfo!.profilePic!.isEmpty)
                     ? Text(
-                        (buyerInfo?.fullname ?? 'B').substring(0, 1).toUpperCase(),
+                        (buyerInfo?.fullname ?? 'B')
+                            .substring(0, 1)
+                            .toUpperCase(),
                         style: TextStyle(
                           color: accent,
                           fontWeight: FontWeight.w700,
@@ -5694,7 +5815,8 @@ class AgentView extends GetView<AgentController> {
                         fontWeight: FontWeight.w700,
                       ),
                     ),
-                    if (buyerInfo?.email != null && buyerInfo!.email!.isNotEmpty)
+                    if (buyerInfo?.email != null &&
+                        buyerInfo!.email!.isNotEmpty)
                       Text(
                         buyerInfo.email!,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -5714,7 +5836,11 @@ class AgentView extends GetView<AgentController> {
               if (lead.priceRange != null && lead.priceRange!.isNotEmpty)
                 _leadMetaChip(context, Icons.attach_money, lead.priceRange!),
               if (lead.propertyType != null && lead.propertyType!.isNotEmpty)
-                _leadMetaChip(context, Icons.home_work_outlined, lead.propertyType!),
+                _leadMetaChip(
+                  context,
+                  Icons.home_work_outlined,
+                  lead.propertyType!,
+                ),
               if (lead.bestTime != null && lead.bestTime!.isNotEmpty)
                 _leadMetaChip(context, Icons.schedule, lead.bestTime!),
             ],
@@ -5748,7 +5874,11 @@ class AgentView extends GetView<AgentController> {
                     onPressed: controller.isLoading
                         ? null
                         : () => controller.acceptLead(lead),
-                    icon: Icon(Icons.check_circle_outline, color: accent, size: 18),
+                    icon: Icon(
+                      Icons.check_circle_outline,
+                      color: accent,
+                      size: 18,
+                    ),
                     label: Text(
                       'Accept Lead',
                       style: TextStyle(
@@ -5771,7 +5901,9 @@ class AgentView extends GetView<AgentController> {
                 child: ElevatedButton.icon(
                   onPressed: () => controller.contactBuyerFromLead(lead),
                   icon: Icon(
-                    lead.isAccepted ? Icons.chat_bubble_outline : Icons.call_outlined,
+                    lead.isAccepted
+                        ? Icons.chat_bubble_outline
+                        : Icons.call_outlined,
                     size: 18,
                   ),
                   label: Text(lead.isAccepted ? 'Open Chat' : 'Contact Buyer'),

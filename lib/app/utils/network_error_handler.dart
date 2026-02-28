@@ -1,18 +1,23 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
-import 'package:get/get.dart';
+import 'package:getrebate/app/utils/connection_error_helper.dart';
+import 'package:getrebate/app/utils/error_handler.dart';
+import 'package:getrebate/app/widgets/connection_error_dialog.dart';
 
 /// Utility class for handling network errors consistently across the app
 class NetworkErrorHandler {
   const NetworkErrorHandler._();
 
-  /// Handles network errors and displays appropriate error messages
-  /// 
+  /// Handles network errors and displays appropriate error messages.
+  /// Connection/timeout errors show a dialog; others use ErrorHandler.
+  ///
   /// [error] - The error object (can be DioException, Exception, or any other error)
   /// [defaultMessage] - Default message to show if error cannot be parsed
+  /// [onRetry] - Optional retry callback for connection errors
   static void handleError(
     dynamic error, {
     String? defaultMessage,
+    VoidCallback? onRetry,
   }) {
     String errorMessage = defaultMessage ?? 'An unexpected error occurred. Please try again.';
 
@@ -29,14 +34,15 @@ class NetworkErrorHandler {
       print('   Original error: $error');
     }
 
-    Get.snackbar(
-      'Error',
-      errorMessage,
-      snackPosition: SnackPosition.BOTTOM,
-      duration: const Duration(seconds: 4),
-      backgroundColor: Get.theme.colorScheme.error,
-      colorText: Get.theme.colorScheme.onError,
-    );
+    if (ConnectionErrorHelper.isConnectionError(error)) {
+      ConnectionErrorDialog.show(
+        message: errorMessage,
+        onRetry: onRetry,
+      );
+    } else {
+      // Non-connection errors: use ErrorHandler for consistent snackbar UI
+      ErrorHandler.handleError(error, defaultMessage: defaultMessage, showSnackbar: true);
+    }
   }
 
   /// Handles DioException and extracts appropriate error message

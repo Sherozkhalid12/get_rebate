@@ -30,7 +30,7 @@ class RebateCalculatorController extends GetxController {
   final homePriceController = TextEditingController();
   final agentCommissionController = TextEditingController();
   final sellerOriginalFeeController =
-      TextEditingController(); // For Mode 2 (Seller Conversion)
+  TextEditingController(); // For Mode 2 (Seller Conversion)
 
   // DROPDOWNS
   final _selectedState = 'CA'.obs; // Default to California (rebates allowed)
@@ -105,32 +105,18 @@ class RebateCalculatorController extends GetxController {
   final _isFormValid = false.obs;
 
   void _setupListeners() {
-    homePriceController.addListener(() {
-      // Clear API results when inputs change (but not while loading)
+    void onInputChanged() {
       if (!isLoading) {
         _clearApiResultsForCurrentMode();
       }
       _calculate();
       _updateFormValidity();
-    });
-    agentCommissionController.addListener(() {
-      // Clear API results when inputs change (but not while loading)
-      if (!isLoading) {
-        _clearApiResultsForCurrentMode();
-      }
-      _calculate();
-      _updateFormValidity();
-    });
-    sellerOriginalFeeController.addListener(() {
-      // Clear API results when inputs change (but not while loading)
-      if (!isLoading) {
-        _clearApiResultsForCurrentMode();
-      }
-      _calculate();
-      _updateFormValidity();
-    });
+    }
+
+    homePriceController.addListener(onInputChanged);
+    agentCommissionController.addListener(onInputChanged);
+    sellerOriginalFeeController.addListener(onInputChanged);
     _selectedState.listen((_) {
-      // Clear API results when state changes (but not while loading)
       if (!isLoading) {
         _clearApiResultsForCurrentMode();
       }
@@ -139,8 +125,18 @@ class RebateCalculatorController extends GetxController {
     currentMode.listen((_) {
       _updateFormValidity();
       _calculate();
+      update(['rebateResults']);
     });
   }
+
+  /// Forces results section to rebuild so correct tab result shows immediately
+  void _triggerResultsRefresh() {
+    update(['rebateResults']);
+  }
+
+  /// No-op stub - was removed but may be referenced by stale listeners.
+  /// Do a full restart (not hot reload) if you see _scheduleEstimateApiFetch errors.
+  void _scheduleEstimateApiFetch() {}
 
   /// Clears API results for the current mode
   void _clearApiResultsForCurrentMode() {
@@ -155,6 +151,7 @@ class RebateCalculatorController extends GetxController {
         apiResultSeller.value = null;
         break;
     }
+    update(['rebateResults']);
   }
 
   void _updateFormValidity() {
@@ -170,8 +167,8 @@ class RebateCalculatorController extends GetxController {
 
     _isFormValid.value =
         (price > 0) &&
-        (commission != null && commission > 0) &&
-        _selectedState.value.isNotEmpty;
+            (commission != null && commission > 0) &&
+            _selectedState.value.isNotEmpty;
   }
 
   // MAIN CALCULATION - Only uses Sales Price and BAC
@@ -272,11 +269,11 @@ class RebateCalculatorController extends GetxController {
   /// Calculates rebate amount for a tier
   /// Formula: Rebate = Price × Commission Rate × Tier % / 10000
   Map<String, dynamic> _tier(
-    String range,
-    double pct,
-    double rate,
-    double price,
-  ) {
+      String range,
+      double pct,
+      double rate,
+      double price,
+      ) {
     // Commission = Price × Rate / 100
     final comm = price * rate / 100;
     // Rebate = Commission × Tier % / 100 = Price × Rate × Tier % / 10000
@@ -510,8 +507,8 @@ class RebateCalculatorController extends GetxController {
       );
 
       if (response.success) {
-        // Set API result - this will trigger UI update
         apiResultEstimated.value = response;
+        _triggerResultsRefresh();
       } else {
         // Clear on failure
         apiResultEstimated.value = null;
@@ -565,8 +562,8 @@ class RebateCalculatorController extends GetxController {
       );
 
       if (response.success) {
-        // Set API result - this will trigger UI update
         apiResultActual.value = response;
+        _triggerResultsRefresh();
       } else {
         // Clear on failure
         apiResultActual.value = null;
@@ -620,8 +617,8 @@ class RebateCalculatorController extends GetxController {
       );
 
       if (response.success) {
-        // Set API result - this will trigger UI update
         apiResultSeller.value = response;
+        _triggerResultsRefresh();
       } else {
         // Clear on failure
         apiResultSeller.value = null;
@@ -670,7 +667,7 @@ class RebateCalculatorController extends GetxController {
     }
   }
 
-  /// Gets current API result based on mode
+  /// Gets current API result based on mode - each tab shows its own result
   RebateCalculatorResponse? get currentApiResult {
     switch (currentMode.value) {
       case 0:
@@ -696,6 +693,21 @@ class RebateCalculatorController extends GetxController {
         return apiResultSeller.value != null && apiResultSeller.value!.success;
       default:
         return false;
+    }
+  }
+
+  /// Calls the appropriate API based on current tab when Calculate is pressed
+  void calculateFromCurrentMode() {
+    switch (currentMode.value) {
+      case 0:
+        calculateEstimated();
+        break;
+      case 1:
+        calculateActual();
+        break;
+      case 2:
+        calculateSeller();
+        break;
     }
   }
 
