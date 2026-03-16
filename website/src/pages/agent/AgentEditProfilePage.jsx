@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { resolveUserId, extractUserFromGetUserById } from '../../lib/api';
 import { US_STATES } from '../../lib/constants';
 import { ZipInputWithLocation } from '../../components/ui/ZipInputWithLocation';
+import { AnimatedLoader } from '../../components/ui/AnimatedLoader';
 import * as userApi from '../../api/user';
 import { useToast } from '../../components/ui/ToastProvider';
 
@@ -119,7 +120,8 @@ export function AgentEditProfilePage() {
   if (loading) {
     return (
       <div className="page-body">
-        <PageHeader title="Edit Profile" subtitle="Loading..." icon="profile" />
+        <PageHeader title="Edit Profile" subtitle="Update your profile and licensed states." icon="profile" />
+        <AnimatedLoader variant="full" label="Loading profile..." />
       </div>
     );
   }
@@ -157,8 +159,12 @@ export function AgentEditProfilePage() {
         <label className="checkbox-row"><input type="checkbox" name="isDualAgencyAllowedInState" checked={form.isDualAgencyAllowedInState} onChange={onChange} /> <span>Dual agency allowed in state</span></label>
         <label className="checkbox-row"><input type="checkbox" name="isDualAgencyAllowedAtBrokerage" checked={form.isDualAgencyAllowedAtBrokerage} onChange={onChange} /> <span>Dual agency allowed at brokerage</span></label>
 
-        <button type="submit" className="btn primary" disabled={saving}>
-          {saving ? 'Saving...' : 'Save Changes'}
+        <button type="submit" className="btn primary btn-with-loader" disabled={saving}>
+          {saving ? (
+            <span className="btn-loading-content"><AnimatedLoader variant="button" label="" />Saving...</span>
+          ) : (
+            'Save Changes'
+          )}
         </button>
       </form>
     </div>

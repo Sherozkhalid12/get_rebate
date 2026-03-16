@@ -11,16 +11,19 @@ import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage';
 import { ResetPasswordPage } from './pages/auth/ResetPasswordPage';
 
 import { BuyerHomePage } from './pages/buyer/BuyerHomePage';
+import { FindAgentsPage } from './pages/buyer/FindAgentsPage';
 import { FavoritesPage } from './pages/buyer/FavoritesPage';
 import { MessagesPage } from './pages/buyer/MessagesPage';
 import { ProfilePage } from './pages/buyer/ProfilePage';
 import { AgentDetailPage } from './pages/buyer/AgentDetailPage';
+import { LoanOfficerDetailPage } from './pages/buyer/LoanOfficerDetailPage';
 
 import {
   AgentBillingPage,
   AgentDashboardPage,
   AgentLeadsPage,
   AgentListingsPage,
+  AgentMessagesPage,
   AgentStatsPage,
   AgentZipCodesPage,
 } from './pages/agent/AgentPages';
@@ -33,6 +36,7 @@ import {
   LoanOfficerZipCodesPage,
 } from './pages/loanOfficer/LoanOfficerPages';
 import { LoanOfficerEditProfilePage } from './pages/loanOfficer/LoanOfficerEditProfilePage';
+import { ListingDetailPage } from './pages/buyer/ListingDetailPage';
 import {
   AddListingPage,
   AddLoanPage,
@@ -40,9 +44,9 @@ import {
   BuyerLeadFormPage,
   ChecklistPage,
   LeadDetailPage,
-  ListingDetailPage,
   LoanOfficerChecklistPage,
   NotificationsPage,
+  PostClosingSurveyPage,
   ProposalsPage,
   RebateCalculatorPage,
   RebateChecklistPage,
@@ -77,13 +81,16 @@ function App() {
         }
       >
         <Route path="app" element={<RequireRole role="buyerSeller"><BuyerHomePage /></RequireRole>} />
+        <Route path="app/find-agents" element={<RequireRole role="buyerSeller"><FindAgentsPage /></RequireRole>} />
         <Route path="app/favorites" element={<RequireRole role="buyerSeller"><FavoritesPage /></RequireRole>} />
         <Route path="app/messages" element={<RequireRole role="buyerSeller"><MessagesPage /></RequireRole>} />
         <Route path="app/profile" element={<RequireRole role="buyerSeller"><ProfilePage /></RequireRole>} />
         <Route path="agent-detail" element={<RequireRole role="buyerSeller"><AgentDetailPage /></RequireRole>} />
+        <Route path="loan-officer-detail" element={<RequireRole role="buyerSeller"><LoanOfficerDetailPage /></RequireRole>} />
 
         <Route path="agent" element={<RequireRole role="agent"><AgentDashboardPage /></RequireRole>} />
         <Route path="agent/edit-profile" element={<RequireRole role="agent"><AgentEditProfilePage /></RequireRole>} />
+        <Route path="agent/messages" element={<RequireRole role="agent"><AgentMessagesPage /></RequireRole>} />
         <Route path="agent/zip-codes" element={<RequireRole role="agent"><AgentZipCodesPage /></RequireRole>} />
         <Route path="agent/listings" element={<RequireRole role="agent"><AgentListingsPage /></RequireRole>} />
         <Route path="agent/stats" element={<RequireRole role="agent"><AgentStatsPage /></RequireRole>} />
@@ -102,6 +109,7 @@ function App() {
 
         <Route path="notifications" element={<NotificationsPage />} />
         <Route path="proposals" element={<ProposalsPage />} />
+        <Route path="post-closing-survey" element={<PostClosingSurveyPage />} />
         <Route path="lead-detail" element={<LeadDetailPage />} />
 
         <Route path="rebate-calculator" element={<RebateCalculatorPage />} />

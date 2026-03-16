@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { USER_ROLES } from '../../lib/constants';
+import { AnimatedLoader } from '../../components/ui/AnimatedLoader';
 
 export function VerifyOtpPage() {
   const [otp, setOtp] = useState('');
@@ -33,7 +34,13 @@ export function VerifyOtpPage() {
         <p>Enter the code sent to {email || 'your email'}.</p>
         <input value={otp} onChange={(e) => setOtp(e.target.value)} placeholder="6-digit OTP" required />
         {error ? <p className="error-text">{error}</p> : null}
-        <button type="submit" className="btn primary" disabled={loading}>{loading ? 'Verifying...' : 'Verify & Finish'}</button>
+        <button type="submit" className="btn primary btn-with-loader" disabled={loading}>
+          {loading ? (
+            <span className="btn-loading-content"><AnimatedLoader variant="button" label="" />Verifying...</span>
+          ) : (
+            'Verify & Finish'
+          )}
+        </button>
       </form>
     </div>
   );

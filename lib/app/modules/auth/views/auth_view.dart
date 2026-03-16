@@ -1432,58 +1432,64 @@ class AuthView extends GetView<AuthViewController> {
   }
 
   Widget _buildSocialLogin(BuildContext context) {
-    return Column(
-      children: [
-        Row(
-          children: [
-            const Expanded(child: Divider(color: AppTheme.mediumGray)),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Text(
-                'Or continue with',
-                style: Theme.of(
-                  context,
-                ).textTheme.bodyMedium?.copyWith(color: AppTheme.mediumGray),
+    return Obx(() {
+      final isBusy = controller.isLoading;
+      return Column(
+        children: [
+          Row(
+            children: [
+              const Expanded(child: Divider(color: AppTheme.mediumGray)),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Text(
+                  'Or continue with',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(color: AppTheme.mediumGray),
+                ),
               ),
-            ),
-            const Expanded(child: Divider(color: AppTheme.mediumGray)),
-          ],
-        ),
+              const Expanded(child: Divider(color: AppTheme.mediumGray)),
+            ],
+          ),
 
-        const SizedBox(height: 24),
+          const SizedBox(height: 24),
 
-        Row(
-          children: [
-            Expanded(
-              child: CustomIconButton(
-                icon: Icons.g_mobiledata,
-                onPressed: () => controller.socialLogin('google'),
-                backgroundColor: AppTheme.lightGray,
-                iconColor: AppTheme.darkGray,
+          Row(
+            children: [
+              Expanded(
+                child: CustomIconButton(
+                  icon: Icons.g_mobiledata,
+                  onPressed:
+                      isBusy ? null : () => controller.socialLogin('google'),
+                  backgroundColor: AppTheme.lightGray,
+                  iconColor: AppTheme.darkGray,
+                ),
               ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: CustomIconButton(
-                icon: Icons.apple,
-                onPressed: () => controller.socialLogin('apple'),
-                backgroundColor: AppTheme.black,
-                iconColor: AppTheme.white,
+              const SizedBox(width: 16),
+              Expanded(
+                child: CustomIconButton(
+                  icon: Icons.apple,
+                  onPressed:
+                      isBusy ? null : () => controller.socialLogin('apple'),
+                  backgroundColor: AppTheme.black,
+                  iconColor: AppTheme.white,
+                ),
               ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: CustomIconButton(
-                icon: Icons.facebook,
-                onPressed: () => controller.socialLogin('facebook'),
-                backgroundColor: const Color(0xFF1877F2),
-                iconColor: AppTheme.white,
+              const SizedBox(width: 16),
+              Expanded(
+                child: CustomIconButton(
+                  icon: Icons.facebook,
+                  onPressed:
+                      isBusy ? null : () => controller.socialLogin('facebook'),
+                  backgroundColor: const Color(0xFF1877F2),
+                  iconColor: AppTheme.white,
+                ),
               ),
-            ),
-          ],
-        ),
-      ],
-    );
+            ],
+          ),
+        ],
+      );
+    });
   }
 
   Widget _buildProfilePicturePicker(BuildContext context) {

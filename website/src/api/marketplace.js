@@ -36,7 +36,27 @@ export async function createListing(payload) {
 }
 
 export async function updateListing(listingId, payload) {
-  return http.patch(`/agent/updateListing/${encodeURIComponent(listingId)}`, payload);
+  const fd = new FormData();
+  const fields = [
+    'propertyTitle', 'description', 'price', 'BACPercentage', 'listingAgent', 'dualAgencyAllowed',
+    'streetAddress', 'city', 'state', 'zipCode', 'id', 'status', 'createdByRole',
+  ];
+  fields.forEach((k) => {
+    if (payload[k] != null) fd.append(k, String(payload[k]));
+  });
+  if (payload.propertyDetails) fd.append('propertyDetails', JSON.stringify(payload.propertyDetails));
+  if (payload.propertyFeatures) fd.append('propertyFeatures', JSON.stringify(payload.propertyFeatures));
+  if (payload.openHouses) fd.append('openHouses', JSON.stringify(payload.openHouses));
+  if (payload.existingPropertyPhotos) fd.append('existingPropertyPhotos', JSON.stringify(payload.existingPropertyPhotos));
+  return http.put(`/agent/updateListing/${encodeURIComponent(listingId)}`, fd);
+}
+
+export async function deleteListing(listingId) {
+  return http.del(`/buyer/delete/${encodeURIComponent(listingId)}`);
+}
+
+export async function createListingCheckout(userId) {
+  return http.post('/subscription/create-listing-checkout', { userId });
 }
 
 export async function addListingView(listingId) {
@@ -59,14 +79,15 @@ export async function getLoanOfficerById(loanOfficerId) {
   return http.get(`/loan-officers/${encodeURIComponent(loanOfficerId)}`);
 }
 
-export async function likeAgent(agentId) {
-  return http.post(`/buyer/likeAgent/${encodeURIComponent(agentId)}`, {});
+export async function likeAgent(agentId, currentUserId) {
+  return http.post(`/buyer/likeAgent/${encodeURIComponent(agentId)}`, { currentUserId: currentUserId || '' });
 }
 
 export async function likeListing(payload) {
-  return http.post('/buyer/like', payload);
+  const { userId, listingId } = payload;
+  return http.post('/buyer/like', { userId, listingId });
 }
 
-export async function likeLoanOfficer(loanOfficerId) {
-  return http.post(`/loan-officers/${encodeURIComponent(loanOfficerId)}/like`, {});
+export async function likeLoanOfficer(loanOfficerId, userId) {
+  return http.post(`/loan-officers/${encodeURIComponent(loanOfficerId)}/like`, { currentUserId: userId });
 }

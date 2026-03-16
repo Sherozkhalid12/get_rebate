@@ -8,6 +8,11 @@ export async function getLeadsByAgentId(agentId) {
   return http.get(`/buyer/getLeadsByAgentId/${encodeURIComponent(agentId)}`);
 }
 
+/** Get leads for a buyer (same endpoint, semantic for buyer's own leads) */
+export async function getLeadsByBuyerId(buyerId) {
+  return http.get(`/buyer/getLeadsByAgentId/${encodeURIComponent(buyerId)}`);
+}
+
 export async function respondToLead(leadId, payload) {
   return http.post(`/buyer/respondToLead/${encodeURIComponent(leadId)}`, payload);
 }

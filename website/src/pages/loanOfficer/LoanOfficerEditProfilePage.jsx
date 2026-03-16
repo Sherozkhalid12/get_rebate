@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { resolveUserId, extractUserFromGetUserById } from '../../lib/api';
 import { US_STATES } from '../../lib/constants';
 import { ZipInputWithLocation } from '../../components/ui/ZipInputWithLocation';
+import { AnimatedLoader } from '../../components/ui/AnimatedLoader';
 import * as userApi from '../../api/user';
 import { useToast } from '../../components/ui/ToastProvider';
 
@@ -113,14 +114,15 @@ export function LoanOfficerEditProfilePage() {
 
   if (loading) {
     return (
-      <div className="page-body">
-        <PageHeader title="Edit Profile" subtitle="Loading..." icon="profile" />
+      <div className="page-body page-body--loan-officer">
+        <PageHeader title="Edit Profile" subtitle="Update your profile and licensed states." icon="profile" />
+        <AnimatedLoader variant="full" label="Loading profile..." />
       </div>
     );
   }
 
   return (
-    <div className="page-body">
+    <div className="page-body page-body--loan-officer">
       <PageHeader title="Edit Profile" subtitle="Update your profile and licensed states." icon="profile" />
       <form className="glass-card panel form-stack" onSubmit={save}>
         <h3>Basic Information</h3>
@@ -148,8 +150,12 @@ export function LoanOfficerEditProfilePage() {
           ))}
         </div>
 
-        <button type="submit" className="btn primary" disabled={saving}>
-          {saving ? 'Saving...' : 'Save Changes'}
+        <button type="submit" className="btn primary btn-with-loader" disabled={saving}>
+          {saving ? (
+            <span className="btn-loading-content"><AnimatedLoader variant="button" label="" />Saving...</span>
+          ) : (
+            'Save Changes'
+          )}
         </button>
       </form>
     </div>

@@ -21,7 +21,7 @@ export const GRADIENTS = {
   appBg: 'radial-gradient(circle at 0% 0%, rgba(59,130,246,.16) 0%, rgba(241,245,249,.3) 38%, #F8FAFC 100%)',
 };
 
-export const API_BASE_URL = 'https://api.getarebate.com/api/v1';
+export const API_BASE_URL = import.meta.env?.VITE_API_BASE_URL || 'https://api.getarebate.com/api/v1';
 
 export const USER_ROLES = {
   BUYER_SELLER: 'buyerSeller',

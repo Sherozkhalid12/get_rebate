@@ -1688,25 +1688,151 @@ class AuthController extends GetxController {
     required String email,
     required String name,
     String? profileImage,
+    String? idToken,
+    String? accessToken,
+    String? role,
   }) async {
     try {
+      await ConnectivityHelper.ensureConnectivity();
       _isLoading.value = true;
 
-      // TODO: Implement actual social login API call
-      // For now, throw error - we MUST get user ID from backend
-      throw Exception(
-        'Social login not implemented. Must call backend API to get user ID.',
+      final normalizedName =
+          name.trim().isNotEmpty ? name.trim() : email.split('@').first;
+
+      final payload = {
+        'fullname': normalizedName,
+        'email': email.trim(),
+        if (profileImage != null && profileImage.isNotEmpty)
+          'profilePic': profileImage,
+        if (role != null && role.isNotEmpty) 'role': role,
+        'provider': provider,
+        if (idToken != null) 'idToken': idToken,
+        if (accessToken != null) 'accessToken': accessToken,
+      };
+
+      if (kDebugMode) {
+        print('🚀 Social login POST -> /auth/googleLogin');
+        print('   Payload: $payload');
+      }
+
+      final response = await _dio.post(
+        '/auth/googleLogin',
+        data: payload,
+        options: Options(headers: {'Content-Type': 'application/json'}),
       );
 
-      // When implemented, the API should return user data with _id:
-      // final response = await _dio.post('/auth/social-login', data: {...});
-      // final responseData = response.data;
-      // final userId = responseData['user']['_id']?.toString() ??
-      //                responseData['user']['id']?.toString() ?? '';
-      // if (userId.isEmpty) {
-      //   throw Exception('User ID not found in social login response');
-      // }
-      // final user = UserModel(id: userId, ...);
+      final responseData = response.data;
+      if (response.statusCode != 200 && response.statusCode != 201) {
+        throw Exception('Google login failed. Please try again.');
+      }
+
+      if (responseData is Map && responseData['success'] == false) {
+        final msg =
+            responseData['message']?.toString() ?? 'Google login failed.';
+        throw Exception(msg);
+      }
+
+      final userData = responseData['user'] ??
+          responseData['data']?['user'] ??
+          responseData;
+      final token = responseData['token'] ?? responseData['data']?['token'];
+
+      if (userData == null) {
+        throw Exception('User data not found in Google login response.');
+      }
+
+      final userId =
+          userData['_id']?.toString() ?? userData['id']?.toString() ?? '';
+      if (userId.isEmpty) {
+        throw Exception(
+          'User ID (_id) not found in Google login response. Cannot proceed.',
+        );
+      }
+
+      var user = UserModel(
+        id: userId,
+        email: userData['email'] ?? email,
+        name: userData['fullname'] ?? userData['name'] ?? normalizedName,
+        phone: userData['phone']?.toString(),
+        role: _mapApiRoleToUserRole(
+          userData['role']?.toString() ?? role,
+        ),
+        profileImage: userData['profilePic'] ??
+            userData['profileImage'] ??
+            profileImage,
+        licensedStates: List<String>.from(
+          userData['LisencedStates'] ?? userData['licensedStates'] ?? [],
+        ),
+        createdAt: userData['createdAt'] != null
+            ? DateTime.parse(userData['createdAt'])
+            : DateTime.now(),
+        lastLoginAt: DateTime.now(),
+        isVerified: userData['verified'] ??
+            userData['isVerified'] ??
+            userData['verifiedUser'] ??
+            false,
+        additionalData: {
+          'CompanyName': userData['CompanyName'] ?? userData['company'],
+          'liscenceNumber':
+              userData['liscenceNumber'] ?? userData['licenseNumber'],
+          'serviceAreas':
+              userData['serviceAreas'] ?? userData['serviceZipCodes'],
+          'areasOfExpertise':
+              userData['areasOfExpertise'] ?? userData['expertise'],
+          'specialtyProducts': userData['specialtyProducts'],
+          'website_link':
+              userData['website_link'] ?? userData['websiteUrl'],
+          'google_reviews_link': userData['google_reviews_link'] ??
+              userData['googleReviewsUrl'],
+          'thirdPartReviewLink': userData['thirdPartReviewLink'] ??
+              userData['client_reviews_link'] ??
+              userData['thirdPartyReviewsUrl'],
+          'mortgageApplicationUrl': userData['mortgageApplicationUrl'],
+          'externalReviewsUrl': userData['externalReviewsUrl'],
+          'video': userData['video'] ?? userData['videoUrl'],
+          'companyLogo': userData['companyLogo'],
+          'dualAgencyState': userData['dualAgencyState'],
+          'dualAgencySBrokerage': userData['dualAgencySBrokerage'],
+          'verificationStatement': userData['verificationStatement'] ??
+              userData['verificationAgreed'],
+          'bio': userData['bio'] ?? userData['description'],
+        },
+      );
+
+      user = _applyCachedLicensedStates(user);
+
+      _currentUser.value = user;
+      _isLoggedIn.value = true;
+      _storage.write('current_user', user.toJson());
+      if (token != null) {
+        _storage.write('auth_token', token);
+        _dio.options.headers['Authorization'] = 'Bearer $token';
+      }
+
+      setFCM(user.id);
+
+      SnackbarHelper.showSuccess(
+        responseData['message']?.toString() ?? 'Signed in with Google!',
+        duration: const Duration(seconds: 2),
+      );
+
+      await _navigateToRoleBasedScreen();
+    } on DioException catch (e) {
+      print('❌ Social login DioException: ${e.message}');
+      final responseData = e.response?.data;
+      String errorMessage = 'Google login failed. Please try again.';
+
+      if (responseData is Map && responseData['message'] != null) {
+        errorMessage = responseData['message'].toString();
+      } else if (e.type == DioExceptionType.connectionTimeout ||
+          e.type == DioExceptionType.receiveTimeout) {
+        errorMessage = 'Connection timeout. Please check your internet.';
+      } else if (e.type == DioExceptionType.connectionError) {
+        errorMessage = 'No internet connection. Please try again.';
+      }
+
+      SnackbarHelper.showError(errorMessage);
+      throw Exception(errorMessage);
     } catch (e) {
       print('❌ Social login error: $e');
       SnackbarHelper.showError('Social login failed: ${e.toString()}');

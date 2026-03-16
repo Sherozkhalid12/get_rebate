@@ -6,16 +6,30 @@ async function request(path, options = {}) {
   const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
   const headers = {
     ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
+    'ngrok-skip-browser-warning': 'true',
     ...(options.headers || {}),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
 
   const url = `${API_BASE_URL}${path}`;
-  if (import.meta.env?.DEV && path.includes('/auth/users/')) console.log('[http] GET getUserById', url);
-  const res = await fetch(url, {
-    ...options,
-    headers,
-  });
+  if (import.meta.env?.DEV) {
+    if (path.includes('/auth/users/')) console.log('[http] GET getUserById', url);
+    if (path.includes('/zip-codes/') && !path.includes('getstateZip') && !path.includes('validate') && !path.includes('zipclaimstatus')) {
+      console.log('[http] ZIP search GET', url);
+    }
+  }
+  let res;
+  try {
+    res = await fetch(url, {
+      ...options,
+      headers,
+    });
+  } catch (err) {
+    if (import.meta.env?.DEV && path.includes('/zip-codes/')) {
+      console.error('[http] ZIP API network error', url, err);
+    }
+    throw new Error(err?.message || 'Network request failed');
+  }
 
   const text = await res.text();
   let body = null;
@@ -27,9 +41,13 @@ async function request(path, options = {}) {
 
   if (!res.ok) {
     const message = body?.message || body?.error || body?.msg || (typeof body === 'string' ? body : null) || `Request failed (${res.status})`;
+    console.error('[HTTP] Error', res.status, path, body);
     throw new Error(message);
   }
 
+  if (path.includes('/zip-codes/') || path.includes('/subscription/')) {
+    console.log('[HTTP] OK', path, body);
+  }
   return body;
 }
 
@@ -54,4 +72,10 @@ export const http = {
       body: (typeof FormData !== 'undefined' && data instanceof FormData) ? data : JSON.stringify(data),
     }),
   del: (path, opts = {}) => request(path, { ...opts, method: 'DELETE' }),
+  delete: (path, data, opts = {}) =>
+    request(path, {
+      ...opts,
+      method: 'DELETE',
+      body: data ? JSON.stringify(data) : undefined,
+    }),
 };

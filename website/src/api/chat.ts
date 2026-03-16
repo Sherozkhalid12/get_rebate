@@ -14,8 +14,13 @@ export async function createThread(userId1: string, userId2: string) {
   return http.post('/chat/thread/create', { userId1, userId2 });
 }
 
-export async function sendMessage(payload: Record<string, unknown>) {
-  return http.post('/chat/send', payload);
+/** Sends a message. Uses /chat/message/send to match backend (same as Flutter app). */
+export async function sendMessage(payload: {
+  threadId: string;
+  senderId: string;
+  text: string;
+}) {
+  return http.post('/chat/message/send', payload);
 }
 
 export async function markThreadAsRead(threadId: string, userId: string) {

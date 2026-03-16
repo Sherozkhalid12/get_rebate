@@ -1,9 +1,11 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:dio/dio.dart';
 import 'dart:io';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart' as global;
 import 'package:getrebate/app/controllers/auth_controller.dart' show EmailAlreadyExistsException;
 import 'package:getrebate/app/controllers/location_controller.dart';
@@ -21,6 +23,9 @@ class AuthViewController extends GetxController {
   final LocationController _locationController = Get.find<LocationController>();
   final ImagePicker _imagePicker = ImagePicker();
   final RebateStatesService _rebateStatesService = RebateStatesService();
+  final GoogleSignIn _googleSignIn = GoogleSignIn(
+    scopes: ['email', 'profile'],
+  );
   
   // Observable for allowed states
   final _allowedStates = <String>[].obs;
@@ -554,39 +559,52 @@ class AuthViewController extends GetxController {
   }
 
   Future<void> socialLogin(String provider) async {
+    if (provider != 'google') {
+      SnackbarHelper.showInfo(
+        '${provider[0].toUpperCase()}${provider.substring(1)} login is not available yet.',
+      );
+      return;
+    }
+
+    if (_isLoading.value) return;
+
     try {
       _isLoading.value = true;
 
-      // Mock social login data
-      final mockData = {
-        'google': {
-          'email': 'user@gmail.com',
-          'name': 'Google User',
-          'profileImage': null,
-        },
-        'apple': {
-          'email': 'user@icloud.com',
-          'name': 'Apple User',
-          'profileImage': null,
-        },
-        'facebook': {
-          'email': 'user@facebook.com',
-          'name': 'Facebook User',
-          'profileImage': null,
-        },
-      };
+      // Ensure previous session is cleared so user can pick an account
+      try {
+        await _googleSignIn.signOut();
+      } catch (_) {}
 
-      final data = mockData[provider];
-      if (data != null) {
-        await _globalAuthController.socialLogin(
-          provider: provider,
-          email: data['email']!,
-          name: data['name']!,
-          profileImage: data['profileImage'],
-        );
+      final GoogleSignInAccount? account = await _googleSignIn.signIn();
+
+      if (account == null) {
+        SnackbarHelper.showInfo('Google sign-in was cancelled.');
+        return;
       }
+
+      final authTokens = await account.authentication;
+      final email = account.email;
+      final fullName = account.displayName ?? email.split('@').first;
+
+      await _globalAuthController.socialLogin(
+        provider: provider,
+        email: email,
+        name: fullName,
+        profileImage: account.photoUrl,
+        idToken: authTokens.idToken,
+        accessToken: authTokens.accessToken,
+        role: selectedRole.name,
+      );
+    } on PlatformException catch (e) {
+      SnackbarHelper.showError(
+        'Google sign-in failed: ${e.message ?? e.code}',
+      );
     } catch (e) {
-      SnackbarHelper.showError(e.toString());
+      if (kDebugMode) {
+        print('❌ Google login error (controller): $e');
+      }
+      // Global controller displays user-facing error
     } finally {
       _isLoading.value = false;
     }

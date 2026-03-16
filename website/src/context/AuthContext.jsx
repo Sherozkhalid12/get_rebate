@@ -4,7 +4,7 @@ import { USER_ROLES } from '../lib/constants';
 import { normalizeRole, resolveUserId, unwrapObject, extractUserFromGetUserById } from '../lib/api';
 import * as authApi from '../api/auth';
 import * as userApi from '../api/user';
-import { getSocket } from '../lib/socket';
+import { initSocket, disconnectSocket } from '../lib/socket';
 
 const AuthContext = createContext(null);
 const seedUser = storage.get('current_user', null);
@@ -66,10 +66,8 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     const userId = resolveUserId(user);
-    const socket = getSocket();
-    if (!socket || !userId) return;
-
-    socket.emit('user_online', userId);
+    if (!userId) return;
+    initSocket(userId);
   }, [user]);
 
   const refreshUser = async () => {
@@ -141,6 +139,7 @@ export function AuthProvider({ children }) {
         // Ignore logout cleanup errors.
       }
     }
+    disconnectSocket();
     storage.remove('auth_token');
     storage.remove('current_user');
     storage.remove('pending_signup');

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { USER_ROLES, US_STATES } from '../../lib/constants';
 import { ZipInputWithLocation } from '../../components/ui/ZipInputWithLocation';
+import { AnimatedLoader } from '../../components/ui/AnimatedLoader';
 
 const roleOptions = [
   { value: USER_ROLES.BUYER_SELLER, label: 'Buyer / Seller' },
@@ -223,8 +224,12 @@ export function AuthPage() {
 
         {error ? <p className="error-text">{error}</p> : null}
 
-        <button type="submit" className="btn primary" disabled={loading}>
-          {loading ? 'Please wait...' : mode === 'login' ? 'Sign In' : 'Continue to OTP'}
+        <button type="submit" className="btn primary btn-with-loader" disabled={loading}>
+          {loading ? (
+            <span className="btn-loading-content"><AnimatedLoader variant="button" label="" />Please wait...</span>
+          ) : (
+            mode === 'login' ? 'Sign In' : 'Continue to OTP'
+          )}
         </button>
 
         <div className="row small-gap">
