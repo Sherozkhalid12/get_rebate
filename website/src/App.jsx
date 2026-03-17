@@ -1,7 +1,10 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { RequireAuth, RequireRole } from './routes/Guards';
 import { AppShell } from './components/layout/AppShell';
-import { LandingPage } from './pages/public/LandingPage';
+import { RoleSelectionPage } from './pages/public/RoleSelectionPage';
+import { BuyerLandingPage } from './pages/public/BuyerLandingPage';
+import { AgentLandingPage } from './pages/public/AgentLandingPage';
+import { LoanOfficerLandingPage } from './pages/public/LoanOfficerLandingPage';
 
 import { SplashPage } from './pages/auth/SplashPage';
 import { OnboardingPage } from './pages/auth/OnboardingPage';
@@ -63,8 +66,11 @@ import { PaymentCancelPage, PaymentSuccessPage } from './pages/shared/PaymentRes
 function App() {
   return (
     <Routes>
-      <Route path="/" element={<LandingPage />} />
+      <Route path="/" element={<RoleSelectionPage />} />
       <Route path="/landing" element={<Navigate to="/" replace />} />
+      <Route path="/landing/buyer" element={<BuyerLandingPage />} />
+      <Route path="/landing/agent" element={<AgentLandingPage />} />
+      <Route path="/landing/loan-officer" element={<LoanOfficerLandingPage />} />
       <Route path="/splash" element={<SplashPage />} />
       <Route path="/onboarding" element={<OnboardingPage />} />
       <Route path="/auth" element={<AuthPage />} />

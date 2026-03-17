@@ -35,6 +35,18 @@ const glyphs = {
   logout: 'logout',
   menu: 'menu',
   document: 'description',
+  /* Premium / next-level icons */
+  apartment: 'apartment',
+  verified: 'verified',
+  savings: 'savings',
+  trendingUp: 'trending_up',
+  homeWork: 'home_work',
+  businessCenter: 'business_center',
+  handshake: 'handshake',
+  autoAwesome: 'auto_awesome',
+  chevronDown: 'expand_more',
+  chevronUp: 'expand_less',
+  arrowRight: 'arrow_forward',
 };
 
 export function IconGlyph({ name, filled = false }) {

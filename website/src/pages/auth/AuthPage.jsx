@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { USER_ROLES, US_STATES } from '../../lib/constants';
 import { ZipInputWithLocation } from '../../components/ui/ZipInputWithLocation';
@@ -32,13 +32,19 @@ const roleDefaults = {
 };
 
 export function AuthPage() {
+  const [searchParams] = useSearchParams();
+  const roleFromUrl = searchParams.get('role');
+  const initialRole = [USER_ROLES.AGENT, USER_ROLES.LOAN_OFFICER].includes(roleFromUrl)
+    ? roleFromUrl
+    : USER_ROLES.BUYER_SELLER;
+
   const [mode, setMode] = useState('login');
   const [error, setError] = useState('');
   const [form, setForm] = useState({
     name: '',
     email: '',
     password: '',
-    role: USER_ROLES.BUYER_SELLER,
+    role: initialRole,
     phone: '',
     agreeTos: false,
     CompanyName: '',
