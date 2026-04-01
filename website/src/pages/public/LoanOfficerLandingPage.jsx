@@ -32,7 +32,7 @@ export function LoanOfficerLandingPage() {
   }
 
   return (
-    <PremiumLandingFrame containerRef={containerRef}>
+    <PremiumLandingFrame containerRef={containerRef} className="lp2-page lp2-page--loan">
       <PremiumLandingHeader
         links={[
           { href: '#features', label: 'Features' },
@@ -70,6 +70,9 @@ export function LoanOfficerLandingPage() {
               <span className="lp2-trust-pill"><IconGlyph name="billing" filled /> Program publishing</span>
               <span className="lp2-trust-pill"><IconGlyph name="checklist" filled /> Checklist workflows</span>
             </div>
+            <div className="lp2-callout">
+              <strong>Only One Loan Officer Per Zip Code.</strong> Secure Yours Today Before It’s Taken. <strong>First Come First Served.</strong>
+            </div>
           </div>
 
           <div className="lp2-hero-media" aria-hidden="true">
@@ -106,59 +109,37 @@ export function LoanOfficerLandingPage() {
             <h2>Loan Officer Platform Features</h2>
             <p>Premium visibility and workflows—built for speed and trust.</p>
           </div>
-          <div className="lp2-grid lp2-grid--2wide">
-            <article className="lp2-media-feature">
-              <div
-                className="lp2-media-feature-art"
-                style={{
-                  backgroundImage: 'url("https://images.unsplash.com/photo-1556740749-887f6717d7e4?auto=format&fit=crop&w=1200&q=80")',
-                }}
-              />
-              <div className="lp2-media-feature-body">
+          <div className="lp2-feature-cards">
+            <article className="lp2-feature-card">
+              <div className="lp2-feature-card-top">
                 <span className="lp2-feature-icon"><IconGlyph name="location" filled /></span>
                 <h3>ZIP Coverage</h3>
-                <p>Claim ZIP codes with Stripe, view status at a glance, and keep market presence consistently up to date.</p>
               </div>
+              <p>Claim ZIP codes with Stripe, view status at a glance, and keep market presence consistently up to date.</p>
             </article>
 
-            <article className="lp2-media-feature">
-              <div
-                className="lp2-media-feature-art"
-                style={{
-                  backgroundImage: 'url("https://images.unsplash.com/photo-1554224155-6726b3ff858f?auto=format&fit=crop&w=1200&q=80")',
-                }}
-              />
-              <div className="lp2-media-feature-body">
+            <article className="lp2-feature-card">
+              <div className="lp2-feature-card-top">
                 <span className="lp2-feature-icon"><IconGlyph name="billing" filled /></span>
                 <h3>Loan Programs</h3>
-                <p>Publish loan products tied to your coverage so buyers and agents discover your rebate-friendly options.</p>
               </div>
+              <p>Publish loan products tied to your coverage so buyers and agents discover your rebate-friendly options.</p>
             </article>
 
-            <article className="lp2-media-feature">
-              <div
-                className="lp2-media-feature-art"
-                style={{
-                  backgroundImage: 'url("https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=1200&q=80")',
-                }}
-              />
-              <div className="lp2-media-feature-body">
+            <article className="lp2-feature-card">
+              <div className="lp2-feature-card-top">
                 <span className="lp2-feature-icon"><IconGlyph name="checklist" filled /></span>
                 <h3>Borrower Checklists</h3>
-                <p>Manage borrower checklists and leads in the web dashboard—synchronized with the mobile flow.</p>
               </div>
+              <p>Manage borrower checklists and leads in the web dashboard—synchronized with the mobile flow.</p>
             </article>
 
-            <article className="lp2-media-feature">
-              <div
-                className="lp2-media-feature-art"
-                style={{ backgroundImage: 'url("https://images.pexels.com/photos/3183197/pexels-photo-3183197.jpeg")' }}
-              />
-              <div className="lp2-media-feature-body">
+            <article className="lp2-feature-card">
+              <div className="lp2-feature-card-top">
                 <span className="lp2-feature-icon"><IconGlyph name="leads" filled /></span>
                 <h3>Lead Visibility</h3>
-                <p>Stay visible to buyers and agents in your claimed ZIPs—with rebate transparency built into discovery.</p>
               </div>
+              <p>Stay visible to buyers and agents in your claimed ZIPs—with rebate transparency built into discovery.</p>
             </article>
           </div>
         </section>
@@ -168,21 +149,50 @@ export function LoanOfficerLandingPage() {
             <h2>How the Loan Officer Flow Works</h2>
             <p>Coverage, programs, and checklists—without tool switching.</p>
           </div>
-          <div className="lp2-grid lp2-grid--3">
-            <article className="lp2-step">
-              <span className="lp2-step-icon"><IconGlyph name="location" filled /></span>
-              <h3>1. Claim ZIP Coverage</h3>
-              <p>Complete Stripe checkout and return to refreshed coverage dashboards.</p>
+          <div className="lp2-flow-cards">
+            <article className="lp2-flow-card">
+              <div
+                className="lp2-flow-card-art"
+                style={{
+                  backgroundImage:
+                    'url("https://images.unsplash.com/photo-1554224155-6726b3ff858f?auto=format&fit=crop&w=1200&q=80")',
+                }}
+                aria-hidden="true"
+              />
+              <div className="lp2-flow-card-body">
+                <h3>Claim ZIP Coverage</h3>
+                <p>Complete Stripe checkout and return to refreshed coverage dashboards.</p>
+              </div>
             </article>
-            <article className="lp2-step">
-              <span className="lp2-step-icon"><IconGlyph name="billing" filled /></span>
-              <h3>2. Add Loan Programs</h3>
-              <p>Publish loan products tied to your coverage so buyers discover you early.</p>
+
+            <article className="lp2-flow-card">
+              <div
+                className="lp2-flow-card-art"
+                style={{
+                  backgroundImage:
+                    'url("https://images.unsplash.com/photo-1450101499163-c8848c66ca85?auto=format&fit=crop&w=1200&q=80")',
+                }}
+                aria-hidden="true"
+              />
+              <div className="lp2-flow-card-body">
+                <h3>Add Loan Programs</h3>
+                <p>Publish loan products tied to your coverage so buyers discover you early.</p>
+              </div>
             </article>
-            <article className="lp2-step">
-              <span className="lp2-step-icon"><IconGlyph name="checklist" filled /></span>
-              <h3>3. Work Borrower Leads</h3>
-              <p>Track checklists and leads from the same workspace—built for consistency.</p>
+
+            <article className="lp2-flow-card">
+              <div
+                className="lp2-flow-card-art"
+                style={{
+                  backgroundImage:
+                    'url("https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=1200&q=80")',
+                }}
+                aria-hidden="true"
+              />
+              <div className="lp2-flow-card-body">
+                <h3>Work Borrower Leads</h3>
+                <p>Track checklists and leads from the same workspace—built for consistency.</p>
+              </div>
             </article>
           </div>
         </section>

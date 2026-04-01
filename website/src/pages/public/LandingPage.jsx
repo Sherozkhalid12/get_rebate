@@ -1,3 +1,4 @@
+import { useMemo, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { IconGlyph } from '../../components/ui/IconGlyph';
 import { useAuth } from '../../context/AuthContext';
@@ -32,6 +33,77 @@ const kpis = [
   { label: 'Loan Officers', value: '680+', icon: 'businessCenter' },
   { label: 'Avg Savings', value: '$9,850', icon: 'savings' },
 ];
+
+const US_STATES = [
+  { code: 'AL', name: 'Alabama' },
+  { code: 'AK', name: 'Alaska' },
+  { code: 'AZ', name: 'Arizona' },
+  { code: 'AR', name: 'Arkansas' },
+  { code: 'CA', name: 'California' },
+  { code: 'CO', name: 'Colorado' },
+  { code: 'CT', name: 'Connecticut' },
+  { code: 'DE', name: 'Delaware' },
+  { code: 'DC', name: 'District of Columbia' },
+  { code: 'FL', name: 'Florida' },
+  { code: 'GA', name: 'Georgia' },
+  { code: 'HI', name: 'Hawaii' },
+  { code: 'ID', name: 'Idaho' },
+  { code: 'IL', name: 'Illinois' },
+  { code: 'IN', name: 'Indiana' },
+  { code: 'IA', name: 'Iowa' },
+  { code: 'KS', name: 'Kansas' },
+  { code: 'KY', name: 'Kentucky' },
+  { code: 'LA', name: 'Louisiana' },
+  { code: 'ME', name: 'Maine' },
+  { code: 'MD', name: 'Maryland' },
+  { code: 'MA', name: 'Massachusetts' },
+  { code: 'MI', name: 'Michigan' },
+  { code: 'MN', name: 'Minnesota' },
+  { code: 'MS', name: 'Mississippi' },
+  { code: 'MO', name: 'Missouri' },
+  { code: 'MT', name: 'Montana' },
+  { code: 'NE', name: 'Nebraska' },
+  { code: 'NV', name: 'Nevada' },
+  { code: 'NH', name: 'New Hampshire' },
+  { code: 'NJ', name: 'New Jersey' },
+  { code: 'NM', name: 'New Mexico' },
+  { code: 'NY', name: 'New York' },
+  { code: 'NC', name: 'North Carolina' },
+  { code: 'ND', name: 'North Dakota' },
+  { code: 'OH', name: 'Ohio' },
+  { code: 'OK', name: 'Oklahoma' },
+  { code: 'OR', name: 'Oregon' },
+  { code: 'PA', name: 'Pennsylvania' },
+  { code: 'RI', name: 'Rhode Island' },
+  { code: 'SC', name: 'South Carolina' },
+  { code: 'SD', name: 'South Dakota' },
+  { code: 'TN', name: 'Tennessee' },
+  { code: 'TX', name: 'Texas' },
+  { code: 'UT', name: 'Utah' },
+  { code: 'VT', name: 'Vermont' },
+  { code: 'VA', name: 'Virginia' },
+  { code: 'WA', name: 'Washington' },
+  { code: 'WV', name: 'West Virginia' },
+  { code: 'WI', name: 'Wisconsin' },
+  { code: 'WY', name: 'Wyoming' },
+];
+
+function clampNumber(n, min, max) {
+  if (!Number.isFinite(n)) return min;
+  return Math.min(max, Math.max(min, n));
+}
+
+function formatCurrency(amount) {
+  if (!Number.isFinite(amount)) return '$0';
+  return amount.toLocaleString(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+}
+
+function parsePriceInput(raw) {
+  const cleaned = String(raw ?? '').replace(/[^\d.]/g, '');
+  const num = Number(cleaned);
+  if (!Number.isFinite(num)) return 0;
+  return num;
+}
 
 const reviews = [
   {
@@ -109,6 +181,8 @@ const roleFlows = [
 
 export function LandingPage() {
   const { isAuthenticated, role } = useAuth();
+  const [purchasePriceRaw, setPurchasePriceRaw] = useState('');
+  const [selectedState, setSelectedState] = useState('');
 
   if (isAuthenticated) {
     if (role === 'agent') return <Navigate to="/agent" replace />;
@@ -116,11 +190,48 @@ export function LandingPage() {
     return <Navigate to="/app" replace />;
   }
 
+  const purchasePrice = useMemo(() => {
+    const parsed = parsePriceInput(purchasePriceRaw);
+    return clampNumber(parsed, 0, 50_000_000);
+  }, [purchasePriceRaw]);
+
+  const rebateOptions = useMemo(() => {
+    const state = selectedState;
+    const price = purchasePrice;
+    if (!state || !price) return [];
+
+    // These are placeholder estimates; swap with your real state rules anytime.
+    // We keep 3 tiers so users instantly understand range/choice.
+    const basePctByState = {
+      CA: 0.01,
+      NY: 0.01,
+      NJ: 0.01,
+      CT: 0.01,
+      MA: 0.01,
+      FL: 0.0125,
+      TX: 0.0125,
+      WA: 0.0125,
+      CO: 0.0125,
+    };
+
+    const base = basePctByState[state] ?? 0.0125;
+    const options = [
+      { id: 'standard', label: 'Standard rebate', pct: base },
+      { id: 'higher', label: 'Higher rebate (limited availability)', pct: base + 0.0025 },
+      { id: 'max', label: 'Max rebate (when eligible)', pct: base + 0.005 },
+    ];
+
+    return options.map((o) => ({
+      ...o,
+      amount: Math.round(price * o.pct),
+    }));
+  }, [selectedState, purchasePrice]);
+
   return (
     <div className="landing-wrap">
       <header className="landing-nav landing-nav-premium glass-card">
         <Link to="/" className="brand landing-brand">
-          <img src="/images/mainlogo.png" alt="GetaRebate" className="landing-brand-logo" />
+          <img src="/images/Asset%2010.svg" alt="GetaRebate" className="landing-brand-logo" />
           GetaRebate
         </Link>
         <nav className="landing-nav-links">
@@ -137,34 +248,18 @@ export function LandingPage() {
         </div>
       </header>
 
-      <section className="landing-stats-bar glass-card">
-        <div className="landing-stats-inner">
-          {kpis.map((s) => (
-            <article key={s.label} className="landing-stat-item">
-              <span className="landing-stat-icon-wrap">
-                <IconGlyph name={s.icon} filled />
-              </span>
-              <div className="landing-stat-content">
-                <strong>{s.value}</strong>
-                <span>{s.label}</span>
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
-
       <main className="landing-main">
         <section className="landing-hero landing-hero-premium glass-card">
           <div className="hero-copy premium-copy">
-            <p className="site-hero-kicker">Premium Rebate Real Estate Platform</p>
-            <h1>One Connected Experience for Buyers, Agents, and Loan Officers</h1>
+            <p className="site-hero-kicker">Instant rebate estimates</p>
+            <h1>Enter your purchase price + state to see your potential rebate</h1>
             <p>
-              Search live homes, route leads to elite agents, and keep rebate-friendly lenders in
-              the loop – all in a single workflow designed for transparency.
+              Get a quick estimate in seconds, then connect with rebate-friendly pros who can walk you
+              through the details.
             </p>
             <div className="hero-cta">
-              <Link className="btn primary" to="/auth">Continue to Login</Link>
-              <Link className="btn ghost" to="/onboarding">See Full Flow</Link>
+              <a className="btn primary" href="#faqs">Get questions answered</a>
+              <Link className="btn ghost" to="/help-support">Contact support</Link>
             </div>
           </div>
 
@@ -181,23 +276,75 @@ export function LandingPage() {
             <div className="hero-badge">
               <IconGlyph name="autoAwesome" filled /> Rebate-Friendly Network Verified
             </div>
-            <div className="hero-search">
-              <IconGlyph name="search" filled />
-              <input placeholder="Search by ZIP to preview local coverage (e.g. 10001)" />
-              <button className="btn primary tiny" type="button">Preview</button>
-            </div>
-            <div className="hero-mini-cards hero-mini-cards-with-icons">
-              {kpis.map((s) => (
-                <article key={s.label}>
-                  <span className="hero-mini-icon-wrap">
-                    <IconGlyph name={s.icon} filled />
-                  </span>
-                  <div>
-                    <strong>{s.value}</strong>
-                    <p>{s.label}</p>
-                  </div>
-                </article>
-              ))}
+
+            <form
+              className="hero-search"
+              onSubmit={(e) => {
+                e.preventDefault();
+                const target = document.getElementById('faqs');
+                target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }}
+            >
+              <IconGlyph name="calculator" filled />
+              <div className="hero-calc-fields">
+                <label className="hero-calc-field">
+                  <span>Purchase price</span>
+                  <input
+                    inputMode="decimal"
+                    autoComplete="off"
+                    placeholder="e.g. 450,000"
+                    value={purchasePriceRaw}
+                    onChange={(e) => setPurchasePriceRaw(e.target.value)}
+                    aria-label="Purchase price"
+                  />
+                </label>
+                <label className="hero-calc-field">
+                  <span>State</span>
+                  <select
+                    value={selectedState}
+                    onChange={(e) => setSelectedState(e.target.value)}
+                    aria-label="State"
+                  >
+                    <option value="">Select a state</option>
+                    {US_STATES.map((s) => (
+                      <option key={s.code} value={s.code}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <button className="btn primary tiny" type="submit" disabled={!purchasePrice || !selectedState}>
+                See rebates
+              </button>
+            </form>
+
+            <div className="hero-rebate-results" aria-live="polite">
+              {!purchasePrice || !selectedState ? (
+                <div className="hero-rebate-empty">
+                  <strong>Tip:</strong> Enter a price and state to instantly see estimates.
+                </div>
+              ) : (
+                <div className="hero-rebate-grid">
+                  {rebateOptions.map((o) => (
+                    <article key={o.id} className="hero-rebate-card">
+                      <div className="hero-rebate-top">
+                        <strong>{formatCurrency(o.amount)}</strong>
+                        <span>{o.label}</span>
+                      </div>
+                      <p className="hero-rebate-footnote">
+                        Estimated at {(o.pct * 100).toFixed(2)}% of {formatCurrency(purchasePrice)}. Actual rebates depend on eligibility and transaction terms.
+                      </p>
+                    </article>
+                  ))}
+                </div>
+              )}
+              <div className="hero-rebate-help">
+                <IconGlyph name="info" filled />
+                <span>
+                  Want a precise number? Check the <a href="#faqs">FAQs</a> or <Link to="/help-support">message support</Link>.
+                </span>
+              </div>
             </div>
           </div>
         </section>
@@ -449,7 +596,7 @@ export function LandingPage() {
       <footer className="landing-footer glass-card">
         <div className="landing-footer-inner">
           <div className="landing-footer-brand">
-            <img src="/images/mainlogo.png" alt="GetaRebate" className="landing-footer-logo" />
+            <img src="/images/Logo_2.svg" alt="GetaRebate" className="landing-footer-logo" />
             <div>
               <strong>GetaRebate</strong>
               <p>Rebate transparency for buyers, agents, and loan officers.</p>

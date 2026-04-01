@@ -32,7 +32,7 @@ export function AgentLandingPage() {
   }
 
   return (
-    <PremiumLandingFrame containerRef={containerRef}>
+    <PremiumLandingFrame containerRef={containerRef} className="lp2-page lp2-page--agent">
       <PremiumLandingHeader
         links={[
           { href: '#features', label: 'Features' },
@@ -70,6 +70,9 @@ export function AgentLandingPage() {
               <span className="lp2-trust-pill"><IconGlyph name="listings" filled /> Media-ready listings</span>
               <span className="lp2-trust-pill"><IconGlyph name="leads" filled /> Lead routing included</span>
             </div>
+            <div className="lp2-callout">
+              <strong>Only One Agent Per Zip Code.</strong> Secure Yours Today Before It’s Taken. <strong>First Come First Served.</strong>
+            </div>
           </div>
 
           <div className="lp2-hero-media" aria-hidden="true">
@@ -106,59 +109,37 @@ export function AgentLandingPage() {
             <h2>Agent Platform Features</h2>
             <p>Everything you need to build coverage and convert rebate-minded buyers.</p>
           </div>
-          <div className="lp2-grid lp2-grid--2wide">
-            <article className="lp2-media-feature">
-              <div
-                className="lp2-media-feature-art"
-                style={{
-                  backgroundImage: 'url("https://images.unsplash.com/photo-1564013799919-ab600027ffc6?auto=format&fit=crop&w=1200&q=80")',
-                }}
-              />
-              <div className="lp2-media-feature-body">
+          <div className="lp2-feature-cards">
+            <article className="lp2-feature-card">
+              <div className="lp2-feature-card-top">
                 <span className="lp2-feature-icon"><IconGlyph name="location" filled /></span>
                 <h3>ZIP Console</h3>
-                <p>State-wide ZIP inventory, Stripe checkout, and dashboards that update instantly after payment verification.</p>
               </div>
+              <p>State-wide ZIP inventory, Stripe checkout, and dashboards that update instantly after payment verification.</p>
             </article>
 
-            <article className="lp2-media-feature">
-              <div
-                className="lp2-media-feature-art"
-                style={{
-                  backgroundImage: 'url("https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=1200&q=80")',
-                }}
-              />
-              <div className="lp2-media-feature-body">
+            <article className="lp2-feature-card">
+              <div className="lp2-feature-card-top">
                 <span className="lp2-feature-icon"><IconGlyph name="listings" filled /></span>
                 <h3>Listing & Media Studio</h3>
-                <p>Upload listings with photos, BAC %, property details, and open houses—using the same backend flows as the mobile app.</p>
               </div>
+              <p>Upload listings with photos, BAC %, property details, and open houses—using the same backend flows as the mobile app.</p>
             </article>
 
-            <article className="lp2-media-feature">
-              <div
-                className="lp2-media-feature-art"
-                style={{
-                  backgroundImage: 'url("https://images.unsplash.com/photo-1556740749-887f6717d7e4?auto=format&fit=crop&w=1200&q=80")',
-                }}
-              />
-              <div className="lp2-media-feature-body">
+            <article className="lp2-feature-card">
+              <div className="lp2-feature-card-top">
                 <span className="lp2-feature-icon"><IconGlyph name="leads" filled /></span>
                 <h3>Lead Management</h3>
-                <p>Capture leads from listing + profile experiences, then move them through proposals and messages inside your dashboard.</p>
               </div>
+              <p>Capture leads from listing + profile experiences, then move them through proposals and messages inside your dashboard.</p>
             </article>
 
-            <article className="lp2-media-feature">
-              <div
-                className="lp2-media-feature-art"
-                style={{ backgroundImage: 'url("https://images.pexels.com/photos/7415025/pexels-photo-7415025.jpeg")' }}
-              />
-              <div className="lp2-media-feature-body">
+            <article className="lp2-feature-card">
+              <div className="lp2-feature-card-top">
                 <span className="lp2-feature-icon"><IconGlyph name="profile" filled /></span>
                 <h3>Premium Agent Profile</h3>
-                <p>Showcase coverage, listings, and rebate positioning to buyers—designed for trust and conversion.</p>
               </div>
+              <p>Showcase coverage, listings, and rebate positioning to buyers—designed for trust and conversion.</p>
             </article>
           </div>
         </section>
@@ -168,21 +149,50 @@ export function AgentLandingPage() {
             <h2>How the Agent Flow Works</h2>
             <p>A clean, predictable workflow from coverage to conversions.</p>
           </div>
-          <div className="lp2-grid lp2-grid--3">
-            <article className="lp2-step">
-              <span className="lp2-step-icon"><IconGlyph name="location" filled /></span>
-              <h3>1. Claim ZIP Coverage</h3>
-              <p>Check claim status, complete Stripe checkout, and return to a refreshed ZIP dashboard.</p>
+          <div className="lp2-flow-cards">
+            <article className="lp2-flow-card">
+              <div
+                className="lp2-flow-card-art"
+                style={{
+                  backgroundImage:
+                    'url("https://images.unsplash.com/photo-1560518883-ce09059eeffa?auto=format&fit=crop&w=1200&q=80")',
+                }}
+                aria-hidden="true"
+              />
+              <div className="lp2-flow-card-body">
+                <h3>Claim ZIP Coverage</h3>
+                <p>Check claim status, complete Stripe checkout, and return to a refreshed ZIP dashboard.</p>
+              </div>
             </article>
-            <article className="lp2-step">
-              <span className="lp2-step-icon"><IconGlyph name="listings" filled /></span>
-              <h3>2. Publish Listings</h3>
-              <p>Upload photos, BAC %, and open houses. Listings appear for buyers in your claimed ZIPs.</p>
+
+            <article className="lp2-flow-card">
+              <div
+                className="lp2-flow-card-art"
+                style={{
+                  backgroundImage:
+                    'url("https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=1200&q=80")',
+                }}
+                aria-hidden="true"
+              />
+              <div className="lp2-flow-card-body">
+                <h3>Publish Listings</h3>
+                <p>Upload photos, BAC %, and open houses. Listings appear for buyers in your claimed ZIPs.</p>
+              </div>
             </article>
-            <article className="lp2-step">
-              <span className="lp2-step-icon"><IconGlyph name="leads" filled /></span>
-              <h3>3. Work Leads</h3>
-              <p>Manage leads, send proposals, and message in one place—built for speed and follow-up.</p>
+
+            <article className="lp2-flow-card">
+              <div
+                className="lp2-flow-card-art"
+                style={{
+                  backgroundImage:
+                    'url("https://images.unsplash.com/photo-1556740749-887f6717d7e4?auto=format&fit=crop&w=1200&q=80")',
+                }}
+                aria-hidden="true"
+              />
+              <div className="lp2-flow-card-body">
+                <h3>Work Leads</h3>
+                <p>Manage leads, send proposals, and message in one place—built for speed and follow-up.</p>
+              </div>
             </article>
           </div>
         </section>

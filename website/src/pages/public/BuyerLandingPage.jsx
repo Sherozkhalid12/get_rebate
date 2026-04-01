@@ -53,7 +53,7 @@ export function BuyerLandingPage() {
   }
 
   return (
-    <PremiumLandingFrame containerRef={containerRef}>
+    <PremiumLandingFrame containerRef={containerRef} className="lp2-page lp2-page--buyer">
       <PremiumLandingHeader
         links={[
           { href: '#homes', label: 'Homes' },

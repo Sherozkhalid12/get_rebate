@@ -7,6 +7,8 @@ import { useAuth } from '../../context/AuthContext';
 import { firstImageFromEntity } from '../../lib/media';
 import { LogoutConfirmDialog } from '../dialogs/LogoutConfirmDialog';
 
+const BRAND_LOGO = '/images/appbarlogo.png';
+
 const navByRole = {
   buyerSeller: [
     { to: '/app', label: 'Home', icon: 'home' },
@@ -101,7 +103,7 @@ export function AppShell() {
       <aside className={`drawer-panel ${drawerOpen ? 'drawer-panel--open' : ''}`}>
         <div className="drawer-header">
           <Link className="drawer-brand" to={nav[0].to} onClick={closeDrawer}>
-            {APP_NAME}
+            <img src={BRAND_LOGO} alt="Get a Rebate Real Estate" className="app-brand-logo app-brand-logo--wide" />
           </Link>
           <button
             ref={drawerCloseRef}
@@ -175,7 +177,9 @@ export function AppShell() {
       <header className="site-header glass-card">
         <div className="site-header-top">
           <div className="site-brand-wrap">
-            <Link className="brand" to={nav[0].to}>{APP_NAME}</Link>
+            <Link className="brand app-brand-link" to={nav[0].to}>
+              <img src={BRAND_LOGO} alt="Get a Rebate Real Estate" className="app-brand-logo app-brand-logo--wide" />
+            </Link>
             <p className="brand-sub">Find rebate-ready agents, homes, and lenders</p>
           </div>
           <div className="top-actions">

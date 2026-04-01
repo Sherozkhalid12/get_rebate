@@ -13,7 +13,7 @@ export function PremiumLandingFrame({ containerRef, className = '', children }) 
 
 export function PremiumLandingHeader({
   brandTo = '/',
-  brandLabel = 'GetaRebate',
+  brandLabel = null,
   links = [],
   actions,
   rightSlot,
@@ -21,8 +21,8 @@ export function PremiumLandingHeader({
   return (
     <header className="lp2-header lp2-surface">
       <Link to={brandTo} className="lp2-brand">
-        <img src="/images/mainlogo.png" alt="GetaRebate" className="lp2-brand-logo" />
-        <span className="lp2-brand-label">{brandLabel}</span>
+        <img src="/images/appbarlogo.png" alt="Get a Rebate Real Estate" className="lp2-brand-logo lp2-brand-logo--wide" />
+        {brandLabel ? <span className="lp2-brand-label">{brandLabel}</span> : null}
       </Link>
 
       {links?.length ? (
@@ -52,11 +52,7 @@ export function PremiumLandingFooter() {
     <footer className="lp2-footer lp2-surface">
       <div className="lp2-footer-top">
         <div className="lp2-footer-brand">
-          <img src="/images/mainlogo.png" alt="GetaRebate" className="lp2-footer-logo" />
-          <div>
-            <strong>GetaRebate</strong>
-            <p>Rebate transparency for buyers, agents, and loan officers.</p>
-          </div>
+          <img src="/images/appbarlogo.png" alt="Get a Rebate Real Estate" className="lp2-footer-logo lp2-footer-logo--wide" />
         </div>
         <div className="lp2-footer-links" aria-label="Footer">
           <Link to="/privacy-policy">Privacy</Link>
@@ -66,7 +62,7 @@ export function PremiumLandingFooter() {
         </div>
       </div>
       <div className="lp2-footer-bottom">
-        <span>© {year} GetaRebate</span>
+        <span>© {year}</span>
         <span className="lp2-footer-sep" aria-hidden="true" />
         <span>Built for modern rebate-first transactions</span>
       </div>
@@ -112,7 +108,7 @@ export function FaqAccordion({ items = [] }) {
               aria-labelledby={triggerId}
               hidden={!isOpen}
             >
-              <p>{faq.a}</p>
+              {typeof faq.a === 'string' ? <p>{faq.a}</p> : faq.a}
             </div>
           </div>
         );
