@@ -458,7 +458,7 @@ export function RoleSelectionPage() {
               </ul>
               <div className="lp2-cta lp2-cta--center lp2-role-tile-cta">
                 <Link className="btn primary" to="/landing/buyer">Explore buyer experience</Link>
-                <Link className="btn ghost" to="/auth">Login</Link>
+                <Link className="btn ghost" to="/auth">Login / Create an Account</Link>
               </div>
             </article>
 
@@ -483,7 +483,7 @@ export function RoleSelectionPage() {
               </ul>
               <div className="lp2-cta lp2-cta--center lp2-role-tile-cta">
                 <Link className="btn primary" to="/landing/agent">Explore agent landing</Link>
-                <Link className="btn ghost" to="/auth?role=agent">Agent login</Link>
+                <Link className="btn ghost" to="/auth?role=agent">Agent login / Create an Account</Link>
               </div>
             </article>
 
@@ -508,7 +508,7 @@ export function RoleSelectionPage() {
               </ul>
               <div className="lp2-cta lp2-cta--center lp2-role-tile-cta">
                 <Link className="btn primary" to="/landing/loan-officer">Explore loan officer landing</Link>
-                <Link className="btn ghost" to="/auth?role=loanOfficer">Loan officer login</Link>
+                <Link className="btn ghost" to="/auth?role=loanOfficer">Loan Officer login / Create an Account</Link>
               </div>
             </article>
           </div>
@@ -662,14 +662,6 @@ export function RoleSelectionPage() {
               <p>When your transaction closes, your rebate is applied as a credit at closing or reflected in reduced commission savings.</p>
             </article>
           </div>
-        </section>
-
-        <section id="reviews" className="lp2-section lp2-surface animate-on-scroll">
-          <div className="lp2-section-head">
-            <h2>What People Say</h2>
-            <p>Buyers, agents, and loan officers share their experience with GetaRebate.</p>
-          </div>
-          <ReviewsCarousel reviews={REVIEWS} />
         </section>
 
         <section id="faqs" className="lp2-section lp2-surface animate-on-scroll">

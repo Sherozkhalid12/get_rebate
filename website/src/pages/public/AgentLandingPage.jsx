@@ -197,14 +197,6 @@ export function AgentLandingPage() {
           </div>
         </section>
 
-        <section id="reviews" className="lp2-section lp2-surface animate-on-scroll">
-          <div className="lp2-section-head">
-            <h2>What Agents Say</h2>
-            <p>Built to feel modern—without losing the operational essentials.</p>
-          </div>
-          <ReviewsCarousel reviews={reviews} />
-        </section>
-
         <section id="faqs" className="lp2-section lp2-surface animate-on-scroll">
           <div className="lp2-section-head">
             <h2>FAQs</h2>

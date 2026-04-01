@@ -197,14 +197,6 @@ export function LoanOfficerLandingPage() {
           </div>
         </section>
 
-        <section id="reviews" className="lp2-section lp2-surface animate-on-scroll">
-          <div className="lp2-section-head">
-            <h2>What Loan Officers Say</h2>
-            <p>Premium presence with operational workflows that actually ship.</p>
-          </div>
-          <ReviewsCarousel reviews={reviews} />
-        </section>
-
         <section id="faqs" className="lp2-section lp2-surface animate-on-scroll">
           <div className="lp2-section-head">
             <h2>FAQs</h2>

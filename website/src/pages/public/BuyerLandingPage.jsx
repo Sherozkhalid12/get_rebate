@@ -103,13 +103,6 @@ export function BuyerLandingPage() {
               className="lp2-media-visual lp2-media-visual--photo"
               style={{ backgroundImage: 'url("https://images.pexels.com/photos/8470800/pexels-photo-8470800.jpeg")' }}
             />
-            <div className="lp2-media-card lp2-media-card--top">
-              <div className="lp2-media-card-icon"><IconGlyph name="savings" filled /></div>
-              <div>
-                <strong>$9,850</strong>
-                <span>Avg savings surfaced</span>
-              </div>
-            </div>
             <div className="lp2-media-card lp2-media-card--mid">
               <div className="lp2-media-card-icon"><IconGlyph name="homeWork" filled /></div>
               <div>
@@ -179,14 +172,6 @@ export function BuyerLandingPage() {
               <p>Home feed, calculator, and checklists in a clean dashboard.</p>
             </article>
           </div>
-        </section>
-
-        <section id="reviews" className="lp2-section lp2-surface animate-on-scroll">
-          <div className="lp2-section-head">
-            <h2>What Buyers Say</h2>
-            <p>Real experiences from rebate-first home shopping.</p>
-          </div>
-          <ReviewsCarousel reviews={reviews} />
         </section>
 
         <section id="faqs" className="lp2-section lp2-surface animate-on-scroll">
