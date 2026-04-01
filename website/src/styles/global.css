@@ -9395,10 +9395,36 @@ button.dropdown-glass,
   display: grid;
   grid-template-columns: 70px 1fr 110px;
   gap: 0.5rem;
+  align-items: start;
   padding: 0.6rem 0.65rem;
   border: 1px solid var(--border);
   border-radius: 12px;
   background: #ffffff;
+}
+
+.lp2-tier-row > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.lp2-tier-row--head > span {
+  line-height: 1.15;
+}
+
+.lp2-tier-row--head > span[role='columnheader'] {
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .lp2-modal .lp2-tier-row {
+    grid-template-columns: 74px 1fr 64px;
+    gap: 0.45rem;
+  }
+
+  .lp2-modal .lp2-tier-row--head > span {
+    font-size: 0.78rem;
+  }
 }
 
 [data-theme='dark'] .lp2-tier-row {

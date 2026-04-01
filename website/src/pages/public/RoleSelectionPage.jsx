@@ -311,9 +311,10 @@ export function RoleSelectionPage() {
 
             <div className="lp2-tier-grid" style={{ marginTop: '0.85rem' }}>
               <div className="lp2-tier-row lp2-tier-row--head" role="row">
-                <span role="columnheader">Restricted</span>
-                <span role="columnheader">States</span>
+                <span role="columnheader">Restricted States</span>
+                <span role="columnheader"></span>
                 <span role="columnheader">Count</span>
+                {/* <span role="columnheader">Count</span> */}
               </div>
               <div className="lp2-tier-row" role="row">
                 <span role="cell">No</span>
