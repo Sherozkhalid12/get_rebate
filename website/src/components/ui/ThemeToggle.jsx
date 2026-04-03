@@ -1,3 +1,5 @@
+/* Dark mode toggle disabled — site is light-only (see ThemeContext.jsx).
+
 import { IconGlyph } from './IconGlyph';
 import { useTheme } from '../../context/ThemeContext';
 
@@ -15,4 +17,10 @@ export function ThemeToggle() {
       <IconGlyph name={isDark ? 'lightMode' : 'darkMode'} filled />
     </button>
   );
+}
+*/
+
+/** Placeholder so imports can be re-enabled without changing call sites. */
+export function ThemeToggle() {
+  return null;
 }

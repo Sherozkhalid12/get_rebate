@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { APP_NAME } from '../../lib/constants';
 import { IconGlyph } from '../ui/IconGlyph';
-import { ThemeToggle } from '../ui/ThemeToggle';
+// import { ThemeToggle } from '../ui/ThemeToggle';
 import { useAuth } from '../../context/AuthContext';
 import { firstImageFromEntity } from '../../lib/media';
 import { LogoutConfirmDialog } from '../dialogs/LogoutConfirmDialog';
@@ -158,10 +158,10 @@ export function AppShell() {
               <span>Proposals</span>
             </Link>
           )}
-          <div className="drawer-theme">
+          {/* <div className="drawer-theme">
             <ThemeToggle />
             <span>Theme</span>
-          </div>
+          </div> */}
           <button
             type="button"
             className="drawer-logout"
@@ -192,7 +192,7 @@ export function AppShell() {
             >
               <IconGlyph name="menu" />
             </button>
-            <ThemeToggle />
+            {/* <ThemeToggle /> */}
             <Link className="icon-badge" to="/notifications" aria-label="Notifications">
               <IconGlyph name="bell" filled />
             </Link>

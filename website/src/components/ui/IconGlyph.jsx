@@ -28,6 +28,7 @@ const glyphs = {
   close: 'close',
   delete: 'delete',
   phone: 'phone',
+  smartphone: 'smartphone',
   email: 'email',
   link: 'link',
   openInNew: 'open_in_new',

@@ -5,7 +5,7 @@ import { ReviewsCarousel } from '../../components/landing/ReviewsCarousel';
 import { FaqAccordion, PremiumLandingFooter, PremiumLandingFrame, PremiumLandingHeader } from '../../components/landing/PremiumLandingKit';
 import { useAuth } from '../../context/AuthContext';
 import { useScrollToTop, useLandingScrollAnimations } from '../../hooks/useLandingPage';
-import { ThemeToggle } from '../../components/ui/ThemeToggle';
+// import { ThemeToggle } from '../../components/ui/ThemeToggle';
 
 function clampNumber(n, min, max) {
   if (!Number.isFinite(n)) return min;
@@ -166,13 +166,25 @@ const FAQS = [
   },
 ];
 
+function AppStoreBadgeLinks() {
+  return (
+    <>
+      <a className="lp2-store-badge" href="#" aria-disabled="true">
+        <img src="/images/badges/app-store.svg" alt="Download on the App Store" />
+      </a>
+      <a className="lp2-store-badge" href="#" aria-disabled="true">
+        <img src="/images/badges/google-play.svg" alt="Get it on Google Play" />
+      </a>
+    </>
+  );
+}
+
 export function RoleSelectionPage() {
   const { isAuthenticated, role } = useAuth();
   const containerRef = useRef(null);
   const [purchasePriceRaw, setPurchasePriceRaw] = useState('');
   const [tiersOpen, setTiersOpen] = useState(false);
   const [statesOpen, setStatesOpen] = useState(false);
-  const [estimatorOpen, setEstimatorOpen] = useState(true);
 
   useScrollToTop();
   useLandingScrollAnimations(containerRef);
@@ -331,6 +343,7 @@ export function RoleSelectionPage() {
           { href: '#roles', label: 'Roles' },
           { href: '#how', label: 'How it works' },
           { href: '#reviews', label: 'Reviews' },
+          { href: '#app', label: 'App' },
           { href: '#faqs', label: 'FAQs' },
         ]}
         actions={(
@@ -339,26 +352,42 @@ export function RoleSelectionPage() {
             <Link className="btn primary tiny" to="/auth">Login</Link>
           </>
         )}
-        rightSlot={<ThemeToggle />}
+        // rightSlot={<ThemeToggle />}
       />
 
+      <aside className="lp2-app-teaser lp2-surface" aria-label="GetaRebate mobile app">
+        <span className="lp2-app-teaser-icon" aria-hidden="true">
+          <IconGlyph name="smartphone" filled />
+        </span>
+        <p className="lp2-app-teaser-text">
+          <strong>Get the free app.</strong> Search by ZIP, browse listings and open houses, and follow your rebate — same login as the website.
+        </p>
+        <div className="lp2-app-teaser-badges">
+          <AppStoreBadgeLinks />
+        </div>
+        <a className="lp2-app-teaser-more" href="#app">
+          App details
+        </a>
+      </aside>
+
       <section className="lp2-hero lp2-surface lp2-hero--home">
-        {estimatorOpen ? (
-          <div className="lp2-hero-card">
+        <div className="lp2-hero-card">
             <div className="lp2-hero-card-head lp2-hero-card-head--row">
               <div className="lp2-hero-card-head-text">
                 <strong>How much rebate could you get?</strong>
                 <span>Enter your estimated home price to preview all 7 tiers.</span>
               </div>
-              <button
-                type="button"
-                className="lp2-hero-card-close"
-                onClick={() => setEstimatorOpen(false)}
-                aria-label="Close rebate estimator"
-                title="Close"
-              >
-                <IconGlyph name="close" />
-              </button>
+              {purchasePrice ? (
+                <button
+                  type="button"
+                  className="lp2-hero-card-close"
+                  onClick={() => setPurchasePriceRaw('')}
+                  aria-label="Clear price and hide tier breakdown"
+                  title="Clear estimate"
+                >
+                  <IconGlyph name="close" />
+                </button>
+              ) : null}
             </div>
 
           <div className="hero-search hero-search--single" role="search" aria-label="Rebate estimator">
@@ -414,18 +443,7 @@ export function RoleSelectionPage() {
               </span>
             </div>
           </div>
-          </div>
-        ) : (
-          <button
-            type="button"
-            className="lp2-estimator-fab"
-            onClick={() => setEstimatorOpen(true)}
-            aria-label="Open rebate estimator"
-          >
-            <IconGlyph name="calculator" filled />
-            <span>Rebate estimator</span>
-          </button>
-        )}
+        </div>
       </section>
 
       <main className="lp2-main">
@@ -640,6 +658,14 @@ export function RoleSelectionPage() {
           </div>
         </section>
 
+        <section id="reviews" className="lp2-section lp2-surface animate-on-scroll">
+          <div className="lp2-section-head">
+            <h2>Reviews</h2>
+            <p>What buyers, agents, and loan officers say about using GetaRebate.</p>
+          </div>
+          <ReviewsCarousel reviews={REVIEWS} />
+        </section>
+
         <section id="how" className="lp2-section lp2-surface animate-on-scroll">
           <div className="lp2-section-head">
             <h2>How It Works (Simple & Transparent)</h2>
@@ -696,12 +722,7 @@ export function RoleSelectionPage() {
                 <li>Favorites, messages, proposals, and checklists</li>
               </ul>
               <div className="lp2-cta">
-                <a className="lp2-store-badge" href="#" aria-disabled="true">
-                  <img src="/images/badges/app-store.svg" alt="Download on the App Store" />
-                </a>
-                <a className="lp2-store-badge" href="#" aria-disabled="true">
-                  <img src="/images/badges/google-play.svg" alt="Get it on Google Play" />
-                </a>
+                <AppStoreBadgeLinks />
               </div>
               {/* <p className="lp2-app-note">We’ll link these buttons to your real store pages when your app listings are ready.</p> */}
             </div>

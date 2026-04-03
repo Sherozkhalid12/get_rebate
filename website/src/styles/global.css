@@ -9006,6 +9006,113 @@ button.dropdown-glass,
   gap: 0.45rem;
 }
 
+/* Above-the-fold app strip: sits under the header, above the hero photo */
+.lp2-app-teaser {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem 1rem;
+  padding: 0.55rem 1rem;
+  border-radius: var(--radius);
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 10px 28px rgba(2, 6, 23, 0.06);
+}
+
+.lp2-app-teaser-icon {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 2.35rem;
+  height: 2.35rem;
+  border-radius: 12px;
+  background: rgba(37, 99, 235, 0.12);
+  color: #2563eb;
+}
+
+.lp2-app-teaser-icon .icon-glyph {
+  font-size: 1.35rem;
+}
+
+[data-theme='dark'] .lp2-app-teaser-icon {
+  background: rgba(96, 165, 250, 0.15);
+  color: #93c5fd;
+}
+
+.lp2-app-teaser-text {
+  flex: 1 1 14rem;
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.4;
+  color: var(--text);
+}
+
+.lp2-app-teaser-text strong {
+  font-weight: 700;
+}
+
+.lp2-app-teaser-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: center;
+}
+
+.lp2-app-teaser .lp2-store-badge img {
+  height: 36px;
+}
+
+.lp2-app-teaser-more {
+  font-size: 0.82rem;
+  font-weight: 700;
+  white-space: nowrap;
+  color: var(--primary);
+  text-decoration: none;
+}
+
+.lp2-app-teaser-more:hover {
+  text-decoration: underline;
+}
+
+[data-theme='dark'] .lp2-app-teaser {
+  border-color: #334155;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.22);
+}
+
+@media (max-width: 720px) {
+  /* No card chrome — only store buttons keep borders; badges stay one row */
+  .lp2-app-teaser.lp2-surface {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    backdrop-filter: none;
+    padding: 0.45rem 0;
+    border-radius: 0;
+    overflow: visible;
+  }
+
+  .lp2-app-teaser {
+    border: none;
+    box-shadow: none;
+    padding: 0.45rem 0;
+  }
+
+  [data-theme='dark'] .lp2-app-teaser,
+  [data-theme='dark'] .lp2-app-teaser.lp2-surface {
+    border: none;
+    box-shadow: none;
+    background: transparent;
+  }
+
+  .lp2-app-teaser-badges {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    flex-basis: auto;
+    align-items: center;
+    gap: 0.4rem;
+  }
+}
+
 .lp2-main {
   display: grid;
   gap: 16px;
@@ -9032,13 +9139,43 @@ button.dropdown-glass,
   align-items: start;
   justify-items: center;
   height: clamp(420px, 46vw, 560px);
-  background-image: url('/images/heroImage.jpeg');
+  /* Fallback, then resolution-aware sources (2× asset is sharper on large / retina viewports) */
+  background-image: url('/images/heroImage.jpg');
+  background-image: -webkit-image-set(
+    url('/images/heroImage.jpg') 1x,
+    url('/images/heroImage.jpg') 2x
+  );
+  background-image: image-set(url('/images/heroImage.jpg') 1x, url('/images/heroImage.jpg') 2x);
   background-size: cover;
+  /* Subjects sit high in frame; top anchor avoids cropping heads on wide, short banners */
   background-position: center;
+  background-repeat: no-repeat;
   border-radius: 0;
   position: relative;
   padding-inline: 0;
   padding-bottom: clamp(120px, 14vw, 170px);
+}
+
+/* Narrow / portrait viewports: `cover` scales by width and crops vertical extremes,
+   which often drops faces too low. Pin height to the band so the photo’s top (heads)
+   stays aligned with the top of the hero. */
+@media (max-width: 720px) {
+  .lp2-hero--home {
+    background-size: auto 100%;
+    background-position: center top;
+  }
+}
+
+@media (min-width: 1440px) {
+  .lp2-hero--home {
+    /* Taller band above 1440px: less aggressive vertical crop with cover + more breathing room */
+    height: clamp(500px, 36vw, 680px);
+    padding-bottom: clamp(140px, 12vw, 200px);
+    /* Stop full-bleed breakout; keep hero image band no wider than 1440px on large screens */
+    max-width: 1440px;
+    width: 100%;
+    margin-inline: auto;
+  }
 }
 
 /* Prevent horizontal scroll from full-bleed sections */
@@ -9255,6 +9392,17 @@ button.dropdown-glass,
   .lp2-store-badge img {
     height: 48px;
     margin: 0 auto;
+  }
+
+  /* Teaser strip: keep both badges in one row (override width: 100% above) */
+  .lp2-app-teaser .lp2-store-badge {
+    width: auto;
+    flex: 0 0 auto;
+  }
+
+  .lp2-app-teaser .lp2-store-badge img {
+    height: 34px;
+    margin: 0;
   }
 }
 

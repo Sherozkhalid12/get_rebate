@@ -1,27 +1,25 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect } from 'react';
 
 const THEME_KEY = 'getarebate_theme';
 
 const ThemeContext = createContext(null);
 
+/** Dark mode disabled — site is always light. Restore `useState` + sync effect from git history to re-enable. */
 export function ThemeProvider({ children }) {
-  const [theme, setThemeState] = useState(() => {
-    if (typeof window === 'undefined') return 'dark';
-    const stored = localStorage.getItem(THEME_KEY) || 'dark';
-    document.documentElement.setAttribute('data-theme', stored);
-    return stored;
-  });
+  const theme = 'light';
 
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem(THEME_KEY, theme);
-  }, [theme]);
+    document.documentElement.setAttribute('data-theme', 'light');
+    try {
+      localStorage.setItem(THEME_KEY, 'light');
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
-  const toggleTheme = () => {
-    setThemeState((prev) => (prev === 'dark' ? 'light' : 'dark'));
-  };
+  const toggleTheme = () => {};
 
-  const isDark = theme === 'dark';
+  const isDark = false;
 
   return (
     <ThemeContext.Provider value={{ theme, toggleTheme, isDark }}>
