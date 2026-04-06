@@ -1,7 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { IconGlyph } from '../../components/ui/IconGlyph';
-import { ReviewsCarousel } from '../../components/landing/ReviewsCarousel';
 import { FaqAccordion, PremiumLandingFooter, PremiumLandingFrame, PremiumLandingHeader } from '../../components/landing/PremiumLandingKit';
 import { useAuth } from '../../context/AuthContext';
 import { useScrollToTop, useLandingScrollAnimations } from '../../hooks/useLandingPage';
@@ -23,12 +22,6 @@ function parsePriceInput(raw) {
   if (!Number.isFinite(num)) return 0;
   return num;
 }
-
-const REVIEWS = [
-  { quote: 'Finally found a platform that shows real rebate estimates upfront. Saved over $8K on our Manhattan condo.', author: 'Sarah M.', role: 'Buyer', rating: 5 },
-  { quote: 'ZIP claims are seamless with Stripe. My coverage updates instantly and leads flow in from day one.', author: 'James K.', role: 'Agent', rating: 5 },
-  { quote: 'Rebate-friendly programs get real visibility. Our borrower checklist syncs perfectly with the app.', author: 'Maria L.', role: 'Loan Officer', rating: 5 },
-];
 
 const REBATE_ALLOWED_STATES = [
   'Arizona',
@@ -342,7 +335,6 @@ export function RoleSelectionPage() {
         links={[
           { href: '#roles', label: 'Roles' },
           { href: '#how', label: 'How it works' },
-          { href: '#reviews', label: 'Reviews' },
           { href: '#app', label: 'App' },
           { href: '#faqs', label: 'FAQs' },
         ]}
@@ -656,14 +648,6 @@ export function RoleSelectionPage() {
               </ul>
             </article>
           </div>
-        </section>
-
-        <section id="reviews" className="lp2-section lp2-surface animate-on-scroll">
-          <div className="lp2-section-head">
-            <h2>Reviews</h2>
-            <p>What buyers, agents, and loan officers say about using GetaRebate.</p>
-          </div>
-          <ReviewsCarousel reviews={REVIEWS} />
         </section>
 
         <section id="how" className="lp2-section lp2-surface animate-on-scroll">

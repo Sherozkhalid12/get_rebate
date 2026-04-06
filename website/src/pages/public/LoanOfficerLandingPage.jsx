@@ -1,16 +1,9 @@
 import { useRef } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { IconGlyph } from '../../components/ui/IconGlyph';
-import { ReviewsCarousel } from '../../components/landing/ReviewsCarousel';
 import { FaqAccordion, PremiumLandingFooter, PremiumLandingFrame, PremiumLandingHeader } from '../../components/landing/PremiumLandingKit';
 import { useAuth } from '../../context/AuthContext';
 import { useScrollToTop, useLandingScrollAnimations } from '../../hooks/useLandingPage';
-
-const reviews = [
-  { quote: 'Rebate-friendly programs get real visibility. Borrower checklist syncs perfectly.', author: 'Maria L.', rating: 5 },
-  { quote: 'ZIP coverage with Stripe is smooth. Leads from buyers and agents are quality.', author: 'Tom S.', rating: 5 },
-  { quote: 'Best way to stay visible in my market with full rebate transparency.', author: 'Lisa W.', rating: 5 },
-];
 
 const faqs = [
   { q: 'How do I claim ZIP coverage?', a: 'Check ZIP claim status, complete Stripe checkout, and return to refreshed coverage dashboards. Your market presence updates instantly.', icon: 'location' },
@@ -37,7 +30,6 @@ export function LoanOfficerLandingPage() {
         links={[
           { href: '#features', label: 'Features' },
           { href: '#flow', label: 'Flow' },
-          { href: '#reviews', label: 'Reviews' },
           { href: '#faqs', label: 'FAQs' },
         ]}
         actions={(

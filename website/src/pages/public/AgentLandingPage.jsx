@@ -1,16 +1,9 @@
 import { useRef } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { IconGlyph } from '../../components/ui/IconGlyph';
-import { ReviewsCarousel } from '../../components/landing/ReviewsCarousel';
 import { FaqAccordion, PremiumLandingFooter, PremiumLandingFrame, PremiumLandingHeader } from '../../components/landing/PremiumLandingKit';
 import { useAuth } from '../../context/AuthContext';
 import { useScrollToTop, useLandingScrollAnimations } from '../../hooks/useLandingPage';
-
-const reviews = [
-  { quote: 'ZIP claims are seamless with Stripe. Coverage updates instantly.', author: 'James K.', rating: 5 },
-  { quote: 'Leads flow in from day one. Best platform for rebate-focused agents.', author: 'Rachel T.', rating: 5 },
-  { quote: 'Listing studio is intuitive. Buyers love the rebate transparency.', author: 'Michael P.', rating: 5 },
-];
 
 const faqs = [
   { q: 'How do ZIP claims work?', a: 'Agents use Stripe to subscribe to ZIP coverage. Once payment is verified, claimed ZIPs update instantly and you can publish listings and receive leads.', icon: 'location' },
@@ -37,7 +30,6 @@ export function AgentLandingPage() {
         links={[
           { href: '#features', label: 'Features' },
           { href: '#flow', label: 'Flow' },
-          { href: '#reviews', label: 'Reviews' },
           { href: '#faqs', label: 'FAQs' },
         ]}
         actions={(

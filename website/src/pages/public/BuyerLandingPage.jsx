@@ -1,7 +1,6 @@
 import { useRef } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { IconGlyph } from '../../components/ui/IconGlyph';
-import { ReviewsCarousel } from '../../components/landing/ReviewsCarousel';
 import { FaqAccordion, PremiumLandingFooter, PremiumLandingFrame, PremiumLandingHeader } from '../../components/landing/PremiumLandingKit';
 import { useAuth } from '../../context/AuthContext';
 import { useScrollToTop, useLandingScrollAnimations } from '../../hooks/useLandingPage';
@@ -27,16 +26,22 @@ const featuredHomes = [
   },
 ];
 
-const reviews = [
-  { quote: 'Saved over $8K on our Manhattan condo. Rebate estimates were spot-on.', author: 'Sarah M.', rating: 5 },
-  { quote: 'Finally a platform that shows real savings upfront. Highly recommend.', author: 'David R.', rating: 5 },
-  { quote: 'Connected with a great agent and got a $6K rebate at closing.', author: 'Jennifer L.', rating: 5 },
-];
-
 const faqs = [
-  { q: 'What is a closing rebate?', a: 'A closing rebate is money credited back to you at closing from your agent or lender. GetaRebate shows estimated rebates so you know potential savings before making an offer.', icon: 'info' },
-  { q: 'How do I find homes in my area?', a: 'Search by ZIP code to see listings and agents in your area. Favorites and proposals help you compare options with full rebate transparency.', icon: 'search' },
-  { q: 'Are rebate estimates accurate?', a: 'Estimates are based on typical BAC percentages. Actual rebates depend on your transaction and the agent or lender you work with.', icon: 'calculator' },
+  {
+    q: 'What is a real estate rebate?',
+    a: 'A real estate rebate is a portion of the agent’s commission that is given back to you at closing. Instead of the full commission going to the agent, part of it is shared with you—putting money back in your pocket when you buy or sell a home.',
+    icon: 'info',
+  },
+  {
+    q: 'How do I find homes in my area?',
+    a: 'Simply create a free account and enter a ZIP code where you’re looking to buy. You’ll be able to browse homes for sale, view open houses, and connect with local agents (when selling and/or buying/building) and loan officers (when buying or building) who service that area.',
+    icon: 'search',
+  },
+  {
+    q: 'Are rebate estimates accurate?',
+    a: 'Rebate estimates are based on the purchase or sale price and an assumed commission. Since commission is negotiable, the exact rebate amount may vary. Our calculators provide a close estimate so you know what to expect—no guessing. Once you know the commission your listing agent charges for the listing side commission and/or what the seller or builder is paying your buyer’s agent, you can then determine a more accurate amount.',
+    icon: 'calculator',
+  },
 ];
 
 export function BuyerLandingPage() {
@@ -58,7 +63,6 @@ export function BuyerLandingPage() {
         links={[
           { href: '#homes', label: 'Homes' },
           { href: '#features', label: 'Features' },
-          { href: '#reviews', label: 'Reviews' },
           { href: '#faqs', label: 'FAQs' },
         ]}
         actions={(
@@ -74,12 +78,11 @@ export function BuyerLandingPage() {
           <div className="lp2-hero-copy">
             <p className="lp2-kicker">For Buyers & Sellers</p>
             <h1 className="lp2-title">
-              Find homes.
-              <span className="lp2-title-accent"> See rebates upfront.</span>
+              Local, Full-Service Real Estate, With Cash Back.
             </h1>
             <p className="lp2-lead">
-              Explore listings, favorite homes, and connect with verified professionals—without waiting
-              until closing to understand your savings.
+              Connect with local agents, explore homes and open houses, and receive a rebate based on the commission—simple, transparent, and built
+              for today’s market.
             </p>
             <div className="lp2-cta">
               <Link className="btn primary" to="/auth">Continue to Login</Link>
@@ -101,7 +104,7 @@ export function BuyerLandingPage() {
           <div className="lp2-hero-media" aria-hidden="true">
             <div
               className="lp2-media-visual lp2-media-visual--photo"
-              style={{ backgroundImage: 'url("https://images.pexels.com/photos/8470800/pexels-photo-8470800.jpeg")' }}
+              style={{ backgroundImage: 'url("/images/buyerSeller.PNG")' }}
             />
             <div className="lp2-media-card lp2-media-card--mid">
               <div className="lp2-media-card-icon"><IconGlyph name="homeWork" filled /></div>
@@ -154,22 +157,22 @@ export function BuyerLandingPage() {
             <article className="lp2-feature">
               <span className="lp2-feature-icon"><IconGlyph name="search" filled /></span>
               <h3>ZIP-Based Search</h3>
-              <p>Find listings and coverage in seconds—rebates included.</p>
+              <p>Find Local Agents to sell your home, get a rebate at closing or a lower listing fee.</p>
             </article>
             <article className="lp2-feature">
-              <span className="lp2-feature-icon"><IconGlyph name="heart" filled /></span>
-              <h3>Favorites & Proposals</h3>
-              <p>Compare options with rebate estimates visible from the start.</p>
+              <span className="lp2-feature-icon"><IconGlyph name="listings" filled /></span>
+              <h3>Advertise your Listing</h3>
+              <p>Potential Buyers search our site/app for homes for sale and open houses, giving you more exposure.</p>
             </article>
             <article className="lp2-feature">
-              <span className="lp2-feature-icon"><IconGlyph name="messages" filled /></span>
-              <h3>Unified Messaging</h3>
-              <p>One inbox for agents and loan officers—less chaos, more clarity.</p>
+              <span className="lp2-feature-icon"><IconGlyph name="handshake" filled /></span>
+              <h3>Also Buying?</h3>
+              <p>Work with your same agent from this site if buying/building locally, or search for a different agent where you plan to move (if in a state that allows rebates).</p>
             </article>
             <article className="lp2-feature">
-              <span className="lp2-feature-icon"><IconGlyph name="dashboard" filled /></span>
-              <h3>Buyer Workspace</h3>
-              <p>Home feed, calculator, and checklists in a clean dashboard.</p>
+              <span className="lp2-feature-icon"><IconGlyph name="calculator" filled /></span>
+              <h3>Calculate your savings</h3>
+              <p>Use the rebate calculator to determine your savings. It's easier to just lower the listing fee, but your savings is the same.</p>
             </article>
           </div>
         </section>

@@ -9166,6 +9166,14 @@ button.dropdown-glass,
   }
 }
 
+/* Small phones (320–480px): ensure the hero photo fills and stays centered */
+@media (max-width: 480px) {
+  .lp2-hero--home {
+    background-size: cover;
+    background-position: right;
+  }
+}
+
 @media (min-width: 1440px) {
   .lp2-hero--home {
     /* Taller band above 1440px: less aggressive vertical crop with cover + more breathing room */
