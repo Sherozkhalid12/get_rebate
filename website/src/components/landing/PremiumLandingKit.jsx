@@ -50,21 +50,30 @@ export function PremiumLandingFooter() {
 
   return (
     <footer className="lp2-footer lp2-surface">
-      <div className="lp2-footer-top">
-        <div className="lp2-footer-brand">
-          <img src="/images/appbarlogo.png" alt="Get a Rebate Real Estate" className="lp2-footer-logo lp2-footer-logo--wide" />
+      <div className="lp2-footer-row">
+        <div className="lp2-footer-col lp2-footer-col--left">
+          <div className="lp2-footer-brand">
+            <img src="/images/appbarlogo.png" alt="Get a Rebate Real Estate" className="lp2-footer-logo lp2-footer-logo--wide" />
+          </div>
+          <div className="lp2-footer-meta-block">
+            <span className="lp2-footer-copy">© {year}</span>
+            <span className="lp2-footer-tagline">Built for modern rebate-first transactions</span>
+          </div>
         </div>
-        <div className="lp2-footer-links" aria-label="Footer">
-          <Link to="/privacy-policy">Privacy</Link>
-          <Link to="/terms-of-service">Terms</Link>
-          <Link to="/about-legal">Legal</Link>
-          <Link to="/help-support">Support</Link>
+        <div className="lp2-footer-col lp2-footer-col--center">
+          <div className="lp2-footer-badges">
+            <img src="/images/fotter1.jpeg" alt="Footer badge 1" className="lp2-footer-badge-img" loading="lazy" decoding="async" />
+            <img src="/images/fotter2.GIF" alt="Footer badge 2" className="lp2-footer-badge-img" loading="lazy" decoding="async" />
+          </div>
         </div>
-      </div>
-      <div className="lp2-footer-bottom">
-        <span>© {year}</span>
-        <span className="lp2-footer-sep" aria-hidden="true" />
-        <span>Built for modern rebate-first transactions</span>
+        <div className="lp2-footer-col lp2-footer-col--right">
+          <nav className="lp2-footer-links" aria-label="Footer">
+            <Link to="/privacy-policy">Privacy</Link>
+            <Link to="/terms-of-service">Terms</Link>
+            <Link to="/about-legal">Legal</Link>
+            <Link to="/help-support">Support</Link>
+          </nav>
+        </div>
       </div>
     </footer>
   );

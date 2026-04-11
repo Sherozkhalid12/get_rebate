@@ -341,7 +341,8 @@ export function RoleSelectionPage() {
         actions={(
           <>
             <Link className="btn ghost tiny" to="/onboarding">Platform Tour</Link>
-            <Link className="btn primary tiny" to="/auth">Login</Link>
+            <Link className="btn ghost tiny" to="/auth?mode=signup">Create account</Link>
+            <Link className="btn primary tiny" to="/auth">Log in</Link>
           </>
         )}
         // rightSlot={<ThemeToggle />}
@@ -456,6 +457,10 @@ export function RoleSelectionPage() {
                   <p>If you are looking to Buy, Build or Sell</p>
                 </div>
               </div>
+              <div className="lp2-role-tile-auth lp2-cta-auth-row">
+                <Link className="btn primary" to="/auth">Log in</Link>
+                <Link className="btn ghost" to="/auth?mode=signup">Create account</Link>
+              </div>
               <p className="lp2-role-tile-sub"><strong>Getting Started is Easy</strong></p>
               <ul className="lp2-bullets">
                 <li>Create a free account — it takes less than a minute</li>
@@ -466,9 +471,8 @@ export function RoleSelectionPage() {
                 <li>Explore open houses in your area</li>
                 <li>Connect with loan officers whose lenders allow rebates</li>
               </ul>
-              <div className="lp2-cta lp2-cta--center lp2-role-tile-cta">
-                <Link className="btn primary" to="/landing/buyer">Explore buyer experience</Link>
-                <Link className="btn ghost" to="/auth">Login / Create an Account</Link>
+              <div className="lp2-role-tile-more">
+                <Link className="btn ghost" to="/landing/buyer">More Buyer/Seller info</Link>
               </div>
             </article>
 
@@ -482,6 +486,10 @@ export function RoleSelectionPage() {
                   <p>Get started and grow your business with ZIP code subscriptions.</p>
                 </div>
               </div>
+              <div className="lp2-role-tile-auth lp2-cta-auth-row">
+                <Link className="btn primary" to="/auth?role=agent">Log in</Link>
+                <Link className="btn ghost" to="/auth?role=agent&mode=signup">Create account</Link>
+              </div>
               <div className="lp2-callout">
                 <strong>Only One Agent Per Zip Code.</strong> Secure Yours Today Before It’s Taken. <strong>First Come First Served.</strong>
               </div>
@@ -491,9 +499,8 @@ export function RoleSelectionPage() {
                 <li>Subscribe to up to 6 zip codes you want to serve</li>
                 <li>Start connecting with local buyers and sellers in and around those zip codes</li>
               </ul>
-              <div className="lp2-cta lp2-cta--center lp2-role-tile-cta">
-                <Link className="btn primary" to="/landing/agent">Explore agent landing</Link>
-                <Link className="btn ghost" to="/auth?role=agent">Agent login / Create an Account</Link>
+              <div className="lp2-role-tile-more">
+                <Link className="btn ghost" to="/landing/agent">More Agent info</Link>
               </div>
             </article>
 
@@ -507,6 +514,10 @@ export function RoleSelectionPage() {
                   <p>Claim ZIP coverage and stay compliant with rebate-friendly lending requirements.</p>
                 </div>
               </div>
+              <div className="lp2-role-tile-auth lp2-cta-auth-row">
+                <Link className="btn primary" to="/auth?role=loanOfficer">Log in</Link>
+                <Link className="btn ghost" to="/auth?role=loanOfficer&mode=signup">Create account</Link>
+              </div>
               <div className="lp2-callout">
                 <strong>Only One Loan Officer Per Zip Code.</strong> Secure Yours Today Before It’s Taken. <strong>First Come First Served.</strong>
               </div>
@@ -516,9 +527,8 @@ export function RoleSelectionPage() {
                 <li>Claim your zip codes by subscribing to up to 6 areas you serve</li>
                 <li>Start responding to local buyers looking to buy or build in and around those zip codes</li>
               </ul>
-              <div className="lp2-cta lp2-cta--center lp2-role-tile-cta">
-                <Link className="btn primary" to="/landing/loan-officer">Explore loan officer landing</Link>
-                <Link className="btn ghost" to="/auth?role=loanOfficer">Loan Officer login / Create an Account</Link>
+              <div className="lp2-role-tile-more">
+                <Link className="btn ghost" to="/landing/loan-officer">More Loan Officer info</Link>
               </div>
             </article>
           </div>
@@ -560,9 +570,14 @@ export function RoleSelectionPage() {
                   <li>Contact local agents and lenders directly, anytime</li>
                   <li>Work only with professionals who offer you savings</li>
                 </ul>
-                <div className="lp2-cta">
-                  <Link className="btn primary" to="/landing/buyer">Explore buyer experience</Link>
-                  <Link className="btn ghost" to="/auth">Login</Link>
+                <div className="lp2-cta lp2-cta-auth-stack">
+                  <div className="lp2-cta-auth-row">
+                    <Link className="btn primary" to="/auth">Log in</Link>
+                    <Link className="btn ghost" to="/auth?mode=signup">Create account</Link>
+                  </div>
+                  <div className="lp2-cta-more-row">
+                    <Link className="btn ghost" to="/landing/buyer">More Buyer/Seller info</Link>
+                  </div>
                 </div>
               </div>
             </article>
@@ -587,9 +602,14 @@ export function RoleSelectionPage() {
                 <li>Subscribe to up to 6 zip codes you want to serve</li>
                 <li>Start connecting with local buyers and sellers in and around those zip codes</li>
               </ul>
-              <div className="lp2-cta">
-                <Link className="btn primary" to="/landing/agent">Explore agent landing</Link>
-                <Link className="btn ghost" to="/auth?role=agent">Agent login</Link>
+              <div className="lp2-cta lp2-cta-auth-stack">
+                <div className="lp2-cta-auth-row">
+                  <Link className="btn primary" to="/auth?role=agent">Log in</Link>
+                  <Link className="btn ghost" to="/auth?role=agent&mode=signup">Create account</Link>
+                </div>
+                <div className="lp2-cta-more-row">
+                  <Link className="btn ghost" to="/landing/agent">More Agent info</Link>
+                </div>
               </div>
             </article>
 
@@ -631,9 +651,14 @@ export function RoleSelectionPage() {
                 <li>Close unlimited transactions with no additional costs, no contracts, and no referral fees</li>
                 <li>Cancel anytime with 30 days’ notice</li>
               </ul>
-              <div className="lp2-cta">
-                <Link className="btn primary" to="/landing/loan-officer">Explore loan officer landing</Link>
-                <Link className="btn ghost" to="/auth?role=loanOfficer">Loan officer login</Link>
+              <div className="lp2-cta lp2-cta-auth-stack">
+                <div className="lp2-cta-auth-row">
+                  <Link className="btn primary" to="/auth?role=loanOfficer">Log in</Link>
+                  <Link className="btn ghost" to="/auth?role=loanOfficer&mode=signup">Create account</Link>
+                </div>
+                <div className="lp2-cta-more-row">
+                  <Link className="btn ghost" to="/landing/loan-officer">More Loan Officer info</Link>
+                </div>
               </div>
             </article>
 
@@ -687,9 +712,14 @@ export function RoleSelectionPage() {
             <h2>Ready to Get Started?</h2>
             <p>Log in and pick your role to see live data: coverage, listings, leads, and rebate journeys.</p>
           </div>
-          <div className="lp2-cta-row">
-            <Link className="btn primary" to="/auth">Login to GetaRebate</Link>
-            <Link className="btn ghost" to="/onboarding">See Full Platform Tour</Link>
+          <div className="lp2-cta-row lp2-cta-auth-stack">
+            <div className="lp2-cta-auth-row">
+              <Link className="btn primary" to="/auth">Log in</Link>
+              <Link className="btn ghost" to="/auth?mode=signup">Create account</Link>
+            </div>
+            <div className="lp2-cta-more-row">
+              <Link className="btn ghost" to="/onboarding">See full platform tour</Link>
+            </div>
           </div>
         </section>
 

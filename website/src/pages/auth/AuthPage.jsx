@@ -37,8 +37,9 @@ export function AuthPage() {
   const initialRole = [USER_ROLES.AGENT, USER_ROLES.LOAN_OFFICER].includes(roleFromUrl)
     ? roleFromUrl
     : USER_ROLES.BUYER_SELLER;
+  const initialMode = searchParams.get('mode') === 'signup' ? 'signup' : 'login';
 
-  const [mode, setMode] = useState('login');
+  const [mode, setMode] = useState(initialMode);
   const [error, setError] = useState('');
   const [form, setForm] = useState({
     name: '',

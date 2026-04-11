@@ -70,7 +70,7 @@ export function AgentLandingPage() {
           <div className="lp2-hero-media" aria-hidden="true">
             <div
               className="lp2-media-visual lp2-media-visual--photo"
-              style={{ backgroundImage: 'url("https://images.pexels.com/photos/7578859/pexels-photo-7578859.jpeg")' }}
+              style={{ backgroundImage: 'url("/images/AgentLandingPageTopPic.webp")' }}
             />
             <div className="lp2-media-card lp2-media-card--top">
               <div className="lp2-media-card-icon"><IconGlyph name="verified" filled /></div>
@@ -146,8 +146,7 @@ export function AgentLandingPage() {
               <div
                 className="lp2-flow-card-art"
                 style={{
-                  backgroundImage:
-                    'url("https://images.unsplash.com/photo-1560518883-ce09059eeffa?auto=format&fit=crop&w=1200&q=80")',
+                  backgroundImage: 'url("/images/ZipCodeSearchAgentAndLoanOfficerLandinPage.webp")',
                 }}
                 aria-hidden="true"
               />
@@ -161,8 +160,7 @@ export function AgentLandingPage() {
               <div
                 className="lp2-flow-card-art"
                 style={{
-                  backgroundImage:
-                    'url("https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=1200&q=80")',
+                  backgroundImage: 'url("/images/Publish%20Listings.webp")',
                 }}
                 aria-hidden="true"
               />
@@ -176,8 +174,7 @@ export function AgentLandingPage() {
               <div
                 className="lp2-flow-card-art"
                 style={{
-                  backgroundImage:
-                    'url("https://images.unsplash.com/photo-1556740749-887f6717d7e4?auto=format&fit=crop&w=1200&q=80")',
+                  backgroundImage: 'url("/images/Work%20Leads.webp")',
                 }}
                 aria-hidden="true"
               />

@@ -244,7 +244,8 @@ export function LandingPage() {
         </nav>
         <div className="landing-nav-actions">
           <Link className="btn ghost tiny" to="/onboarding">Platform Tour</Link>
-          <Link className="btn primary tiny" to="/auth">Login</Link>
+          <Link className="btn ghost tiny" to="/auth?mode=signup">Create account</Link>
+          <Link className="btn primary tiny" to="/auth">Log in</Link>
         </div>
       </header>
 
@@ -257,9 +258,15 @@ export function LandingPage() {
               Get a quick estimate in seconds, then connect with rebate-friendly pros who can walk you
               through the details.
             </p>
-            <div className="hero-cta">
-              <a className="btn primary" href="#faqs">Get questions answered</a>
-              <Link className="btn ghost" to="/help-support">Contact support</Link>
+            <div className="hero-cta hero-cta-stack">
+              <div className="hero-cta-primary-auth">
+                <Link className="btn primary hero-cta-auth-btn" to="/auth">Log in</Link>
+                <Link className="btn ghost hero-cta-auth-btn" to="/auth?mode=signup">Create account</Link>
+              </div>
+              <div className="hero-cta-secondary">
+                <a className="btn ghost" href="#faqs">More info</a>
+                <Link className="btn ghost" to="/help-support">Contact support</Link>
+              </div>
             </div>
           </div>
 
@@ -594,25 +601,30 @@ export function LandingPage() {
       </main>
 
       <footer className="landing-footer glass-card">
-        <div className="landing-footer-inner">
-          <div className="landing-footer-brand">
-            <img src="/images/Logo_2.svg" alt="GetaRebate" className="landing-footer-logo" />
-            <div>
-              <strong>GetaRebate</strong>
-              <p>Rebate transparency for buyers, agents, and loan officers.</p>
+        <div className="landing-footer-row">
+          <div className="landing-footer-col landing-footer-col--left">
+            <div className="landing-footer-brand-stack">
+              <img src="/images/Logo_2.svg" alt="GetaRebate" className="landing-footer-logo landing-footer-logo--wide" />
+            </div>
+            <div className="landing-footer-meta-block">
+              <span className="landing-footer-copy">© {new Date().getFullYear()}</span>
+              <span className="landing-footer-tagline">Built for modern rebate-first transactions</span>
             </div>
           </div>
-          <div className="landing-footer-links">
-            <Link to="/privacy-policy">Privacy</Link>
-            <Link to="/terms-of-service">Terms</Link>
-            <Link to="/about-legal">Legal</Link>
-            <Link to="/help-support">Support</Link>
+          <div className="landing-footer-col landing-footer-col--center">
+            <div className="landing-footer-badges">
+              <img src="/images/fotter1.jpeg" alt="Footer badge 1" className="landing-footer-badge-img" loading="lazy" decoding="async" />
+              <img src="/images/fotter2.GIF" alt="Footer badge 2" className="landing-footer-badge-img" loading="lazy" decoding="async" />
+            </div>
           </div>
-        </div>
-        <div className="landing-footer-bottom">
-          <span>© {new Date().getFullYear()} GetaRebate</span>
-          <span className="landing-footer-sep" aria-hidden="true" />
-          <span>Built for modern rebate-first transactions</span>
+          <div className="landing-footer-col landing-footer-col--right">
+            <nav className="landing-footer-links" aria-label="Footer">
+              <Link to="/privacy-policy">Privacy</Link>
+              <Link to="/terms-of-service">Terms</Link>
+              <Link to="/about-legal">Legal</Link>
+              <Link to="/help-support">Support</Link>
+            </nav>
+          </div>
         </div>
       </footer>
     </div>

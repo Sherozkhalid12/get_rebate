@@ -70,7 +70,7 @@ export function LoanOfficerLandingPage() {
           <div className="lp2-hero-media" aria-hidden="true">
             <div
               className="lp2-media-visual lp2-media-visual--photo"
-              style={{ backgroundImage: 'url("https://images.pexels.com/photos/8293637/pexels-photo-8293637.jpeg")' }}
+              style={{ backgroundImage: 'url("/images/TopPicLoanOfficerLandingPage.webp")' }}
             />
             <div className="lp2-media-card lp2-media-card--top">
               <div className="lp2-media-card-icon"><IconGlyph name="location" filled /></div>
@@ -146,8 +146,7 @@ export function LoanOfficerLandingPage() {
               <div
                 className="lp2-flow-card-art"
                 style={{
-                  backgroundImage:
-                    'url("https://images.unsplash.com/photo-1554224155-6726b3ff858f?auto=format&fit=crop&w=1200&q=80")',
+                  backgroundImage: 'url("/images/ZipCodeSearchAgentAndLoanOfficerLandinPage.webp")',
                 }}
                 aria-hidden="true"
               />
@@ -161,14 +160,16 @@ export function LoanOfficerLandingPage() {
               <div
                 className="lp2-flow-card-art"
                 style={{
-                  backgroundImage:
-                    'url("https://images.unsplash.com/photo-1450101499163-c8848c66ca85?auto=format&fit=crop&w=1200&q=80")',
+                  backgroundImage: 'url("/images/loan%20officer%20landing.webp")',
                 }}
                 aria-hidden="true"
               />
               <div className="lp2-flow-card-body">
-                <h3>Add Loan Programs</h3>
-                <p>Publish loan products tied to your coverage so buyers discover you early.</p>
+                <h3>Connect with Serious Buyers</h3>
+                <p>
+                  Show up where motivated buyers search and compare loan officers—aligned with your claimed ZIP
+                  coverage and programs.
+                </p>
               </div>
             </article>
 
@@ -176,14 +177,16 @@ export function LoanOfficerLandingPage() {
               <div
                 className="lp2-flow-card-art"
                 style={{
-                  backgroundImage:
-                    'url("https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=1200&q=80")',
+                  backgroundImage: 'url("/images/Work%20Borrower%20Leads.webp")',
                 }}
                 aria-hidden="true"
               />
               <div className="lp2-flow-card-body">
-                <h3>Work Borrower Leads</h3>
-                <p>Track checklists and leads from the same workspace—built for consistency.</p>
+                <h3>Work with Local Agents</h3>
+                <p>
+                  Collaborate with agents in your ZIPs, stay visible on shared buyer journeys, and keep checklists and
+                  leads in one workspace.
+                </p>
               </div>
             </article>
           </div>
