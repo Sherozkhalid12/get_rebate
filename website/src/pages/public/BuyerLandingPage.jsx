@@ -157,22 +157,49 @@ export function BuyerLandingPage() {
             <article className="lp2-feature">
               <span className="lp2-feature-icon"><IconGlyph name="search" filled /></span>
               <h3>ZIP-Based Search</h3>
-              <p>Find Local Agents to sell your home, get a rebate at closing or a lower listing fee.</p>
+              <p>Find local real estate pros, homes for sale, and open houses in seconds. Rebates included.</p>
+            </article>
+            <article className="lp2-feature">
+              <span className="lp2-feature-icon"><IconGlyph name="favorite" filled /></span>
+              <h3>Favorites &amp; Proposals</h3>
+              <p>Compare options with rebate estimates visible from the start.</p>
+            </article>
+            <article className="lp2-feature">
+              <span className="lp2-feature-icon"><IconGlyph name="messages" filled /></span>
+              <h3>Unified Messaging</h3>
+              <p>One inbox for agents and loan officers - less chaos, more clarity.</p>
+            </article>
+            <article className="lp2-feature">
+              <span className="lp2-feature-icon"><IconGlyph name="dashboard" filled /></span>
+              <h3>Buyer Workspace</h3>
+              <p>Home feed, calculator, and checklists in a clean dashboard.</p>
+            </article>
+          </div>
+
+          <div className="lp2-section-head" style={{ marginTop: '1.1rem' }}>
+            <h2>Why Sellers Choose GetaRebate</h2>
+            <p>Local agents know your market better, city requirements, pricing, and more.</p>
+          </div>
+          <div className="lp2-grid lp2-grid--4">
+            <article className="lp2-feature">
+              <span className="lp2-feature-icon"><IconGlyph name="search" filled /></span>
+              <h3>ZIP-Based Search</h3>
+              <p>Find local agents to sell your home, get a rebate at closing, or lower your listing fee.</p>
             </article>
             <article className="lp2-feature">
               <span className="lp2-feature-icon"><IconGlyph name="listings" filled /></span>
               <h3>Advertise your Listing</h3>
-              <p>Potential Buyers search our site/app for homes for sale and open houses, giving you more exposure.</p>
+              <p>Potential buyers search our site/app for homes for sale and open houses, giving you more exposure.</p>
             </article>
             <article className="lp2-feature">
               <span className="lp2-feature-icon"><IconGlyph name="handshake" filled /></span>
               <h3>Also Buying?</h3>
-              <p>Work with your same agent from this site if buying/building locally, or search for a different agent where you plan to move (if in a state that allows rebates).</p>
+              <p>Work with your same agent from this site if buying/building locally, or search for a different agent where you plan to move.</p>
             </article>
             <article className="lp2-feature">
               <span className="lp2-feature-icon"><IconGlyph name="calculator" filled /></span>
               <h3>Calculate your savings</h3>
-              <p>Use the rebate calculator to determine your savings. It's easier to just lower the listing fee, but your savings is the same.</p>
+              <p>Use the rebate calculator to estimate your savings. Lower listing fee or rebate at closing - your savings are the same.</p>
             </article>
           </div>
         </section>

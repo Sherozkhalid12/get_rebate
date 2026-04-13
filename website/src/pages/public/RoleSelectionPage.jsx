@@ -195,12 +195,25 @@ export function RoleSelectionPage() {
 
   const tierEstimates = useMemo(() => {
     if (!purchasePrice) return [];
+    const isHighSalesPrice = purchasePrice >= 700_000;
+    const tier4 = REBATE_TIERS.find((t) => t.tier === 4);
     return REBATE_TIERS.map((t) => {
-      const min = Math.round(purchasePrice * t.minCommissionPct * t.rebateSharePct);
+      if (t.tier === 7) {
+        return {
+          tier: t.tier,
+          commissionRange: t.commissionRange,
+          rebateShare: t.rebateShare,
+          minAmount: 0,
+          maxAmount: 0,
+        };
+      }
+
+      const effectiveTier = isHighSalesPrice && (t.tier === 5 || t.tier === 6) && tier4 ? tier4 : t;
+      const min = Math.round(purchasePrice * effectiveTier.minCommissionPct * effectiveTier.rebateSharePct);
       const max =
-        t.maxCommissionPct == null
+        effectiveTier.maxCommissionPct == null
           ? null
-          : Math.round(purchasePrice * t.maxCommissionPct * t.rebateSharePct);
+          : Math.round(purchasePrice * effectiveTier.maxCommissionPct * effectiveTier.rebateSharePct);
       return {
         tier: t.tier,
         commissionRange: t.commissionRange,
@@ -227,7 +240,8 @@ export function RoleSelectionPage() {
               We allow one agent per zip code—first come, first served. If a zip code is taken, you can join the waiting list or choose a nearby area.
             </p>
             <p>
-              Once subscribed, you’re instantly live. All agents agree to offer rebates based on commission using our 7-tier structure.{' '}
+              Once subscribed, you’re instantly live. All agents agree to offer rebates based on commission using our 7-tier structure. For homes
+              priced at $700,000 or higher, tiers 5 and 6 use the same rebate estimate as tier 4, and tier 7 is always $0.{' '}
               <button type="button" className="btn link" onClick={() => setTiersOpen(true)}>
                 View the 7 tiers
               </button>
@@ -264,8 +278,8 @@ export function RoleSelectionPage() {
             <div className="lp2-tier-grid" role="table" aria-label="Rebate tiers">
               <div className="lp2-tier-row lp2-tier-row--head" role="row">
                 <span role="columnheader">Tier</span>
-                <span role="columnheader">Commission range</span>
-                <span role="columnheader">Rebate share</span>
+                <span role="columnheader">If your agent&apos;s commission is</span>
+                <span role="columnheader">Then your rebate could be</span>
               </div>
               {REBATE_TIERS.map((t) => (
                 <div key={t.tier} className="lp2-tier-row" role="row">
@@ -411,9 +425,9 @@ export function RoleSelectionPage() {
               <div className="hero-tier-table" role="table" aria-label="Tier estimates">
                 <div className="hero-tier-row hero-tier-row--head" role="row">
                   <span role="columnheader">Tier</span>
-                  <span role="columnheader">Commission range</span>
-                  <span role="columnheader">Rebate share</span>
-                  <span role="columnheader">Estimated rebate</span>
+                  <span role="columnheader">If your agent&apos;s commission is</span>
+                  <span role="columnheader">Then your rebate could be</span>
+                  <span role="columnheader">For an estimated total of</span>
                 </div>
                 {tierEstimates.map((t) => (
                   <div key={t.tier} className="hero-tier-row" role="row">

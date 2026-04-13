@@ -178,6 +178,7 @@ export function LoanOfficerLandingPage() {
                 className="lp2-flow-card-art"
                 style={{
                   backgroundImage: 'url("/images/Work%20Borrower%20Leads.webp")',
+                  backgroundPosition: 'right center',
                 }}
                 aria-hidden="true"
               />
