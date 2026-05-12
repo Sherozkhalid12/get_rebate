@@ -32,6 +32,7 @@ export function VerifyOtpPage() {
       <form className="glass-card auth-card" onSubmit={submit}>
         <h2>Email Verification</h2>
         <p>Enter the code sent to {email || 'your email'}.</p>
+        <p className="form-hint">If you uploaded photos or a video, avoid refreshing this page—your browser may need to resend those files.</p>
         <input value={otp} onChange={(e) => setOtp(e.target.value)} placeholder="6-digit OTP" required />
         {error ? <p className="error-text">{error}</p> : null}
         <button type="submit" className="btn primary btn-with-loader" disabled={loading}>

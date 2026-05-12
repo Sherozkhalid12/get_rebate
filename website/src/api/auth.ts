@@ -12,7 +12,7 @@ export async function verifyOtp(email: string, otp: string) {
   return http.post('/auth/verifyOtp', { email, otp });
 }
 
-export async function createUser(payload: Record<string, unknown>) {
+export async function createUser(payload: Record<string, unknown> | FormData) {
   return http.post('/auth/createUser', payload);
 }
 

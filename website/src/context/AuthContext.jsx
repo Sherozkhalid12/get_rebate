@@ -5,6 +5,8 @@ import { normalizeRole, resolveUserId, unwrapObject, extractUserFromGetUserById 
 import * as authApi from '../api/auth';
 import * as userApi from '../api/user';
 import { initSocket, disconnectSocket } from '../lib/socket';
+import { buildCreateUserFormData } from '../lib/buildCreateUserFormData';
+import { getPendingSignupFiles, clearPendingSignupFiles, setPendingSignupFiles } from '../lib/pendingSignupFiles';
 
 const AuthContext = createContext(null);
 const seedUser = storage.get('current_user', null);
@@ -97,10 +99,11 @@ export function AuthProvider({ children }) {
     }
   };
 
-  const signup = async (payload) => {
+  const signup = async (payload, signupFiles = {}) => {
     setLoading(true);
     try {
       await authApi.sendVerificationEmail(payload.email);
+      setPendingSignupFiles(signupFiles);
       storage.set('pending_signup', payload);
     } finally {
       setLoading(false);
@@ -114,7 +117,18 @@ export function AuthProvider({ children }) {
       const pending = storage.get('pending_signup', null);
       if (!pending) throw new Error('Signup session expired. Please register again.');
 
-      const result = await authApi.createUser(pending);
+      const files = getPendingSignupFiles();
+      const hasFiles = Boolean(files.profilePic || files.companyLogo || files.video);
+      const useMultipart =
+        hasFiles
+        || pending.role === USER_ROLES.AGENT
+        || pending.role === USER_ROLES.LOAN_OFFICER;
+
+      const result = useMultipart
+        ? await authApi.createUser(buildCreateUserFormData(pending, files))
+        : await authApi.createUser(pending);
+
+      clearPendingSignupFiles();
       const token = result?.token || result?.data?.token;
       const signupUser = normalizeUser(result?.user || result?.data?.user || result?.data);
       const signupUserId = signupUser?.id ?? signupUser?._id ?? signupUser?.userId;
@@ -142,9 +156,10 @@ export function AuthProvider({ children }) {
     disconnectSocket();
     storage.remove('auth_token');
     storage.remove('current_user');
-    storage.remove('pending_signup');
-    setUser(null);
-  };
+      storage.remove('pending_signup');
+      clearPendingSignupFiles();
+      setUser(null);
+    };
 
   const value = useMemo(
     () => ({

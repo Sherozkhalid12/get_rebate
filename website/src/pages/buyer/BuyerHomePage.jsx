@@ -87,6 +87,42 @@ function filterListingsByZipMap(rows, zipMap) {
   });
 }
 
+function normalizeZip(val) {
+  return String(val ?? '').trim();
+}
+
+function getListingZip(row) {
+  const source = row?.raw?.listing || row?.raw;
+  return normalizeZip(source?.zipCode || source?.zipcode || source?.postalCode || source?.address?.zip);
+}
+
+function sortRowsByZipProximity(rows, zipMap, exactZip, getCandidateZips) {
+  if (!zipMap || Object.keys(zipMap).length === 0 || !exactZip) return rows;
+  const exact = normalizeZip(exactZip);
+  const enriched = rows.map((row, idx) => {
+    const zips = (getCandidateZips(row) || []).map(normalizeZip).filter(Boolean);
+    const distances = zips
+      .map((z) => {
+        const d = zipMap[z];
+        return Number.isFinite(d) ? { zip: z, distance: d } : null;
+      })
+      .filter(Boolean);
+    if (distances.length === 0) return { row, idx, matched: false, isExact: false, distance: Infinity };
+    const best = distances.reduce((min, cur) => (cur.distance < min.distance ? cur : min), distances[0]);
+    const isExact = distances.some((d) => d.zip === exact);
+    return { row, idx, matched: true, isExact, distance: best.distance };
+  });
+
+  return enriched
+    .filter((e) => e.matched)
+    .sort((a, b) => {
+      if (a.isExact !== b.isExact) return a.isExact ? -1 : 1;
+      if (a.distance !== b.distance) return a.distance - b.distance;
+      return a.idx - b.idx;
+    })
+    .map((e) => e.row);
+}
+
 const TAB_CONFIG = [
   { key: 'agents', label: 'Agents', icon: 'person', color: 'blue' },
   { key: 'homes', label: 'Homes for Sale', icon: 'home', color: 'purple' },
@@ -132,18 +168,25 @@ export function BuyerHomePage() {
   const [loanOfficers, setLoanOfficers] = useState([]);
   const [favoriteIds, setFavoriteIds] = useState(new Set());
   const [within10MilesMap, setWithin10MilesMap] = useState({});
+  const [searchedZip, setSearchedZip] = useState('');
+  const [visibleAgentsCount, setVisibleAgentsCount] = useState(10);
+  const resultsRef = useRef(null);
 
   const userId = resolveUserId(user);
   const showToastRef = useRef(showToast);
   showToastRef.current = showToast;
 
-  const load = useCallback(async (zip = '') => {
+  const load = useCallback(async (zip = '', options = {}) => {
+    const { scrollToResults = false } = options;
     setLoading(true);
     setError('');
     let zipMap = {};
-    if (zip && /^\d{5}$/.test(String(zip).trim())) {
+    const normalizedZip = normalizeZip(zip);
+    const hasValidZip = /^\d{5}$/.test(normalizedZip);
+    setSearchedZip(hasValidZip ? normalizedZip : '');
+    if (hasValidZip) {
       try {
-        zipMap = await zipApi.getZipCodesWithinMiles(zip.trim(), 10);
+        zipMap = await zipApi.getZipCodesWithinMiles(normalizedZip, 10);
         setWithin10MilesMap(zipMap);
       } catch (e) {
         setWithin10MilesMap({});
@@ -200,9 +243,14 @@ export function BuyerHomePage() {
       const msg = failures.length === 3 ? 'Unable to load data. Please try again.' : 'Some data could not be loaded.';
       setError(msg);
       showToastRef.current({ type: 'error', message: msg });
-    } else if (zip && Object.keys(zipMap).length > 0) {
-      showToastRef.current({ type: 'success', message: `Found results for ZIP ${zip}` });
-      if (zip) marketplaceApi.addAgentSearch(zip).catch(() => {});
+    } else if (hasValidZip && Object.keys(zipMap).length > 0) {
+      showToastRef.current({ type: 'success', message: `Found results for ZIP ${normalizedZip}` });
+      marketplaceApi.addAgentSearch(normalizedZip).catch(() => {});
+    }
+    if (scrollToResults) {
+      requestAnimationFrame(() => {
+        resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
     }
     setLoading(false);
   }, [userId]);
@@ -226,6 +274,10 @@ export function BuyerHomePage() {
       load(String(prefillZip).trim());
     }
   }, [location.state?.prefillZip, location.state?.zip]);
+
+  useEffect(() => {
+    setVisibleAgentsCount(10);
+  }, [searchedZip]);
 
   const openRow = useCallback(async (row) => {
     if (!row?.id) return;
@@ -331,13 +383,23 @@ export function BuyerHomePage() {
 
   const tabData = useMemo(() => {
     const zipMap = within10MilesMap;
-    return {
-      agents: filterAgentsByZipMap(agents, zipMap),
-      homes: filterListingsByZipMap(listings, zipMap),
-      openHouses: filterListingsByZipMap(openHouses, zipMap),
-      loanOfficers: filterLoanOfficersByZipMap(loanOfficers, zipMap),
+    const applySearchRanking = (rows, getZips) => {
+      if (!searchedZip) return rows;
+      return sortRowsByZipProximity(rows, zipMap, searchedZip, getZips);
     };
-  }, [agents, listings, openHouses, loanOfficers, within10MilesMap]);
+
+    const filteredAgents = filterAgentsByZipMap(agents, zipMap);
+    const filteredHomes = filterListingsByZipMap(listings, zipMap);
+    const filteredOpenHouses = filterListingsByZipMap(openHouses, zipMap);
+    const filteredLoanOfficers = filterLoanOfficersByZipMap(loanOfficers, zipMap);
+
+    return {
+      agents: applySearchRanking(filteredAgents, (row) => getClaimedZips(row?.raw)),
+      homes: applySearchRanking(filteredHomes, (row) => [getListingZip(row)]),
+      openHouses: applySearchRanking(filteredOpenHouses, (row) => [getListingZip(row)]),
+      loanOfficers: applySearchRanking(filteredLoanOfficers, (row) => getClaimedZips(row?.raw)),
+    };
+  }, [agents, listings, openHouses, loanOfficers, within10MilesMap, searchedZip]);
 
   const kpis = useMemo(() => [
     { label: 'Agents Found', value: String(tabData.agents.length) },
@@ -348,6 +410,8 @@ export function BuyerHomePage() {
 
   const currentTabConfig = TAB_CONFIG.find((t) => t.key === activeTab);
   const isEmpty = tabData[activeTab].length === 0;
+  const visibleAgents = searchedZip ? tabData.agents.slice(0, visibleAgentsCount) : tabData.agents;
+  const hasMoreAgents = searchedZip && tabData.agents.length > visibleAgents.length;
 
   return (
     <div className="page-body">
@@ -365,7 +429,7 @@ export function BuyerHomePage() {
             placeholder="Enter ZIP code (e.g. 10001)"
             onLocationError={(msg) => showToast({ type: 'error', message: msg })}
             onLocationPicked={({ zip }) => {
-              if (zip) load(zip);
+              if (zip) load(zip, { scrollToResults: true });
             }}
           />
           <button
@@ -377,7 +441,7 @@ export function BuyerHomePage() {
                 showToast({ type: 'error', message: 'Please enter a valid 5-digit ZIP code' });
                 return;
               }
-              load(z || '');
+              load(z || '', { scrollToResults: true });
             }}
           >
             Search
@@ -388,7 +452,7 @@ export function BuyerHomePage() {
               type="button"
               onClick={() => {
                 setZipCode('');
-                load('');
+                load('', { scrollToResults: true });
                 showToast({ type: 'info', message: 'Showing all results' });
               }}
             >
@@ -409,7 +473,7 @@ export function BuyerHomePage() {
         ]}
       />
 
-      <section className="glass-card buyer-market">
+      <section ref={resultsRef} className="glass-card buyer-market">
         <div className="buyer-home-tabs">
           {TAB_CONFIG.map((tab) => (
             <button
@@ -441,7 +505,7 @@ export function BuyerHomePage() {
 
         {!loading && !error && !isEmpty && activeTab === 'agents' && (
           <div className="buyer-cards-grid buyer-cards-grid--profile">
-            {tabData.agents.map((item) => (
+            {visibleAgents.map((item) => (
               <AgentCard
                 key={item.id}
                 agent={item.raw}
@@ -451,6 +515,15 @@ export function BuyerHomePage() {
                 onToggleFavorite={() => favoriteRow(item)}
               />
             ))}
+            {hasMoreAgents ? (
+              <button
+                type="button"
+                className="btn ghost"
+                onClick={() => setVisibleAgentsCount((count) => count + 10)}
+              >
+                Load more
+              </button>
+            ) : null}
           </div>
         )}
 

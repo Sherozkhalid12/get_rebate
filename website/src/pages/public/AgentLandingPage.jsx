@@ -6,9 +6,21 @@ import { useAuth } from '../../context/AuthContext';
 import { useScrollToTop, useLandingScrollAnimations } from '../../hooks/useLandingPage';
 
 const faqs = [
-  { q: 'How do ZIP claims work?', a: 'Agents use Stripe to subscribe to ZIP coverage. Once payment is verified, claimed ZIPs update instantly and you can publish listings and receive leads.', icon: 'location' },
-  { q: 'What can I add to listings?', a: 'Photos, BAC %, property details, and open houses – all using the same API as the mobile app. Listings appear in the buyer marketplace for your claimed ZIPs.', icon: 'listings' },
-  { q: 'How do I manage leads?', a: 'Buyers submit lead forms from your listings. Manage leads, send proposals, and close deals in your dashboard with messages and proposals.', icon: 'leads' },
+  {
+    q: 'How do ZIP code claims work?',
+    a: 'Agents subscribe to ZIP code coverage through secure Stripe checkout. Once payment is verified, your claimed ZIPs activate instantly—allowing you to publish listings and start receiving leads.',
+    icon: 'location',
+  },
+  {
+    q: 'What can I add to listings?',
+    a: 'Upload photos, BAC %, property details, and open houses—all powered by the same system as the mobile app. Your listings are showcased in the buyer marketplace for maximum exposure.',
+    icon: 'listings',
+  },
+  {
+    q: 'How do I manage leads?',
+    a: 'Buyers submit inquiries directly from your listings or your profile. Manage leads, send proposals, and communicate seamlessly—all within your dashboard.',
+    icon: 'leads',
+  },
 ];
 
 export function AgentLandingPage() {
@@ -105,9 +117,9 @@ export function AgentLandingPage() {
             <article className="lp2-feature-card">
               <div className="lp2-feature-card-top">
                 <span className="lp2-feature-icon"><IconGlyph name="location" filled /></span>
-                <h3>ZIP Console</h3>
+                <h3>ZIP Code Console</h3>
               </div>
-              <p>State-wide ZIP inventory, Stripe checkout, and dashboards that update instantly after payment verification.</p>
+              <p>Access statewide ZIP inventory, seamless secure checkout, and real-time dashboards that update instantly after your subscription is activated.</p>
             </article>
 
             <article className="lp2-feature-card">
@@ -166,7 +178,7 @@ export function AgentLandingPage() {
               />
               <div className="lp2-flow-card-body">
                 <h3>Publish Listings</h3>
-                <p>Upload photos, BAC %, and open houses. Listings appear for buyers in your claimed ZIPs.</p>
+                <p>Add photos, BAC %, and open houses. Your listings are showcased to buyers, giving you and your listings more exposure.</p>
               </div>
             </article>
 
