@@ -1,9 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PageHeader } from '../../components/layout/PageHeader';
 import { useAuth } from '../../context/AuthContext';
 import { resolveUserId, extractUserFromGetUserById } from '../../lib/api';
+import { USER_ROLES } from '../../lib/constants';
 import { firstImageFromEntity } from '../../lib/media';
+import { buildUpdateUserProfileFormData } from '../../lib/buildUpdateUserProfileFormData';
+import { MediaUploadField } from '../../components/ui/MediaUploadField';
 import * as userApi from '../../api/user';
 import { useToast } from '../../components/ui/ToastProvider';
 import { IconGlyph } from '../../components/ui/IconGlyph';
@@ -19,12 +22,22 @@ export function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [profilePicFile, setProfilePicFile] = useState(null);
   const [form, setForm] = useState({
     fullname: '',
     email: '',
     phone: '',
     bio: '',
   });
+
+  const profileObjectUrl = useMemo(() => {
+    if (!(profilePicFile instanceof File)) return '';
+    return URL.createObjectURL(profilePicFile);
+  }, [profilePicFile]);
+
+  useEffect(() => () => {
+    if (profileObjectUrl) URL.revokeObjectURL(profileObjectUrl);
+  }, [profileObjectUrl]);
 
   useEffect(() => {
     let live = true;
@@ -64,6 +77,7 @@ export function ProfilePage() {
   const handleEdit = () => setIsEditing(true);
   const handleCancel = () => {
     setIsEditing(false);
+    setProfilePicFile(null);
     if (userId) {
       userApi.getUserById(userId)
         .then((res) => {
@@ -94,18 +108,23 @@ export function ProfilePage() {
     }
     setSaving(true);
     try {
-      const payload = {
-        fullname: trimmed,
-        email: form.email.trim(),
-        ...(form.phone?.trim() ? { phone: form.phone.trim() } : {}),
-        ...(form.bio?.trim() ? { bio: form.bio.trim() } : {}),
-      };
-      const res = await userApi.updateUser(userId, payload);
+      const fd = buildUpdateUserProfileFormData(
+        USER_ROLES.BUYER_SELLER,
+        {
+          fullname: trimmed,
+          email: form.email.trim(),
+          phone: form.phone?.trim() || '',
+          bio: form.bio?.trim() || '',
+        },
+        { profilePic: profilePicFile },
+      );
+      const res = await userApi.updateUser(userId, fd);
       const updated = res?.user || res?.data?.user || res?.data || {};
       const merged = { ...user, ...updated, fullname: trimmed, email: form.email.trim(), phone: form.phone || updated?.phone, bio: form.bio || updated?.bio };
       setUser(merged);
       await refreshUser();
       setIsEditing(false);
+      setProfilePicFile(null);
       showToast({ type: 'success', message: 'Profile updated successfully' });
     } catch (err) {
       showToast({ type: 'error', message: err?.message || 'Failed to update profile' });
@@ -126,7 +145,7 @@ export function ProfilePage() {
 
   const displayName = form.fullname || user?.fullname || user?.name || 'User';
   const displayEmail = form.email || user?.email || '';
-  const profileImage = firstImageFromEntity(user || {});
+  const profileImage = profileObjectUrl || firstImageFromEntity(user || {});
 
   if (loading) {
     return (
@@ -226,6 +245,18 @@ export function ProfilePage() {
                 disabled={!isEditing}
               />
             </div>
+            {isEditing ? (
+              <div className="profile-form-field">
+                <MediaUploadField
+                  label="Profile photo"
+                  hint="Optional — same as the mobile app"
+                  accept="image/*"
+                  variant="profile"
+                  file={profilePicFile}
+                  onFileChange={setProfilePicFile}
+                />
+              </div>
+            ) : null}
             {isEditing && (
               <div className="profile-form-actions">
                 <button type="button" className="btn ghost" onClick={handleCancel}>
