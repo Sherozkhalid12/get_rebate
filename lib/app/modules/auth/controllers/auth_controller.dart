@@ -1,11 +1,13 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:getrebate/firebase_options.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:dio/dio.dart';
 import 'dart:io';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart' as global;
 import 'package:getrebate/app/controllers/auth_controller.dart' show EmailAlreadyExistsException;
 import 'package:getrebate/app/controllers/location_controller.dart';
@@ -25,6 +27,9 @@ class AuthViewController extends GetxController {
   final RebateStatesService _rebateStatesService = RebateStatesService();
   final GoogleSignIn _googleSignIn = GoogleSignIn(
     scopes: ['email', 'profile'],
+    clientId: defaultTargetPlatform == TargetPlatform.iOS
+        ? DefaultFirebaseOptions.ios.iosClientId
+        : null,
   );
   
   // Observable for allowed states
@@ -57,11 +62,15 @@ class AuthViewController extends GetxController {
 
   // Observable variables
   final _isLoginMode = true.obs;
+  final _isCompleteProfileMode = false.obs;
   final _selectedRole = UserRole.buyerSeller.obs;
   final _isLoading = false.obs;
   final _obscurePassword = true.obs;
   // Store email to pre-fill when navigating back from OTP screen
   String? _pendingEmailToFill;
+  // Social sign-in credentials to pre-fill Complete Profile (survives route teardown)
+  String? _pendingSocialEmail;
+  String? _pendingSocialName;
   
   /// Sets the email to pre-fill when the widget is ready (used when navigating back from OTP)
   void setPendingEmailToFill(String email) {
@@ -94,6 +103,8 @@ class AuthViewController extends GetxController {
 
   // Getters
   bool get isLoginMode => _isLoginMode.value;
+  bool get isCompleteProfileMode => _isCompleteProfileMode.value;
+  bool get showSignupFields => !isLoginMode || isCompleteProfileMode;
   UserRole get selectedRole => _selectedRole.value;
   bool get isLoading => _isLoading.value;
   bool get obscurePassword => _obscurePassword.value;
@@ -559,9 +570,9 @@ class AuthViewController extends GetxController {
   }
 
   Future<void> socialLogin(String provider) async {
-    if (provider != 'google') {
+    if (provider != 'google' && provider != 'apple') {
       SnackbarHelper.showInfo(
-        '${provider[0].toUpperCase()}${provider.substring(1)} login is not available yet.',
+        '${provider[0].toUpperCase()}${provider.substring(1)} login is not available.',
       );
       return;
     }
@@ -571,40 +582,325 @@ class AuthViewController extends GetxController {
     try {
       _isLoading.value = true;
 
-      // Ensure previous session is cleared so user can pick an account
-      try {
-        await _googleSignIn.signOut();
-      } catch (_) {}
+      // Role is chosen on Complete Profile — do not send role during social sign-in.
+      const String? roleForApi = null;
 
-      final GoogleSignInAccount? account = await _googleSignIn.signIn();
+      if (provider == 'google') {
+        try {
+          await _googleSignIn.signOut();
+        } catch (_) {}
 
-      if (account == null) {
-        SnackbarHelper.showInfo('Google sign-in was cancelled.');
-        return;
+        final GoogleSignInAccount? account = await _googleSignIn.signIn();
+
+        if (account == null) {
+          SnackbarHelper.showInfo('Google sign-in was cancelled.');
+          return;
+        }
+
+        final email = account.email;
+        final fullName = account.displayName ?? email.split('@').first;
+
+        _applySocialPrefill(email: email, name: fullName);
+
+        await _globalAuthController.socialLogin(
+          provider: provider,
+          email: email,
+          name: fullName,
+          profileImage: account.photoUrl,
+          role: roleForApi,
+        );
+      } else {
+        final credential = await SignInWithApple.getAppleIDCredential(
+          scopes: [
+            AppleIDAuthorizationScopes.email,
+            AppleIDAuthorizationScopes.fullName,
+          ],
+        );
+
+        final email = credential.email;
+        if (email == null || email.isEmpty) {
+          SnackbarHelper.showError(
+            'Apple did not provide an email. Use Sign in with Apple on first sign-in, or sign in with Google.',
+          );
+          return;
+        }
+
+        final given = credential.givenName ?? '';
+        final family = credential.familyName ?? '';
+        final fullName = '$given $family'.trim();
+        final displayName =
+            fullName.isNotEmpty ? fullName : email.split('@').first;
+
+        _applySocialPrefill(email: email, name: displayName);
+
+        await _globalAuthController.socialLogin(
+          provider: provider,
+          email: email,
+          name: displayName,
+          profileImage: null,
+          role: roleForApi,
+        );
       }
-
-      final authTokens = await account.authentication;
-      final email = account.email;
-      final fullName = account.displayName ?? email.split('@').first;
-
-      await _globalAuthController.socialLogin(
-        provider: provider,
-        email: email,
-        name: fullName,
-        profileImage: account.photoUrl,
-        idToken: authTokens.idToken,
-        accessToken: authTokens.accessToken,
-        role: selectedRole.name,
-      );
+    } on SignInWithAppleAuthorizationException catch (e) {
+      if (e.code != AuthorizationErrorCode.canceled) {
+        SnackbarHelper.showError(
+          'Apple sign-in failed: ${e.message}',
+        );
+      }
     } on PlatformException catch (e) {
       SnackbarHelper.showError(
-        'Google sign-in failed: ${e.message ?? e.code}',
+        'Sign-in failed: ${e.message ?? e.code}',
       );
     } catch (e) {
       if (kDebugMode) {
-        print('❌ Google login error (controller): $e');
+        print('❌ Social login error (controller): $e');
       }
-      // Global controller displays user-facing error
+    } finally {
+      _isLoading.value = false;
+    }
+  }
+
+  void _applySocialPrefill({required String email, required String name}) {
+    _pendingSocialEmail = email.trim();
+    _pendingSocialName = name.trim();
+    try {
+      emailController.text = _pendingSocialEmail!;
+      nameController.text = _pendingSocialName!;
+    } catch (_) {}
+  }
+
+  void _clearSocialPrefill() {
+    _pendingSocialEmail = null;
+    _pendingSocialName = null;
+  }
+
+  void initCompleteProfileMode() {
+    final user = _globalAuthController.currentUser;
+    if (user == null) {
+      Get.offAllNamed('/auth');
+      return;
+    }
+
+    _isCompleteProfileMode.value = true;
+    _isLoginMode.value = false;
+
+    final email = _pendingSocialEmail?.isNotEmpty == true
+        ? _pendingSocialEmail!
+        : user.email;
+    final name = _pendingSocialName?.isNotEmpty == true
+        ? _pendingSocialName!
+        : user.name;
+
+    try {
+      nameController.text = name;
+      emailController.text = email;
+    } catch (_) {}
+    if (user.phone != null && user.phone!.isNotEmpty) {
+      phoneController.text = user.phone!;
+    }
+
+    // After social login, let the user pick their role (don't use API default).
+    if (_globalAuthController.pendingSocialProfileCompletion) {
+      _selectedRole.value = UserRole.buyerSeller;
+      _clearRoleSpecificFormFields();
+      return;
+    }
+
+    _selectedRole.value = user.role;
+
+    final ad = user.additionalData ?? {};
+    if (user.role == UserRole.agent) {
+      brokerageController.text = ad['CompanyName']?.toString() ?? '';
+      agentLicenseNumberController.text =
+          ad['liscenceNumber']?.toString() ?? '';
+      bioController.text = ad['bio']?.toString() ?? '';
+      websiteUrlController.text = ad['website_link']?.toString() ?? '';
+      googleReviewsUrlController.text =
+          ad['google_reviews_link']?.toString() ?? '';
+      thirdPartyReviewsUrlController.text =
+          ad['thirdPartReviewLink']?.toString() ?? '';
+      serviceZipCodesController.text = ad['zipCode']?.toString() ?? '';
+      if (ad['dualAgencyState'] != null) {
+        _isDualAgencyAllowedInState.value = ad['dualAgencyState'] == true ||
+            ad['dualAgencyState'].toString().toLowerCase() == 'true';
+      }
+      if (ad['dualAgencySBrokerage'] != null) {
+        _isDualAgencyAllowedAtBrokerage.value =
+            ad['dualAgencySBrokerage'] == true ||
+                ad['dualAgencySBrokerage'].toString().toLowerCase() == 'true';
+      }
+      if (ad['areasOfExpertise'] is List) {
+        _selectedExpertise.assignAll(
+          List<String>.from(ad['areasOfExpertise']),
+        );
+      }
+      _agentVerificationAgreed.value =
+          ad['verificationStatement'] == true ||
+              ad['verificationStatement'].toString().toLowerCase() == 'true';
+    } else if (user.role == UserRole.loanOfficer) {
+      companyController.text = ad['CompanyName']?.toString() ?? '';
+      loanOfficerLicenseNumberController.text =
+          ad['liscenceNumber']?.toString() ?? '';
+      loanOfficerBioController.text = ad['bio']?.toString() ?? '';
+      loanOfficerWebsiteUrlController.text =
+          ad['website_link']?.toString() ?? '';
+      mortgageApplicationUrlController.text =
+          ad['mortgageApplicationUrl']?.toString() ?? '';
+      loanOfficerExternalReviewsUrlController.text =
+          ad['externalReviewsUrl']?.toString() ??
+              ad['thirdPartReviewLink']?.toString() ??
+              '';
+      loanOfficerOfficeZipController.text = ad['zipCode']?.toString() ?? '';
+      if (ad['specialtyProducts'] is List) {
+        _selectedSpecialtyProducts.assignAll(
+          List<String>.from(ad['specialtyProducts']),
+        );
+      }
+      _loanOfficerVerificationAgreed.value =
+          ad['verificationStatement'] == true ||
+              ad['verificationStatement'].toString().toLowerCase() == 'true';
+    }
+
+    if (user.licensedStates.isNotEmpty) {
+      _selectedLicensedStates.assignAll(user.licensedStates);
+    }
+  }
+
+  void _clearRoleSpecificFormFields() {
+    _isDualAgencyAllowedInState.value = null;
+    _isDualAgencyAllowedAtBrokerage.value = null;
+    brokerageController.clear();
+    agentLicenseNumberController.clear();
+    bioController.clear();
+    websiteUrlController.clear();
+    googleReviewsUrlController.clear();
+    thirdPartyReviewsUrlController.clear();
+    serviceZipCodesController.clear();
+    _selectedExpertise.clear();
+    companyController.clear();
+    loanOfficerLicenseNumberController.clear();
+    loanOfficerBioController.clear();
+    loanOfficerWebsiteUrlController.clear();
+    mortgageApplicationUrlController.clear();
+    loanOfficerExternalReviewsUrlController.clear();
+    loanOfficerOfficeZipController.clear();
+    _selectedSpecialtyProducts.clear();
+    _selectedLicensedStates.clear();
+    _agentVerificationAgreed.value = false;
+    _loanOfficerVerificationAgreed.value = false;
+  }
+
+  Future<void> submitCompleteProfile() async {
+    if (!_validateForm()) return;
+
+    final user = _globalAuthController.currentUser;
+    if (user == null) {
+      SnackbarHelper.showError('Session expired. Please sign in again.');
+      return;
+    }
+
+    try {
+      _isLoading.value = true;
+
+      final phoneValue = phoneController.text.trim();
+      final normalizedPhone = _normalizePhone(phoneValue);
+      final phoneToSend = normalizedPhone.isNotEmpty ? normalizedPhone : null;
+      final licensedStatesList = _selectedLicensedStates.isNotEmpty
+          ? _selectedLicensedStates.toList()
+          : null;
+      final roleApi = _globalAuthController.mapRoleToApiFormat(selectedRole);
+
+      if (selectedRole == UserRole.agent) {
+        final officeZipCode = serviceZipCodesController.text.trim();
+        final serviceAreas = officeZipCode.isNotEmpty ? [officeZipCode] : null;
+
+        await _globalAuthController.updateUserProfile(
+          userId: user.id,
+          role: roleApi,
+          fullname: nameController.text.trim(),
+          phone: phoneToSend,
+          bio: bioController.text.trim().isNotEmpty
+              ? bioController.text.trim()
+              : null,
+          licenseNumber: agentLicenseNumberController.text.trim(),
+          zipCode: officeZipCode.isNotEmpty ? officeZipCode : null,
+          companyName: brokerageController.text.trim(),
+          websiteLink: websiteUrlController.text.trim().isNotEmpty
+              ? websiteUrlController.text.trim()
+              : null,
+          googleReviewsLink: googleReviewsUrlController.text.trim().isNotEmpty
+              ? googleReviewsUrlController.text.trim()
+              : null,
+          thirdPartReviewLink:
+              thirdPartyReviewsUrlController.text.trim().isNotEmpty
+              ? thirdPartyReviewsUrlController.text.trim()
+              : null,
+          serviceAreas: serviceAreas,
+          areasOfExpertise: _selectedExpertise.isNotEmpty
+              ? _selectedExpertise.toList()
+              : null,
+          licensedStates: licensedStatesList,
+          dualAgencyState: isDualAgencyAllowedInState,
+          dualAgencySBrokerage: isDualAgencyAllowedAtBrokerage,
+          verificationStatement: _agentVerificationAgreed.value,
+          profilePic: _selectedProfilePic.value,
+          companyLogo: _selectedCompanyLogo.value,
+          video: _selectedVideo.value,
+        );
+      } else if (selectedRole == UserRole.loanOfficer) {
+        final officeZipCode = loanOfficerOfficeZipController.text.trim();
+        final serviceAreas = officeZipCode.isNotEmpty ? [officeZipCode] : null;
+
+        await _globalAuthController.updateUserProfile(
+          userId: user.id,
+          role: roleApi,
+          fullname: nameController.text.trim(),
+          phone: phoneToSend,
+          bio: loanOfficerBioController.text.trim().isNotEmpty
+              ? loanOfficerBioController.text.trim()
+              : null,
+          licenseNumber: loanOfficerLicenseNumberController.text.trim(),
+          zipCode: officeZipCode.isNotEmpty ? officeZipCode : null,
+          companyName: companyController.text.trim(),
+          websiteLink: loanOfficerWebsiteUrlController.text.trim().isNotEmpty
+              ? loanOfficerWebsiteUrlController.text.trim()
+              : null,
+          mortgageApplicationUrl:
+              mortgageApplicationUrlController.text.trim().isNotEmpty
+              ? mortgageApplicationUrlController.text.trim()
+              : null,
+          externalReviewsUrl:
+              loanOfficerExternalReviewsUrlController.text.trim().isNotEmpty
+              ? loanOfficerExternalReviewsUrlController.text.trim()
+              : null,
+          serviceAreas: serviceAreas,
+          specialtyProducts: _selectedSpecialtyProducts.isNotEmpty
+              ? _selectedSpecialtyProducts.toList()
+              : null,
+          licensedStates: licensedStatesList,
+          verificationStatement: _loanOfficerVerificationAgreed.value,
+          profilePic: _selectedProfilePic.value,
+          companyLogo: _selectedCompanyLogo.value,
+          video: _selectedVideo.value,
+        );
+      } else {
+        await _globalAuthController.updateUserProfile(
+          userId: user.id,
+          role: roleApi,
+          fullname: nameController.text.trim(),
+          phone: phoneToSend,
+          profilePic: _selectedProfilePic.value,
+        );
+      }
+
+      _globalAuthController.clearPendingSocialProfileCompletion();
+      _clearSocialPrefill();
+      _isCompleteProfileMode.value = false;
+      await _globalAuthController.finishAuthNavigation();
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Complete profile error: $e');
+      }
     } finally {
       _isLoading.value = false;
     }
@@ -621,17 +917,19 @@ class AuthViewController extends GetxController {
       return false;
     }
 
-    if (passwordController.text.isEmpty) {
-      SnackbarHelper.showError('Please enter your password');
-      return false;
+    if (!isCompleteProfileMode) {
+      if (passwordController.text.isEmpty) {
+        SnackbarHelper.showError('Please enter your password');
+        return false;
+      }
+
+      if (passwordController.text.length < 6) {
+        SnackbarHelper.showError('Password must be at least 6 characters');
+        return false;
+      }
     }
 
-    if (passwordController.text.length < 6) {
-      SnackbarHelper.showError('Password must be at least 6 characters');
-      return false;
-    }
-
-    if (!isLoginMode) {
+    if (showSignupFields) {
       if (nameController.text.trim().isEmpty) {
         SnackbarHelper.showError('Please enter your name');
         return false;
@@ -738,7 +1036,6 @@ class AuthViewController extends GetxController {
     return digits.length >= 10 && digits.length <= 15;
   }
 
-  @override
   @override
   void onReady() {
     super.onReady();
@@ -892,10 +1189,15 @@ class AuthViewController extends GetxController {
 
   @override
   void onClose() {
-    // Defer disposal to next frame to avoid "used after disposed" when
-    // login form is still in widget tree during navigation transition
+    // Do not clear fields when routing to Complete Profile after social login.
+    if (_globalAuthController.pendingSocialProfileCompletion) {
+      super.onClose();
+      return;
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _disposeControllers();
+      if (!_globalAuthController.pendingSocialProfileCompletion) {
+        _disposeControllers();
+      }
     });
     super.onClose();
   }

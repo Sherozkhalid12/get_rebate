@@ -10,6 +10,7 @@ import 'package:getrebate/app/models/user_model.dart';
 import 'package:getrebate/app/modules/messages/controllers/messages_controller.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
+import 'package:getrebate/app/utils/profile_completion_helper.dart';
 import 'package:getrebate/app/utils/storage_keys.dart';
 
 class SplashController extends GetxController {
@@ -73,6 +74,13 @@ class SplashController extends GetxController {
             return;
           }
           print('Splash: Loan officer profile loaded, navigating to LOAN_OFFICER.');
+        }
+
+        if (authController.pendingSocialProfileCompletion ||
+            ProfileCompletionHelper.needsCompletion(user)) {
+          print('Splash: Profile incomplete, navigating to complete profile.');
+          Get.offAllNamed(AppPages.COMPLETE_PROFILE);
+          return;
         }
 
         print('Splash: User is logged in as ${user.role}, navigating...');

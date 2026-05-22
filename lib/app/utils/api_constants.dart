@@ -198,6 +198,7 @@ class ApiConstants {
       "${authEndPoint}verifyPasswordResetOtp";
   static String get resetPasswordEndpoint => "${authEndPoint}resetPassword";
   static String get googleLoginEndpoint => "${authEndPoint}googleLogin";
+  static String get appleLoginEndpoint => "${authEndPoint}appleLogin";
 
   // Lead specific endpoints - Using same endpoint for both buyer and seller leads
   static String get createLeadEndpoint => "$apiBaseUrl/buyer/createLead";

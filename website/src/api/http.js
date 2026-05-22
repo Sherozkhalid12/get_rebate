@@ -1,5 +1,6 @@
 import { API_BASE_URL } from '../lib/constants';
 import { storage } from '../lib/storage';
+import { networkUploadErrorMessage } from '../lib/mediaUpload';
 
 async function request(path, options = {}) {
   const token = storage.get('auth_token');
@@ -28,7 +29,7 @@ async function request(path, options = {}) {
     if (import.meta.env?.DEV && path.includes('/zip-codes/')) {
       console.error('[http] ZIP API network error', url, err);
     }
-    throw new Error(err?.message || 'Network request failed');
+    throw new Error(networkUploadErrorMessage(err));
   }
 
   const text = await res.text();

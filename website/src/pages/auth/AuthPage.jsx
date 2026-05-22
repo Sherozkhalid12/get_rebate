@@ -5,7 +5,6 @@ import { USER_ROLES, US_STATES } from '../../lib/constants';
 import { AGENT_EXPERTISE_OPTIONS, LOAN_SPECIALTY_OPTIONS } from '../../lib/profileOptions';
 import { ZipInputWithLocation } from '../../components/ui/ZipInputWithLocation';
 import { AnimatedLoader } from '../../components/ui/AnimatedLoader';
-
 function normalizePhoneDigits(value) {
   return String(value || '').replace(/\D/g, '');
 }

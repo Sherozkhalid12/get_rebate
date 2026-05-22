@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -15,7 +17,9 @@ import 'package:getrebate/app/models/mortgage_types.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
 
 class AuthView extends GetView<AuthViewController> {
-  const AuthView({super.key});
+  final bool completeProfile;
+
+  const AuthView({super.key, this.completeProfile = false});
 
   @override
   Widget build(BuildContext context) {
@@ -37,15 +41,17 @@ class AuthView extends GetView<AuthViewController> {
               // Form
               _buildForm(context),
 
-              const SizedBox(height: 32),
+              if (!completeProfile && !controller.isCompleteProfileMode) ...[
+                const SizedBox(height: 32),
 
-              // Social login
-              _buildSocialLogin(context),
+                // Social login
+                _buildSocialLogin(context),
 
-              const SizedBox(height: 24),
+                const SizedBox(height: 24),
 
-              // Toggle mode
-              _buildToggleMode(context),
+                // Toggle mode
+                _buildToggleMode(context),
+              ],
             ],
           ),
         ),
@@ -83,7 +89,11 @@ class AuthView extends GetView<AuthViewController> {
         // Title
         Obx(
               () => Text(
-                controller.isLoginMode ? 'Welcome Back' : 'Create Account',
+                controller.isCompleteProfileMode
+                    ? 'Complete Your Profile'
+                    : controller.isLoginMode
+                    ? 'Welcome Back'
+                    : 'Create Account',
                 style: Theme.of(context).textTheme.displaySmall?.copyWith(
                   color: AppTheme.black,
                   fontWeight: FontWeight.bold,
@@ -105,7 +115,9 @@ class AuthView extends GetView<AuthViewController> {
         // Subtitle
         Obx(
               () => Text(
-                controller.isLoginMode
+                controller.isCompleteProfileMode
+                    ? 'Add the remaining details to finish setting up your account'
+                    : controller.isLoginMode
                     ? 'Sign in to continue to GetaRebate'
                     : 'Join GetaRebate and start saving on real estate',
                 style: Theme.of(
@@ -127,53 +139,33 @@ class AuthView extends GetView<AuthViewController> {
   }
 
   Widget _buildForm(BuildContext context) {
-    return Obx(
-      () => Column(
-        children: [
-          // Name field (only for signup)
-          if (!controller.isLoginMode) ...[
-            CustomTextField(
-                  controller: controller.nameController,
-                  labelText: 'Full Name',
-                  prefixIcon: Icons.person_outline,
-                )
-                .animate()
-                .slideX(begin: -0.3, duration: 600.ms, curve: Curves.easeOut)
-                .fadeIn(duration: 600.ms),
-
-            const SizedBox(height: 16),
-            // Profile Picture (only for signup)
-            _buildProfilePicturePicker(context)
-                .animate()
-                .slideX(begin: -0.3, duration: 600.ms, curve: Curves.easeOut)
-                .fadeIn(duration: 600.ms),
-
-            const SizedBox(height: 16),
-          ],
-
-          // Email field
-          CustomTextField(
-                controller: controller.emailController,
-                labelText: 'Email',
-                keyboardType: TextInputType.emailAddress,
-                prefixIcon: Icons.email_outlined,
-              )
-              .animate()
-              .slideX(
-                begin: -0.3,
-                duration: 600.ms,
-                curve: Curves.easeOut,
-                delay: controller.isLoginMode ? 0.ms : 100.ms,
-              )
-              .fadeIn(
-                duration: 600.ms,
-                delay: controller.isLoginMode ? 0.ms : 100.ms,
+    // Avoid wrapping the whole form in Obx — rebuilding all TextFields breaks input & checkboxes.
+    return Column(
+      children: [
+        Obx(() {
+          if (!controller.showSignupFields) return const SizedBox.shrink();
+          return Column(
+            children: [
+              CustomTextField(
+                controller: controller.nameController,
+                labelText: 'Full Name',
+                prefixIcon: Icons.person_outline,
               ),
+              const SizedBox(height: 16),
+              _buildProfilePicturePicker(context),
+              const SizedBox(height: 16),
+            ],
+          );
+        }),
 
-          const SizedBox(height: 16),
+        Obx(() => _buildEmailField(context)),
 
-          // Password field
-          CustomTextField(
+        Obx(() {
+          if (controller.isCompleteProfileMode) return const SizedBox.shrink();
+          return Column(
+            children: [
+              const SizedBox(height: 16),
+              CustomTextField(
                 controller: controller.passwordController,
                 labelText: 'Password',
                 obscureText: controller.obscurePassword,
@@ -187,153 +179,204 @@ class AuthView extends GetView<AuthViewController> {
                   ),
                   onPressed: controller.togglePasswordVisibility,
                 ),
-              )
-              .animate()
-              .slideX(
-                begin: -0.3,
-                duration: 600.ms,
-                curve: Curves.easeOut,
-                delay: controller.isLoginMode ? 100.ms : 200.ms,
-              )
-              .fadeIn(
-                duration: 600.ms,
-                delay: controller.isLoginMode ? 100.ms : 200.ms,
               ),
+            ],
+          );
+        }),
 
-          // Forgot password (only for login)
-          if (controller.isLoginMode) ...[
-            const SizedBox(height: 8),
-            Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton(
-                    onPressed: () => Get.to(
-                      () => const ForgotPasswordView(),
-                      binding: ForgotPasswordBinding(),
-                    ),
-                    style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 0),
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    child: Text(
-                      'Forgot password?',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppTheme.primaryBlue,
-                        fontWeight: FontWeight.w600,
-                      ),
+        Obx(() {
+          if (!controller.isLoginMode || controller.isCompleteProfileMode) {
+            return const SizedBox.shrink();
+          }
+          return Column(
+            children: [
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: () => Get.to(
+                    () => const ForgotPasswordView(),
+                    binding: ForgotPasswordBinding(),
+                  ),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 0),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: Text(
+                    'Forgot password?',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppTheme.primaryBlue,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
-                )
-                .animate()
-                .slideX(
-                  begin: 0.1,
-                  duration: 600.ms,
-                  curve: Curves.easeOut,
-                  delay: 150.ms,
-                )
-                .fadeIn(duration: 600.ms, delay: 150.ms),
-          ],
-
-          // Phone field (only for signup) - required for Agent/Loan Officer, optional for Buyer/Seller
-          if (!controller.isLoginMode) ...[
-            const SizedBox(height: 16),
-            CustomTextField(
-                  controller: controller.phoneController,
-                  labelText: controller.selectedRole == UserRole.buyerSeller
-                      ? 'Phone (Optional)'
-                      : 'Phone',
-                  keyboardType: TextInputType.phone,
-                  maxLength: 15,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  prefixIcon: Icons.phone_outlined,
-                )
-                .animate()
-                .slideX(
-                  begin: -0.3,
-                  duration: 600.ms,
-                  curve: Curves.easeOut,
-                  delay: 300.ms,
-                )
-                .fadeIn(duration: 600.ms, delay: 300.ms),
-          ],
-
-          // Agent Required Information (only for agent signup)
-          if (!controller.isLoginMode &&
-              controller.selectedRole == UserRole.agent) ...[
-            const SizedBox(height: 24),
-            _buildAgentRequiredFields(context),
-          ],
-
-          // Loan Officer Required Information (only for loan officer signup)
-          if (!controller.isLoginMode &&
-              controller.selectedRole == UserRole.loanOfficer) ...[
-            const SizedBox(height: 24),
-            _buildLoanOfficerRequiredFields(context),
-          ],
-
-          // Dual Agency Questions (only for agent signup)
-          if (!controller.isLoginMode &&
-              controller.selectedRole == UserRole.agent) ...[
-            const SizedBox(height: 24),
-            _buildDualAgencyQuestions(context),
-          ],
-
-          // Agent Profile Fields (only for agent signup)
-          if (!controller.isLoginMode &&
-              controller.selectedRole == UserRole.agent) ...[
-            const SizedBox(height: 24),
-            _buildAgentProfileFields(context),
-          ],
-
-          // Loan Officer Profile Fields (only for loan officer signup)
-          if (!controller.isLoginMode &&
-              controller.selectedRole == UserRole.loanOfficer) ...[
-            const SizedBox(height: 24),
-            _buildLoanOfficerProfileFields(context),
-          ],
-
-          // Role selection (only for signup)
-          if (!controller.isLoginMode) ...[
-            const SizedBox(height: 24),
-            _buildRoleSelection(context),
-          ],
-
-          // Terms of Service acceptance (required for all signups)
-          if (!controller.isLoginMode) ...[
-            const SizedBox(height: 24),
-            _buildTermsOfServiceAgreement(context),
-          ],
-
-          const SizedBox(height: 32),
-
-          // Submit button
-          Obx(
-                () => CustomButton(
-                  text: controller.isLoginMode ? 'Sign In' : 'Create Account',
-                  onPressed: controller.isLoading
-                      ? null
-                      : controller.submitForm,
-                  isLoading: controller.isLoading,
-                  width: double.infinity,
                 ),
-              )
-              .animate()
-              .slideY(
-                begin: 0.3,
-                duration: 600.ms,
-                curve: Curves.easeOut,
-                delay: controller.isLoginMode ? 200.ms : 500.ms,
-              )
-              .fadeIn(
-                duration: 600.ms,
-                delay: controller.isLoginMode ? 200.ms : 500.ms,
               ),
-        ],
-      ),
+            ],
+          );
+        }),
+
+        Obx(() {
+          if (!controller.isCompleteProfileMode) return const SizedBox.shrink();
+          return Column(
+            children: [
+              const SizedBox(height: 24),
+              _buildRoleSelection(context, isCompleteProfile: true),
+            ],
+          );
+        }),
+
+        Obx(() {
+          if (!controller.showSignupFields) return const SizedBox.shrink();
+          return Column(
+            children: [
+              const SizedBox(height: 16),
+              CustomTextField(
+                controller: controller.phoneController,
+                labelText: controller.selectedRole == UserRole.buyerSeller
+                    ? 'Phone (Optional)'
+                    : 'Phone',
+                keyboardType: TextInputType.phone,
+                maxLength: 15,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                prefixIcon: Icons.phone_outlined,
+              ),
+            ],
+          );
+        }),
+
+        Obx(() {
+          if (!controller.showSignupFields ||
+              controller.selectedRole != UserRole.agent) {
+            return const SizedBox.shrink();
+          }
+          return Column(
+            children: [
+              const SizedBox(height: 24),
+              _buildAgentRequiredFields(context),
+            ],
+          );
+        }),
+
+        Obx(() {
+          if (!controller.showSignupFields ||
+              controller.selectedRole != UserRole.loanOfficer) {
+            return const SizedBox.shrink();
+          }
+          return Column(
+            children: [
+              const SizedBox(height: 24),
+              _buildLoanOfficerRequiredFields(context),
+            ],
+          );
+        }),
+
+        Obx(() {
+          if (!controller.showSignupFields ||
+              controller.selectedRole != UserRole.agent) {
+            return const SizedBox.shrink();
+          }
+          return Column(
+            children: [
+              const SizedBox(height: 24),
+              _buildDualAgencyQuestions(context),
+            ],
+          );
+        }),
+
+        Obx(() {
+          if (!controller.showSignupFields ||
+              controller.selectedRole != UserRole.agent) {
+            return const SizedBox.shrink();
+          }
+          return Column(
+            children: [
+              const SizedBox(height: 24),
+              _buildAgentProfileFields(context),
+            ],
+          );
+        }),
+
+        Obx(() {
+          if (!controller.showSignupFields ||
+              controller.selectedRole != UserRole.loanOfficer) {
+            return const SizedBox.shrink();
+          }
+          return Column(
+            children: [
+              const SizedBox(height: 24),
+              _buildLoanOfficerProfileFields(context),
+            ],
+          );
+        }),
+
+        Obx(() {
+          if (!controller.showSignupFields ||
+              controller.isCompleteProfileMode) {
+            return const SizedBox.shrink();
+          }
+          return Column(
+            children: [
+              const SizedBox(height: 24),
+              _buildRoleSelection(context),
+            ],
+          );
+        }),
+
+        Obx(() {
+          if (!controller.showSignupFields) return const SizedBox.shrink();
+          return Column(
+            children: [
+              const SizedBox(height: 24),
+              _buildTermsOfServiceAgreement(context),
+            ],
+          );
+        }),
+
+        const SizedBox(height: 32),
+
+        Obx(
+          () => CustomButton(
+            text: controller.isCompleteProfileMode
+                ? 'Save & Continue'
+                : controller.isLoginMode
+                ? 'Sign In'
+                : 'Create Account',
+            onPressed: controller.isLoading
+                ? null
+                : controller.isCompleteProfileMode
+                ? controller.submitCompleteProfile
+                : controller.submitForm,
+            isLoading: controller.isLoading,
+            width: double.infinity,
+          ),
+        ),
+      ],
     );
   }
 
-  Widget _buildRoleSelection(BuildContext context) {
+  Widget _buildEmailField(BuildContext context) {
+    if (!controller.isCompleteProfileMode) {
+      return CustomTextField(
+        controller: controller.emailController,
+        labelText: 'Email',
+        keyboardType: TextInputType.emailAddress,
+        prefixIcon: Icons.email_outlined,
+      );
+    }
+    return CustomTextField(
+      controller: controller.emailController,
+      labelText: 'Email',
+      keyboardType: TextInputType.emailAddress,
+      prefixIcon: Icons.email_outlined,
+      readOnly: true,
+    );
+  }
+
+  Widget _buildRoleSelection(
+    BuildContext context, {
+    bool isCompleteProfile = false,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -344,6 +387,15 @@ class AuthView extends GetView<AuthViewController> {
             fontWeight: FontWeight.w600,
           ),
         ),
+        if (isCompleteProfile) ...[
+          const SizedBox(height: 6),
+          Text(
+            'Select whether you are a buyer/seller, agent, or loan officer. This was not set automatically.',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: AppTheme.mediumGray,
+            ),
+          ),
+        ],
         const SizedBox(height: 12),
         Obx(
           () => Row(
@@ -1205,14 +1257,18 @@ class AuthView extends GetView<AuthViewController> {
   }
 
   Widget _buildAgentVerificationAgreement(BuildContext context) {
-    return Obx(
-      () => Container(
+    return Obx(() {
+      if (!Get.isRegistered<AuthViewController>()) {
+        return const SizedBox.shrink();
+      }
+      final auth = Get.find<AuthViewController>();
+      return Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: AppTheme.primaryBlue.withOpacity(0.05),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: controller.agentVerificationAgreed
+            color: auth.agentVerificationAgreed
                 ? AppTheme.primaryBlue
                 : AppTheme.mediumGray.withOpacity(0.3),
             width: 1.5,
@@ -1225,9 +1281,9 @@ class AuthView extends GetView<AuthViewController> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Checkbox(
-                  value: controller.agentVerificationAgreed,
+                  value: auth.agentVerificationAgreed,
                   onChanged: (value) =>
-                      controller.setAgentVerificationAgreed(value ?? false),
+                      auth.setAgentVerificationAgreed(value ?? false),
                   activeColor: AppTheme.primaryBlue,
                 ),
                 Expanded(
@@ -1259,19 +1315,23 @@ class AuthView extends GetView<AuthViewController> {
             ),
           ],
         ),
-      ),
-    );
+      );
+    });
   }
 
   Widget _buildLoanOfficerVerificationAgreement(BuildContext context) {
-    return Obx(
-      () => Container(
+    return Obx(() {
+      if (!Get.isRegistered<AuthViewController>()) {
+        return const SizedBox.shrink();
+      }
+      final auth = Get.find<AuthViewController>();
+      return Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: AppTheme.lightGreen.withOpacity(0.05),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: controller.loanOfficerVerificationAgreed
+            color: auth.loanOfficerVerificationAgreed
                 ? AppTheme.lightGreen
                 : AppTheme.mediumGray.withOpacity(0.3),
             width: 1.5,
@@ -1284,9 +1344,9 @@ class AuthView extends GetView<AuthViewController> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Checkbox(
-                  value: controller.loanOfficerVerificationAgreed,
-                  onChanged: (value) => controller
-                      .setLoanOfficerVerificationAgreed(value ?? false),
+                  value: auth.loanOfficerVerificationAgreed,
+                  onChanged: (value) =>
+                      auth.setLoanOfficerVerificationAgreed(value ?? false),
                   activeColor: AppTheme.lightGreen,
                 ),
                 Expanded(
@@ -1317,19 +1377,23 @@ class AuthView extends GetView<AuthViewController> {
             ),
           ],
         ),
-      ),
-    );
+      );
+    });
   }
 
   Widget _buildTermsOfServiceAgreement(BuildContext context) {
-    return Obx(
-      () => Container(
+    return Obx(() {
+      if (!Get.isRegistered<AuthViewController>()) {
+        return const SizedBox.shrink();
+      }
+      final auth = Get.find<AuthViewController>();
+      return Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: AppTheme.primaryBlue.withOpacity(0.05),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: controller.termsOfServiceAgreed
+            color: auth.termsOfServiceAgreed
                 ? AppTheme.primaryBlue
                 : AppTheme.mediumGray.withOpacity(0.3),
             width: 1.5,
@@ -1342,9 +1406,9 @@ class AuthView extends GetView<AuthViewController> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Checkbox(
-                  value: controller.termsOfServiceAgreed,
+                  value: auth.termsOfServiceAgreed,
                   onChanged: (value) {
-                    controller.setTermsOfServiceAgreed(value ?? false);
+                    auth.setTermsOfServiceAgreed(value ?? false);
                   },
                   activeColor: AppTheme.primaryBlue,
                 ),
@@ -1370,7 +1434,7 @@ class AuthView extends GetView<AuthViewController> {
                             ),
                             WidgetSpan(
                               child: GestureDetector(
-                                onTap: () => controller.openTermsOfService(),
+                                onTap: () => auth.openTermsOfService(),
                                 child: Text(
                                   'Terms of Service',
                                   style: Theme.of(context).textTheme.bodySmall
@@ -1396,8 +1460,8 @@ class AuthView extends GetView<AuthViewController> {
             ),
           ],
         ),
-      ),
-    );
+      );
+    });
   }
 
   Widget _buildYesNoButton(
@@ -1465,26 +1529,18 @@ class AuthView extends GetView<AuthViewController> {
                   iconColor: AppTheme.darkGray,
                 ),
               ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: CustomIconButton(
-                  icon: Icons.apple,
-                  onPressed:
-                      isBusy ? null : () => controller.socialLogin('apple'),
-                  backgroundColor: AppTheme.black,
-                  iconColor: AppTheme.white,
+              if (Platform.isIOS) ...[
+                const SizedBox(width: 16),
+                Expanded(
+                  child: CustomIconButton(
+                    icon: Icons.apple,
+                    onPressed:
+                        isBusy ? null : () => controller.socialLogin('apple'),
+                    backgroundColor: AppTheme.black,
+                    iconColor: AppTheme.white,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: CustomIconButton(
-                  icon: Icons.facebook,
-                  onPressed:
-                      isBusy ? null : () => controller.socialLogin('facebook'),
-                  backgroundColor: const Color(0xFF1877F2),
-                  iconColor: AppTheme.white,
-                ),
-              ),
+              ],
             ],
           ),
         ],

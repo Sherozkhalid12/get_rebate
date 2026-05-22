@@ -8,6 +8,8 @@ import 'package:getrebate/app/modules/auth/bindings/verify_otp_binding.dart';
 import 'package:getrebate/app/modules/auth/bindings/forgot_password_binding.dart';
 import 'package:getrebate/app/modules/auth/bindings/reset_password_binding.dart';
 import 'package:getrebate/app/modules/auth/views/auth_view.dart';
+import 'package:getrebate/app/modules/auth/views/complete_profile_view.dart';
+import 'package:getrebate/app/modules/auth/bindings/complete_profile_binding.dart';
 import 'package:getrebate/app/modules/auth/views/verify_otp_view.dart';
 import 'package:getrebate/app/modules/auth/views/forgot_password_view.dart';
 import 'package:getrebate/app/modules/auth/views/reset_password_view.dart';
@@ -85,6 +87,7 @@ class AppPages {
   static const INITIAL = '/splash';
   static const ONBOARDING = '/onboarding';
   static const AUTH = '/auth';
+  static const COMPLETE_PROFILE = '/complete-profile';
   static const VERIFY_OTP = '/verify-otp';
   static const FORGOT_PASSWORD = '/forgot-password';
   static const RESET_PASSWORD = '/reset-password';
@@ -134,6 +137,11 @@ class AppPages {
       binding: OnboardingBinding(),
     ),
     GetPage(name: AUTH, page: () => const AuthView(), binding: AuthBinding()),
+    GetPage(
+      name: COMPLETE_PROFILE,
+      page: () => const CompleteProfileView(),
+      binding: CompleteProfileBinding(),
+    ),
     GetPage(
       name: VERIFY_OTP,
       page: () => const VerifyOtpView(),

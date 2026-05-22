@@ -7,6 +7,8 @@ import { US_STATES } from '../../lib/constants';
 import { ZipInputWithLocation } from '../../components/ui/ZipInputWithLocation';
 import { AnimatedLoader } from '../../components/ui/AnimatedLoader';
 import { MediaUploadField } from '../../components/ui/MediaUploadField';
+import { ProfileUploadGuidelines } from '../../components/ui/ProfileUploadGuidelines';
+import { networkUploadErrorMessage } from '../../lib/mediaUpload';
 import { AGENT_EXPERTISE_OPTIONS } from '../../lib/profileOptions';
 import { buildUpdateUserProfileFormData } from '../../lib/buildUpdateUserProfileFormData';
 import { resolveMediaUrl } from '../../lib/media';
@@ -205,7 +207,7 @@ export function AgentEditProfilePage() {
       showToast({ type: 'success', message: 'Profile updated' });
       navigate('/agent');
     } catch (err) {
-      showToast({ type: 'error', message: err.message || 'Failed to save profile' });
+      showToast({ type: 'error', message: networkUploadErrorMessage(err) || 'Failed to save profile' });
     } finally {
       setSaving(false);
     }
@@ -229,6 +231,7 @@ export function AgentEditProfilePage() {
       <form className="glass-card panel form-stack edit-profile-shell" onSubmit={save}>
         <section className="edit-profile-section">
           <h3 className="edit-profile-section__title">Photos & branding</h3>
+          <ProfileUploadGuidelines />
           <div className="edit-profile-media-row">
             <div className="edit-profile-media-cell">
               <div className="profile-edit-media-preview">
@@ -240,11 +243,10 @@ export function AgentEditProfilePage() {
               </div>
               <MediaUploadField
                 label="Headshot"
-                hint="Optional"
-                accept="image/*"
                 variant="profile"
                 file={files.profilePic}
                 onFileChange={(f) => setFiles((p) => ({ ...p, profilePic: f }))}
+                onValidationError={(msg) => showToast({ type: 'error', message: msg })}
               />
             </div>
             <div className="edit-profile-media-cell">
@@ -257,11 +259,10 @@ export function AgentEditProfilePage() {
               </div>
               <MediaUploadField
                 label="Company logo"
-                hint="Optional"
-                accept="image/*"
                 variant="logo"
                 file={files.companyLogo}
                 onFileChange={(f) => setFiles((p) => ({ ...p, companyLogo: f }))}
+                onValidationError={(msg) => showToast({ type: 'error', message: msg })}
               />
             </div>
           </div>
@@ -295,11 +296,10 @@ export function AgentEditProfilePage() {
           ) : null}
           <MediaUploadField
             label="Video file"
-            hint="Optional"
-            accept="video/*"
             variant="video"
             file={files.video}
             onFileChange={(f) => setFiles((p) => ({ ...p, video: f }))}
+            onValidationError={(msg) => showToast({ type: 'error', message: msg })}
           />
         </section>
 

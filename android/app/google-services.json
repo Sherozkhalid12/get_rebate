@@ -12,7 +12,12 @@
           "package_name": "com.example.getrebate"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "260409603868-gejlse5gqva5dtc21cabvsdqfutp502k.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyDYvfCk0UN9my1fcUyhPLtQzamx5XYfKng"
@@ -20,7 +25,55 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "260409603868-gejlse5gqva5dtc21cabvsdqfutp502k.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "260409603868-4qub4fr9dc66ir46k33u4s9v874e2gms.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.getarebate.app"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:260409603868:android:a0c2e238e1a1fc45f16cd9",
+        "android_client_info": {
+          "package_name": "com.getarebate.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "260409603868-gejlse5gqva5dtc21cabvsdqfutp502k.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDYvfCk0UN9my1fcUyhPLtQzamx5XYfKng"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "260409603868-gejlse5gqva5dtc21cabvsdqfutp502k.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "260409603868-4qub4fr9dc66ir46k33u4s9v874e2gms.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.getarebate.app"
+              }
+            }
+          ]
         }
       }
     }

@@ -1,4 +1,5 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
+import { getUploadLimitsForVariant, processFileForUpload, formatFileSize } from '../../lib/mediaUpload';
 
 function UploadGlyph({ variant }) {
   const cls = 'auth-upload__svg';
@@ -35,40 +36,79 @@ export function MediaUploadField({
   variant = 'profile',
   file,
   onFileChange,
+  onValidationError,
 }) {
   const inputRef = useRef(null);
-  const pick = (f) => onFileChange(f);
+  const limits = getUploadLimitsForVariant(variant);
+  const [processing, setProcessing] = useState(false);
+  const [compressNote, setCompressNote] = useState('');
+
+  const limitsHint = hint || limits.hint;
+  const acceptAttr = accept || limits.accept;
+
   const clear = () => {
     if (inputRef.current) inputRef.current.value = '';
+    setCompressNote('');
     onFileChange(null);
+  };
+
+  const handlePick = async (raw) => {
+    if (!raw) {
+      clear();
+      return;
+    }
+    setProcessing(true);
+    setCompressNote('');
+    try {
+      const result = await processFileForUpload(raw, variant);
+      onFileChange(result.file);
+      if (result.compressed && result.originalSize > result.finalSize) {
+        setCompressNote(
+          `Resized from ${formatFileSize(result.originalSize)} to ${formatFileSize(result.finalSize)} for upload.`,
+        );
+      }
+    } catch (err) {
+      if (inputRef.current) inputRef.current.value = '';
+      const message = err?.message || 'Could not use this file.';
+      if (onValidationError) onValidationError(message);
+      else setCompressNote('');
+    } finally {
+      setProcessing(false);
+    }
   };
 
   return (
     <div className={`auth-upload auth-upload--${variant}${file ? ' auth-upload--has-file' : ''}`}>
       <div className="auth-upload__header">
         <span className="auth-upload__label">{label}</span>
-        {hint ? <span className="auth-upload__hint">{hint}</span> : null}
+        {hint && hint !== limits.hint ? <span className="auth-upload__hint">{hint}</span> : null}
       </div>
+      <p className="upload-limits-note" role="note">
+        {limitsHint}
+      </p>
       <div className="auth-upload__surface">
         <input
           ref={inputRef}
           type="file"
-          accept={accept}
+          accept={acceptAttr}
           className="auth-upload__native"
-          onChange={(e) => pick(e.target.files?.[0] ?? null)}
+          disabled={processing}
+          onChange={(e) => handlePick(e.target.files?.[0] ?? null)}
         />
         <div className="auth-upload__main">
           <div className="auth-upload__visual">
             <UploadGlyph variant={variant} />
           </div>
           <div className="auth-upload__content">
-            {!file ? (
+            {processing ? (
+              <p className="auth-upload__pitch">Preparing file…</p>
+            ) : !file ? (
               <>
                 <p className="auth-upload__pitch">
                   {variant === 'video'
-                    ? 'MP4 or MOV — a short intro helps buyers trust you.'
+                    ? 'A short intro helps buyers trust you.'
                     : variant === 'logo'
-                      ? 'Square PNG or SVG looks best on your profile.'
+                      ? 'Square branding shows on your profile.'
                       : 'A clear headshot helps your profile stand out.'}
                 </p>
                 <button type="button" className="auth-upload__cta" onClick={() => inputRef.current?.click()}>
@@ -77,7 +117,10 @@ export function MediaUploadField({
               </>
             ) : (
               <div className="auth-upload__picked">
-                <span className="auth-upload__filename" title={file.name}>{file.name}</span>
+                <span className="auth-upload__filename" title={file.name}>
+                  {file.name}
+                  <span className="auth-upload__filesize"> ({formatFileSize(file.size)})</span>
+                </span>
                 <div className="auth-upload__picked-actions">
                   <button type="button" className="auth-upload__mini auth-upload__mini--solid" onClick={() => inputRef.current?.click()}>
                     Replace
@@ -91,6 +134,7 @@ export function MediaUploadField({
           </div>
         </div>
       </div>
+      {compressNote ? <p className="form-hint upload-compress-note">{compressNote}</p> : null}
     </div>
   );
 }

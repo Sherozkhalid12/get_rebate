@@ -51,7 +51,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyDYvfCk0UN9my1fcUyhPLtQzamx5XYfKng',
-    appId: '1:260409603868:android:1960485b3f56a0a0f16cd9',
+    appId: '1:260409603868:android:a0c2e238e1a1fc45f16cd9',
     messagingSenderId: '260409603868',
     projectId: 'getarebate-68344',
     storageBucket: 'getarebate-68344.firebasestorage.app',
@@ -59,10 +59,12 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyDskgZShbY5v7howgkdcGxuPLMHuuFXirM',
-    appId: '1:260409603868:ios:98fddd4770c0b59df16cd9',
+    appId: '1:260409603868:ios:ca462fa3da38a09ef16cd9',
     messagingSenderId: '260409603868',
     projectId: 'getarebate-68344',
     storageBucket: 'getarebate-68344.firebasestorage.app',
-    iosBundleId: 'com.example.getrebate',
+    iosClientId: '260409603868-4qub4fr9dc66ir46k33u4s9v874e2gms.apps.googleusercontent.com',
+    iosBundleId: 'com.getarebate.app',
   );
+
 }

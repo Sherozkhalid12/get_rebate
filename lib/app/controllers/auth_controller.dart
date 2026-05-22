@@ -12,11 +12,12 @@ import 'package:getrebate/app/routes/app_pages.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
 import 'package:getrebate/app/utils/timezone_helper.dart';
 import 'package:getrebate/app/utils/connectivity_helper.dart';
+import 'package:getrebate/app/utils/profile_completion_helper.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
 import 'package:getrebate/app/controllers/current_loan_officer_controller.dart';
 import 'package:getrebate/app/modules/messages/controllers/messages_controller.dart';
-
-import '../modules/messages/controllers/messages_controller.dart';
+import 'package:getrebate/app/modules/auth/controllers/auth_controller.dart'
+    show AuthViewController;
 
 /// Custom exception for email already exists
 class EmailAlreadyExistsException implements Exception {
@@ -33,6 +34,7 @@ class AuthController extends GetxController {
   // API Base URL - Using ApiConstants for centralized management
   static String get _baseUrl => ApiConstants.apiBaseUrl;
   static const String _licensedStatesStorageKey = 'agent_licensed_states';
+  static const String _pendingSocialProfileKey = 'pending_social_profile_completion';
 
   // Observable variables
   final _isLoading = false.obs;
@@ -40,6 +42,7 @@ class AuthController extends GetxController {
   final _isLoggedIn = false.obs;
   bool _isLoadingLoanOfficerProfile =
       false; // Guard to prevent multiple simultaneous loads
+  bool _pendingSocialProfileCompletion = false;
 
   // Getters
   bool get isLoading => _isLoading.value;
@@ -156,6 +159,7 @@ class AuthController extends GetxController {
 
       _currentUser.value = user;
       _isLoggedIn.value = true;
+      _restorePendingSocialProfileFlag();
 
       // Setup Dio with auth token if available
       if (authToken != null) {
@@ -767,7 +771,7 @@ class AuthController extends GetxController {
         MapEntry('email', email),
         MapEntry('password', password),
         if (phone != null && phone.isNotEmpty) MapEntry('phone', phone),
-        MapEntry('role', _mapRoleToApiFormat(role)),
+        MapEntry('role', mapRoleToApiFormat(role)),
         MapEntry('timezone', timezone),
       ]);
 
@@ -1022,7 +1026,7 @@ class AuthController extends GetxController {
       print('  - email: $email');
       print('  - timezone: $timezone');
       print('  - phone: ${phone ?? "not provided"}');
-      print('  - role: ${_mapRoleToApiFormat(role)}');
+      print('  - role: ${mapRoleToApiFormat(role)}');
       if (licensedStates != null && licensedStates.isNotEmpty) {
         print('  - licensedStates: ${licensedStates.join(", ")}');
       }
@@ -1352,7 +1356,7 @@ class AuthController extends GetxController {
     }
   }
 
-  String _mapRoleToApiFormat(UserRole role) {
+  String mapRoleToApiFormat(UserRole role) {
     switch (role) {
       case UserRole.agent:
         return 'agent';
@@ -1365,6 +1369,7 @@ class AuthController extends GetxController {
 
   Future<void> updateUserProfile({
     required String userId,
+    String? role,
     String? fullname,
     String? email,
     String? phone,
@@ -1385,6 +1390,7 @@ class AuthController extends GetxController {
     List<String>? licensedStates,
     bool? dualAgencyState,
     bool? dualAgencySBrokerage,
+    bool? verificationStatement,
     File? profilePic,
     File? companyLogo,
     File? video,
@@ -1402,6 +1408,9 @@ class AuthController extends GetxController {
       formData.fields.add(MapEntry('timezone', await getTimezoneIdentifier()));
 
       // Add text fields
+      if (role != null && role.isNotEmpty) {
+        formData.fields.add(MapEntry('role', role));
+      }
       if (fullname != null && fullname.isNotEmpty) {
         formData.fields.add(MapEntry('fullname', fullname));
       }
@@ -1502,6 +1511,11 @@ class AuthController extends GetxController {
           MapEntry('dualAgencySBrokerage', dualAgencySBrokerage.toString()),
         );
       }
+      if (verificationStatement != null) {
+        formData.fields.add(
+          MapEntry('verificationStatement', verificationStatement.toString()),
+        );
+      }
 
       // Add file uploads
       if (profilePic != null) {
@@ -1577,6 +1591,9 @@ class AuthController extends GetxController {
 
           final updatedUser = _currentUser.value!.copyWith(
             id: updatedUserId, // Ensure we use the correct ID from API
+            role: _mapApiRoleToUserRole(
+              userData['role']?.toString() ?? role,
+            ),
             name: userData['fullname'] ?? _currentUser.value!.name,
             email: userData['email'] ?? _currentUser.value!.email,
             phone: userData['phone']?.toString() ?? _currentUser.value!.phone,
@@ -1612,6 +1629,8 @@ class AuthController extends GetxController {
               'dualAgencyState': userData['dualAgencyState'] ?? dualAgencyState,
               'dualAgencySBrokerage':
                   userData['dualAgencySBrokerage'] ?? dualAgencySBrokerage,
+              'verificationStatement': userData['verificationStatement'] ??
+                  verificationStatement,
               'mortgageApplicationUrl':
                   userData['mortgageApplicationUrl'] ?? mortgageApplicationUrl,
               'externalReviewsUrl':
@@ -1688,10 +1707,14 @@ class AuthController extends GetxController {
     required String email,
     required String name,
     String? profileImage,
-    String? idToken,
-    String? accessToken,
     String? role,
   }) async {
+    final isApple = provider == 'apple';
+    final endpoint = isApple
+        ? ApiConstants.appleLoginEndpoint
+        : ApiConstants.googleLoginEndpoint;
+    final providerLabel = isApple ? 'Apple' : 'Google';
+
     try {
       await ConnectivityHelper.ensureConnectivity();
       _isLoading.value = true;
@@ -1699,36 +1722,33 @@ class AuthController extends GetxController {
       final normalizedName =
           name.trim().isNotEmpty ? name.trim() : email.split('@').first;
 
-      final payload = {
-        'fullname': normalizedName,
+      final payload = <String, dynamic>{
         'email': email.trim(),
+        if (normalizedName.isNotEmpty) 'fullname': normalizedName,
         if (profileImage != null && profileImage.isNotEmpty)
           'profilePic': profileImage,
         if (role != null && role.isNotEmpty) 'role': role,
-        'provider': provider,
-        if (idToken != null) 'idToken': idToken,
-        if (accessToken != null) 'accessToken': accessToken,
       };
 
       if (kDebugMode) {
-        print('🚀 Social login POST -> /auth/googleLogin');
+        print('🚀 Social login POST -> $endpoint');
         print('   Payload: $payload');
       }
 
       final response = await _dio.post(
-        '/auth/googleLogin',
+        endpoint,
         data: payload,
         options: Options(headers: {'Content-Type': 'application/json'}),
       );
 
       final responseData = response.data;
       if (response.statusCode != 200 && response.statusCode != 201) {
-        throw Exception('Google login failed. Please try again.');
+        throw Exception('$providerLabel login failed. Please try again.');
       }
 
       if (responseData is Map && responseData['success'] == false) {
-        final msg =
-            responseData['message']?.toString() ?? 'Google login failed.';
+        final msg = responseData['message']?.toString() ??
+            '$providerLabel login failed.';
         throw Exception(msg);
       }
 
@@ -1737,15 +1757,15 @@ class AuthController extends GetxController {
           responseData;
       final token = responseData['token'] ?? responseData['data']?['token'];
 
-      if (userData == null) {
-        throw Exception('User data not found in Google login response.');
+      if (userData == null || userData is! Map) {
+        throw Exception('User data not found in $providerLabel login response.');
       }
 
       final userId =
           userData['_id']?.toString() ?? userData['id']?.toString() ?? '';
       if (userId.isEmpty) {
         throw Exception(
-          'User ID (_id) not found in Google login response. Cannot proceed.',
+          'User ID (_id) not found in $providerLabel login response. Cannot proceed.',
         );
       }
 
@@ -1796,6 +1816,7 @@ class AuthController extends GetxController {
           'verificationStatement': userData['verificationStatement'] ??
               userData['verificationAgreed'],
           'bio': userData['bio'] ?? userData['description'],
+          'zipCode': userData['zipCode'],
         },
       );
 
@@ -1810,17 +1831,20 @@ class AuthController extends GetxController {
       }
 
       setFCM(user.id);
+      _pendingSocialProfileCompletion = true;
+      _storage.write(_pendingSocialProfileKey, true);
 
       SnackbarHelper.showSuccess(
-        responseData['message']?.toString() ?? 'Signed in with Google!',
+        responseData['message']?.toString() ??
+            'Signed in with $providerLabel!',
         duration: const Duration(seconds: 2),
       );
 
-      await _navigateToRoleBasedScreen();
+      await finishAuthNavigation();
     } on DioException catch (e) {
       print('❌ Social login DioException: ${e.message}');
       final responseData = e.response?.data;
-      String errorMessage = 'Google login failed. Please try again.';
+      String errorMessage = '$providerLabel login failed. Please try again.';
 
       if (responseData is Map && responseData['message'] != null) {
         errorMessage = responseData['message'].toString();
@@ -1836,9 +1860,32 @@ class AuthController extends GetxController {
     } catch (e) {
       print('❌ Social login error: $e');
       SnackbarHelper.showError('Social login failed: ${e.toString()}');
+      rethrow;
     } finally {
       _isLoading.value = false;
     }
+  }
+
+  bool get pendingSocialProfileCompletion => _pendingSocialProfileCompletion;
+
+  void clearPendingSocialProfileCompletion() {
+    _pendingSocialProfileCompletion = false;
+    _storage.remove(_pendingSocialProfileKey);
+  }
+
+  void _restorePendingSocialProfileFlag() {
+    _pendingSocialProfileCompletion =
+        _storage.read(_pendingSocialProfileKey) == true;
+  }
+
+  /// Routes to complete-profile or the main app after login/signup/social auth.
+  Future<void> finishAuthNavigation() async {
+    if (_pendingSocialProfileCompletion ||
+        ProfileCompletionHelper.needsCompletion(_currentUser.value)) {
+      Get.offAllNamed(AppPages.COMPLETE_PROFILE);
+      return;
+    }
+    await _navigateToRoleBasedScreen();
   }
 
   void logout() async {
@@ -1854,6 +1901,8 @@ class AuthController extends GetxController {
     _isLoggedIn.value = false;
     _storage.remove('current_user');
     _storage.remove('auth_token');
+    _storage.remove(_pendingSocialProfileKey);
+    _pendingSocialProfileCompletion = false;
 
     // Clear all controller data BEFORE navigation
     // This ensures clean state without force-deleting controllers
@@ -1863,6 +1912,11 @@ class AuthController extends GetxController {
         final messagesController = Get.find<MessagesController>();
         messagesController.clearAllData();
         print('✅ Cleared MessagesController data');
+      }
+
+      if (Get.isRegistered<AuthViewController>()) {
+        Get.delete<AuthViewController>(force: true);
+        print('✅ Disposed AuthViewController');
       }
 
       // Clear loan officer profile so next login fetches fresh and logout is correct for loan officers
