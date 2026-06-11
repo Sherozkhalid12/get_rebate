@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
+import 'package:getrebate/app/controllers/auth_controller.dart' as session;
 import 'package:getrebate/app/modules/auth/controllers/auth_controller.dart';
 import 'package:getrebate/app/modules/auth/views/forgot_password_view.dart';
 import 'package:getrebate/app/modules/auth/bindings/forgot_password_binding.dart';
@@ -42,6 +43,10 @@ class AuthView extends GetView<AuthViewController> {
               _buildForm(context),
 
               if (!completeProfile && !controller.isCompleteProfileMode) ...[
+                const SizedBox(height: 24),
+
+                _buildContinueAsGuest(context),
+
                 const SizedBox(height: 32),
 
                 // Social login
@@ -1719,6 +1724,19 @@ class AuthView extends GetView<AuthViewController> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildContinueAsGuest(BuildContext context) {
+    return TextButton(
+      onPressed: () => Get.find<session.AuthController>().enterGuestMode(),
+      child: Text(
+        'Continue as Guest',
+        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              color: AppTheme.mediumGray,
+              fontWeight: FontWeight.w600,
+            ),
       ),
     );
   }

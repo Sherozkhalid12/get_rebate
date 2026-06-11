@@ -11,6 +11,7 @@ import 'package:getrebate/app/modules/buyer_v2/controllers/buyer_v2_controller.d
 import 'package:getrebate/app/modules/messages/controllers/messages_controller.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
+import 'package:getrebate/app/utils/guest_auth_guard.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/services/agent_service.dart';
 import 'package:getrebate/app/modules/proposals/controllers/proposal_controller.dart';
@@ -472,22 +473,17 @@ class AgentProfileController extends GetxController {
   Future<void> toggleFavorite() async {
     if (_agent.value == null) return;
     if (_isTogglingFavorite.value) return; // Prevent multiple simultaneous calls
+
+    if (!GuestAuthGuard.requireAuth(featureDescription: 'save favorite agents')) {
+      return;
+    }
     
     try {
       _isTogglingFavorite.value = true;
       
-      // Get current user ID
       final authController = Get.find<AuthController>();
-      final currentUser = authController.currentUser;
-      
-      if (currentUser == null || currentUser.id.isEmpty) {
-        SnackbarHelper.showError(
-          'Please login to like agents',
-          duration: const Duration(seconds: 2),
-        );
-        return;
-      }
-      
+
+      final currentUser = authController.currentUser!;
       final agentId = _agent.value!.id;
       final endpoint = ApiConstants.getLikeAgentEndpoint(agentId);
       
@@ -575,6 +571,9 @@ class AgentProfileController extends GetxController {
 
   void contactAgent() {
     if (_agent.value == null) return;
+    if (!GuestAuthGuard.requireAuth(featureDescription: 'contact agents')) {
+      return;
+    }
 
     Get.dialog(
       AlertDialog(

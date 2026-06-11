@@ -1,30 +1,136 @@
-import { PageHeader } from '../../components/layout/PageHeader';
+import { Link } from 'react-router-dom';
+import { ComplianceFooter } from '../../components/legal/ComplianceFooter';
+import { LegalPageLayout, LegalSection } from '../../components/legal/LegalPageLayout';
+import { FaqAccordion } from '../../components/landing/PremiumLandingKit';
+import { IconGlyph } from '../../components/ui/IconGlyph';
+import {
+  ABOUT_LEGAL_SECTIONS,
+  PRIVACY_SECTIONS,
+  SUPPORT_CONTACTS,
+  SUPPORT_FAQS,
+  TERMS_SECTIONS,
+} from '../../content/legalContent';
 
-function LegalLayout({ title, points }) {
+export function PrivacyPolicyPage() {
   return (
-    <div className="page-body">
-      <PageHeader title={title} subtitle="Structured policy content for professional transparency." icon="shield" />
-      <section className="glass-card panel">
-        <ul className="clean-list">
-          {points.map((p) => <li key={p}>{p}</li>)}
-        </ul>
-      </section>
-    </div>
+    <LegalPageLayout
+      title="Privacy Policy"
+      subtitle="Your privacy matters to us"
+      icon="shield"
+    >
+      {PRIVACY_SECTIONS.map((section) => (
+        <LegalSection key={section.title} title={section.title} body={section.body} />
+      ))}
+      <ComplianceFooter />
+    </LegalPageLayout>
   );
 }
 
-export function PrivacyPolicyPage() {
-  return <LegalLayout title="Privacy Policy" points={['We store only required account data.', 'Messages and notifications are secured.', 'You can request data deletion support.']} />;
-}
-
 export function TermsOfServicePage() {
-  return <LegalLayout title="Terms of Service" points={['Only verified professionals may claim ZIP markets.', 'Rebate disclosure must comply with local laws.', 'Platform misuse can trigger account suspension.']} />;
+  return (
+    <LegalPageLayout
+      title="Terms of Service"
+      subtitle="Please read these terms carefully"
+      icon="document"
+    >
+      {TERMS_SECTIONS.map((section) => (
+        <LegalSection key={section.title} title={section.title} body={section.body} />
+      ))}
+      <ComplianceFooter />
+    </LegalPageLayout>
+  );
 }
 
 export function AboutLegalPage() {
-  return <LegalLayout title="About & Legal" points={['GetaRebate connects buyers/sellers with rebate-friendly professionals.', 'All mortgage and legal outcomes depend on licensed provider review.', 'Contact support for policy clarifications.']} />;
+  return (
+    <LegalPageLayout
+      title="About & Legal"
+      subtitle="Licensing, equal housing, and platform information"
+      icon="info"
+    >
+      {ABOUT_LEGAL_SECTIONS.map((section) => (
+        <LegalSection
+          key={section.title}
+          title={section.title}
+          body={section.body}
+          links={section.links}
+        />
+      ))}
+      <ComplianceFooter />
+    </LegalPageLayout>
+  );
 }
 
+const CONTACT_ICONS = {
+  mail: 'email',
+  phone: 'phone',
+  shield: 'shield',
+  description: 'document',
+};
+
 export function HelpSupportPage() {
-  return <LegalLayout title="Help & Support" points={['Email support@getarebate.com', 'In-app chat support during business hours', 'Priority support for active subscribers']} />;
+  return (
+    <LegalPageLayout
+      title="Help & Support"
+      subtitle="Find answers and get in touch with our team"
+      icon="info"
+    >
+      <section className="legal-section glass-card legal-support-intro">
+        <h2>We&apos;re here to help</h2>
+        <p>
+          Browse frequently asked questions below or reach out by email or phone. If you have an
+          account, you can also sign in to use in-app messaging with agents and loan officers.
+        </p>
+        <div className="legal-support-quick">
+          <a className="btn primary" href="mailto:support@getrebate.com">
+            Email support
+          </a>
+          <Link className="btn ghost" to="/auth">
+            Sign in to the app
+          </Link>
+        </div>
+      </section>
+
+      <section className="legal-section glass-card">
+        <h2>Frequently Asked Questions</h2>
+        <FaqAccordion items={SUPPORT_FAQS} />
+      </section>
+
+      <section className="legal-section glass-card">
+        <h2>Contact Support</h2>
+        <ul className="legal-contact-list">
+          {SUPPORT_CONTACTS.map((item) => (
+            <li key={item.href}>
+              <a className="legal-contact-card" href={item.href}>
+                <span className="legal-contact-card__icon" aria-hidden="true">
+                  <IconGlyph name={CONTACT_ICONS[item.icon] || 'email'} />
+                </span>
+                <span className="legal-contact-card__body">
+                  <strong>{item.title}</strong>
+                  <span className="legal-contact-card__value">{item.value}</span>
+                  <span className="legal-contact-card__desc">{item.description}</span>
+                </span>
+                <IconGlyph name="arrowRight" />
+              </a>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <section className="legal-section glass-card">
+        <h2>Related policies</h2>
+        <ul className="legal-section__links">
+          <li>
+            <Link to="/privacy-policy">Privacy Policy</Link>
+          </li>
+          <li>
+            <Link to="/terms-of-service">Terms of Service</Link>
+          </li>
+          <li>
+            <Link to="/about-legal">About & Legal</Link>
+          </li>
+        </ul>
+      </section>
+    </LegalPageLayout>
+  );
 }

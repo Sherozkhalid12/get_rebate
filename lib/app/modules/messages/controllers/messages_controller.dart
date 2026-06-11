@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart';
+import 'package:getrebate/app/utils/guest_auth_guard.dart';
 import 'package:getrebate/app/controllers/main_navigation_controller.dart';
 import 'package:getrebate/app/models/user_model.dart';
 import 'package:getrebate/app/services/chat_service.dart';
@@ -1731,8 +1732,11 @@ class MessagesController extends GetxController {
     if (messageController.text.trim().isEmpty) return;
     if (_selectedConversation.value == null) return;
 
-    final user = _authController.currentUser;
-    if (user == null) return;
+    if (!GuestAuthGuard.requireAuth(featureDescription: 'send messages')) {
+      return;
+    }
+
+    final user = _authController.currentUser!;
 
     final text = messageController.text.trim();
     final conversation = _selectedConversation.value!;
@@ -2296,11 +2300,11 @@ class MessagesController extends GetxController {
     String? otherUserProfilePic,
     String otherUserRole = 'user',
   }) async {
-    final user = _authController.currentUser;
-    if (user == null || user.id.isEmpty) {
-      SnackbarHelper.showError('Please login to start a chat');
+    if (!GuestAuthGuard.requireAuth(featureDescription: 'start a chat')) {
       return null;
     }
+
+    final user = _authController.currentUser!;
 
     if (otherUserId.isEmpty) {
       SnackbarHelper.showError('Invalid user ID');

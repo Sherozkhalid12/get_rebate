@@ -106,6 +106,19 @@ class OnboardingView extends GetView<OnboardingController> {
                         curve: Curves.easeOut,
                       )
                       .fadeIn(duration: 600.ms),
+
+                  const SizedBox(height: 12),
+
+                  TextButton(
+                    onPressed: controller.continueAsGuest,
+                    child: Text(
+                      'Continue as Guest',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            color: AppTheme.primaryBlue,
+                            fontWeight: FontWeight.w600,
+                          ),
+                    ),
+                  ),
                 ],
               ),
             ),

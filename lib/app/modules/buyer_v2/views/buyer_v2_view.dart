@@ -75,12 +75,20 @@ class BuyerV2View extends GetView<BuyerV2Controller> {
   }
 
   Widget _buildSearchSection(BuildContext context) {
+    if (!controller.isSearchControllerActive) {
+      return const SizedBox.shrink();
+    }
+
     return Container(
       padding: const EdgeInsets.all(20),
       color: AppTheme.white,
       child: ListenableBuilder(
         listenable: controller.searchController,
         builder: (context, _) {
+          if (!controller.isSearchControllerActive) {
+            return const SizedBox.shrink();
+          }
+
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -90,6 +98,7 @@ class BuyerV2View extends GetView<BuyerV2Controller> {
                   hintText: 'Enter a ZIP code to begin your search',
                   isLocationLoading: controller.isFetchingLocation,
                   onChanged: (value) {
+                    if (!controller.isSearchControllerActive) return;
                     if (value.isEmpty || value.trim().isEmpty) {
                       controller.clearZipCodeFilter();
                       return;
@@ -103,13 +112,10 @@ class BuyerV2View extends GetView<BuyerV2Controller> {
                     }
                   },
                   onLocationTap: () => controller.useCurrentLocation(),
-                  onClear: () {
-                    controller.searchController.clear();
-                    controller.clearZipCodeFilter();
-                  },
+                  onClear: controller.clearSearchField,
                 ),
               ),
-              if (controller.searchController.text.trim().isEmpty)
+              if (controller.searchFieldText.trim().isEmpty)
                 Padding(
                   padding: const EdgeInsets.only(top: 8, left: 4),
                   child: Text(

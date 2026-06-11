@@ -4,6 +4,6 @@ import 'package:getrebate/app/modules/buyer_v2/controllers/buyer_v2_controller.d
 class BuyerV2Binding extends Bindings {
   @override
   void dependencies() {
-    Get.lazyPut<BuyerV2Controller>(() => BuyerV2Controller());
+    Get.lazyPut<BuyerV2Controller>(() => BuyerV2Controller(), fenix: true);
   }
 }

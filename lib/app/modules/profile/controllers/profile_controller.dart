@@ -150,29 +150,53 @@ class ProfileController extends GetxController {
   }
 
   void logout() {
+    _showConfirmationDialog(
+      title: 'Logout',
+      message: 'Are you sure you want to logout?',
+      confirmLabel: 'Logout',
+      onConfirm: _authController.logout,
+    );
+  }
+
+  void deleteAccount() {
+    _showConfirmationDialog(
+      title: 'Delete Account',
+      message:
+          'Are you sure you want to delete your account? You will be signed out and will need to create a new account to use the app again.',
+      confirmLabel: 'Delete Account',
+      onConfirm: _authController.logout,
+    );
+  }
+
+  void _showConfirmationDialog({
+    required String title,
+    required String message,
+    required String confirmLabel,
+    required VoidCallback onConfirm,
+  }) {
     Get.dialog(
       AlertDialog(
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
         ),
-        title: const Text(
-          'Logout',
-          style: TextStyle(fontWeight: FontWeight.w600),
+        title: Text(
+          title,
+          style: const TextStyle(fontWeight: FontWeight.w600),
         ),
-        content: const Text('Are you sure you want to logout?'),
+        content: Text(message),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(Get.context!),
+            onPressed: () => Get.back(),
             child: const Text('Cancel'),
           ),
           TextButton(
             onPressed: () {
-              Navigator.pop(Get.context!);
-              _authController.logout();
+              Get.back();
+              onConfirm();
             },
-            child: const Text(
-              'Logout',
-              style: TextStyle(color: Colors.red),
+            child: Text(
+              confirmLabel,
+              style: const TextStyle(color: Colors.red),
             ),
           ),
         ],

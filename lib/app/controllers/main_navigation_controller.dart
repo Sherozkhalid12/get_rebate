@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
+import 'package:getrebate/app/controllers/auth_controller.dart';
 import 'package:getrebate/app/modules/buyer_v2/views/buyer_v2_view.dart';
 import 'package:getrebate/app/modules/buyer_v2/bindings/buyer_v2_binding.dart';
 // DISABLED: Seller/PropertyListings imports - buyers cannot create listings anymore
@@ -136,6 +137,16 @@ class MainNavigationController extends GetxController {
     // Wait a bit for bindings to initialize
     Future.delayed(const Duration(milliseconds: 800), () {
       try {
+        if (Get.isRegistered<AuthController>()) {
+          final auth = Get.find<AuthController>();
+          if (!auth.hasAccount) {
+            if (kDebugMode) {
+              print('ℹ️ Skipping message socket init for guest session');
+            }
+            return;
+          }
+        }
+
         if (Get.isRegistered<MessagesController>()) {
           final messagesController = Get.find<MessagesController>();
           // Force initialization if not already done

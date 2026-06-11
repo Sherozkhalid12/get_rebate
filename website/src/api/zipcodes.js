@@ -5,6 +5,48 @@ import { unwrapList } from '../lib/api';
  * Extract Stripe session_id from the current URL.
  * Checks: search params, hash query string, and regex fallback for cs_xxx pattern.
  */
+/** Remove Stripe return query params so revisiting the page does not re-trigger verify. */
+export function clearStripeReturnParams() {
+  try {
+    const url = new URL(window.location.href);
+    let changed = false;
+    for (const key of ['session_id', 'sessionId', 'checkout_session_id']) {
+      if (url.searchParams.has(key)) {
+        url.searchParams.delete(key);
+        changed = true;
+      }
+    }
+    if (changed) {
+      window.history.replaceState({}, document.title, `${url.pathname}${url.search}${url.hash}`);
+    }
+    return changed;
+  } catch {
+    return false;
+  }
+}
+
+export function isIncompleteCheckoutError(err) {
+  const msg = String(err?.message || err?.error || '').toLowerCase();
+  return /payment not completed|not completed|checkout.*cancel|session.*expired/i.test(msg);
+}
+
+export function readPendingZipCheckout(pendingKey, userId) {
+  const raw = localStorage.getItem(pendingKey);
+  if (!raw) return null;
+  try {
+    const pending = JSON.parse(raw);
+    if (!pending || pending.userId !== userId) return null;
+    return pending;
+  } catch {
+    localStorage.removeItem(pendingKey);
+    return null;
+  }
+}
+
+export function clearPendingZipCheckout(pendingKey) {
+  localStorage.removeItem(pendingKey);
+}
+
 export function getSessionIdFromUrl() {
   const search = new URLSearchParams(window.location.search);
   let id = search.get('session_id') || search.get('sessionId') || search.get('checkout_session_id');
@@ -29,7 +71,11 @@ export function getZipClaimedMessage(zipcode, claimedBy) {
 }
 
 export async function getStateZipCodes(country, state) {
-  return http.get(`/zip-codes/getstateZip/${encodeURIComponent(country)}/${encodeURIComponent(state)}`);
+  const st = String(state ?? '').trim();
+  if (!st) {
+    throw new Error('Please select a state first.');
+  }
+  return http.get(`/zip-codes/getstateZip/${encodeURIComponent(country)}/${encodeURIComponent(st)}`);
 }
 
 /**
@@ -115,6 +161,82 @@ export function flattenZipCodeResponse(response) {
   return out;
 }
 
+function parseZipDistance(value) {
+  if (value == null || value === '') return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** Parse population from API zip object (avoids coercing non-numeric fields). */
+export function parseZipPopulation(z) {
+  const raw = z?.population ?? z?.populationCount;
+  if (typeof raw === 'number' && Number.isFinite(raw)) return Math.max(0, Math.round(raw));
+  if (typeof raw === 'string' && raw.trim() !== '') {
+    const n = parseInt(raw, 10);
+    return Number.isFinite(n) ? Math.max(0, n) : 0;
+  }
+  return 0;
+}
+
+/**
+ * Order ZIP search results: exact searched ZIP first, then by distance.
+ * Clears distance on the searched ZIP (API may return stale distance values).
+ */
+export function prepareZipSearchRows(rows, searchedZip) {
+  const query = String(searchedZip ?? '').trim();
+  if (!query || !/^\d{5}$/.test(query) || !Array.isArray(rows) || rows.length === 0) {
+    return rows;
+  }
+
+  const byZip = new Map();
+  for (const row of rows) {
+    const zipcode = String(row.zipcode ?? '').trim();
+    if (!/^\d{5}$/.test(zipcode)) continue;
+    const dist = parseZipDistance(row.distance);
+    const existing = byZip.get(zipcode);
+    if (!existing) {
+      byZip.set(zipcode, { ...row, zipcode });
+      continue;
+    }
+    const existingDist = parseZipDistance(existing.distance);
+    if (dist != null && (existingDist == null || dist < existingDist)) {
+      byZip.set(zipcode, { ...row, zipcode });
+    }
+  }
+
+  let rest = Array.from(byZip.values()).filter((r) => r.zipcode !== query);
+  rest.sort((a, b) => {
+    const da = parseZipDistance(a.distance);
+    const db = parseZipDistance(b.distance);
+    if (da == null && db == null) return a.zipcode.localeCompare(b.zipcode);
+    if (da == null) return 1;
+    if (db == null) return -1;
+    if (da !== db) return da - db;
+    return a.zipcode.localeCompare(b.zipcode);
+  });
+
+  const exact = byZip.get(query);
+  if (exact) {
+    return [{ ...exact, distance: null }, ...rest];
+  }
+  return rest;
+}
+
+/**
+ * Available-tab rows: during an active ZIP search, keep all results (including the
+ * searched ZIP and zips you already claimed). When browsing by state, hide your claims.
+ */
+export function filterAvailableZipRows(displayRows, { searchZipRows, zipSearch, claimedSet }) {
+  const rows = (displayRows || []).map((row) => ({
+    ...row,
+    name: row.zipcode || row.name,
+  }));
+  const searched = String(zipSearch ?? '').trim();
+  const isZipSearch = searchZipRows != null && /^\d{5}$/.test(searched);
+  if (isZipSearch) return rows;
+  return rows.filter((row) => !claimedSet.has(String(row.zipcode)));
+}
+
 export async function validateZipCode(zipCode, state) {
   return http.get(`/zip-codes/validate/${encodeURIComponent(zipCode)}/${encodeURIComponent(state)}`);
 }
@@ -158,10 +280,13 @@ export async function createCheckoutSession(payload) {
 }
 
 export async function verifyPaymentSuccess(sessionId, zipcode) {
+  const id = String(sessionId ?? '').trim();
+  if (!id) throw new Error('Payment session ID is missing.');
   const zip = String(zipcode ?? '').trim();
+  // Match mobile app (ApiConstants.getPaymentSuccessPath)
   const path = zip
-    ? `/subscription/paymentSuccess/${sessionId}/${zip}`
-    : `/subscription/paymentSuccess/${sessionId}`;
+    ? `/subscription/paymentSuccess/${encodeURIComponent(id)}/${encodeURIComponent(zip)}`
+    : `/subscription/paymentSuccess/sessionid/${encodeURIComponent(id)}`;
   console.log('[ZIP API] verifyPaymentSuccess GET', path);
   const res = await http.get(path);
   console.log('[ZIP API] verifyPaymentSuccess response:', JSON.stringify(res));

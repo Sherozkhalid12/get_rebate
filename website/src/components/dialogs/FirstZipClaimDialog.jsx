@@ -11,7 +11,18 @@ import { calculatePriceForPopulation } from '../../lib/zipCodePricing';
 import { calculateLoanOfficerPriceForPopulation } from '../../lib/zipCodePricing';
 import * as userApi from '../../api/user';
 import * as zipApi from '../../api/zipcodes';
-import { getZipClaimedMessage, flattenZipCodeResponse, getSessionIdFromUrl } from '../../api/zipcodes';
+import {
+  getZipClaimedMessage,
+  flattenZipCodeResponse,
+  getSessionIdFromUrl,
+  clearStripeReturnParams,
+  clearPendingZipCheckout,
+  readPendingZipCheckout,
+  isIncompleteCheckoutError,
+  prepareZipSearchRows,
+  parseZipPopulation,
+  filterAvailableZipRows,
+} from '../../api/zipcodes';
 import { useToast } from '../ui/ToastProvider';
 import { useAuth } from '../../context/AuthContext';
 
@@ -163,7 +174,7 @@ export function FirstZipClaimDialog({ role, userId, onClose }) {
         const calcPrice = isAgent ? calculatePriceForPopulation : calculateLoanOfficerPriceForPopulation;
         const rows = flat.map((z, i) => {
           const zipcode = z.postalCode || z.zipCode || z.zipcode;
-          const population = Number(z.population || 0);
+          const population = parseZipPopulation(z);
           const apiPrice = Number(z.calculatedPrice || z.price || 0);
           const price = (population > 0 ? calcPrice(population) : apiPrice || 0).toFixed(2);
           const dist = z.distance != null ? Number(z.distance).toFixed(1) : null;
@@ -182,7 +193,7 @@ export function FirstZipClaimDialog({ role, userId, onClose }) {
           };
         }).filter((r) => r.zipcode);
         const enriched = await enrichClaimStatus(rows, rows.length);
-        setSearchZipRows(enriched);
+        setSearchZipRows(prepareZipSearchRows(enriched, zip));
         enriched.filter((r) => r.claimedBy === 'agent' || r.claimedBy === 'loanOfficer').forEach((r) => checkWaitingListForZip(r.zipcode));
       } catch (err) {
         showToast({ type: 'error', message: err.message || 'ZIP search failed.' });
@@ -197,18 +208,29 @@ export function FirstZipClaimDialog({ role, userId, onClose }) {
   useEffect(() => {
     const finalizePending = async () => {
       if (!userId) return;
-      const pendingRaw = localStorage.getItem(pendingKey);
-      if (!pendingRaw) return;
+
+      const sessionIdFromUrl = getSessionIdFromUrl();
+      const pending = readPendingZipCheckout(pendingKey, userId);
+
+      if (!sessionIdFromUrl) {
+        if (pending) clearPendingZipCheckout(pendingKey);
+        return;
+      }
+
+      if (!pending) {
+        clearStripeReturnParams();
+        return;
+      }
+
+      if (pending.sessionId && pending.sessionId !== sessionIdFromUrl) {
+        clearPendingZipCheckout(pendingKey);
+        clearStripeReturnParams();
+        return;
+      }
+
       try {
-        const pending = JSON.parse(pendingRaw);
-        if (!pending || pending.userId !== userId) return;
-        const sessionId = getSessionIdFromUrl() || pending.sessionId;
-        if (!sessionId) {
-          showToast({ type: 'error', message: 'Payment session not found. If you were charged, please contact support with your receipt.' });
-          return;
-        }
         setStatus('Verifying payment...');
-        const payment = await zipApi.verifyPaymentSuccess(sessionId, pending.zipcode);
+        const payment = await zipApi.verifyPaymentSuccess(sessionIdFromUrl, pending.zipcode);
         if (payment?.success === false) throw new Error(payment?.message || 'Payment verification failed.');
         const claimPayload = {
           id: userId,
@@ -224,13 +246,22 @@ export function FirstZipClaimDialog({ role, userId, onClose }) {
         } else {
           await zipApi.claimLoanOfficerZipCode(claimPayload);
         }
-        localStorage.removeItem(pendingKey);
-        window.history.replaceState({}, document.title, window.location.pathname);
+        clearPendingZipCheckout(pendingKey);
+        clearStripeReturnParams();
         showToast({ type: 'success', message: `ZIP ${pending.zipcode} claimed successfully.` });
         await loadClaimed();
         await loadStateZipCodes();
       } catch (err) {
-        showToast({ type: 'error', message: err.message || 'Unable to finalize ZIP claim.' });
+        if (isIncompleteCheckoutError(err)) {
+          clearPendingZipCheckout(pendingKey);
+          clearStripeReturnParams();
+          showToast({
+            type: 'info',
+            message: 'Payment was not completed. Select a ZIP code to try checkout again.',
+          });
+        } else {
+          showToast({ type: 'error', message: err.message || 'Unable to finalize ZIP claim.' });
+        }
       } finally {
         setStatus('');
       }
@@ -421,11 +452,8 @@ export function FirstZipClaimDialog({ role, userId, onClose }) {
   const claimedSet = useMemo(() => new Set(claimedRows.map((r) => String(r.name))), [claimedRows]);
   const displayRows = searchZipRows !== null ? searchZipRows : stateZipRows;
   const availableRows = useMemo(
-    () =>
-      displayRows
-        .filter((r) => !claimedSet.has(String(r.zipcode)))
-        .map((r) => ({ ...r, name: r.zipcode })),
-    [displayRows, claimedSet],
+    () => filterAvailableZipRows(displayRows, { searchZipRows, zipSearch, claimedSet }),
+    [displayRows, claimedSet, searchZipRows, zipSearch],
   );
 
   const licensedStateNames = licensedStates.map((code) => US_STATES.find((s) => s.code === code)?.name || code);
@@ -488,6 +516,7 @@ export function FirstZipClaimDialog({ role, userId, onClose }) {
               ) : (
                 <div className="zip-grid zip-grid-pro">
                   {availableRows.map((row) => {
+                    const isOwnClaimed = claimedSet.has(String(row.zipcode));
                     const isClaimedByOther = Boolean(row.claimedBy);
                     const hasJoined = waitingListJoined.has(row.zipcode);
                     const isJoining = joiningWaitingListZip === row.zipcode;
@@ -499,13 +528,18 @@ export function FirstZipClaimDialog({ role, userId, onClose }) {
                         </div>
                         <p className="zip-card-location">{row.city || 'Unknown city'}, {row.state}</p>
                         <small className="zip-card-meta">Population: {Number(row.population || 0).toLocaleString()}{row.distance != null ? ` • ${row.distance} mi away` : ''}</small>
-                        {isClaimedByOther && (
+                        {isOwnClaimed && <small className="zip-card-claimed-badge">Already in your claimed ZIP codes</small>}
+                        {!isOwnClaimed && isClaimedByOther && (
                           <small className="zip-card-claimed-badge">
                             {row.claimedBy === 'agent' ? 'Already claimed by an agent' : row.claimedBy === 'loanOfficer' ? 'Already claimed by a Loan Officer' : 'Already claimed'}
                           </small>
                         )}
                         <div className="zip-card-actions">
-                          {isClaimedByOther ? (
+                          {isOwnClaimed ? (
+                            <button type="button" className="btn ghost small" disabled>
+                              Already claimed
+                            </button>
+                          ) : isClaimedByOther ? (
                             <>
                               {hasJoined ? (
                                 <button type="button" className="btn ghost small" onClick={() => showWaitingListModal(row.zipcode)}>

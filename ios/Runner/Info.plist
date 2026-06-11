@@ -52,12 +52,8 @@
 	<string>This app needs access to contacts to share property information with your contacts.</string>
 	<key>NSDocumentsFolderUsageDescription</key>
 	<string>This app needs access to documents to save and manage property documents.</string>
-	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>This app needs access to location to show nearby properties and provide location-based services.</string>
-	<key>NSLocationAlwaysUsageDescription</key>
-	<string>This app needs access to location to show nearby properties and provide location-based services.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>This app needs access to location to show nearby properties and provide location-based services.</string>
+	<string>GetaRebate uses your location while you use the app to find nearby agents, loan officers, and properties in your area.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>This app needs access to microphone to record videos of properties.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
@@ -70,7 +66,6 @@
 	<array>
 		<string>remote-notification</string>
 		<string>fetch</string>
-		<string>location</string>
 	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>

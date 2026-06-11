@@ -46,7 +46,11 @@ class SplashController extends GetxController {
       // Get auth controller and check if user is logged in
       final authController = Get.find<AuthController>();
 
-      if (authController.isLoggedIn && authController.currentUser != null) {
+      if (authController.isGuestMode) {
+        _preloadLocation();
+        print('Splash: Guest session, navigating to main app...');
+        Get.offAllNamed(AppPages.MAIN);
+      } else if (authController.isLoggedIn && authController.currentUser != null) {
         final user = authController.currentUser!;
         // User is logged in - preload data in background for instant access
         _preloadData(user.role);

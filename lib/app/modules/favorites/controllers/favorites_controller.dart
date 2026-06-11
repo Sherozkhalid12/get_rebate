@@ -9,6 +9,7 @@ import 'package:getrebate/app/services/loan_officer_service.dart';
 import 'package:getrebate/app/services/agent_service.dart';
 import 'package:getrebate/app/controllers/auth_controller.dart';
 import 'package:getrebate/app/modules/buyer_v2/controllers/buyer_v2_controller.dart';
+import 'package:getrebate/app/utils/guest_auth_guard.dart';
 
 class FavoritesController extends GetxController {
   // Data
@@ -649,10 +650,18 @@ class FavoritesController extends GetxController {
   }
 
   void contactAgent(AgentModel agent) {
+    if (!GuestAuthGuard.requireAuth(featureDescription: 'message agents')) {
+      return;
+    }
     Get.toNamed('/contact-agent', arguments: {'agent': agent});
   }
 
   void contactLoanOfficer(LoanOfficerModel loanOfficer) {
+    if (!GuestAuthGuard.requireAuth(
+      featureDescription: 'message loan officers',
+    )) {
+      return;
+    }
     // Record contact
     _recordLoanOfficerContact(loanOfficer.id);
     

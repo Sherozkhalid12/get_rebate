@@ -9,6 +9,7 @@ import 'package:getrebate/app/modules/messages/controllers/messages_controller.d
 import 'package:getrebate/app/utils/api_constants.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
 import 'package:getrebate/app/utils/error_handler.dart';
+import 'package:getrebate/app/utils/guest_auth_guard.dart';
 import 'package:getrebate/app/services/agent_service.dart';
 import 'package:getrebate/app/services/zip_codes_service.dart';
 
@@ -769,6 +770,10 @@ class FindAgentsController extends GetxController {
   }
 
   Future<void> contactAgent(AgentModel agent) async {
+    if (!GuestAuthGuard.requireAuth(featureDescription: 'message agents')) {
+      return;
+    }
+
     // Record contact action
     _recordContact(agent.id);
     

@@ -22,6 +22,7 @@ import 'package:getrebate/app/modules/favorites/controllers/favorites_controller
 import 'package:getrebate/app/controllers/main_navigation_controller.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
+import 'package:getrebate/app/utils/guest_auth_guard.dart';
 import 'package:getrebate/app/utils/error_handler.dart';
 import 'package:getrebate/app/utils/rebate_restricted_states.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
@@ -32,6 +33,10 @@ class BuyerV2Controller extends GetxController {
 
   // Search
   final searchController = TextEditingController();
+  bool _searchControllerDisposed = false;
+
+  /// Whether the ZIP search field can still be used by the UI.
+  bool get isSearchControllerActive => !_searchControllerDisposed;
   final _searchQuery = ''.obs;
   final _selectedTab =
       0.obs; // 0: Agents, 1: Homes for Sale, 2: Open Houses, 3: Loan Officers
@@ -218,6 +223,7 @@ class BuyerV2Controller extends GetxController {
   void _tryAutoFillFromLocation() {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       try {
+        if (_searchControllerDisposed) return;
         if (searchController.text.trim().isNotEmpty) {
           if (kDebugMode) {
             debugPrint(
@@ -238,6 +244,7 @@ class BuyerV2Controller extends GetxController {
           zipCode = _locationController.currentZipCode;
         }
 
+        if (_searchControllerDisposed) return;
         if (zipCode != null &&
             zipCode.length == 5 &&
             RegExp(r'^\d+$').hasMatch(zipCode)) {
@@ -261,6 +268,7 @@ class BuyerV2Controller extends GetxController {
   /// Use cached current zip in search bar (called when user taps location icon).
   /// Location is pre-fetched on splash/home, so this renders instantly.
   Future<void> useCurrentLocation() async {
+    if (_searchControllerDisposed) return;
     if (kDebugMode) {
       debugPrint('📍 useCurrentLocation() triggered');
     }
@@ -288,8 +296,36 @@ class BuyerV2Controller extends GetxController {
   }
 
   void _onSearchChanged() {
+    if (_searchControllerDisposed) return;
     _searchQuery.value = searchController.text;
     _searchAgentsAndLoanOfficers();
+  }
+
+  /// Detaches listeners before route teardown so IndexedStack children stop using
+  /// the controller while widgets are still in the tree (logout / guest exit).
+  void detachSearchController() {
+    if (_searchControllerDisposed) return;
+    _searchControllerDisposed = true;
+    searchController.removeListener(_onSearchChanged);
+  }
+
+  /// Clears ZIP search safely (used by CustomSearchField clear action).
+  void clearSearchField() {
+    if (_searchControllerDisposed) return;
+    searchController.clear();
+    clearZipCodeFilter();
+  }
+
+  String get searchFieldText {
+    if (_searchControllerDisposed) return '';
+    return searchController.text;
+  }
+
+  /// Call before [Get.offAllNamed] when leaving the buyer main flow.
+  static void detachBeforeRouteReset() {
+    if (Get.isRegistered<BuyerV2Controller>()) {
+      Get.find<BuyerV2Controller>().detachSearchController();
+    }
   }
 
   void setSelectedTab(int index) {
@@ -1696,21 +1732,12 @@ class BuyerV2Controller extends GetxController {
     if (_togglingFavorites.contains(agentId))
       return; // Prevent multiple simultaneous calls
 
-    // Optimistic update - update UI immediately before API call
-    final currentUser = _authController.currentUser;
-    if (currentUser == null || currentUser.id.isEmpty) {
-      try {
-        SnackbarHelper.showError(
-          'Please login to like agents',
-          duration: const Duration(seconds: 2),
-        );
-      } catch (e) {
-        if (kDebugMode) {
-          print('⚠️ Could not show snackbar: $e');
-        }
-      }
+    if (!GuestAuthGuard.requireAuth(featureDescription: 'save favorite agents')) {
       return;
     }
+
+    // Optimistic update - update UI immediately before API call
+    final currentUser = _authController.currentUser!;
 
     // Optimistically update UI immediately (save original state for rollback)
     int agentIndex = -1;
@@ -1961,21 +1988,13 @@ class BuyerV2Controller extends GetxController {
     if (_togglingFavorites.contains(loanOfficerId))
       return; // Prevent multiple simultaneous calls
 
-    // Optimistic update - update UI immediately before API call
-    final currentUser = _authController.currentUser;
-    if (currentUser == null || currentUser.id.isEmpty) {
-      try {
-        SnackbarHelper.showError(
-          'Please login to like loan officers',
-          duration: const Duration(seconds: 2),
-        );
-      } catch (e) {
-        if (kDebugMode) {
-          print('⚠️ Could not show snackbar: $e');
-        }
-      }
+    if (!GuestAuthGuard.requireAuth(
+      featureDescription: 'save favorite loan officers',
+    )) {
       return;
     }
+
+    final currentUser = _authController.currentUser!;
 
     // Optimistically update UI immediately (save original state for rollback)
     int loanOfficerIndex = -1;
@@ -2284,6 +2303,10 @@ class BuyerV2Controller extends GetxController {
   }
 
   Future<void> contactAgent(AgentModel agent) async {
+    if (!GuestAuthGuard.requireAuth(featureDescription: 'message agents')) {
+      return;
+    }
+
     // Record contact action
     _recordContact(agent.id);
 
@@ -2350,6 +2373,12 @@ class BuyerV2Controller extends GetxController {
   }
 
   Future<void> contactLoanOfficer(LoanOfficerModel loanOfficer) async {
+    if (!GuestAuthGuard.requireAuth(
+      featureDescription: 'message loan officers',
+    )) {
+      return;
+    }
+
     // Record contact
     _recordLoanOfficerContact(loanOfficer.id);
 
@@ -2422,6 +2451,10 @@ class BuyerV2Controller extends GetxController {
 
   /// Sets the buyer's selected agent to work with
   void selectBuyerAgent(AgentModel agent) {
+    if (!GuestAuthGuard.requireAuth(featureDescription: 'select an agent')) {
+      return;
+    }
+
     _selectedBuyerAgent.value = agent;
     Get.snackbar(
       'Agent Selected',
@@ -2481,14 +2514,11 @@ class BuyerV2Controller extends GetxController {
   Future<void> toggleFavoriteListing(String listingId) async {
     if (_togglingFavorites.contains(listingId)) return;
 
-    final currentUser = _authController.currentUser;
-    if (currentUser == null || currentUser.id.isEmpty) {
-      SnackbarHelper.showError(
-        'Please login to like listings',
-        duration: const Duration(seconds: 2),
-      );
+    if (!GuestAuthGuard.requireAuth(featureDescription: 'save favorite listings')) {
       return;
     }
+
+    final currentUser = _authController.currentUser!;
 
     // Optimistic update
     final isCurrentlyLiked = _favoriteListings.contains(listingId);
@@ -2849,6 +2879,7 @@ class BuyerV2Controller extends GetxController {
 
   @override
   void onClose() {
+    detachSearchController();
     searchController.dispose();
     super.onClose();
   }

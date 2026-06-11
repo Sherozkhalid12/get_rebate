@@ -12,6 +12,7 @@ import 'package:getrebate/app/modules/messages/controllers/messages_controller.d
 import 'package:getrebate/app/services/loan_officer_service.dart';
 import 'package:getrebate/app/utils/api_constants.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
+import 'package:getrebate/app/utils/guest_auth_guard.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
 import 'package:getrebate/app/controllers/current_loan_officer_controller.dart';
 import 'package:getrebate/app/modules/proposals/controllers/proposal_controller.dart';
@@ -136,21 +137,18 @@ class LoanOfficerProfileController extends GetxController {
   Future<void> toggleFavorite() async {
     if (_loanOfficer.value == null) return;
     if (_isTogglingFavorite.value) return; // Prevent multiple simultaneous calls
+
+    if (!GuestAuthGuard.requireAuth(
+      featureDescription: 'save favorite loan officers',
+    )) {
+      return;
+    }
     
     try {
       _isTogglingFavorite.value = true;
       
-      // Get current user ID
       final authController = Get.find<AuthController>();
-      final currentUser = authController.currentUser;
-      
-      if (currentUser == null || currentUser.id.isEmpty) {
-        SnackbarHelper.showError(
-          'Please login to like loan officers',
-          duration: const Duration(seconds: 2),
-        );
-        return;
-      }
+      final currentUser = authController.currentUser!;
       
       final loanOfficerId = _loanOfficer.value!.id;
       // Use the same endpoint pattern - assuming loan officers can be liked via the agent endpoint
@@ -302,7 +300,12 @@ class LoanOfficerProfileController extends GetxController {
 
   void contactLoanOfficer() {
     if (_loanOfficer.value == null) return;
-    
+    if (!GuestAuthGuard.requireAuth(
+      featureDescription: 'contact loan officers',
+    )) {
+      return;
+    }
+
     // Record contact
     _recordContact(_loanOfficer.value!.id);
 

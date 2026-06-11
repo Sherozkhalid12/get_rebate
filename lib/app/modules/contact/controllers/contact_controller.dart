@@ -1,6 +1,7 @@
 import 'package:get/get.dart';
 import 'package:getrebate/app/modules/messages/controllers/messages_controller.dart';
 import 'package:getrebate/app/controllers/main_navigation_controller.dart';
+import 'package:getrebate/app/utils/guest_auth_guard.dart';
 
 class ContactController extends GetxController {
   final String userId;
@@ -83,6 +84,10 @@ class ContactController extends GetxController {
   }
 
   Future<void> startChat() async {
+    if (!GuestAuthGuard.requireAuth(featureDescription: 'start a chat')) {
+      return;
+    }
+
     try {
       _isCreatingThread.value = true;
       

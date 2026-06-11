@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:getrebate/app/controllers/auth_controller.dart';
 import 'package:getrebate/app/routes/app_pages.dart';
 
 class OnboardingController extends GetxController {
@@ -34,6 +35,10 @@ class OnboardingController extends GetxController {
 
   void skipOnboarding() {
     Get.toNamed(AppPages.AUTH);
+  }
+
+  void continueAsGuest() {
+    Get.find<AuthController>().enterGuestMode();
   }
 
   @override

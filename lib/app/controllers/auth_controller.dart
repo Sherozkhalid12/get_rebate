@@ -14,8 +14,11 @@ import 'package:getrebate/app/utils/timezone_helper.dart';
 import 'package:getrebate/app/utils/connectivity_helper.dart';
 import 'package:getrebate/app/utils/profile_completion_helper.dart';
 import 'package:getrebate/app/utils/snackbar_helper.dart';
+import 'package:getrebate/app/utils/storage_keys.dart';
+import 'package:getrebate/app/utils/guest_auth_guard.dart';
 import 'package:getrebate/app/controllers/current_loan_officer_controller.dart';
 import 'package:getrebate/app/modules/messages/controllers/messages_controller.dart';
+import 'package:getrebate/app/modules/buyer_v2/controllers/buyer_v2_controller.dart';
 import 'package:getrebate/app/modules/auth/controllers/auth_controller.dart'
     show AuthViewController;
 
@@ -40,6 +43,7 @@ class AuthController extends GetxController {
   final _isLoading = false.obs;
   final _currentUser = Rxn<UserModel>();
   final _isLoggedIn = false.obs;
+  final _isGuestMode = false.obs;
   bool _isLoadingLoanOfficerProfile =
       false; // Guard to prevent multiple simultaneous loads
   bool _pendingSocialProfileCompletion = false;
@@ -48,6 +52,9 @@ class AuthController extends GetxController {
   bool get isLoading => _isLoading.value;
   UserModel? get currentUser => _currentUser.value;
   bool get isLoggedIn => _isLoggedIn.value;
+  bool get isGuestMode => _isGuestMode.value;
+  bool get hasAccount => isLoggedIn && currentUser != null;
+  bool get canBrowseApp => hasAccount || isGuestMode;
   String? get token => _storage.read('auth_token');
 
   @override
@@ -186,7 +193,38 @@ class AuthController extends GetxController {
     } else {
       print('ℹ️ No saved user session found');
       _isLoggedIn.value = false;
+      _restoreGuestModeFlag();
     }
+  }
+
+  void _restoreGuestModeFlag() {
+    _isGuestMode.value = _storage.read(kGuestModeStorageKey) == true;
+    if (_isGuestMode.value) {
+      print('ℹ️ Guest browse session restored');
+    }
+  }
+
+  void _clearGuestMode() {
+    _isGuestMode.value = false;
+    _storage.remove(kGuestModeStorageKey);
+  }
+
+  /// Enters buyer guest browse mode (standard main app flow, no account).
+  void enterGuestMode() {
+    _clearInvalidUserData();
+    _clearGuestMode();
+    _isGuestMode.value = true;
+    _storage.write(kGuestModeStorageKey, true);
+    print('👤 Guest mode enabled');
+    Get.offAllNamed(AppPages.MAIN);
+  }
+
+  /// Leaves guest mode and returns to authentication.
+  void exitGuestMode() {
+    _clearGuestMode();
+    print('👤 Guest mode ended');
+    BuyerV2Controller.detachBeforeRouteReset();
+    Get.offAllNamed(AppPages.AUTH);
   }
 
   /// Loads the loan officer profile asynchronously
@@ -388,6 +426,7 @@ class AuthController extends GetxController {
           user = _applyCachedLicensedStates(user);
 
           // Store user and token
+          _clearGuestMode();
           _currentUser.value = user;
           _isLoggedIn.value = true;
           _storage.write('current_user', user.toJson());
@@ -411,7 +450,7 @@ class AuthController extends GetxController {
             duration: const Duration(seconds: 2),
           );
 
-          await _navigateToRoleBasedScreen();
+          await _completeAuthNavigation();
         } else {
           throw Exception('User data not found in response');
         }
@@ -1267,6 +1306,7 @@ class AuthController extends GetxController {
           },
         );
 
+        _clearGuestMode();
         _currentUser.value = user;
         _isLoggedIn.value = true;
         _storage.write('current_user', user.toJson());
@@ -1287,7 +1327,7 @@ class AuthController extends GetxController {
         );
 
         if (!skipNavigation) {
-          await _navigateToRoleBasedScreen();
+          await _completeAuthNavigation();
         }
       }
     } on DioException catch (e) {
@@ -1822,6 +1862,7 @@ class AuthController extends GetxController {
 
       user = _applyCachedLicensedStates(user);
 
+      _clearGuestMode();
       _currentUser.value = user;
       _isLoggedIn.value = true;
       _storage.write('current_user', user.toJson());
@@ -1885,10 +1926,69 @@ class AuthController extends GetxController {
       Get.offAllNamed(AppPages.COMPLETE_PROFILE);
       return;
     }
+    await _completeAuthNavigation();
+  }
+
+  Future<void> _completeAuthNavigation() async {
+    if (GuestAuthGuard.consumePreserveRouteFlag()) {
+      await _navigatePreservingCurrentScreen();
+      return;
+    }
     await _navigateToRoleBasedScreen();
   }
 
+  /// Keeps the user on their current flow after signing in from a guest prompt.
+  Future<void> _navigatePreservingCurrentScreen() async {
+    final role = _currentUser.value?.role;
+    final userId = _currentUser.value?.id;
+
+    if (role == UserRole.loanOfficer && userId != null && userId.isNotEmpty) {
+      final currentLoanOfficerController =
+          Get.isRegistered<CurrentLoanOfficerController>()
+              ? Get.find<CurrentLoanOfficerController>()
+              : Get.put(CurrentLoanOfficerController(), permanent: true);
+      await currentLoanOfficerController.fetchCurrentLoanOfficer(userId);
+      if (currentLoanOfficerController.currentLoanOfficer.value == null) {
+        SnackbarHelper.showError(
+          'Could not load your profile. Please sign in again.',
+          duration: const Duration(seconds: 4),
+        );
+        logout();
+        return;
+      }
+    }
+
+    if (Get.currentRoute == AppPages.AUTH) {
+      Get.back();
+    }
+
+    switch (role) {
+      case UserRole.buyerSeller:
+        if (Get.currentRoute != AppPages.MAIN) {
+          Get.offAllNamed(AppPages.MAIN);
+        }
+        break;
+      case UserRole.agent:
+        if (Get.currentRoute != AppPages.AGENT) {
+          Get.offAllNamed(AppPages.AGENT);
+        }
+        break;
+      case UserRole.loanOfficer:
+        if (Get.currentRoute != AppPages.LOAN_OFFICER) {
+          Get.offAllNamed(AppPages.LOAN_OFFICER);
+        }
+        break;
+      default:
+        await _navigateToRoleBasedScreen();
+    }
+  }
+
   void logout() async {
+    if (isGuestMode) {
+      exitGuestMode();
+      return;
+    }
+
     // Ensure any active snackbar overlay is removed before route teardown.
     SnackbarHelper.dismissCurrent();
 
@@ -1897,6 +1997,7 @@ class AuthController extends GetxController {
       await removeFCM(_currentUser.value!.id);
     }
 
+    _clearGuestMode();
     _currentUser.value = null;
     _isLoggedIn.value = false;
     _storage.remove('current_user');
@@ -1931,6 +2032,8 @@ class AuthController extends GetxController {
     }
 
     print('🔓 User logged out - cleared user data and token');
+
+    BuyerV2Controller.detachBeforeRouteReset();
 
     // Navigate to auth screen - this will automatically dispose route-bound controllers
     Get.offAllNamed(AppPages.AUTH);

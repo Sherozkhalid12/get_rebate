@@ -14,7 +14,18 @@ import * as chatApi from '../../api/chat';
 import { parseThreadsToRows } from '../../lib/chatUtils';
 import * as userApi from '../../api/user';
 import * as zipApi from '../../api/zipcodes';
-import { getZipClaimedMessage, flattenZipCodeResponse, getSessionIdFromUrl } from '../../api/zipcodes';
+import {
+  getZipClaimedMessage,
+  flattenZipCodeResponse,
+  getSessionIdFromUrl,
+  clearStripeReturnParams,
+  clearPendingZipCheckout,
+  readPendingZipCheckout,
+  isIncompleteCheckoutError,
+  prepareZipSearchRows,
+  parseZipPopulation,
+  filterAvailableZipRows,
+} from '../../api/zipcodes';
 import { calculateLoanOfficerPriceForPopulation } from '../../lib/zipCodePricing';
 import { ChatThread } from '../../components/chat/ChatThread';
 import { useToast } from '../../components/ui/ToastProvider';
@@ -375,7 +386,7 @@ export function LoanOfficerZipCodesPage() {
         const flat = flattenZipCodeResponse(response);
         const rows = flat.map((z, i) => {
           const zipcode = z.postalCode || z.zipCode || z.zipcode;
-          const population = Number(z.population || 0);
+          const population = parseZipPopulation(z);
           const apiPrice = Number(z.calculatedPrice || z.price || 0);
           const price = (population > 0 ? calculateLoanOfficerPriceForPopulation(population) : apiPrice || 0).toFixed(2);
           const dist = z.distance != null ? Number(z.distance).toFixed(1) : null;
@@ -395,7 +406,7 @@ export function LoanOfficerZipCodesPage() {
           };
         }).filter((r) => r.zipcode);
         const enriched = await enrichClaimStatus(rows, rows.length);
-        setSearchZipRows(enriched);
+        setSearchZipRows(prepareZipSearchRows(enriched, zip));
         enriched.filter((r) => r.claimedBy === 'loanOfficer').forEach((r) => checkWaitingListForZip(r.zipcode));
       } catch (err) {
         showToast({ type: 'error', message: err.message || 'ZIP search failed.' });
@@ -409,27 +420,28 @@ export function LoanOfficerZipCodesPage() {
 
   useEffect(() => {
     const finalizePending = async () => {
-      console.log('[ZIP Claim LO] finalizePending start', { userId, url: window.location.href });
       if (!userId) return;
-      const pendingRaw = localStorage.getItem(pendingKey);
-      if (!pendingRaw) return;
 
-      let pending;
-      try {
-        pending = JSON.parse(pendingRaw);
-      } catch {
-        localStorage.removeItem(pendingKey);
+      const sessionIdFromUrl = getSessionIdFromUrl();
+      const pending = readPendingZipCheckout(pendingKey, userId);
+
+      if (!sessionIdFromUrl) {
+        if (pending) clearPendingZipCheckout(pendingKey);
         return;
       }
-      if (!pending || pending.userId !== userId) return;
 
-      const sessionId = getSessionIdFromUrl() || pending.sessionId;
-
-      if (!sessionId) {
-        console.error('[ZIP Claim LO] No sessionId');
-        showToast({ type: 'error', message: 'Payment session not found. If you were charged, please contact support with your receipt.' });
+      if (!pending) {
+        clearStripeReturnParams();
         return;
       }
+
+      if (pending.sessionId && pending.sessionId !== sessionIdFromUrl) {
+        clearPendingZipCheckout(pendingKey);
+        clearStripeReturnParams();
+        return;
+      }
+
+      const sessionId = sessionIdFromUrl;
 
       try {
         setStatus('Verifying payment...');
@@ -437,6 +449,7 @@ export function LoanOfficerZipCodesPage() {
         try {
           payment = await zipApi.verifyPaymentSuccess(sessionId, pending.zipcode);
         } catch (verifyErr) {
+          if (isIncompleteCheckoutError(verifyErr)) throw verifyErr;
           payment = await zipApi.verifyPaymentSuccess(sessionId);
         }
         if (payment?.success === false) throw new Error(payment?.message || 'Payment verification failed.');
@@ -452,12 +465,11 @@ export function LoanOfficerZipCodesPage() {
           price: pending.price,
         });
 
-        localStorage.removeItem(pendingKey);
+        clearPendingZipCheckout(pendingKey);
+        clearStripeReturnParams();
         justClaimedRef.current = new Set([...justClaimedRef.current, pending.zipcode]);
         setStateCode(pending.state || stateCode);
         sessionStorage.setItem(stateStorageKey, pending.state || stateCode);
-        const cleanUrl = `${window.location.pathname}${window.location.hash || ''}`;
-        window.history.replaceState({}, document.title, cleanUrl);
         setStatus('');
         setActiveTab('claimed');
         setClaimedRows((prev) => {
@@ -470,7 +482,18 @@ export function LoanOfficerZipCodesPage() {
       } catch (err) {
         setStatus('');
         const msg = err?.message || '';
+        if (isIncompleteCheckoutError(err)) {
+          clearPendingZipCheckout(pendingKey);
+          clearStripeReturnParams();
+          showToast({
+            type: 'info',
+            message: 'Payment was not completed. Select a ZIP code to try checkout again.',
+          });
+          return;
+        }
         if (/claimed|already claimed/i.test(msg)) {
+          clearPendingZipCheckout(pendingKey);
+          clearStripeReturnParams();
           justClaimedRef.current = new Set([...justClaimedRef.current, pending.zipcode]);
           setStateCode(pending.state || stateCode);
           setActiveTab('claimed');
@@ -696,11 +719,8 @@ export function LoanOfficerZipCodesPage() {
 
   const displayRows = searchZipRows !== null ? searchZipRows : stateZipRows;
   const availableRows = useMemo(
-    () =>
-      displayRows
-        .filter((row) => !claimedSet.has(String(row.zipcode)))
-        .map((row) => ({ ...row, name: row.zipcode })),
-    [displayRows, claimedSet],
+    () => filterAvailableZipRows(displayRows, { searchZipRows, zipSearch, claimedSet }),
+    [displayRows, claimedSet, searchZipRows, zipSearch],
   );
 
   return (
@@ -745,6 +765,7 @@ export function LoanOfficerZipCodesPage() {
                   </div>
                 ) : (
                   availableRows.map((row) => {
+                    const isOwnClaimed = claimedSet.has(String(row.zipcode));
                     const isClaimedByOfficer = row.claimedBy === 'loanOfficer';
                     const hasJoined = waitingListJoined.has(row.zipcode);
                     const isJoining = joiningWaitingListZip === row.zipcode;
@@ -756,9 +777,14 @@ export function LoanOfficerZipCodesPage() {
                         </div>
                         <p className="zip-card-location">{row.city || 'Unknown city'}, {row.state}</p>
                         <small className="zip-card-meta">Population: {Number(row.population || 0).toLocaleString()}{row.distance != null ? ` • ${row.distance} mi away` : ''}</small>
-                        {isClaimedByOfficer && <small className="zip-card-claimed-badge">Already claimed by a loan officer</small>}
+                        {isOwnClaimed && <small className="zip-card-claimed-badge">In your claimed ZIP codes</small>}
+                        {!isOwnClaimed && isClaimedByOfficer && <small className="zip-card-claimed-badge">Already claimed by a loan officer</small>}
                         <div className="zip-card-actions">
-                          {isClaimedByOfficer ? (
+                          {isOwnClaimed ? (
+                            <button className="btn ghost small" type="button" onClick={() => setActiveTab('claimed')}>
+                              View in Claimed
+                            </button>
+                          ) : isClaimedByOfficer ? (
                             <>
                               {hasJoined ? (
                                 <button className="btn ghost small" type="button" onClick={() => showWaitingListModal(row.zipcode)}>

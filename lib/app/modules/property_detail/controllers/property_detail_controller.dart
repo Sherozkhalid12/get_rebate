@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:getrebate/app/demo_data/demo_property_data.dart';
+import 'package:getrebate/app/utils/guest_auth_guard.dart';
 
 class PropertyDetailController extends GetxController {
   // Property data
@@ -73,6 +74,10 @@ class PropertyDetailController extends GetxController {
   }
 
   void openBuyerLeadForm() {
+    if (!GuestAuthGuard.requireAuth(featureDescription: 'submit a buyer lead')) {
+      return;
+    }
+
     // Get agent info from property - check multiple possible fields
     final agentInfo = property['agent'] as Map<String, dynamic>?;
     final agentId = property['agentId']?.toString() ?? 
@@ -93,6 +98,10 @@ class PropertyDetailController extends GetxController {
   }
 
   void openSellerLeadForm() {
+    if (!GuestAuthGuard.requireAuth(featureDescription: 'submit a seller lead')) {
+      return;
+    }
+
     // Get agent info from property - check multiple possible fields
     final agentInfo = property['agent'] as Map<String, dynamic>?;
     final agentId = property['agentId']?.toString() ?? 

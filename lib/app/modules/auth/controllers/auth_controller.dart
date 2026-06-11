@@ -1058,7 +1058,19 @@ class AuthViewController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    _applyRouteAuthMode();
     _loadAllowedStates();
+  }
+
+  void _applyRouteAuthMode() {
+    final args = Get.arguments;
+    if (args is! Map) return;
+    final mode = args['mode']?.toString();
+    if (mode == 'signup') {
+      _isLoginMode.value = false;
+    } else if (mode == 'login') {
+      _isLoginMode.value = true;
+    }
   }
 
   Future<void> _loadAllowedStates() async {

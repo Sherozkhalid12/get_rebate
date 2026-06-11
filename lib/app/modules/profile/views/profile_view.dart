@@ -7,7 +7,9 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:getrebate/app/theme/app_theme.dart';
+import 'package:getrebate/app/controllers/auth_controller.dart';
 import 'package:getrebate/app/modules/profile/controllers/profile_controller.dart';
+import 'package:getrebate/app/utils/guest_auth_guard.dart';
 import 'package:getrebate/app/widgets/custom_button.dart';
 import 'package:getrebate/app/widgets/custom_text_field.dart';
 
@@ -55,6 +57,12 @@ class ProfileView extends GetView<ProfileController> {
         ],
       ),
       body: Obx(() {
+        final isGuest = Get.find<AuthController>().isGuestMode;
+
+        if (isGuest) {
+          return _buildGuestProfile(context);
+        }
+
         return RefreshIndicator(
           onRefresh: () async {
             controller.refreshUserData();
@@ -91,6 +99,13 @@ class ProfileView extends GetView<ProfileController> {
                     .animate()
                     .fadeIn(duration: 400.ms, delay: 300.ms)
                     .slideY(begin: 0.2, duration: 400.ms, delay: 300.ms),
+
+                SizedBox(height: 12.h),
+
+                _buildDeleteAccountButton(context)
+                    .animate()
+                    .fadeIn(duration: 400.ms, delay: 350.ms)
+                    .slideY(begin: 0.2, duration: 400.ms, delay: 350.ms),
                 
                 SizedBox(height: 40.h),
               ],
@@ -459,7 +474,14 @@ class ProfileView extends GetView<ProfileController> {
             icon: Icons.description_outlined,
             title: 'My Proposals',
             subtitle: 'View and manage your service proposals',
-            onTap: () => Get.toNamed('/proposals'),
+            onTap: () {
+              if (!GuestAuthGuard.requireAuth(
+                featureDescription: 'view your proposals',
+              )) {
+                return;
+              }
+              Get.toNamed('/proposals');
+            },
           ),
           Divider(height: 1, indent: 60.w),
           _buildSettingTile(
@@ -552,6 +574,96 @@ class ProfileView extends GetView<ProfileController> {
         backgroundColor: Colors.red,
         width: double.infinity,
         icon: Icons.logout,
+      ),
+    );
+  }
+
+  Widget _buildDeleteAccountButton(BuildContext context) {
+    return Container(
+      margin: EdgeInsets.symmetric(horizontal: 20.w),
+      child: CustomButton(
+        text: 'Delete Account',
+        onPressed: controller.deleteAccount,
+        width: double.infinity,
+        isOutlined: true,
+        backgroundColor: Colors.red,
+        textColor: Colors.red,
+        icon: Icons.delete_outline,
+      ),
+    );
+  }
+
+  Widget _buildGuestProfile(BuildContext context) {
+    return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      child: Column(
+        children: [
+          Container(
+            width: double.infinity,
+            padding: EdgeInsets.symmetric(vertical: 48.h, horizontal: 24.w),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: AppTheme.primaryGradient,
+              ),
+            ),
+            child: Column(
+              children: [
+                Icon(Icons.person_outline, size: 72.sp, color: AppTheme.white),
+                SizedBox(height: 16.h),
+                Text(
+                  'Browsing as Guest',
+                  style: TextStyle(
+                    color: AppTheme.white,
+                    fontSize: 22.sp,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                SizedBox(height: 8.h),
+                Text(
+                  'Create a free account to save favorites, message agents, and manage your profile.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: AppTheme.white.withOpacity(0.9),
+                    fontSize: 14.sp,
+                    height: 1.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: EdgeInsets.all(20.w),
+            child: Column(
+              children: [
+                CustomButton(
+                  text: 'Log In',
+                  onPressed: GuestAuthGuard.navigateToLogin,
+                  width: double.infinity,
+                  icon: Icons.login_rounded,
+                ),
+                SizedBox(height: 12.h),
+                CustomButton(
+                  text: 'Sign Up',
+                  onPressed: GuestAuthGuard.navigateToSignUp,
+                  width: double.infinity,
+                  isOutlined: true,
+                  icon: Icons.person_add_outlined,
+                ),
+                SizedBox(height: 24.h),
+                _buildSettings(context),
+                SizedBox(height: 20.h),
+                CustomButton(
+                  text: 'Exit Guest Mode',
+                  onPressed: controller.logout,
+                  backgroundColor: AppTheme.mediumGray,
+                  width: double.infinity,
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -78,6 +78,12 @@ function App() {
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
 
+      {/* Public legal pages — direct URL access without sign-in (SPA + _redirects) */}
+      <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+      <Route path="/terms-of-service" element={<TermsOfServicePage />} />
+      <Route path="/about-legal" element={<AboutLegalPage />} />
+      <Route path="/help-support" element={<HelpSupportPage />} />
+
       <Route
         path="/"
         element={
@@ -130,10 +136,6 @@ function App() {
         <Route path="agent-checklist" element={<AgentChecklistPage />} />
         <Route path="loan-officer-checklist" element={<LoanOfficerChecklistPage />} />
 
-        <Route path="privacy-policy" element={<PrivacyPolicyPage />} />
-        <Route path="terms-of-service" element={<TermsOfServicePage />} />
-        <Route path="about-legal" element={<AboutLegalPage />} />
-        <Route path="help-support" element={<HelpSupportPage />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />
