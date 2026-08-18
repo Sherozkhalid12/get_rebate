@@ -23,9 +23,13 @@ class ProfileCompletionHelper {
         _isEmpty(ad['CompanyName']) ||
         _isEmpty(ad['liscenceNumber']) ||
         user.licensedStates.isEmpty ||
-        _isEmpty(ad['zipCode']) ||
-        !_boolFrom(ad['dualAgencyState']) ||
-        !_boolFrom(ad['dualAgencySBrokerage']) ||
+        _hasNoZip(ad) ||
+        // Dual-agency consents: any non-null value (true OR false) is a valid
+        // answer. Treating false as incomplete traps users on the
+        // Complete-Profile screen on every app restart.
+        ad['dualAgencyState'] == null ||
+        ad['dualAgencySBrokerage'] == null ||
+        // Verification statement MUST be true (legal consent).
         !_boolFrom(ad['verificationStatement']);
   }
 
@@ -35,8 +39,17 @@ class ProfileCompletionHelper {
         _isEmpty(ad['CompanyName']) ||
         _isEmpty(ad['liscenceNumber']) ||
         user.licensedStates.isEmpty ||
-        _isEmpty(ad['zipCode']) ||
+        _hasNoZip(ad) ||
         !_boolFrom(ad['verificationStatement']);
+  }
+
+  // Office ZIP can live under any of these keys depending on which path
+  // populated the user: edit-profile flow stores 'zipCode', fresh signup
+  // from API only stores 'serviceAreas' / 'serviceZipCodes'. Accept any.
+  static bool _hasNoZip(Map<String, dynamic> ad) {
+    return _isEmpty(ad['zipCode']) &&
+        _isEmpty(ad['serviceAreas']) &&
+        _isEmpty(ad['serviceZipCodes']);
   }
 
   static bool _isEmpty(dynamic value) {
