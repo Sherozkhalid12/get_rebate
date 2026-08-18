@@ -336,8 +336,12 @@ export function LoanOfficerZipCodesPage() {
       const rows = unwrapList(response, ['zipCodes', 'data', 'results']).map((z, i) => {
         const zipcode = z.postalCode || z.zipCode || z.zipcode;
         const population = Number(z.population || 0);
-        const apiPrice = Number(z.calculatedPrice || z.price || 0);
-        const price = (population > 0 ? calculateLoanOfficerPriceForPopulation(population) : apiPrice || 0).toFixed(2);
+        // Tier first; backend pricePerMonth only when tier returns 0
+        // (PO Box / unknown ZIPs where tier doesn't cover pop<100).
+        // Absolute floor at $3.99 so no row ever shows $0.
+        const tierPrice = calculateLoanOfficerPriceForPopulation(population);
+        const apiPrice = Number(z.pricePerMonth || z.calculatedPrice || z.price || 0);
+        const price = (tierPrice || apiPrice || 3.99).toFixed(2);
         const claimedBy = z.claimedBy || (z.claimedByAgent ? 'agent' : z.claimedByOfficer || z.claimedByLoanOfficer ? 'loanOfficer' : null);
         return {
           id: z._id || z.id || `${stateCode}-${zipcode || i}`,
@@ -387,8 +391,9 @@ export function LoanOfficerZipCodesPage() {
         const rows = flat.map((z, i) => {
           const zipcode = z.postalCode || z.zipCode || z.zipcode;
           const population = parseZipPopulation(z);
-          const apiPrice = Number(z.calculatedPrice || z.price || 0);
-          const price = (population > 0 ? calculateLoanOfficerPriceForPopulation(population) : apiPrice || 0).toFixed(2);
+          const tierPrice = calculateLoanOfficerPriceForPopulation(population);
+          const apiPrice = Number(z.pricePerMonth || z.calculatedPrice || z.price || 0);
+          const price = (tierPrice || apiPrice || 3.99).toFixed(2);
           const dist = z.distance != null ? Number(z.distance).toFixed(1) : null;
           const distStr = dist ? ` • ${dist} mi` : '';
           const claimedBy = z.claimedBy || (z.claimedByAgent ? 'agent' : z.claimedByOfficer || z.claimedByLoanOfficer ? 'loanOfficer' : null);
