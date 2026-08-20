@@ -15,6 +15,7 @@ import * as userApi from '../../api/user';
 import * as zipApi from '../../api/zipcodes';
 import { useToast } from '../../components/ui/ToastProvider';
 import { IconGlyph } from '../../components/ui/IconGlyph';
+import { BuyingChecklistItem, SellingChecklistItem } from '../../components/checklist/RebateSampleForms';
 import { AnimatedLoader } from '../../components/ui/AnimatedLoader';
 import { StateSelect, parseLicensedStates } from '../../components/ui/StateSelect';
 
@@ -1948,9 +1949,12 @@ export function RebateChecklistPage() {
               <IconGlyph name="checklist" filled />
               <h4>Real Estate Agent Rebate Checklist – Buying/Building (Agent view)</h4>
             </div>
+            <p className="checklist-card-intro">
+              Follow these steps to ensure compliance when working with a buyer who will receive a real estate commission rebate.
+            </p>
             <ol className="checklist-items">
               {REBATE_CHECKLIST_BUYING.map((item, i) => (
-                <li key={i} className="checklist-item"><span className="checklist-num">{i + 1}</span><span className="checklist-text">{item}</span></li>
+                <BuyingChecklistItem key={i} index={i} text={item} />
               ))}
             </ol>
           </div>
@@ -1961,7 +1965,7 @@ export function RebateChecklistPage() {
             </div>
             <ol className="checklist-items">
               {REBATE_CHECKLIST_SELLING.map((item, i) => (
-                <li key={i} className="checklist-item"><span className="checklist-num">{i + 1}</span><span className="checklist-text">{item}</span></li>
+                <SellingChecklistItem key={i} index={i} text={item} />
               ))}
             </ol>
           </div>

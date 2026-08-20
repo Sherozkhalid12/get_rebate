@@ -25,12 +25,18 @@ import {
   prepareZipSearchRows,
   parseZipPopulation,
   filterAvailableZipRows,
+  LOAN_OFFICER_ZIP_CART_KEY,
+  writeZipCart,
+  takeNextZipFromCart,
+  clearZipCart,
 } from '../../api/zipcodes';
-import { calculateLoanOfficerPriceForPopulation } from '../../lib/zipCodePricing';
+import { formatZipMonthlyPrice, formatZipPopulationMeta, MAX_CLAIMED_ZIPS } from '../../lib/zipCodePricing';
+import { friendlyApiError } from '../../lib/apiErrors';
 import { ChatThread } from '../../components/chat/ChatThread';
 import { useToast } from '../../components/ui/ToastProvider';
 import { FirstZipClaimDialog } from '../../components/dialogs/FirstZipClaimDialog';
 import { BUYER_CHECKLIST, REBATE_CHECKLIST_BUYING } from '../shared/CommonPages';
+import { BuyingChecklistItem } from '../../components/checklist/RebateSampleForms';
 
 const LOAN_OFFICER_ZIP_SKIPPED_KEY = 'loan_officer_zip_skipped';
 
@@ -268,6 +274,8 @@ export function LoanOfficerZipCodesPage() {
   const [releasingZipId, setReleasingZipId] = useState(null);
   const [joiningWaitingListZip, setJoiningWaitingListZip] = useState(null);
   const [waitingListJoined, setWaitingListJoined] = useState(new Set());
+  const [selectedZips, setSelectedZips] = useState(() => new Set());
+  const claimZipRef = useRef(null);
   const [waitingListModalZip, setWaitingListModalZip] = useState(null);
   const [waitingListEntries, setWaitingListEntries] = useState([]);
   const [loadingWaitingList, setLoadingWaitingList] = useState(false);
@@ -323,8 +331,8 @@ export function LoanOfficerZipCodesPage() {
           stripeSubscriptionId: matchedSub?.stripeSubscriptionId || matchedSub?._id || '',
         };
       }));
-    } catch {
-      setClaimedRows([]);
+    } catch (err) {
+      showToast({ type: 'error', message: friendlyApiError(err, 'Unable to load claimed ZIP codes. Refresh and try again.') });
     }
   };
 
@@ -336,12 +344,7 @@ export function LoanOfficerZipCodesPage() {
       const rows = unwrapList(response, ['zipCodes', 'data', 'results']).map((z, i) => {
         const zipcode = z.postalCode || z.zipCode || z.zipcode;
         const population = Number(z.population || 0);
-        // Tier first; backend pricePerMonth only when tier returns 0
-        // (PO Box / unknown ZIPs where tier doesn't cover pop<100).
-        // Absolute floor at $3.99 so no row ever shows $0.
-        const tierPrice = calculateLoanOfficerPriceForPopulation(population);
-        const apiPrice = Number(z.pricePerMonth || z.calculatedPrice || z.price || 0);
-        const price = (tierPrice || apiPrice || 3.99).toFixed(2);
+        const price = formatZipMonthlyPrice(population, 'loanOfficer');
         const claimedBy = z.claimedBy || (z.claimedByAgent ? 'agent' : z.claimedByOfficer || z.claimedByLoanOfficer ? 'loanOfficer' : null);
         return {
           id: z._id || z.id || `${stateCode}-${zipcode || i}`,
@@ -391,9 +394,7 @@ export function LoanOfficerZipCodesPage() {
         const rows = flat.map((z, i) => {
           const zipcode = z.postalCode || z.zipCode || z.zipcode;
           const population = parseZipPopulation(z);
-          const tierPrice = calculateLoanOfficerPriceForPopulation(population);
-          const apiPrice = Number(z.pricePerMonth || z.calculatedPrice || z.price || 0);
-          const price = (tierPrice || apiPrice || 3.99).toFixed(2);
+          const price = formatZipMonthlyPrice(population, 'loanOfficer');
           const dist = z.distance != null ? Number(z.distance).toFixed(1) : null;
           const distStr = dist ? ` • ${dist} mi` : '';
           const claimedBy = z.claimedBy || (z.claimedByAgent ? 'agent' : z.claimedByOfficer || z.claimedByLoanOfficer ? 'loanOfficer' : null);
@@ -484,12 +485,18 @@ export function LoanOfficerZipCodesPage() {
         showToast({ type: 'success', message: `ZIP ${pending.zipcode} claimed successfully.` });
         await loadClaimed();
         await loadStateZipCodes();
+        const next = takeNextZipFromCart(LOAN_OFFICER_ZIP_CART_KEY);
+        if (next) {
+          showToast({ type: 'info', message: `Continuing checkout for ZIP ${next.zipcode}...` });
+          await claimZipRef.current?.(next);
+        }
       } catch (err) {
         setStatus('');
         const msg = err?.message || '';
         if (isIncompleteCheckoutError(err)) {
           clearPendingZipCheckout(pendingKey);
           clearStripeReturnParams();
+          clearZipCart(LOAN_OFFICER_ZIP_CART_KEY);
           showToast({
             type: 'info',
             message: 'Payment was not completed. Select a ZIP code to try checkout again.',
@@ -509,8 +516,13 @@ export function LoanOfficerZipCodesPage() {
           showToast({ type: 'success', message: `ZIP ${pending.zipcode} claimed successfully.` });
           await loadClaimed();
           await loadStateZipCodes();
+          const nextClaimed = takeNextZipFromCart(LOAN_OFFICER_ZIP_CART_KEY);
+          if (nextClaimed) {
+            showToast({ type: 'info', message: `Continuing checkout for ZIP ${nextClaimed.zipcode}...` });
+            await claimZipRef.current?.(nextClaimed);
+          }
         } else {
-          showToast({ type: 'error', message: msg || 'Unable to finalize ZIP claim after payment.' });
+          showToast({ type: 'error', message: friendlyApiError(err, msg || 'Unable to finalize ZIP claim after payment.') });
         }
       }
     };
@@ -550,7 +562,7 @@ export function LoanOfficerZipCodesPage() {
         userId,
       });
       setWaitingListJoined((prev) => new Set([...prev, row.zipcode]));
-      showToast({ type: 'success', message: 'Added to waiting list.' });
+      showToast({ type: 'success', message: 'You\'re on the waiting list. We\'ll email you if this ZIP becomes available.' });
     } catch (err) {
       showToast({ type: 'error', message: err.message || 'Unable to join waiting list.' });
     } finally {
@@ -680,11 +692,45 @@ export function LoanOfficerZipCodesPage() {
 
       window.location.assign(checkoutUrl);
     } catch (err) {
-      showToast({ type: 'error', message: err.message || 'Unable to start Stripe payment for ZIP claim.' });
+      showToast({ type: 'error', message: friendlyApiError(err, 'Unable to start Stripe payment for ZIP claim.') });
     } finally {
       setClaimingZipId(null);
       setStatus('');
     }
+  };
+  claimZipRef.current = claimZip;
+
+  const toggleZipSelected = (zipcode) => {
+    setSelectedZips((prev) => {
+      const next = new Set(prev);
+      if (next.has(zipcode)) next.delete(zipcode);
+      else next.add(zipcode);
+      return next;
+    });
+  };
+
+  const claimSelectedZips = async () => {
+    const claimable = availableRows.filter((row) => (
+      selectedZips.has(row.zipcode)
+      && !claimedSet.has(String(row.zipcode))
+      && row.claimedBy !== 'loanOfficer'
+    ));
+    if (claimable.length === 0) {
+      showToast({ type: 'info', message: 'Select one or more available ZIP codes first.' });
+      return;
+    }
+    const remainingSlots = MAX_CLAIMED_ZIPS - claimedRows.length;
+    if (remainingSlots <= 0) {
+      showToast({ type: 'error', message: `You can claim up to ${MAX_CLAIMED_ZIPS} ZIP codes.` });
+      return;
+    }
+    const toClaim = claimable.slice(0, remainingSlots);
+    if (claimable.length > remainingSlots) {
+      showToast({ type: 'info', message: `You have ${remainingSlots} ZIP slot(s) left. Checking out the first ${toClaim.length}.` });
+    }
+    writeZipCart(LOAN_OFFICER_ZIP_CART_KEY, toClaim.slice(1));
+    setSelectedZips(new Set());
+    await claimZip(toClaim[0]);
   };
 
   const releaseZip = async (z) => {
@@ -759,6 +805,21 @@ export function LoanOfficerZipCodesPage() {
 
         {activeTab === 'available' ? (
           <section className="zip-tab-panel">
+            {selectedZips.size > 0 ? (
+              <div className="zip-multi-bar">
+                <p>
+                  {selectedZips.size} ZIP code{selectedZips.size === 1 ? '' : 's'} selected. Checkout once per ZIP (Stripe) — we will take you through each one in order.
+                </p>
+                <div className="zip-multi-bar-actions">
+                  <button type="button" className="btn ghost small" onClick={() => setSelectedZips(new Set())}>Clear</button>
+                  <button type="button" className="btn primary small" onClick={claimSelectedZips} disabled={claimingZipId != null}>
+                    Checkout selected
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <p className="zip-multi-hint">Tip: check multiple available ZIP codes, then Checkout selected — you do not have to search and pay one at a time from scratch.</p>
+            )}
             {(loadingAvailable || loadingSearch) ? (
               <AnimatedLoader variant="card" label="" />
             ) : (
@@ -774,16 +835,24 @@ export function LoanOfficerZipCodesPage() {
                     const isClaimedByOfficer = row.claimedBy === 'loanOfficer';
                     const hasJoined = waitingListJoined.has(row.zipcode);
                     const isJoining = joiningWaitingListZip === row.zipcode;
+                    const claimable = !isOwnClaimed && !isClaimedByOfficer;
+                    const isSelected = selectedZips.has(row.zipcode);
                     return (
-                      <article key={row.id} className="zip-card zip-card-pro">
+                      <article key={row.id} className={`zip-card zip-card-pro${isSelected ? ' zip-card--selected' : ''}`}>
                         <div className="zip-card-top">
                           <strong className="zip-code-badge">{row.zipcode}</strong>
                           <span className="zip-price">${row.price}<small>/mo</small></span>
                         </div>
                         <p className="zip-card-location">{row.city || 'Unknown city'}, {row.state}</p>
-                        <small className="zip-card-meta">Population: {Number(row.population || 0).toLocaleString()}{row.distance != null ? ` • ${row.distance} mi away` : ''}</small>
+                        <small className="zip-card-meta">{formatZipPopulationMeta(row.population, row.distance)}</small>
                         {isOwnClaimed && <small className="zip-card-claimed-badge">In your claimed ZIP codes</small>}
                         {!isOwnClaimed && isClaimedByOfficer && <small className="zip-card-claimed-badge">Already claimed by a loan officer</small>}
+                        {claimable ? (
+                          <label className="zip-select-row">
+                            <input type="checkbox" checked={isSelected} onChange={() => toggleZipSelected(row.zipcode)} />
+                            Select for checkout
+                          </label>
+                        ) : null}
                         <div className="zip-card-actions">
                           {isOwnClaimed ? (
                             <button className="btn ghost small" type="button" onClick={() => setActiveTab('claimed')}>
@@ -1166,7 +1235,7 @@ export function LoanOfficerChecklistsPage() {
         </div>
         <ol className="checklist-items checklist-lo">
           {REBATE_CHECKLIST_BUYING.map((item, i) => (
-            <li key={i} className="checklist-item"><span className="checklist-num">{i + 1}</span><span className="checklist-text">{item}</span></li>
+            <BuyingChecklistItem key={i} index={i} text={item} />
           ))}
         </ol>
       </section>

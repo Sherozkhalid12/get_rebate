@@ -6,7 +6,9 @@ import * as authApi from '../api/auth';
 import * as userApi from '../api/user';
 import { initSocket, disconnectSocket } from '../lib/socket';
 import { buildCreateUserFormData } from '../lib/buildCreateUserFormData';
+import { buildUpdateUserProfileFormData } from '../lib/buildUpdateUserProfileFormData';
 import { getPendingSignupFiles, clearPendingSignupFiles, setPendingSignupFiles } from '../lib/pendingSignupFiles';
+import { friendlyApiError } from '../lib/apiErrors';
 
 const AuthContext = createContext(null);
 const seedUser = storage.get('current_user', null);
@@ -119,16 +121,14 @@ export function AuthProvider({ children }) {
 
       const files = getPendingSignupFiles();
       const hasFiles = Boolean(files.profilePic || files.companyLogo || files.video);
-      const useMultipart =
-        hasFiles
-        || pending.role === USER_ROLES.AGENT
-        || pending.role === USER_ROLES.LOAN_OFFICER;
+      const isPro = pending.role === USER_ROLES.AGENT || pending.role === USER_ROLES.LOAN_OFFICER;
+      const useMultipart = isPro || hasFiles;
 
+      // Create the account without media first so a large photo/video cannot wipe the signup.
       const result = useMultipart
-        ? await authApi.createUser(buildCreateUserFormData(pending, files))
+        ? await authApi.createUser(buildCreateUserFormData(pending, {}))
         : await authApi.createUser(pending);
 
-      clearPendingSignupFiles();
       const token = result?.token || result?.data?.token;
       const signupUser = normalizeUser(result?.user || result?.data?.user || result?.data);
       const signupUserId = signupUser?.id ?? signupUser?._id ?? signupUser?.userId;
@@ -136,6 +136,35 @@ export function AuthProvider({ children }) {
 
       storage.remove('pending_signup');
       storage.set('auth_token', token || '');
+
+      if (hasFiles) {
+        const failed = [];
+        const roleKey = pending.role === USER_ROLES.LOAN_OFFICER ? 'loanOfficer' : pending.role === USER_ROLES.AGENT ? 'agent' : 'buyerSeller';
+        const parts = [
+          ['profilePic', 'Headshot', files.profilePic],
+          ['companyLogo', 'Company logo', files.companyLogo],
+          ['video', 'Intro video', files.video],
+        ];
+        for (const [key, label, file] of parts) {
+          if (!(file instanceof File)) continue;
+          try {
+            await userApi.updateUser(
+              signupUserId,
+              buildUpdateUserProfileFormData(roleKey, {}, { [key]: file }),
+            );
+          } catch (mediaErr) {
+            failed.push(`${label}: ${friendlyApiError(mediaErr, 'upload failed')}`);
+          }
+        }
+        if (failed.length) {
+          storage.set(
+            'signup_media_warning',
+            `Account created, but some files did not upload (${failed.join(' ')}). Add them from Edit Profile. Headshot/logo max 1 MB (photos auto-resize). Video max 25 MB.`,
+          );
+        }
+      }
+
+      clearPendingSignupFiles();
       const currentUser = await fetchAndSetUser(signupUserId, setUser);
       return currentUser;
     } finally {

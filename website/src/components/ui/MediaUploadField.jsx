@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { getUploadLimitsForVariant, processFileForUpload, formatFileSize } from '../../lib/mediaUpload';
 
 function UploadGlyph({ variant }) {
@@ -42,6 +42,17 @@ export function MediaUploadField({
   const limits = getUploadLimitsForVariant(variant);
   const [processing, setProcessing] = useState(false);
   const [compressNote, setCompressNote] = useState('');
+  const [previewUrl, setPreviewUrl] = useState('');
+
+  useEffect(() => {
+    if (!(file instanceof File) || variant === 'video') {
+      setPreviewUrl('');
+      return undefined;
+    }
+    const url = URL.createObjectURL(file);
+    setPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file, variant]);
 
   const limitsHint = hint || limits.hint;
   const acceptAttr = accept || limits.accept;
@@ -96,8 +107,12 @@ export function MediaUploadField({
           onChange={(e) => handlePick(e.target.files?.[0] ?? null)}
         />
         <div className="auth-upload__main">
-          <div className="auth-upload__visual">
-            <UploadGlyph variant={variant} />
+          <div className={`auth-upload__visual${previewUrl ? ' auth-upload__visual--preview' : ''}`}>
+            {previewUrl ? (
+              <img src={previewUrl} alt="" className="auth-upload__preview-img" />
+            ) : (
+              <UploadGlyph variant={variant} />
+            )}
           </div>
           <div className="auth-upload__content">
             {processing ? (

@@ -46,6 +46,8 @@ export function PaymentCancelPage() {
   useEffect(() => {
     window.localStorage.removeItem('pending_agent_zip_checkout');
     window.localStorage.removeItem('pending_loan_officer_zip_checkout');
+    window.localStorage.removeItem('pending_agent_zip_cart');
+    window.localStorage.removeItem('pending_loan_officer_zip_cart');
   }, []);
 
   const role = user?.role;

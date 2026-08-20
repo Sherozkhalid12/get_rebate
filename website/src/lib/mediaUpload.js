@@ -103,6 +103,9 @@ export async function compressImageFile(file, limits = UPLOAD_LIMITS.profileImag
     bitmap.close?.();
     throw new Error('Could not process image in this browser.');
   }
+  // JPEG has no alpha. Fill white first so transparent PNG logos do not become a black box.
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, w, h);
   ctx.drawImage(bitmap, 0, 0, w, h);
   bitmap.close?.();
 

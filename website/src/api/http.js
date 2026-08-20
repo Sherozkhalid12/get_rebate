@@ -1,6 +1,7 @@
 import { API_BASE_URL } from '../lib/constants';
 import { storage } from '../lib/storage';
 import { networkUploadErrorMessage } from '../lib/mediaUpload';
+import { friendlyApiError } from '../lib/apiErrors';
 
 async function request(path, options = {}) {
   const token = storage.get('auth_token');
@@ -41,9 +42,9 @@ async function request(path, options = {}) {
   }
 
   if (!res.ok) {
-    const message = body?.message || body?.error || body?.msg || (typeof body === 'string' ? body : null) || `Request failed (${res.status})`;
+    const raw = body?.message || body?.error || body?.msg || (typeof body === 'string' ? body : null) || `Request failed (${res.status})`;
     console.error('[HTTP] Error', res.status, path, body);
-    throw new Error(message);
+    throw new Error(friendlyApiError(raw, raw));
   }
 
   if (path.includes('/zip-codes/') || path.includes('/subscription/')) {

@@ -7,8 +7,7 @@ import { AnimatedLoader } from '../ui/AnimatedLoader';
 import { IconGlyph } from '../ui/IconGlyph';
 import { US_STATES } from '../../lib/constants';
 import { unwrapList, extractUserFromGetUserById } from '../../lib/api';
-import { calculatePriceForPopulation } from '../../lib/zipCodePricing';
-import { calculateLoanOfficerPriceForPopulation } from '../../lib/zipCodePricing';
+import { formatZipMonthlyPrice, formatZipPopulationMeta } from '../../lib/zipCodePricing';
 import * as userApi from '../../api/user';
 import * as zipApi from '../../api/zipcodes';
 import {
@@ -116,7 +115,7 @@ export function FirstZipClaimDialog({ role, userId, onClose }) {
         };
       }));
     } catch {
-      setClaimedRows([]);
+      /* keep any zips already shown */
     }
   };
 
@@ -125,12 +124,11 @@ export function FirstZipClaimDialog({ role, userId, onClose }) {
     setLoadingAvailable(true);
     try {
       const response = await zipApi.getStateZipCodes('US', stateCode);
-      const calcPrice = isAgent ? calculatePriceForPopulation : calculateLoanOfficerPriceForPopulation;
+      const role = isAgent ? 'agent' : 'loanOfficer';
       const rows = unwrapList(response, ['zipCodes', 'data', 'results']).map((z, i) => {
         const zipcode = z.postalCode || z.zipCode || z.zipcode;
         const population = Number(z.population || 0);
-        const apiPrice = Number(z.calculatedPrice || z.price || 0);
-        const price = (population > 0 ? calcPrice(population) : apiPrice || 0).toFixed(2);
+        const price = formatZipMonthlyPrice(population, role);
         const claimedBy = z.claimedBy || (z.claimedByAgent ? 'agent' : z.claimedByOfficer || z.claimedByLoanOfficer ? 'loanOfficer' : null);
         return {
           id: z._id || z.id || `${stateCode}-${zipcode || i}`,
@@ -171,12 +169,11 @@ export function FirstZipClaimDialog({ role, userId, onClose }) {
       try {
         const response = await zipApi.searchZipCode('US', stateCode, zip);
         const flat = flattenZipCodeResponse(response);
-        const calcPrice = isAgent ? calculatePriceForPopulation : calculateLoanOfficerPriceForPopulation;
+        const role = isAgent ? 'agent' : 'loanOfficer';
         const rows = flat.map((z, i) => {
           const zipcode = z.postalCode || z.zipCode || z.zipcode;
           const population = parseZipPopulation(z);
-          const apiPrice = Number(z.calculatedPrice || z.price || 0);
-          const price = (population > 0 ? calcPrice(population) : apiPrice || 0).toFixed(2);
+          const price = formatZipMonthlyPrice(population, role);
           const dist = z.distance != null ? Number(z.distance).toFixed(1) : null;
           const claimedBy = z.claimedBy || (z.claimedByAgent ? 'agent' : z.claimedByOfficer || z.claimedByLoanOfficer ? 'loanOfficer' : null);
           return {
@@ -527,7 +524,7 @@ export function FirstZipClaimDialog({ role, userId, onClose }) {
                           <span className="zip-price">${row.price}<small>/mo</small></span>
                         </div>
                         <p className="zip-card-location">{row.city || 'Unknown city'}, {row.state}</p>
-                        <small className="zip-card-meta">Population: {Number(row.population || 0).toLocaleString()}{row.distance != null ? ` • ${row.distance} mi away` : ''}</small>
+                        <small className="zip-card-meta">{formatZipPopulationMeta(row.population, row.distance)}</small>
                         {isOwnClaimed && <small className="zip-card-claimed-badge">Already in your claimed ZIP codes</small>}
                         {!isOwnClaimed && isClaimedByOther && (
                           <small className="zip-card-claimed-badge">

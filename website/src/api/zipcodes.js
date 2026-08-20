@@ -47,6 +47,40 @@ export function clearPendingZipCheckout(pendingKey) {
   localStorage.removeItem(pendingKey);
 }
 
+export const AGENT_ZIP_CART_KEY = 'pending_agent_zip_cart';
+export const LOAN_OFFICER_ZIP_CART_KEY = 'pending_loan_officer_zip_cart';
+
+export function readZipCart(key) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export function writeZipCart(key, items) {
+  if (!items?.length) {
+    localStorage.removeItem(key);
+    return;
+  }
+  localStorage.setItem(key, JSON.stringify(items));
+}
+
+export function takeNextZipFromCart(key) {
+  const items = readZipCart(key);
+  if (!items.length) return null;
+  const [next, ...rest] = items;
+  writeZipCart(key, rest);
+  return next;
+}
+
+export function clearZipCart(key) {
+  localStorage.removeItem(key);
+}
+
 export function getSessionIdFromUrl() {
   const search = new URLSearchParams(window.location.search);
   let id = search.get('session_id') || search.get('sessionId') || search.get('checkout_session_id');

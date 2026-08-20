@@ -14,9 +14,13 @@ const AGENT_TIERS = [
   { min: 100001, max: null, price: 49.99 },
 ];
 
-/** Loan Officer tiers (different from Agent) */
+export const MIN_AGENT_PRICE = 7.99;
+export const MIN_LOAN_OFFICER_PRICE = 3.99;
+export const MAX_CLAIMED_ZIPS = 6;
+
+/** Loan Officer tiers (different from Agent). min 0 so unique/PO Box ZIPs are not $0. */
 const LOAN_OFFICER_TIERS = [
-  { min: 100, max: 1001, price: 3.99 },
+  { min: 0, max: 1001, price: 3.99 },
   { min: 1001, max: 3001, price: 5.99 },
   { min: 3001, max: 7501, price: 7.99 },
   { min: 7501, max: 15001, price: 9.99 },
@@ -49,4 +53,29 @@ export function calculatePriceForPopulation(population) {
  */
 export function calculateLoanOfficerPriceForPopulation(population) {
   return getPriceFromTiers(population, LOAN_OFFICER_TIERS);
+}
+
+/**
+ * Monthly price string for display/checkout. Never returns 0.00.
+ * Unique / PO Box ZIPs (population 0) use the minimum tier.
+ */
+export function formatZipMonthlyPrice(population, role = 'agent') {
+  const pop = Number(population) || 0;
+  const isLo = role === 'loanOfficer' || role === 'loanofficer';
+  const calc = isLo ? calculateLoanOfficerPriceForPopulation : calculatePriceForPopulation;
+  const floor = isLo ? MIN_LOAN_OFFICER_PRICE : MIN_AGENT_PRICE;
+  const n = Number(calc(pop) || floor) || floor;
+  return n.toFixed(2);
+}
+
+/** Population line on ZIP cards. Unique ZIPs are not residential census areas. */
+export function formatZipPopulationMeta(population, distance) {
+  const pop = Number(population) || 0;
+  const popStr = pop > 0
+    ? `Population: ${pop.toLocaleString()}`
+    : 'Unique / PO Box ZIP (no residential population on file)';
+  if (distance == null || distance === '') return popStr;
+  const d = Number(distance);
+  if (!Number.isFinite(d) || d === 0) return popStr;
+  return `${popStr} • ${distance} mi away`;
 }

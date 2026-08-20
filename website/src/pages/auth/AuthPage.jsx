@@ -5,6 +5,11 @@ import { USER_ROLES, US_STATES } from '../../lib/constants';
 import { AGENT_EXPERTISE_OPTIONS, LOAN_SPECIALTY_OPTIONS } from '../../lib/profileOptions';
 import { ZipInputWithLocation } from '../../components/ui/ZipInputWithLocation';
 import { AnimatedLoader } from '../../components/ui/AnimatedLoader';
+import { MediaUploadField } from '../../components/ui/MediaUploadField';
+import { ProfileUploadGuidelines } from '../../components/ui/ProfileUploadGuidelines';
+import { getPendingSignupFiles } from '../../lib/pendingSignupFiles';
+import { storage } from '../../lib/storage';
+import { friendlyApiError } from '../../lib/apiErrors';
 function normalizePhoneDigits(value) {
   return String(value || '').replace(/\D/g, '');
 }
@@ -19,108 +24,6 @@ const roleOptions = [
   { value: USER_ROLES.AGENT, label: 'Agent' },
   { value: USER_ROLES.LOAN_OFFICER, label: 'Loan Officer' },
 ];
-
-function UploadGlyph({ variant }) {
-  const cls = 'auth-upload__svg';
-  if (variant === 'profile') {
-    return (
-      <svg className={cls} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
-        <circle cx="12" cy="9" r="3.5" stroke="currentColor" strokeWidth="1.5" />
-        <path d="M6 19.5c0-3.5 3-5.5 6-5.5s6 2 6 5.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-      </svg>
-    );
-  }
-  if (variant === 'logo') {
-    return (
-      <svg className={cls} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
-        <rect x="4" y="4" width="16" height="16" rx="2.5" stroke="currentColor" strokeWidth="1.5" />
-        <path d="M8 16l2.5-3.5 2 2.5L16 11l3 5" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" strokeLinejoin="round" />
-        <circle cx="9.5" cy="9.5" r="1.25" fill="currentColor" />
-      </svg>
-    );
-  }
-  return (
-    <svg className={cls} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
-      <rect x="3" y="5" width="14" height="14" rx="2" stroke="currentColor" strokeWidth="1.5" />
-      <path d="M17 9l4-2v10l-4-2" fill="currentColor" opacity="0.25" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-/** Premium file row: hidden input + custom actions (matches app polish). */
-function AuthFileUploadRow({
-  label,
-  hint,
-  accept,
-  field,
-  file,
-  variant,
-  setForm,
-}) {
-  const inputRef = useRef(null);
-  const pick = (f) => setForm((p) => ({ ...p, [field]: f }));
-  const clear = () => {
-    if (inputRef.current) inputRef.current.value = '';
-    setForm((p) => ({ ...p, [field]: null }));
-  };
-
-  return (
-    <div
-      className={`auth-upload auth-upload--${variant}${file ? ' auth-upload--has-file' : ''}`}
-    >
-      <div className="auth-upload__header">
-        <span className="auth-upload__label">{label}</span>
-        {hint ? <span className="auth-upload__hint">{hint}</span> : null}
-      </div>
-      <div className="auth-upload__surface">
-        <input
-          ref={inputRef}
-          type="file"
-          accept={accept}
-          className="auth-upload__native"
-          onChange={(e) => pick(e.target.files?.[0] ?? null)}
-        />
-        <div className="auth-upload__main">
-          <div className="auth-upload__visual">
-            <UploadGlyph variant={variant} />
-          </div>
-          <div className="auth-upload__content">
-            {!file ? (
-              <>
-                <p className="auth-upload__pitch">
-                  {variant === 'video'
-                    ? 'MP4 or MOV — a short intro helps buyers trust you.'
-                    : variant === 'logo'
-                      ? 'Square PNG or SVG looks best on your profile.'
-                      : 'A clear headshot helps your profile stand out.'}
-                </p>
-                <button
-                  type="button"
-                  className="auth-upload__cta"
-                  onClick={() => inputRef.current?.click()}
-                >
-                  Browse files
-                </button>
-              </>
-            ) : (
-              <div className="auth-upload__picked">
-                <span className="auth-upload__filename" title={file.name}>{file.name}</span>
-                <div className="auth-upload__picked-actions">
-                  <button type="button" className="auth-upload__mini auth-upload__mini--solid" onClick={() => inputRef.current?.click()}>
-                    Replace
-                  </button>
-                  <button type="button" className="auth-upload__mini auth-upload__mini--ghost" onClick={clear}>
-                    Remove
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 const roleDefaults = {
   [USER_ROLES.BUYER_SELLER]: {},
@@ -181,6 +84,46 @@ export function AuthPage() {
   });
   const { login, signup, loading } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const pending = storage.get('pending_signup', null);
+    if (!pending) return;
+    const files = getPendingSignupFiles();
+    let licensed = pending.licensedStates;
+    if (typeof licensed === 'string') {
+      try { licensed = JSON.parse(licensed); } catch { licensed = []; }
+    }
+    if (!Array.isArray(licensed)) licensed = [];
+    setMode('signup');
+    setForm((prev) => ({
+      ...prev,
+      name: pending.fullname || pending.name || prev.name,
+      email: pending.email || prev.email,
+      password: pending.password || prev.password,
+      role: pending.role || prev.role,
+      phone: pending.phone || prev.phone,
+      CompanyName: pending.CompanyName || prev.CompanyName,
+      liscenceNumber: pending.liscenceNumber || prev.liscenceNumber,
+      zipCode: pending.zipCode || prev.zipCode,
+      licensedStates: licensed,
+      isDualAgencyAllowedInState: Boolean(pending.isDualAgencyAllowedInState),
+      isDualAgencyAllowedAtBrokerage: Boolean(pending.isDualAgencyAllowedAtBrokerage),
+      agentVerificationConfirmed: Boolean(pending.agentVerificationConfirmed),
+      loanOfficerVerificationConfirmed: Boolean(pending.loanOfficerVerificationConfirmed),
+      bio: pending.bio || prev.bio,
+      websiteUrl: pending.websiteUrl || prev.websiteUrl,
+      googleReviewsUrl: pending.googleReviewsUrl || prev.googleReviewsUrl,
+      thirdPartyReviewsUrl: pending.thirdPartyReviewsUrl || prev.thirdPartyReviewsUrl,
+      mortgageApplicationUrl: pending.mortgageApplicationUrl || prev.mortgageApplicationUrl,
+      externalReviewsUrl: pending.externalReviewsUrl || prev.externalReviewsUrl,
+      expertise: Array.isArray(pending.expertise) ? pending.expertise : prev.expertise,
+      specialtyProducts: Array.isArray(pending.specialtyProducts) ? pending.specialtyProducts : prev.specialtyProducts,
+      profilePic: files.profilePic || prev.profilePic,
+      companyLogo: files.companyLogo || prev.companyLogo,
+      video: files.video || prev.video,
+      agreeTos: true,
+    }));
+  }, []);
 
   const onChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -287,7 +230,7 @@ export function AuthPage() {
 
       navigate('/verify-otp', { state: { email: form.email } });
     } catch (err) {
-      setError(err.message || 'Unable to continue.');
+      setError(friendlyApiError(err, err.message || 'Unable to continue.'));
     }
   };
 
@@ -312,14 +255,12 @@ export function AuthPage() {
 
         {mode === 'signup' ? <input name="name" value={form.name} onChange={onChange} placeholder="Full name" required /> : null}
         {mode === 'signup' ? (
-          <AuthFileUploadRow
+          <MediaUploadField
             label="Profile photo"
-            hint="Optional"
-            accept="image/*"
-            field="profilePic"
-            file={form.profilePic}
             variant="profile"
-            setForm={setForm}
+            file={form.profilePic}
+            onFileChange={(f) => setForm((p) => ({ ...p, profilePic: f }))}
+            onValidationError={(msg) => setError(msg)}
           />
         ) : null}
         <input name="email" type="email" value={form.email} onChange={onChange} placeholder="Email" required />
@@ -340,16 +281,15 @@ export function AuthPage() {
 
             {(isAgent || isLoanOfficer) ? (
               <>
+                <ProfileUploadGuidelines />
                 <input name="CompanyName" value={form.CompanyName} onChange={onChange} placeholder={isAgent ? 'Brokerage / Company' : 'Lender Company'} required />
                 <input name="liscenceNumber" value={form.liscenceNumber} onChange={onChange} placeholder="License Number" required />
-                <AuthFileUploadRow
+                <MediaUploadField
                   label="Company logo"
-                  hint="Optional · branding on your profile"
-                  accept="image/*"
-                  field="companyLogo"
-                  file={form.companyLogo}
                   variant="logo"
-                  setForm={setForm}
+                  file={form.companyLogo}
+                  onFileChange={(f) => setForm((p) => ({ ...p, companyLogo: f }))}
+                  onValidationError={(msg) => setError(msg)}
                 />
                 <div className="states-dropdown-wrap" ref={statesRef}>
                   <label className="states-label">Licensed states</label>
@@ -424,14 +364,12 @@ export function AuthPage() {
               <div className="auth-profile-extra glass-card auth-profile-extra--agent">
                 <h3 className="auth-profile-extra-title">Agent profile (optional)</h3>
                 <p className="form-hint auth-profile-extra__lede">Video intro, bio, home types you focus on, and links—same data as the mobile app.</p>
-                <AuthFileUploadRow
+                <MediaUploadField
                   label="Video introduction"
-                  hint="Optional"
-                  accept="video/*"
-                  field="video"
-                  file={form.video}
                   variant="video"
-                  setForm={setForm}
+                  file={form.video}
+                  onFileChange={(f) => setForm((p) => ({ ...p, video: f }))}
+                  onValidationError={(msg) => setError(msg)}
                 />
                 <textarea name="bio" value={form.bio} onChange={onChange} placeholder="Bio / introduction" rows={3} />
                 <p className="auth-profile-extra__section-label">Areas of expertise</p>
@@ -458,14 +396,12 @@ export function AuthPage() {
               <div className="auth-profile-extra glass-card auth-profile-extra--lo">
                 <h3 className="auth-profile-extra-title">Loan officer profile (optional)</h3>
                 <p className="form-hint auth-profile-extra__lede">Video intro, bio, loan programs you specialize in, and links—same data as the mobile app.</p>
-                <AuthFileUploadRow
+                <MediaUploadField
                   label="Video introduction"
-                  hint="Optional"
-                  accept="video/*"
-                  field="video"
-                  file={form.video}
                   variant="video"
-                  setForm={setForm}
+                  file={form.video}
+                  onFileChange={(f) => setForm((p) => ({ ...p, video: f }))}
+                  onValidationError={(msg) => setError(msg)}
                 />
                 <textarea name="bio" value={form.bio} onChange={onChange} placeholder="Bio / introduction" rows={3} />
                 <p className="auth-profile-extra__section-label">Loan programs & specialties</p>

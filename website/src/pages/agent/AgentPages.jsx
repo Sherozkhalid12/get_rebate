@@ -25,8 +25,13 @@ import {
   prepareZipSearchRows,
   parseZipPopulation,
   filterAvailableZipRows,
+  AGENT_ZIP_CART_KEY,
+  writeZipCart,
+  takeNextZipFromCart,
+  clearZipCart,
 } from '../../api/zipcodes';
-import { calculatePriceForPopulation } from '../../lib/zipCodePricing';
+import { formatZipMonthlyPrice, formatZipPopulationMeta, MAX_CLAIMED_ZIPS } from '../../lib/zipCodePricing';
+import { friendlyApiError } from '../../lib/apiErrors';
 import * as leadsApi from '../../api/leads';
 import * as userApi from '../../api/user';
 import * as chatApi from '../../api/chat';
@@ -377,6 +382,8 @@ export function AgentZipCodesPage() {
   const [releasingZipId, setReleasingZipId] = useState(null);
   const [joiningWaitingListZip, setJoiningWaitingListZip] = useState(null);
   const [waitingListJoined, setWaitingListJoined] = useState(new Set());
+  const [selectedZips, setSelectedZips] = useState(() => new Set());
+  const claimZipRef = useRef(null);
   const [waitingListModalZip, setWaitingListModalZip] = useState(null);
   const [waitingListEntries, setWaitingListEntries] = useState([]);
   const [loadingWaitingList, setLoadingWaitingList] = useState(false);
@@ -435,8 +442,8 @@ export function AgentZipCodesPage() {
           stripeSubscriptionId: matchedSub?.stripeSubscriptionId || matchedSub?._id || '',
         };
       }));
-    } catch {
-      setClaimedRows([]);
+    } catch (err) {
+      showToast({ type: 'error', message: friendlyApiError(err, 'Unable to load claimed ZIP codes. Refresh and try again.') });
     }
   };
 
@@ -466,13 +473,7 @@ export function AgentZipCodesPage() {
       const rows = unwrapList(response, ['zipCodes', 'data', 'results']).map((z, i) => {
         const zipcode = z.postalCode || z.zipCode || z.zipcode;
         const population = Number(z.population || 0);
-        // Use local tier price when it returns a value (preserves existing
-        // tier system: 0-1000=$7.99, etc.). For PO Box / unknown ZIPs where
-        // the tier returns 0, fall back to backend pricePerMonth ($5+).
-        // Absolute floor at $7.99 so no row ever shows $0.
-        const tierPrice = calculatePriceForPopulation(population);
-        const apiPrice = Number(z.pricePerMonth || z.calculatedPrice || z.price || 0);
-        const price = (tierPrice || apiPrice || 7.99).toFixed(2);
+        const price = formatZipMonthlyPrice(population, 'agent');
         const claimedBy = z.claimedBy || (z.claimedByAgent ? 'agent' : z.claimedByOfficer || z.claimedByLoanOfficer ? 'loanOfficer' : null);
         return {
           id: z._id || z.id || `${stateCode}-${zipcode || i}`,
@@ -522,9 +523,7 @@ export function AgentZipCodesPage() {
         const rows = flat.map((z, i) => {
           const zipcode = z.postalCode || z.zipCode || z.zipcode;
           const population = parseZipPopulation(z);
-          const tierPrice = calculatePriceForPopulation(population);
-          const apiPrice = Number(z.pricePerMonth || z.calculatedPrice || z.price || 0);
-          const price = (tierPrice || apiPrice || 7.99).toFixed(2);
+          const price = formatZipMonthlyPrice(population, 'agent');
           const dist = z.distance != null ? Number(z.distance).toFixed(1) : null;
           const distStr = dist ? ` • ${dist} mi` : '';
           const claimedBy = z.claimedBy || (z.claimedByAgent ? 'agent' : z.claimedByOfficer || z.claimedByLoanOfficer ? 'loanOfficer' : null);
@@ -619,12 +618,18 @@ export function AgentZipCodesPage() {
         showToast({ type: 'success', message: `ZIP ${pending.zipcode} claimed successfully.` });
         await loadClaimed();
         await loadStateZipCodes();
+        const next = takeNextZipFromCart(AGENT_ZIP_CART_KEY);
+        if (next) {
+          showToast({ type: 'info', message: `Continuing checkout for ZIP ${next.zipcode}...` });
+          await claimZipRef.current?.(next);
+        }
       } catch (err) {
         setStatus('');
         const msg = err?.message || '';
         if (isIncompleteCheckoutError(err)) {
           clearPendingZipCheckout(pendingKey);
           clearStripeReturnParams();
+          clearZipCart(AGENT_ZIP_CART_KEY);
           showToast({
             type: 'info',
             message: 'Payment was not completed. Select a ZIP code to try checkout again.',
@@ -644,8 +649,13 @@ export function AgentZipCodesPage() {
           showToast({ type: 'success', message: `ZIP ${pending.zipcode} claimed successfully.` });
           await loadClaimed();
           await loadStateZipCodes();
+          const nextClaimed = takeNextZipFromCart(AGENT_ZIP_CART_KEY);
+          if (nextClaimed) {
+            showToast({ type: 'info', message: `Continuing checkout for ZIP ${nextClaimed.zipcode}...` });
+            await claimZipRef.current?.(nextClaimed);
+          }
         } else {
-          showToast({ type: 'error', message: msg || 'Unable to finalize ZIP claim after payment.' });
+          showToast({ type: 'error', message: friendlyApiError(err, msg || 'Unable to finalize ZIP claim after payment.') });
         }
       }
     };
@@ -767,11 +777,46 @@ export function AgentZipCodesPage() {
 
       window.location.assign(checkoutUrl);
     } catch (err) {
-      showToast({ type: 'error', message: err.message || 'Unable to start Stripe payment for ZIP claim.' });
+      showToast({ type: 'error', message: friendlyApiError(err, 'Unable to start Stripe payment for ZIP claim.') });
     } finally {
       setClaimingZipId(null);
       setStatus('');
     }
+  };
+  claimZipRef.current = claimZip;
+
+  const toggleZipSelected = (zipcode, claimable) => {
+    if (!claimable) return;
+    setSelectedZips((prev) => {
+      const next = new Set(prev);
+      if (next.has(zipcode)) next.delete(zipcode);
+      else next.add(zipcode);
+      return next;
+    });
+  };
+
+  const claimSelectedZips = async () => {
+    const claimable = availableRows.filter((row) => (
+      selectedZips.has(row.zipcode)
+      && !claimedSet.has(String(row.zipcode))
+      && row.claimedBy !== 'agent'
+    ));
+    if (claimable.length === 0) {
+      showToast({ type: 'info', message: 'Select one or more available ZIP codes first.' });
+      return;
+    }
+    const remainingSlots = MAX_CLAIMED_ZIPS - claimedRows.length;
+    if (remainingSlots <= 0) {
+      showToast({ type: 'error', message: `You can claim up to ${MAX_CLAIMED_ZIPS} ZIP codes.` });
+      return;
+    }
+    const toClaim = claimable.slice(0, remainingSlots);
+    if (claimable.length > remainingSlots) {
+      showToast({ type: 'info', message: `You have ${remainingSlots} ZIP slot(s) left. Checking out the first ${toClaim.length}.` });
+    }
+    writeZipCart(AGENT_ZIP_CART_KEY, toClaim.slice(1));
+    setSelectedZips(new Set());
+    await claimZip(toClaim[0]);
   };
 
   const joinWaitingList = async (row) => {
@@ -786,7 +831,7 @@ export function AgentZipCodesPage() {
         userId,
       });
       setWaitingListJoined((prev) => new Set([...prev, row.zipcode]));
-      showToast({ type: 'success', message: 'Added to waiting list.' });
+      showToast({ type: 'success', message: 'You\'re on the waiting list. We\'ll email you if this ZIP becomes available.' });
     } catch (err) {
       showToast({ type: 'error', message: err.message || 'Unable to join waiting list.' });
     } finally {
@@ -907,6 +952,21 @@ export function AgentZipCodesPage() {
 
         {activeTab === 'available' ? (
           <section className="zip-tab-panel">
+            {selectedZips.size > 0 ? (
+              <div className="zip-multi-bar">
+                <p>
+                  {selectedZips.size} ZIP code{selectedZips.size === 1 ? '' : 's'} selected. Checkout once per ZIP (Stripe) — we will take you through each one in order.
+                </p>
+                <div className="zip-multi-bar-actions">
+                  <button type="button" className="btn ghost small" onClick={() => setSelectedZips(new Set())}>Clear</button>
+                  <button type="button" className="btn primary small" onClick={claimSelectedZips} disabled={claimingZipId != null}>
+                    Checkout selected
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <p className="zip-multi-hint">Tip: check multiple available ZIP codes, then Checkout selected — you do not have to search and pay one at a time from scratch.</p>
+            )}
             {(loadingAvailable || loadingSearch) ? (
               <AnimatedLoader variant="card" label="" />
             ) : (
@@ -922,16 +982,28 @@ export function AgentZipCodesPage() {
                     const isClaimedByAgent = row.claimedBy === 'agent';
                     const hasJoined = waitingListJoined.has(row.zipcode);
                     const isJoining = joiningWaitingListZip === row.zipcode;
+                    const claimable = !isOwnClaimed && !isClaimedByAgent;
+                    const isSelected = selectedZips.has(row.zipcode);
                     return (
-                      <article key={row.id} className="zip-card zip-card-pro">
+                      <article key={row.id} className={`zip-card zip-card-pro${isSelected ? ' zip-card--selected' : ''}`}>
                         <div className="zip-card-top">
                           <strong className="zip-code-badge">{row.zipcode}</strong>
                           <span className="zip-price">${row.price}<small>/mo</small></span>
                         </div>
                         <p className="zip-card-location">{row.city || 'Unknown city'}, {row.state}</p>
-                        <small className="zip-card-meta">Population: {Number(row.population || 0).toLocaleString()}{row.distance != null ? ` • ${row.distance} mi away` : ''}</small>
+                        <small className="zip-card-meta">{formatZipPopulationMeta(row.population, row.distance)}</small>
                         {isOwnClaimed && <small className="zip-card-claimed-badge">In your claimed ZIP codes</small>}
                         {!isOwnClaimed && isClaimedByAgent && <small className="zip-card-claimed-badge">Already claimed by an agent</small>}
+                        {claimable ? (
+                          <label className="zip-select-row">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => toggleZipSelected(row.zipcode, true)}
+                            />
+                            Select for checkout
+                          </label>
+                        ) : null}
                         <div className="zip-card-actions">
                           {isOwnClaimed ? (
                             <button className="btn ghost small" type="button" onClick={() => setActiveTab('claimed')}>
