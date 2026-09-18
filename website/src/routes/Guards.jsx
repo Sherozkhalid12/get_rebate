@@ -1,6 +1,13 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { AnimatedLoader } from '../components/ui/AnimatedLoader';
+import { USER_ROLES } from '../lib/constants';
+
+function homeForRole(role) {
+  if (role === USER_ROLES.AGENT) return '/agent';
+  if (role === USER_ROLES.LOAN_OFFICER) return '/loan-officer';
+  return '/app';
+}
 
 export function RequireAuth({ children }) {
   const { isAuthenticated, userLoaded } = useAuth();
@@ -16,9 +23,7 @@ export function RequireRole({ role, children }) {
 
   if (!userLoaded) return <AnimatedLoader variant="full" label="Loading..." />;
   if (currentRole !== role) {
-    if (currentRole === 'agent') return <Navigate to="/agent" replace />;
-    if (currentRole === 'loanOfficer') return <Navigate to="/loan-officer" replace />;
-    return <Navigate to="/app" replace />;
+    return <Navigate to={homeForRole(currentRole)} replace />;
   }
   return children;
 }
